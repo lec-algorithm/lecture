@@ -55,6 +55,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 <Slide class="cover">   {/* 표지: 가운데 정렬, 큰 제목 */}
 <Slide>                 {/* 일반 슬라이드: 제목이 위에 고정 */}
 <Slide class="center">  {/* 짧은 내용: 세로 가운데 정렬 */}
+<Slide class="compact"> {/* 코드 블록이 있을 때: 높이를 늘리지 않음 */}
 <Slide toc={false}>     {/* 이 슬라이드를 목차에서 제외 */}
 <Slide source="출처">   {/* 오른쪽 아래 작은 출처 표기 */}
 ```
@@ -62,6 +63,8 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 - 제목 아래 부제는 `::sub[부제 내용]` 디렉티브로 쓴다.
 - 프론트매터에서 `transition`(slide/none), `theme`, `aspect`, `toc_level`을 고른다.
 - 코드 블록과 mermaid 다이어그램을 그대로 쓸 수 있다.
+- **코드 블록이 있으면 `class="compact"`를 붙인다.** 기본값은 코드 블록을
+  슬라이드 높이만큼 늘리므로 짧은 코드가 큰 빈 상자가 된다.
 - 작성 후에는 브라우저에서 넘겨보며 줄바꿈을 확인한다 (writing-rules의 슬라이드 규칙)
 
 ## 알려진 빌드 로그

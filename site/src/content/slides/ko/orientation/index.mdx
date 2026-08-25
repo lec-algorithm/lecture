@@ -84,43 +84,90 @@ flowchart LR
 ## 수업 준비물
 ::sub[설치하는 것은 둘, 만들어 둘 것은 하나]
 
-- **Git**: 실습 코드를 받고 과제를 제출합니다.
-- **Docker**: 실습 코드가 도는 컨테이너입니다.
-- **GitHub 계정**: 개인프로젝트 제출에 필요합니다.
+| 준비물 | 받는 곳 | 확인 |
+| --- | --- | --- |
+| **Git** | [git-scm.com/downloads](https://git-scm.com/downloads) | `git --version` |
+| **Docker Desktop** | [docker.com/get-started](https://www.docker.com/get-started/) | `docker compose version` |
+| **GitHub 계정** | [github.com/signup](https://github.com/signup) | 로그인이 되면 끝 |
 
-컴파일러와 Python은 설치하지 않습니다.  
-컨테이너 안에 이미 들어 있습니다.
+- macOS는 `xcode-select --install`로 Git이 함께 깔립니다.
+- Windows는 Docker Desktop 설치 중 WSL2를 함께 켭니다.
 
 </Slide>
 
-<Slide>
+<Slide class="compact">
 
-### 첫 명령
+### 컴파일러와 Python은 설치하지 않습니다
+
+컨테이너 이미지 안에 들어 있습니다.
+
+```console
+$ gcc --version
+gcc (Debian 14.2.0-19) 14.2.0
+$ python3 --version
+Python 3.13.5
+```
+
+설치 방법이 운영체제마다 갈리는 것을 없애기 위해서입니다.  
+여러분의 노트북이 무엇이든 컨테이너 안은 똑같습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 첫 명령: 컨테이너 띄우기
 
 ```sh
 git clone https://github.com/lec-algorithm/algorithm-code.git
 cd algorithm-code
-
 docker compose up -d
-docker compose exec lab bash
 ```
 
-프롬프트가 바뀌면 그 다음부터는 컨테이너 안입니다.
+```console
+[+] Running 2/2
+ ✔ Network algorithm-code_default  Created    0.0s
+ ✔ Container algorithm-code-lab-1  Started    0.3s
+```
+
+처음 한 번은 이미지를 받느라 몇 분 걸립니다.  
+이후에는 몇 초면 뜹니다.
 
 </Slide>
 
-<Slide>
+<Slide class="compact">
+
+### 컨테이너 안으로 들어가기
+
+```sh
+docker compose exec lab bash
+```
+
+```console
+root@8f3c1d2a4b5e:/work# ls
+Dockerfile  compose.yml  topic-01-intro-search  ...
+```
+
+프롬프트가 바뀌면 그 다음부터는 컨테이너 안입니다.  
+저장소 폴더가 `/work`에 그대로 연결되어 있습니다.
+
+</Slide>
+
+<Slide class="compact">
 
 ### 예제 하나 돌려보기
 
 ```sh
 cd topic-01-intro-search/01_sequential_search
-
 gcc -o sequentialSearch sequentialSearch.c && ./sequentialSearch
 python3 sequential_search.py
 ```
 
-두 명령이 같은 결과를 내면 준비가 끝난 것입니다.  
+```console
+n = 15, key = 51
+index = 6, comparisons = 7
+```
+
+두 구현이 같은 결과를 내면 준비가 끝난 것입니다.  
 코드는 호스트 편집기로 고치고, 실행만 컨테이너에서 합니다.
 
 </Slide>
