@@ -63,8 +63,13 @@ algorithm-code/
 
 ### 실행 환경
 
-수강생이 설치하는 것은 **Git과 Docker 둘뿐**이다. 컴파일러와 Python은 이미지
-안에 넣어 환경 차이를 없앤다.
+수강생은 **Codespaces로 브라우저에서** 실습하는 것이 기본이다. 이 경우 설치할
+것이 없고 GitHub 계정만 있으면 된다. 로컬에서 하려면 Git과 Docker 둘을 깐다.
+어느 쪽이든 컴파일러와 Python은 이미지 안에 있다.
+
+**자료의 명령은 컨테이너 안을 기준으로 쓴다.** Codespaces 터미널이 곧 컨테이너
+안이고, 로컬은 `docker compose exec lab bash`로 같은 자리에 선다. 그 뒤의
+명령은 두 경로가 완전히 같다.
 
 - 서비스 이름은 `lab` 하나다. 컨테이너를 여러 개로 나누지 않는다.
 - 저장소 폴더를 컨테이너의 `/work`에 바인드 마운트한다. 코드는 호스트 편집기로
@@ -75,6 +80,23 @@ algorithm-code/
   `algorithm-code` 폴더 안에서 실행된다는 것이 드러나야 한다.** `lecture`
   저장소에도 사이트용 compose가 있어서, 어느 저장소의 명령인지 모호하면
   수강생이 엉뚱한 폴더에서 친다.
+- **Codespaces가 주 경로다.** `.devcontainer/devcontainer.json`은 별도 이미지를
+  정의하지 않고 `compose.yml`의 `lab` 서비스를 그대로 쓴다. 이미지 정의를 두 벌
+  두면 언젠가 갈라진다. 이미지에 무언가 추가할 일이 생기면 `Dockerfile`만
+  고치고, devcontainer는 따라오게 둔다.
+
+```json
+{
+  "dockerComposeFile": "../compose.yml",
+  "service": "lab",
+  "workspaceFolder": "/work",
+  "overrideCommand": false,
+  "remoteUser": "root"
+}
+```
+
+`remoteUser`를 `root`로 두는 이유는 로컬의 `docker compose exec lab bash`도
+root이기 때문이다. 두 경로의 동작이 갈리지 않게 한다.
 
 - `compose.yml`
 

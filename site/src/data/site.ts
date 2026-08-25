@@ -74,13 +74,13 @@ export const site = {
       {
         href: '/categories/env/',
         name: '실습 환경',
-        description: '컨테이너로 고정한 실습 환경<br>설치하는 것은 Git과 Docker 둘뿐',
-        tags: ['Docker', 'C · Python', 'Git'],
+        description: '컨테이너로 고정한 실습 환경<br>Codespaces로 브라우저에서 바로 시작',
+        tags: ['Codespaces', 'Docker', 'C · Python'],
       },
     ],
     cta: {
       title: '실습 코드는 별도 저장소에 있습니다',
-      description: '주제마다 의사코드와 C, Python 구현이 함께 들어 있습니다.<br>클론해서 compose로 띄우면 바로 돌아갑니다.',
+      description: '주제마다 의사코드와 C, Python 구현이 함께 들어 있습니다.<br>Codespaces로 열면 바로 돌아갑니다.',
       button: { label: 'algorithm-code 저장소', href: 'https://github.com/lec-algorithm/algorithm-code' },
     },
     /**

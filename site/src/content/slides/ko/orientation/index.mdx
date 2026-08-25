@@ -82,43 +82,29 @@ flowchart LR
 <Slide>
 
 ## 수업 준비물
-::sub[설치하는 것은 둘, 만들어 둘 것은 하나]
+::sub[브라우저만 있으면 됩니다]
 
-| 준비물 | 받는 곳 | 확인 |
-| --- | --- | --- |
-| **Git** | [git-scm.com/downloads](https://git-scm.com/downloads) | `git --version` |
-| **Docker Desktop** | [docker.com/get-started](https://www.docker.com/get-started/) | `docker compose version` |
-| **GitHub 계정** | [github.com/signup](https://github.com/signup) | 로그인이 되면 끝 |
+| 방법 | 필요한 것 |
+| --- | --- |
+| **GitHub Codespaces** (권장) | [GitHub 계정](https://github.com/signup) 하나 |
+| 로컬에서 하기 | [Git](https://git-scm.com/downloads) · [Docker Desktop](https://www.docker.com/get-started/) |
 
-<br/>
-
-- macOS는 `xcode-select --install`로 Git이 함께 깔립니다.
-- Windows는 Docker Desktop 설치 중 WSL2를 함께 켭니다.
+컴파일러와 Python은 설치하지 않습니다.  
+어느 쪽이든 **같은 컨테이너 안**에서 돌아갑니다.
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-### 첫 명령: 컨테이너 띄우기
+### 실습 시작: Codespaces
+::sub[설치할 것이 없습니다]
 
-- 실행
+1. [github.com/lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code)로 갑니다.
+2. 초록색 **Code** 버튼 → **Codespaces** 탭
+3. **Create codespace on main**
 
-```sh
-git clone https://github.com/lec-algorithm/algorithm-code.git
-cd algorithm-code
-docker compose up -d
-```
-
-- 결과
-
-```console
-[+] Running 2/2
- ✔ Network algorithm-code_default  Created    0.0s
- ✔ Container algorithm-code-lab-1  Started    0.3s
-```
-
-처음 한 번은 이미지를 받느라 몇 분 걸립니다. 이후에는 몇 초면 뜹니다.  
-**이후 모든 `docker compose` 명령은 이 `algorithm-code` 폴더에서 칩니다.**
+잠시 기다리면 브라우저에 VS Code가 뜹니다.  
+**그 터미널이 곧 컨테이너 안입니다.**
 
 </Slide>
 
@@ -130,8 +116,8 @@ docker compose up -d
 - 실행
 
 ```sh
-docker compose exec lab gcc --version | head -1
-docker compose exec lab python3 --version
+gcc --version | head -1
+python3 --version
 ```
 
 - 결과
@@ -145,29 +131,6 @@ Python 3.13.5
 
 설치 방법이 운영체제마다 갈리는 것을 없애기 위해서입니다.  
 여러분의 노트북이 무엇이든 컨테이너 안은 똑같습니다.
-
-</Slide>
-
-<Slide class="compact">
-
-### 컨테이너 안으로 들어가기
-
-- 실행
-
-```sh
-docker compose exec lab bash
-```
-
-- 결과
-
-```console
-root@d38ddee8c2a8:/work# ls
-AGENTS.md  Dockerfile  compose.yml
-CLAUDE.md  README.md   topic-01-intro-search
-```
-
-프롬프트가 바뀌면 그 다음부터는 컨테이너 안입니다.  
-저장소 폴더가 `/work`에 그대로 연결되어 있습니다.
 
 </Slide>
 
@@ -190,8 +153,34 @@ n = 15, key = 51
 index = 6, comparisons = 7
 ```
 
-두 구현이 같은 결과를 내면 준비가 끝난 것입니다.  
-코드는 호스트 편집기로 고치고, 실행만 컨테이너에서 합니다.
+두 구현이 같은 결과를 내면 준비가 끝난 것입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 로컬에서 하려면
+::sub[Codespaces 대신 본인 노트북에서]
+
+- 실행
+
+```sh
+git clone https://github.com/lec-algorithm/algorithm-code.git
+cd algorithm-code
+docker compose up -d
+docker compose exec lab bash
+```
+
+- 결과
+
+```console
+root@d38ddee8c2a8:/work#
+```
+
+<br/>
+
+프롬프트가 바뀌면 그 다음부터는 **위와 똑같습니다.**  
+같은 `compose.yml`을 Codespaces도 씁니다.
 
 </Slide>
 
