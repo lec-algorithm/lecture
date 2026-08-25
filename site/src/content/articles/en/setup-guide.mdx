@@ -1,0 +1,218 @@
+---
+title: Setting up the lab
+description: Starting in the browser with GitHub Codespaces, or running it locally with Docker
+date: 2026-08-25
+category: guide
+tags: ["Setup", "Codespaces", "Docker"]
+---
+
+import { Image } from 'astro:assets';
+import repoTemplate from '@assets/slides/orientation/github-repo-1.png';
+import repoCreate from '@assets/slides/orientation/github-repo-2.png';
+
+The practice code runs **inside a container**. The compiler and Python are
+already in it, so you never install them. There are two ways to start.
+
+| Way | What you need | When |
+| --- | --- | --- |
+| **GitHub Codespaces** | A GitHub account | Recommended. Nothing to install |
+| Local Docker | Git · Docker Desktop | When you want it on your own machine |
+
+Either way it is the **same container**. One `compose.yml` in the repository
+serves both Codespaces and your laptop.
+
+## Why a container \{#why-container}
+
+Installing a C compiler differs on every operating system, and Python versions
+drift apart. Pinning the runtime removes the situation where the same code
+behaves differently for different people. Whatever your laptop is, the inside
+of the container is identical.
+
+## Way 1. Codespaces \{#codespaces}
+
+A browser is enough. First make a GitHub account at
+[github.com/signup](https://github.com/signup) — you will need it for the
+project submission anyway.
+
+### Step 1. Make your own repository \{#use-template}
+
+You do not work in the shared repository. `algorithm-code` is a **template
+repository**: you make a copy under your own account and work there, which is
+what lets you commit your changes.
+
+Go to
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code)
+and press **Use this template** → **Create a new repository**.
+
+<Image src={repoTemplate} alt="The Use this template button at the top of the algorithm-code repository, with the Create a new repository menu open beneath it" />
+
+Give it a name you will recognize, such as `my-algorithm-code`, and press
+**Create repository**.
+
+<Image src={repoCreate} alt="The Create a new repository screen. lec-algorithm/algorithm-code is selected under Start with a template, my-algorithm-code is typed into Repository name, and the Create repository button is at the bottom" />
+
+### Step 2. Open it in Codespaces \{#open-codespace}
+
+In the repository you just made, press the green **Code** button, go to the
+**Codespaces** tab and press **Create codespace on main**.
+
+The first time takes a few minutes while the container is built. When it is
+ready, VS Code opens in the browser and **that terminal is the inside of the
+container**. Skip straight to [running an example](#run).
+
+A codespace you have made can be reopened from
+[github.com/codespaces](https://github.com/codespaces). It stops itself when
+idle, and your code stays.
+
+## Way 2. Local Docker \{#local}
+
+To run it on your own machine, install Git and Docker.
+
+### Git \{#git}
+
+Get it from [git-scm.com/downloads](https://git-scm.com/downloads)
+
+| OS | How |
+| --- | --- |
+| macOS | `xcode-select --install` in a terminal |
+| Windows | Run the installer from [git-scm.com/download/win](https://git-scm.com/download/win) |
+| Linux | `sudo apt install git` |
+
+```sh
+git --version
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+### Docker \{#docker}
+
+Get it from [docker.com/get-started](https://www.docker.com/get-started/)
+
+Install Docker Desktop. On Windows it needs WSL2 enabled, which the installer
+walks you through. There are separate downloads for Apple Silicon and Intel, so
+check which one you are taking.
+
+**Docker Desktop must be running** for the commands below to work.
+
+```sh
+docker --version
+docker compose version
+```
+
+### Clone your repository and step inside \{#clone}
+
+Clone the repository **you made** in [step 1](#use-template).
+
+- Run
+
+```sh
+git clone https://github.com/<your-account>/my-algorithm-code.git
+cd my-algorithm-code
+docker compose up -d
+docker compose exec lab bash
+```
+
+- Output
+
+```console
+root@d38ddee8c2a8:/work#
+```
+
+Once the prompt changes you are inside the container. That is **the same place
+a Codespaces terminal puts you**, so everything from here on is identical for
+both ways.
+
+**Run `docker compose` from inside the repository folder.** That is where
+`compose.yml` lives. From anywhere else you get
+`no configuration file provided`.
+
+If you use VS Code, the Dev Containers extension's **Reopen in Container** does
+the same thing with the same configuration.
+
+## Running an example \{#run}
+
+From here the two ways are the same. These are typed inside the container.
+
+First, see what is in there.
+
+- Run
+
+```sh
+gcc --version | head -1
+python3 --version
+```
+
+- Output
+
+```console
+gcc (Debian 14.2.0-19) 14.2.0
+Python 3.13.5
+```
+
+Now run the first example.
+
+- Run
+
+```sh
+cd topic-01-intro-search/01_sequential_search
+gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
+python3 sequential_search.py
+```
+
+- Output
+
+```console
+n = 15, key = 51
+index = 6, comparisons = 7
+```
+
+When both implementations print the same thing, you are set up.
+
+The repository is split by topic, and each example carries pseudocode next to
+both implementations.
+
+```plaintext
+my-algorithm-code/
+├── .devcontainer/devcontainer.json  # Codespaces configuration
+├── compose.yml                      # the practice container
+├── Dockerfile                       # the image: gcc · gdb · python3
+└── topic-01-intro-search/
+    └── 01_sequential_search/
+        ├── README.md                # how to run this example
+        ├── sequentialSearch.pseudo  # the reference procedure
+        ├── sequentialSearch.c       # C implementation
+        └── sequential_search.py     # Python implementation
+```
+
+Topic folders are added as the semester goes.
+
+Compile to `*.out`. The `.gitignore` filters exactly that, so build output
+never ends up in a commit.
+
+## Shutting down \{#down}
+
+A codespace stops itself when idle. Locally you bring it down like this.
+
+```sh
+docker compose down
+```
+
+Removing the container leaves your code untouched.
+
+## When it goes wrong \{#troubleshooting}
+
+| Symptom | What to check |
+| --- | --- |
+| The codespace takes a long time to create | The first build takes a few minutes. It is fast from the second time |
+| `docker: command not found` | Check that Docker Desktop is installed **and running** |
+| `Cannot connect to the Docker daemon` | Docker Desktop is not running. Start it and try again |
+| `no configuration file provided` | Run it from inside the repository folder: `cd my-algorithm-code` |
+| `service "lab" is not running` | Run `docker compose up -d` first |
+| `gcc: command not found` | You are typing outside the container. Get in with `docker compose exec lab bash` |
+| Your edits do not show up | Check that you saved. The folder is mounted, so a save is immediately visible |
+
+## Running without a container \{#native}
+
+If you already have a C compiler and Python 3.11 or later, the examples run as
+they are. The container is the reference for questions, though. If a difference
+in environment changes the result, please confirm it in the container once.

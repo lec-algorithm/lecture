@@ -1,0 +1,29 @@
+---
+name: C
+category: toolchain
+description: 内存与指针清晰可见的语言。用容器内的 gcc 构建
+website: https://gcc.gnu.org/
+language: C
+license: GPL-3.0
+pricing: ["open-source"]
+tags: ["gcc", "gdb", "C"]
+related: ["docker", "python"]
+---
+
+C 实现只使用标准库，因此在哪里构建结果都一样。
+
+```sh
+docker compose exec lab bash
+gcc -o selectionSort.out selectionSort.c && ./selectionSort.out
+```
+
+编译器在容器镜像中，不需要装在宿主机上。当前镜像里的 gcc 版本是 14.2。
+调试器 `gdb` 也一并提供，可以直接查看指针指向何处。
+
+编译产物请命名为 `*.out`。`.gitignore` 正好过滤这一类文件，容器中编译出的
+Linux 可执行文件不会混入提交。
+
+选用 C 是因为内存与指针在代码中直接可见。看不到数组如何排布、结点指向哪里，
+就很难讨论数据结构。
+
+同一个文件夹里还有同一算法的[[pseudo-code|伪代码]]与 Python 实现。

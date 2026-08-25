@@ -14,10 +14,18 @@ export const site = {
   /** 공개 저장소라 헤더의 GitHub 링크를 노출한다. */
   repoNav: true,
   /**
-   * 이 사이트가 제공하는 로케일. 강의 자료가 한국어뿐이라 ko 단일 로케일 —
-   * astro.config의 `i18n.defaultLocale`과 첫 항목이 일치해야 한다.
+   * 이 사이트가 제공하는 로케일. 첫 항목이 기본 로케일이며 astro.config의
+   * `i18n.defaultLocale`과 일치해야 한다.
+   *
+   * 중국어 코드가 `zh-CN`이 아니라 `zh`인 이유: 테마가 콘텐츠 id에서 로케일을
+   * 잘라낼 때 두 글자를 가정한다(`id.replace(/^[a-z]{2}\//, '')`). 간체가
+   * 기본 변종이므로 `zh`로 두고, 표시 이름과 날짜 형식만 zh-CN으로 준다.
    */
-  locales: [{ code: 'ko', label: '한국어', dateLocale: 'ko-KR' }] as {
+  locales: [
+    { code: 'ko', label: '한국어', dateLocale: 'ko-KR' },
+    { code: 'en', label: 'English', dateLocale: 'en-US' },
+    { code: 'zh', label: '简体中文', dateLocale: 'zh-CN' },
+  ] as {
     code: string;
     label: string;
     dateLocale?: string;
@@ -47,54 +55,202 @@ export const site = {
   home: {
     template: 'cards' as const,
     hero: {
-      title: '고급알고리즘',
-      subtitle:
-        '2026학년도 2학기 · 연세대학교 첨단융합공학부<br>정렬과 분할 정복에서 그래프와 동적 계획법까지<br>의사코드 한 벌, C와 Python 두 구현, 컨테이너 하나',
+      title: {
+        ko: '고급알고리즘',
+        en: 'Advanced Algorithms',
+        zh: '高级算法',
+      },
+      subtitle: {
+        ko: '2026학년도 2학기 · 연세대학교 첨단융합공학부<br>정렬과 분할 정복에서 그래프와 동적 계획법까지<br>의사코드 한 벌, C와 Python 두 구현, 컨테이너 하나',
+        en: 'Fall 2026 · School of Integrated Technology, Yonsei University<br>From sorting and divide-and-conquer to graphs and dynamic programming<br>One pseudocode, two implementations in C and Python, one container',
+        zh: '2026学年第二学期 · 延世大学融合工程学部<br>从排序、分治到图与动态规划<br>一份伪代码，C 与 Python 两种实现，一个容器',
+      },
     },
-    cardsTitle: '바로가기',
+    cardsTitle: { ko: '바로가기', en: 'Quick links', zh: '快速入口' },
     cards: [
       {
         href: '/course/',
-        name: '강의',
-        description: '주제별 강의 문서<br>기초와 분석부터 그래프, 동적 계획법까지',
-        tags: ['주제 14개', '중간·기말 범위 표시'],
+        name: { ko: '강의', en: 'Lectures', zh: '课程' },
+        description: {
+          ko: '주제별 강의 문서<br>기초와 분석부터 그래프, 동적 계획법까지',
+          en: 'Lecture notes by topic<br>From foundations and analysis to graphs and dynamic programming',
+          zh: '按主题划分的讲义<br>从基础与分析到图与动态规划',
+        },
+        tags: ['14', 'C · Python'],
       },
       {
         href: '/slides/',
-        name: '슬라이드',
-        description: '수업에서 쓰는 발표 자료<br>브라우저에서 바로 넘겨 봅니다.',
-        tags: ['프레젠테이션'],
+        name: { ko: '슬라이드', en: 'Slides', zh: '幻灯片' },
+        description: {
+          ko: '수업에서 쓰는 발표 자료<br>브라우저에서 바로 넘겨 봅니다.',
+          en: 'The decks used in class<br>Flip through them right in the browser.',
+          zh: '课堂使用的演示文稿<br>在浏览器中直接翻页。',
+        },
+        tags: ['Slides'],
       },
       {
         href: '/article/',
-        name: '공지와 안내',
-        description: '휴강·보강 공지, 과제와 개인프로젝트 안내, 제출 규격',
-        tags: ['공지', '과제', '안내'],
+        name: { ko: '공지와 안내', en: 'Notices & guides', zh: '公告与指南' },
+        description: {
+          ko: '휴강·보강 공지, 과제와 개인프로젝트 안내, 제출 규격',
+          en: 'Class notices, assignment and project briefs, submission rules',
+          zh: '停课与补课公告、作业与项目说明、提交规范',
+        },
+        tags: ['Notice', 'Guide'],
       },
       {
         href: '/categories/env/',
-        name: '실습 환경',
-        description: '컨테이너로 고정한 실습 환경<br>Codespaces로 브라우저에서 바로 시작',
+        name: { ko: '실습 환경', en: 'Lab environment', zh: '实验环境' },
+        description: {
+          ko: '컨테이너로 고정한 실습 환경<br>Codespaces로 브라우저에서 바로 시작',
+          en: 'A lab environment pinned in a container<br>Start in the browser with Codespaces',
+          zh: '用容器固定的实验环境<br>通过 Codespaces 在浏览器中直接开始',
+        },
         tags: ['Codespaces', 'Docker', 'C · Python'],
       },
     ],
     cta: {
-      title: '실습 코드는 별도 저장소에 있습니다',
-      description: '주제마다 의사코드와 C, Python 구현이 함께 들어 있습니다.<br>Codespaces로 열면 바로 돌아갑니다.',
-      button: { label: 'algorithm-code 저장소', href: 'https://github.com/lec-algorithm/algorithm-code' },
+      title: {
+        ko: '실습 코드는 별도 저장소에 있습니다',
+        en: 'The practice code lives in its own repository',
+        zh: '实验代码位于独立仓库',
+      },
+      description: {
+        ko: '주제마다 의사코드와 C, Python 구현이 함께 들어 있습니다.<br>Codespaces로 열면 바로 돌아갑니다.',
+        en: 'Every topic ships pseudocode alongside C and Python implementations.<br>Open it in Codespaces and it runs.',
+        zh: '每个主题都同时提供伪代码与 C、Python 实现。<br>用 Codespaces 打开即可运行。',
+      },
+      button: {
+        label: { ko: 'algorithm-code 저장소', en: 'algorithm-code repository', zh: 'algorithm-code 仓库' },
+        href: 'https://github.com/lec-algorithm/algorithm-code',
+      },
     },
     /**
      * cards 홈에서는 테마의 카탈로그 Browse 내비가 숨겨지므로, 헤더에
      * "실습 환경" 항목을 추가해 도구 카탈로그 페이지로 연결한다.
      * 홈의 "실습 환경" 카드와 같은 곳(/categories/env/)을 가리킨다.
      */
-    browse: { href: '/categories/env/', label: { ko: '실습 환경' } },
+    browse: {
+      href: '/categories/env/',
+      label: { ko: '실습 환경', en: 'Lab environment', zh: '实验环境' },
+    },
   },
   /** 테마 UI 문자열의 로케일별 오버라이드. */
   ui: {
     ko: {
       'site.tagline':
         '고급알고리즘 (SIT2001): 2026학년도 2학기 강의 자료, 슬라이드, 용어집',
+    },
+    en: {
+      'site.tagline':
+        'Advanced Algorithms (SIT2001): lecture notes, slides and glossary for Fall 2026',
+    },
+    /**
+     * 중국어는 테마가 내장하지 않은 로케일이라(테마는 en·ko만 가짐), 여기서
+     * 채우지 않으면 UI 문자열이 기본 로케일인 한국어로 떨어진다. 사이트가
+     * 실제로 렌더하는 키를 채운다. 새 섹션을 켜면 그 섹션의 키도 여기 추가한다.
+     */
+    zh: {
+      'site.tagline': '高级算法 (SIT2001)：2026学年第二学期的讲义、幻灯片与术语表',
+
+      // 내비게이션
+      'nav.browse': '浏览',
+      'nav.blog': '文章',
+      'nav.courses': '课程',
+      'nav.slides': '幻灯片',
+      'nav.concepts': '概念',
+      'nav.glossary': '术语表',
+      'nav.language': '语言',
+      'nav.menu': '菜单',
+      'nav.backToTop': '回到顶部',
+      'top.label': '回到顶部',
+
+      // 강의
+      'course.title': '课程',
+      'course.tagline': '循序渐进的课程与讲义，从基础到动手实践。',
+      'course.slides': '幻灯片',
+      'course.updated': '更新于',
+
+      // 글
+      'blog.title': '文章',
+      'blog.tagline': '课程公告、作业说明与环境准备指南。',
+      'blog.empty': '暂无文章。',
+      'article.backToBlog': '全部文章',
+      'article.referencedTools': '本文涉及的工具',
+
+      // 슬라이드
+      'slides.title': '幻灯片',
+      'slides.tagline': '课堂使用的演示文稿，可在浏览器中直接查看。',
+      'slides.deck': '演示文稿',
+      'slides.open': '打开演示文稿',
+      'slides.prev': '上一页',
+      'slides.next': '下一页',
+      'slides.print': '打印 / PDF',
+
+      // 용어집
+      'glossary.title': '术语表',
+      'glossary.tagline': '课程中出现的术语，以及各自指向的页面。',
+      'glossary.term': '术语',
+      'glossary.tool': '工具',
+      'glossary.article': '文章',
+      'glossary.course': '课程',
+      'glossary.concept': '概念',
+      'glossary.noResults': '没有匹配的术语。',
+
+      // 개념 (섹션은 꺼져 있지만 용어집이 라벨을 쓴다)
+      'concept.title': '概念',
+      'concept.updated': '更新于',
+
+      // 목록·정렬·필터
+      'sort.label': '排序',
+      'sort.recent': '最近更新',
+      'sort.stars': 'Star 数',
+      'filter.updated': '最后更新',
+      'updated.6m': '6 个月以内',
+      'updated.1y': '1 年以内',
+      'updated.2y': '2 年以内',
+      'results.none': '没有符合条件的工具。',
+      'search.placeholder': '搜索工具…',
+      'tag.allTools': '全部工具',
+      'detail.allTools': '全部工具',
+      'detail.relatedWriting': '相关文章',
+      'meta.updated': '更新于',
+      'project.files': '文件',
+
+      // 테마 전환
+      'theme.light': '浅色',
+      'theme.dark': '深色',
+      'theme.system': '跟随系统',
+
+      // 목차·기타 화면 요소
+      'toc.onThisPage': '本页目录',
+      'slides.contents': '目录',
+      'slides.fullscreen': '全屏',
+      'course.backToCourses': '全部课程',
+      'tag.heading': '标签',
+      'toc.collapseAll': '全部折叠',
+      'detail.docs': '文档',
+      'detail.pricing': '价格',
+      'detail.price': '价格',
+      'tab.pricing': '价格',
+      'course.hours': '学习时长',
+      'course.level': '难度',
+      'meta.released': '最新版本',
+      'theme.label': '主题',
+      'private.login': '登录',
+      'detail.language': '语言',
+      'view.standard': '标准',
+      'view.gallery': '画廊',
+
+      // private 섹션은 쓰지 않지만 로그인 폼 문자열이 마크업에 남는다
+      'private.id': '账号',
+      'private.password': '密码',
+      'private.submit': '解锁',
+      'private.error': '账号或密码不正确。',
+
+      // 푸터
+      'footer.builtWith': '构建工具：',
+      'footer.contribute': '欢迎贡献 — 添加一个 MDX 文件即可收录工具。',
     },
   } as Record<string, Record<string, string>>,
 };

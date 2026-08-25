@@ -1,7 +1,9 @@
 // @ts-check
 // 2026-2 고급알고리즘 강의 사이트 — 사이트 수준 설정만 두고, 라우트·컴포넌트·
 // 마크다운 파이프라인은 전부 stack-site-builder 테마가 제공한다.
-// 강의 자료가 한국어 단일 언어이므로 로케일은 ko 하나만 쓴다(루트에서 서빙).
+// 로케일은 셋이다: 한국어(기본, 루트에서 서빙), 영어(/en/), 중국어 간체(/zh/).
+// 테마가 컬렉션 폴더명에서 로케일을 두 글자로 잘라내므로(`^[a-z]{2}/`) 중국어는
+// `zh-CN`이 아니라 `zh`를 쓴다. 표기와 날짜 형식은 site.ts에서 zh-CN으로 준다.
 //
 // GitHub Pages 프로젝트 사이트로 공개하므로 base 경로 아래 산다.
 // 저장소 이름이 바뀌면 아래 `base` 상수도 함께 바꿔야 한다(docs/deployment.md).
@@ -42,7 +44,7 @@ export default defineConfig({
   base,
 
   i18n: {
-    locales: ['ko'],
+    locales: ['ko', 'en', 'zh'],
     defaultLocale: 'ko',
     routing: {
       prefixDefaultLocale: false,

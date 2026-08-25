@@ -11,9 +11,11 @@ import { buildTree, type Category } from 'stack-site-builder/lib/category-tree';
 export const conceptCategories: Category[] = [
   {
     id: 'concept-uncategorized',
-    label: { ko: '미분류' },
+    label: { ko: '미분류', en: 'Uncategorized', zh: '未分类' },
     description: {
       ko: '아직 분류에 들어가지 않은 개념',
+      en: 'Concepts not yet filed under a category',
+      zh: '尚未归类的概念',
     },
   },
 ];

@@ -11,26 +11,44 @@ export type { Category } from 'stack-site-builder/lib/category-tree';
 const categories: Category[] = [
   {
     id: 'env',
-    label: { ko: '실습 환경' },
-    description: { ko: '수업과 과제에서 실제로 쓰는 도구' },
+    label: { ko: '실습 환경', en: 'Lab environment', zh: '实验环境' },
+    description: {
+      ko: '수업과 과제에서 실제로 쓰는 도구',
+      en: 'The tools actually used in class and in assignments',
+      zh: '课堂与作业中实际使用的工具',
+    },
     detail: {
-      ko: '설치하는 것은 Git과 Docker 둘뿐입니다. 컴파일러와 Python은 컨테이너 안에 들어 있어 따로 깔지 않습니다.',
+      ko: 'Codespaces로 실습하면 설치할 것이 없습니다. 로컬에서 하려면 Git과 Docker 둘만 깔면 되고, 컴파일러와 Python은 컨테이너 안에 들어 있습니다.',
+      en: 'With Codespaces there is nothing to install. Locally you only need Git and Docker; the compiler and Python live inside the container.',
+      zh: '使用 Codespaces 无需安装任何东西。若在本地运行，只需 Git 与 Docker，编译器和 Python 都在容器内。',
     },
     children: [
       {
         id: 'runtime',
-        label: { ko: '실행 환경' },
-        description: { ko: '실습 코드가 도는 컨테이너. 이것만 설치하면 된다' },
+        label: { ko: '실행 환경', en: 'Runtime', zh: '运行环境' },
+        description: {
+          ko: '실습 코드가 도는 컨테이너. 이것만 설치하면 된다',
+          en: 'The container the practice code runs in. The only thing to install',
+          zh: '实验代码运行的容器。唯一需要安装的东西',
+        },
       },
       {
         id: 'toolchain',
-        label: { ko: '언어' },
-        description: { ko: '컨테이너 안에서 실습 코드를 빌드하고 실행하는 것' },
+        label: { ko: '언어', en: 'Languages', zh: '语言' },
+        description: {
+          ko: '컨테이너 안에서 실습 코드를 빌드하고 실행하는 것',
+          en: 'What builds and runs the practice code inside the container',
+          zh: '在容器内构建并运行实验代码的工具',
+        },
       },
       {
         id: 'workflow',
-        label: { ko: '작업 도구' },
-        description: { ko: '코드를 쓰고, 버전을 남기고, 제출하는 데 쓰는 것' },
+        label: { ko: '작업 도구', en: 'Workflow', zh: '工作流工具' },
+        description: {
+          ko: '코드를 쓰고, 버전을 남기고, 제출하는 데 쓰는 것',
+          en: 'What you write code with, keep history in, and submit through',
+          zh: '用于编写代码、保留版本并提交的工具',
+        },
       },
     ],
   },
