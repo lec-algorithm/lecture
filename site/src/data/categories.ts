@@ -14,13 +14,18 @@ const categories: Category[] = [
     label: { ko: '실습 환경' },
     description: { ko: '수업과 과제에서 실제로 쓰는 도구' },
     detail: {
-      ko: '실습 코드는 의사코드 하나에 C와 Python 두 구현이 붙습니다. 둘 다 돌릴 수 있으면 준비는 끝입니다.',
+      ko: '설치하는 것은 Git과 Docker 둘뿐입니다. 컴파일러와 Python은 컨테이너 안에 들어 있어 따로 깔지 않습니다.',
     },
     children: [
       {
+        id: 'runtime',
+        label: { ko: '실행 환경' },
+        description: { ko: '실습 코드가 도는 컨테이너. 이것만 설치하면 된다' },
+      },
+      {
         id: 'toolchain',
-        label: { ko: '언어와 컴파일러' },
-        description: { ko: '실습 코드를 빌드하고 실행하는 데 필요한 것' },
+        label: { ko: '언어' },
+        description: { ko: '컨테이너 안에서 실습 코드를 빌드하고 실행하는 것' },
       },
       {
         id: 'workflow',

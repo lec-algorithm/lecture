@@ -13,6 +13,7 @@ GitHub Pages로 공개합니다.
 
 - 대상: 첨단융합공학부 학부생. 선수 추천과목은 Computer Programming
 - 방식: 강의 50% · 실습 50%. 의사코드로 알고리즘을 정의하고 C와 Python으로 구현합니다.
+- 실습 환경: 컨테이너로 고정. 수강생은 Git과 Docker만 설치합니다.
 - 평가: 절대평가. 중간 20% · 기말 40% · 과제 10% · 개인프로젝트 25% · 출석 5%
 - 개인프로젝트는 GitHub 저장소 제출이 필수입니다.
 
@@ -35,11 +36,14 @@ flowchart LR
 | `algorithm-code` | 주제별 의사코드 · C · Python 구현 | 클론해서 직접 돌립니다 |
 | `algorithm-viz` | 알고리즘 동작 시각화 | 슬라이드 안에서 봅니다 |
 
-실습은 다음 한 줄로 시작합니다.
+수강생이 설치하는 것은 **Git과 Docker 둘뿐**입니다. 컴파일러와 Python은 실습
+컨테이너 안에 들어 있습니다.
 
 ```sh
 git clone https://github.com/lec-algorithm/algorithm-code.git
 cd algorithm-code
+docker compose up -d
+docker compose exec lab bash
 ```
 
 ## 저장소 구조

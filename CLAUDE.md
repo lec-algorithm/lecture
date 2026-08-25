@@ -8,7 +8,9 @@
 
 - 여기는 **강의 자료만** 담는다. 실행되는 코드는 조직
   `github.com/lec-algorithm`의 다른 두 저장소에 있다.
-  - `algorithm-code`: 주제별 의사코드 + C + Python 구현 (수강생이 클론한다)
+  - `algorithm-code`: 주제별 의사코드 + C + Python 구현. 수강생이 클론한다.
+    실행은 compose 컨테이너(`lab`) 안에서 한다. 수강생이 설치하는 것은
+    Git과 Docker 둘뿐이므로, 자료의 실행 명령은 `docker compose exec` 기준으로 쓴다.
   - `algorithm-viz`: 시각화 애니메이션 생성과 산출물
   - 경계는 `docs/repositories.md` 참고
 - 강의 내용의 기준은 `docs/syllabus.md`(학교 수업계획서)다. **이 파일은 외부

@@ -8,7 +8,7 @@
 | 저장소 | 담는 것 | 수강생이 하는 일 |
 | --- | --- | --- |
 | `lecture` | 강의 자료: 주제별 교안, 슬라이드, 공지·안내 글, 용어집. 빌드하면 공개 사이트가 된다 | 사이트를 본다 (클론할 필요 없음) |
-| `algorithm-code` | 실습 코드: 의사코드 + C + Python. 주제별 폴더 | 포크 또는 클론해서 직접 돌리고 고친다 |
+| `algorithm-code` | 실습 코드: 의사코드 + C + Python. 주제별 폴더. compose로 뜨는 컨테이너 하나가 딸린다 | 클론해서 컨테이너를 띄우고 직접 돌리고 고친다 |
 | `algorithm-viz` | 시각화 애니메이션: 알고리즘 동작을 움직이는 그림으로 만드는 코드와 산출물 | 슬라이드 안에서 본다. 필요하면 직접 돌려 본다 |
 
 경계가 흐려지기 쉬운 지점을 못 박아 둔다.
@@ -34,6 +34,8 @@ Python**이 함께 들어간다.
 
 ```plaintext
 algorithm-code/
+├── compose.yml                          # 실습 컨테이너 (서비스 이름: lab)
+├── Dockerfile                           # gcc · gdb · python3
 ├── topic-01-intro-search/
 │   ├── 01_sequential_search/
 │   │   ├── sequentialSearch.pseudo
@@ -54,6 +56,42 @@ algorithm-code/
   알고리즘 차이로 보이지 않게 한다.
 - 의사코드(`.pseudo`)가 기준이다. 두 구현은 의사코드를 옮긴 것이다.
 
+### 실행 환경
+
+수강생이 설치하는 것은 **Git과 Docker 둘뿐**이다. 컴파일러와 Python은 이미지
+안에 넣어 환경 차이를 없앤다.
+
+- 서비스 이름은 `lab` 하나다. 컨테이너를 여러 개로 나누지 않는다.
+- 저장소 폴더를 컨테이너의 `/work`에 바인드 마운트한다. 코드는 호스트 편집기로
+  고치고 실행만 컨테이너에서 한다.
+- 컨테이너는 `sleep infinity`로 떠 있고, 작업은 전부 `docker compose exec`로
+  들어가서 한다.
+
+```yaml
+# compose.yml
+services:
+  lab:
+    build: .
+    working_dir: /work
+    volumes:
+      - .:/work
+    command: sleep infinity
+```
+
+```dockerfile
+# Dockerfile — 실습에 필요한 것만 담는다
+FROM debian:trixie-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential gdb python3 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /work
+```
+
+이미지에 소스를 굽지 않는다. 실습 코드는 수강생이 고쳐 가며 쓰는 것이라
+마운트가 단일 원본이어야 한다. 이 점이 `lecture` 저장소의 사이트 이미지와
+다르다.
+
 ## algorithm-viz
 
 정렬 과정이나 트리 회전처럼 **움직여야 이해되는 것**을 만드는 저장소.
@@ -70,6 +108,16 @@ algorithm-code/
 ```sh
 git clone https://github.com/lec-algorithm/algorithm-code.git
 cd algorithm-code
+docker compose up -d
+docker compose exec lab bash
+```
+
+셸에 들어가면 그 다음은 평소 쓰던 명령 그대로다.
+
+```sh
+cd topic-01-intro-search/01_sequential_search
+gcc -o sequentialSearch sequentialSearch.c && ./sequentialSearch
+python3 sequential_search.py
 ```
 
 개인프로젝트는 수업계획서상 GitHub 저장소가 필수다. 제출 방식은 별도

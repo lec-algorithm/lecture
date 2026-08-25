@@ -49,7 +49,7 @@ export const site = {
     hero: {
       title: '고급알고리즘',
       subtitle:
-        '2026학년도 2학기 · 연세대학교 첨단융합공학부<br>정렬과 분할 정복에서 그래프와 동적 계획법까지<br>의사코드 한 벌, C와 Python 두 구현',
+        '2026학년도 2학기 · 연세대학교 첨단융합공학부<br>정렬과 분할 정복에서 그래프와 동적 계획법까지<br>의사코드 한 벌, C와 Python 두 구현, 컨테이너 하나',
     },
     cardsTitle: '바로가기',
     cards: [
@@ -74,13 +74,13 @@ export const site = {
       {
         href: '/categories/env/',
         name: '실습 환경',
-        description: '수업과 과제에서 실제로 쓰는<br>언어, 컴파일러, 작업 도구',
-        tags: ['C', 'Python', 'Git'],
+        description: '컨테이너로 고정한 실습 환경<br>설치하는 것은 Git과 Docker 둘뿐',
+        tags: ['Docker', 'C · Python', 'Git'],
       },
     ],
     cta: {
       title: '실습 코드는 별도 저장소에 있습니다',
-      description: '주제마다 의사코드와 C, Python 구현이 함께 들어 있습니다.<br>클론해서 직접 돌려 보세요.',
+      description: '주제마다 의사코드와 C, Python 구현이 함께 들어 있습니다.<br>클론해서 compose로 띄우면 바로 돌아갑니다.',
       button: { label: 'algorithm-code 저장소', href: 'https://github.com/lec-algorithm/algorithm-code' },
     },
     /**

@@ -20,4 +20,7 @@
       사이트 안내와 실습 환경 준비 글, 실습 환경 카탈로그 3종, 오리엔테이션
       슬라이드 덱, 주제 15개의 로드맵 스텁, 용어 25개
     - Docker 실행 구성 (보기 전용 / 바인드 마운트 개발용)
+    - 실습 환경을 컨테이너 기준으로 정리: 수강생 준비물은 Git · Docker ·
+      GitHub 계정 셋이고, 실행 명령은 `docker compose exec` 기준으로 쓴다.
+      `algorithm-code`의 compose·Dockerfile 설계는 `docs/repositories.md` 참고
     - GitHub Pages 배포 워크플로
