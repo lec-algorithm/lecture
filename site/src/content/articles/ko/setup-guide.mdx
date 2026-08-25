@@ -90,29 +90,22 @@ algorithm-code/
 
 컨테이너 셸로 들어가서 평소처럼 명령을 칩니다.
 
+- 실행
+
 ```sh
 docker compose exec lab bash
 ```
 
-프롬프트가 바뀌면 그 다음부터는 컨테이너 안입니다.
+- 결과
 
 ```console
 root@8f3c1d2a4b5e:/work# ls
 Dockerfile  compose.yml  topic-01-intro-search  ...
 ```
 
-셸에 들어가지 않고 명령 하나만 던질 수도 있습니다. 컨테이너 안에 무엇이
-들어 있는지는 이렇게 확인합니다.
+프롬프트가 바뀌면 그 다음부터는 컨테이너 안입니다. 이어서 예제를 돌립니다.
 
-```sh
-docker compose exec lab gcc --version | head -1
-docker compose exec lab python3 --version
-```
-
-```console
-gcc (Debian 14.2.0-19) 14.2.0
-Python 3.13.5
-```
+- 실행
 
 ```sh
 cd topic-01-intro-search/01_sequential_search
@@ -120,22 +113,49 @@ gcc -o sequentialSearch sequentialSearch.c && ./sequentialSearch
 python3 sequential_search.py
 ```
 
-두 구현이 같은 결과를 내면 준비가 끝난 것입니다.
+- 결과
 
 ```console
 n = 15, key = 51
 index = 6, comparisons = 7
 ```
 
+두 구현이 같은 결과를 내면 준비가 끝난 것입니다.
 컨테이너에서 나올 때는 `exit`를 칩니다. 컨테이너는 계속 떠 있습니다.
 
-### 한 줄로 실행하기 \{#one-liner}
+### 셸에 들어가지 않고 실행하기 \{#one-shot}
 
-셸에 들어가지 않고 바로 돌릴 수도 있습니다. `-w`로 작업 폴더를 지정합니다.
+명령 하나만 던질 수도 있습니다. 컨테이너 안에 무엇이 들어 있는지는 이렇게
+확인합니다.
+
+- 실행
+
+```sh
+docker compose exec lab gcc --version | head -1
+docker compose exec lab python3 --version
+```
+
+- 결과
+
+```console
+gcc (Debian 14.2.0-19) 14.2.0
+Python 3.13.5
+```
+
+예제도 마찬가지입니다. `-w`로 작업 폴더를 지정합니다.
+
+- 실행
 
 ```sh
 docker compose exec -w /work/topic-01-intro-search/01_sequential_search lab \
   sh -c "gcc -o sequentialSearch sequentialSearch.c && ./sequentialSearch"
+```
+
+- 결과
+
+```console
+n = 15, key = 51
+index = 6, comparisons = 7
 ```
 
 ## 6. 정리 \{#down}

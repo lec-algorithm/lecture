@@ -67,8 +67,9 @@ algorithm-code/
 - 컨테이너는 `sleep infinity`로 떠 있고, 작업은 전부 `docker compose exec`로
   들어가서 한다.
 
+- `compose.yml`
+
 ```yaml
-# compose.yml
 services:
   lab:
     build: .
@@ -78,8 +79,9 @@ services:
     command: sleep infinity
 ```
 
+- `Dockerfile` (실습에 필요한 것만 담는다)
+
 ```dockerfile
-# Dockerfile — 실습에 필요한 것만 담는다
 FROM debian:trixie-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

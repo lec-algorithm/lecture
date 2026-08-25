@@ -13,6 +13,8 @@
   6) `]](`    — 위키링크 바로 뒤의 괄호. [[용어]](…)는 마크다운 링크로 파싱되어 위키링크가 깨진다
   7) 마침표 누락 — 서술형(`~합니다`, `~한다`, `~하세요`)으로 끝나는데 마침표가 없는 줄.
      제목·표 셀·프론트매터는 문장이 아니라 이름표이므로 검사에서 뺀다
+  8) 붙은 코드 블록 — 빈 줄만 사이에 두고 이어지는 펜스 두 개. 명령과 출력의
+     경계가 보이지 않으므로 `- 실행` / `- 결과` 같은 라벨을 사이에 둔다
 
 코드 펜스(``` … ```, mermaid 포함)와 인라인 코드 스팬(`…`)은 검사에서 제외한다.
 위반이 있으면 목록을 출력하고 종료 코드 1을 반환한다.
@@ -22,7 +24,7 @@ import re
 import subprocess
 import sys
 
-FENCE_RE = re.compile(r"```.*?```", re.S)
+FENCE_OPEN_RE = re.compile(r"^\s*(`{3,})")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 
 CLOSE_PUNCT = r")\]\"”'』」"
@@ -46,13 +48,37 @@ def tracked_files() -> list[str]:
     return [line for line in out.splitlines() if line and line not in EXCLUDED]
 
 
+def fence_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """코드 펜스 블록의 (시작, 끝) 줄 번호 목록 (1-based, 펜스 줄 포함).
+
+    CommonMark 규칙대로 여는 펜스와 길이가 같거나 더 긴 펜스만 닫는 것으로 본다.
+    ````md 안에 ```sh를 넣는 중첩 예시가 통째로 코드로 취급되도록 하기 위해서다.
+    """
+    blocks: list[tuple[int, int]] = []
+    start = 0
+    marker = ""
+    for i, line in enumerate(lines, 1):
+        m = FENCE_OPEN_RE.match(line)
+        if not m:
+            continue
+        ticks = m.group(1)
+        if not marker:
+            marker, start = ticks, i
+        elif len(ticks) >= len(marker) and not line.strip()[len(ticks) :].strip():
+            blocks.append((start, i))
+            marker = ""
+    if marker:  # 닫히지 않은 펜스는 파일 끝까지로 본다
+        blocks.append((start, len(lines)))
+    return blocks
+
+
 def strip_code(text: str) -> str:
     """코드 펜스·인라인 코드를 같은 줄 수의 공백으로 치환한다 (줄 번호 보존)."""
-
-    def blank(m: re.Match) -> str:
-        return re.sub(r"[^\n]", " ", m.group(0))
-
-    return INLINE_CODE_RE.sub(blank, FENCE_RE.sub(blank, text))
+    lines = text.split("\n")
+    for start, end in fence_blocks(lines):
+        for i in range(start - 1, end):
+            lines[i] = " " * len(lines[i])
+    return INLINE_CODE_RE.sub(lambda m: " " * len(m.group(0)), "\n".join(lines))
 
 
 def check_file(path: str) -> list[str]:
@@ -94,6 +120,18 @@ def check_file(path: str) -> list[str]:
     for i, line in enumerate(lines, 1):
         if re.search(r"\]\]\(", line):
             problems.append(f"{path}:{i}: ']](' — 위키링크 뒤 괄호가 마크다운 링크로 파싱됨, 문장을 다듬어 띄운다")
+
+    # 8) 코드 블록 두 개가 빈 줄만 사이에 두고 붙어 있는 경우
+    #    명령과 출력을 나란히 둘 때 `- 실행` / `- 결과` 같은 라벨이 있어야 한다.
+    raw_lines = raw.split("\n")
+    blocks = fence_blocks(raw_lines)
+    for (_, prev_end), (next_start, _) in zip(blocks, blocks[1:]):
+        between = raw_lines[prev_end : next_start - 1]
+        if all(not line.strip() for line in between):
+            problems.append(
+                f"{path}:{prev_end}: 코드 블록이 연달아 붙어 있다 — "
+                "각 블록 앞에 `- 실행` / `- 결과` 같은 라벨을 둔다"
+            )
 
     # 7) 서술형으로 끝나는데 마침표가 없는 줄
     #    제목(#)·표 셀(|)·프론트매터·JSX 태그·구분선은 문장이 아니므로 뺀다.
