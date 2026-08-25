@@ -3,7 +3,9 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
-## [Unreleased]
+## [1.0.0] - 2026-08-25
+
+기본 셋업 완료. 사이트가 공개된다.
 
 ### Added
 
@@ -43,3 +45,5 @@
       복사하지 않을 것을 나눈 이유다.
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
+
+[1.0.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.0
