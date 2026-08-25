@@ -1,0 +1,44 @@
+---
+name: Docker
+category: runtime
+description: 实验代码运行的容器。装好它和 Git 就可以开始
+website: https://www.docker.com/
+docs: https://docs.docker.com/
+repo: https://github.com/moby/moby
+language: Go
+license: Apache-2.0
+pricing: ["open-source", "free-tier"]
+tags: ["Docker", "compose", "容器"]
+---
+
+`algorithm-code` 仓库以单个容器启动。编译器和 Python 都在里面，不需要另外安装。
+
+**使用 GitHub Codespaces 时连 Docker 都不用装。** 仓库中的
+`.devcontainer/devcontainer.json` 直接复用下面 `compose.yml` 里的 `lab` 服务，
+因此在浏览器中打开得到的是同一个容器。只有想在自己电脑上运行时才需要
+Docker Desktop。
+
+`compose.yml` 位于仓库根目录。所有 `docker compose` 命令都在该文件夹中执行。
+
+```sh
+git clone https://github.com/lec-algorithm/algorithm-code.git
+cd algorithm-code
+docker compose up -d
+docker compose exec lab bash
+```
+
+进入 shell 之后，一切如常。
+
+```sh
+cd topic-01-intro-search/01_sequential_search
+gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
+python3 sequential_search.py
+```
+
+仓库文件夹挂载到容器的 `/work`，所以代码用宿主机上惯用的编辑器修改，只在容器里
+运行。保存后立即生效。
+
+使用容器是为了消除环境差异。C 编译器在各操作系统上的安装方式不同，Python 版本
+也会分化。若不希望同一份代码在不同人手上表现不同，固定运行环境是最好的办法。
+
+完整步骤见[实验环境准备](/article/setup-guide/)。
