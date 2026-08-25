@@ -26,7 +26,7 @@
 - 코드·실행 방법·재현 절차는 **각 저장소의 README가 단일 원본**이다.
   여기서는 요약하고 링크만 건다.
 - 강의 문서에서 코드 지점을 가리킬 때는 저장소 안의 경로를 함께 적는다.
-  예: `algorithm-code`의 `topic-03/01_merge_sort/mergeSort.c`
+  예: `algorithm-code`의 `src/topic-03-divide-conquer/01_merge_sort/mergeSort.c`
 
 ## 파일·형식 규칙
 
