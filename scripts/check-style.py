@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""문서 스타일 검사 — docs/writing-rules.md 중 기계로 잡을 수 있는 규칙들.
+
+사용법 (repo 루트에서):
+    python3 scripts/check-style.py
+
+검사 항목:
+  1) `).`     — 닫는 괄호로 끝나는 문장의 마침표 겹침 (한국어 콘텐츠만)
+  2) 취소선   — 한 문단에 이스케이프 안 된 `~` 2개 이상 (GFM 취소선 오발동)
+  3) MDX 링크 — .mdx 안의 `<http…>` 꺾쇠 자동 링크 (JSX로 해석되어 빌드 실패)
+  4) 볼드 경계 — 닫는 괄호·따옴표 뒤 `**` + 한글 (별표가 그대로 노출)
+  5) 줄표(—)  — 한글 문장에서 줄표(em dash)로 구절을 잇는 형태 (한국어 콘텐츠만,
+     표의 빈 칸 마커는 제외)
+  6) `]](`    — 위키링크 바로 뒤의 괄호. [[용어]](…)는 마크다운 링크로 파싱되어 위키링크가 깨진다
+  7) 마침표 누락 — 서술형(`~합니다`, `~한다`, `~하세요`)으로 끝나는데 마침표가 없는 줄.
+     제목·표 셀·프론트매터는 문장이 아니라 이름표이므로 검사에서 뺀다
+  8) 붙은 코드 블록 — 빈 줄만 사이에 두고 이어지는 펜스 두 개. 명령과 출력의
+     경계가 보이지 않으므로 `- 실행` / `- 결과` 같은 라벨을 사이에 둔다
+
+코드 펜스(``` … ```, mermaid 포함)와 인라인 코드 스팬(`…`)은 검사에서 제외한다.
+위반이 있으면 목록을 출력하고 종료 코드 1을 반환한다.
+
+규칙 1·5는 한국어 문장 스타일이라 한국어 콘텐츠에만 적용한다. 영어에서
+`(week 8).`는 올바른 문장부호이고 줄표도 정상적인 문체다. 로케일 콘텐츠
+디렉터리(`.../en/...`, `.../zh/...`)는 이 둘을 건너뛴다. 나머지 규칙(물결표,
+MDX 꺾쇠 링크, 위키링크 뒤 괄호, 붙은 코드 블록)은 언어와 무관하므로 전부
+적용한다. 규칙 4·7은 한글 문자를 직접 찾으므로 스스로 범위가 잡힌다.
+"""
+
+import re
+import subprocess
+import sys
+
+FENCE_OPEN_RE = re.compile(r"^\s*(`{3,})")
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+CLOSE_PUNCT = r")\]\"”'』」"
+
+# 표의 빈 칸 마커 `| — |`는 연결자가 아니므로 검사 대상에서 뺀다.
+EMDASH_EMPTY_CELL_RE = re.compile(r"(?<=\|)\s*—\s*(?=\|)")
+
+# 서술형 종결: `~니다`(합니다·입니다·봅니다), `~다`(한다·된다·있다·쓴다),
+# `~세요`(하세요·주세요). 명사 종결(`참고`·`정리`)은 걸리지 않는다.
+DECLARATIVE_END_RE = re.compile(r"(니다|[가-힣]다|세요)\s*$")
+
+# 한국어 문장 규칙(1·5)을 건너뛸 경로: 로케일 콘텐츠 디렉터리.
+# 영어에서 `(week 8).`는 올바른 문장부호이고, 줄표도 정상적인 문체다.
+NON_KOREAN_PATH_RE = re.compile(r"/(en|zh)/")
+
+# 학교 수업계획서를 그대로 옮긴 파일 — 우리 스타일 규칙을 적용하지 않는다.
+# (원본이 갱신되면 통째로 교체하므로 손대지 않는 것이 규칙이다)
+EXCLUDED = {"docs/syllabus.md"}
+
+
+def tracked_files() -> list[str]:
+    out = subprocess.run(
+        ["git", "ls-files", "*.md", "*.mdx"], capture_output=True, text=True, check=True
+    ).stdout
+    return [line for line in out.splitlines() if line and line not in EXCLUDED]
+
+
+def fence_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """코드 펜스 블록의 (시작, 끝) 줄 번호 목록 (1-based, 펜스 줄 포함).
+
+    CommonMark 규칙대로 여는 펜스와 길이가 같거나 더 긴 펜스만 닫는 것으로 본다.
+    ````md 안에 ```sh를 넣는 중첩 예시가 통째로 코드로 취급되도록 하기 위해서다.
+    """
+    blocks: list[tuple[int, int]] = []
+    start = 0
+    marker = ""
+    for i, line in enumerate(lines, 1):
+        m = FENCE_OPEN_RE.match(line)
+        if not m:
+            continue
+        ticks = m.group(1)
+        if not marker:
+            marker, start = ticks, i
+        elif len(ticks) >= len(marker) and not line.strip()[len(ticks) :].strip():
+            blocks.append((start, i))
+            marker = ""
+    if marker:  # 닫히지 않은 펜스는 파일 끝까지로 본다
+        blocks.append((start, len(lines)))
+    return blocks
+
+
+def strip_code(text: str) -> str:
+    """코드 펜스·인라인 코드를 같은 줄 수의 공백으로 치환한다 (줄 번호 보존)."""
+    lines = text.split("\n")
+    for start, end in fence_blocks(lines):
+        for i in range(start - 1, end):
+            lines[i] = " " * len(lines[i])
+    return INLINE_CODE_RE.sub(lambda m: " " * len(m.group(0)), "\n".join(lines))
+
+
+def check_file(path: str) -> list[str]:
+    raw = open(path, encoding="utf-8").read()
+    text = strip_code(raw)
+    lines = text.split("\n")
+    problems: list[str] = []
+    korean = not NON_KOREAN_PATH_RE.search(path)
+
+    # 1) `).` — 닫는 괄호 바로 뒤 마침표 (한국어 콘텐츠만)
+    if korean:
+        for i, line in enumerate(lines, 1):
+            if re.search(r"\)\.", line):
+                problems.append(f"{path}:{i}: ').' — 괄호로 끝나는 문장에 마침표 겹침")
+
+    # 2) 취소선 위험 — 문단 안에 이스케이프 안 된 ~ 2개 이상
+    line_no = 1
+    for para in text.split("\n\n"):
+        tildes = re.findall(r"(?<!\\)~", para)
+        if len(tildes) >= 2:
+            problems.append(f"{path}:{line_no}: '~' {len(tildes)}개 — 취소선 위험, `\\~`로 이스케이프")
+        line_no += para.count("\n") + 2
+
+    # 3) .mdx 꺾쇠 자동 링크
+    if path.endswith(".mdx"):
+        for i, line in enumerate(lines, 1):
+            if re.search(r"<https?://", line):
+                problems.append(f"{path}:{i}: '<http…>' — MDX에서 JSX로 해석됨, [텍스트](URL) 사용")
+
+    # 4) 볼드 경계 — 문장부호와 한글 사이에 낀 `**`
+    for i, line in enumerate(lines, 1):
+        if re.search(rf"[{CLOSE_PUNCT}]\*\*[가-힣A-Za-z0-9]", line):
+            problems.append(f"{path}:{i}: '…)**한글' — 볼드가 닫히지 않음, 문장 다듬기/<strong> 사용")
+
+    # 5) 줄표(—) — 한글 문장에서 줄표로 잇는 형태 (한국어 콘텐츠만,
+    #    표의 빈 칸 마커 `| — |`는 제외)
+    if korean:
+        for i, line in enumerate(lines, 1):
+            if "—" in EMDASH_EMPTY_CELL_RE.sub("  ", line):
+                problems.append(
+                    f"{path}:{i}: '—' 줄표 — 문장을 끊거나 리스트·쉼표·콜론·괄호로 바꾼다"
+                )
+
+    # 6) `]](` — 위키링크 바로 뒤 괄호는 마크다운 링크로 파싱된다
+    for i, line in enumerate(lines, 1):
+        if re.search(r"\]\]\(", line):
+            problems.append(f"{path}:{i}: ']](' — 위키링크 뒤 괄호가 마크다운 링크로 파싱됨, 문장을 다듬어 띄운다")
+
+    # 8) 코드 블록 두 개가 빈 줄만 사이에 두고 붙어 있는 경우
+    #    명령과 출력을 나란히 둘 때 `- 실행` / `- 결과` 같은 라벨이 있어야 한다.
+    raw_lines = raw.split("\n")
+    blocks = fence_blocks(raw_lines)
+    for (_, prev_end), (next_start, _) in zip(blocks, blocks[1:]):
+        between = raw_lines[prev_end : next_start - 1]
+        if all(not line.strip() for line in between):
+            problems.append(
+                f"{path}:{prev_end}: 코드 블록이 연달아 붙어 있다 — "
+                "각 블록 앞에 `- 실행` / `- 결과` 같은 라벨을 둔다"
+            )
+
+    # 7) 서술형으로 끝나는데 마침표가 없는 줄
+    #    제목(#)·표 셀(|)·프론트매터·JSX 태그·구분선은 문장이 아니므로 뺀다.
+    in_frontmatter = False
+    for i, line in enumerate(lines, 1):
+        if line.strip() == "---":
+            # 파일 첫 줄의 `---`부터 다음 `---`까지가 프론트매터다.
+            if i == 1 or in_frontmatter:
+                in_frontmatter = not in_frontmatter
+                continue
+        if in_frontmatter:
+            continue
+        s = line.strip()
+        if not s or s.startswith(("#", "|", "<", ">")) or s.startswith("---"):
+            continue
+        if DECLARATIVE_END_RE.search(s):
+            problems.append(
+                f"{path}:{i}: 서술형인데 마침표가 없다 — 종결 형태로 판단한다 (불릿·카드도 동일)"
+            )
+
+    return problems
+
+
+def main() -> int:
+    all_problems: list[str] = []
+    for path in tracked_files():
+        all_problems.extend(check_file(path))
+    if all_problems:
+        print("문서 스타일 위반 (docs/writing-rules.md 참고):")
+        for p in all_problems:
+            print(" -", p)
+        return 1
+    print("check-style: 위반 없음")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

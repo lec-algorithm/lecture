@@ -1,0 +1,48 @@
+---
+name: Docker
+category: runtime
+description: The container the practice code runs in. Install this and Git and you are ready
+website: https://www.docker.com/
+docs: https://docs.docker.com/
+repo: https://github.com/moby/moby
+language: Go
+license: Apache-2.0
+pricing: ["open-source", "free-tier"]
+tags: ["Docker", "compose", "container"]
+---
+
+The `algorithm-code` repository comes up as a single container. The compiler and
+Python are inside it, so you never install them.
+
+**With GitHub Codespaces you do not even install Docker.** The repository's
+`.devcontainer/devcontainer.json` reuses the `lab` service from the
+`compose.yml` below, so opening it in a browser gives you the same container.
+Docker Desktop is only needed when you want to run it on your own machine.
+
+`compose.yml` sits at the repository root. Every `docker compose` command is
+typed from that folder.
+
+```sh
+git clone https://github.com/lec-algorithm/algorithm-code.git
+cd algorithm-code
+docker compose up -d
+docker compose exec lab bash
+```
+
+Once you are in the shell, everything is as usual.
+
+```sh
+cd topic-01-intro-search/01_sequential_search
+gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
+python3 sequential_search.py
+```
+
+The repository folder is mounted at `/work` in the container, so you edit with
+your own editor on the host and only run inside. A save is visible immediately.
+
+The reason for a container is to remove differences in environment. Installing a
+C compiler differs on every operating system, and Python versions drift. If you
+do not want the same code behaving differently for different people, pinning the
+runtime is the way.
+
+The walkthrough is in [Setting up the lab](/article/setup-guide/).
