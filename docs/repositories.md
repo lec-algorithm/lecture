@@ -66,6 +66,10 @@ algorithm-code/
   고치고 실행만 컨테이너에서 한다.
 - 컨테이너는 `sleep infinity`로 떠 있고, 작업은 전부 `docker compose exec`로
   들어가서 한다.
+- `compose.yml`은 저장소 루트에 둔다. **자료에 명령을 적을 때는 그 명령이
+  `algorithm-code` 폴더 안에서 실행된다는 것이 드러나야 한다.** `lecture`
+  저장소에도 사이트용 compose가 있어서, 어느 저장소의 명령인지 모호하면
+  수강생이 엉뚱한 폴더에서 친다.
 
 - `compose.yml`
 
