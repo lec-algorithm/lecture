@@ -59,9 +59,9 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 <Slide source="출처">   {/* 오른쪽 아래 작은 출처 표기 */}
 ```
 
-- 제목 아래 부제는 `::sub[부제 내용]` 디렉티브로 쓴다
-- 프론트매터에서 `transition`(slide/none), `theme`, `aspect`, `toc_level`을 고른다
-- 코드 블록과 mermaid 다이어그램을 그대로 쓸 수 있다
+- 제목 아래 부제는 `::sub[부제 내용]` 디렉티브로 쓴다.
+- 프론트매터에서 `transition`(slide/none), `theme`, `aspect`, `toc_level`을 고른다.
+- 코드 블록과 mermaid 다이어그램을 그대로 쓸 수 있다.
 - 작성 후에는 브라우저에서 넘겨보며 줄바꿈을 확인한다 (writing-rules의 슬라이드 규칙)
 
 ## 알려진 빌드 로그

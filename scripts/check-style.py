@@ -11,6 +11,8 @@
   4) 볼드 경계 — 닫는 괄호·따옴표 뒤 `**` + 한글 (별표가 그대로 노출)
   5) 줄표(—)  — 한글 문장에서 줄표(em dash)로 구절을 잇는 형태 (표의 빈 칸 마커는 제외)
   6) `]](`    — 위키링크 바로 뒤의 괄호. [[용어]](…)는 마크다운 링크로 파싱되어 위키링크가 깨진다
+  7) 마침표 누락 — 서술형(`~합니다`, `~한다`, `~하세요`)으로 끝나는데 마침표가 없는 줄.
+     제목·표 셀·프론트매터는 문장이 아니라 이름표이므로 검사에서 뺀다
 
 코드 펜스(``` … ```, mermaid 포함)와 인라인 코드 스팬(`…`)은 검사에서 제외한다.
 위반이 있으면 목록을 출력하고 종료 코드 1을 반환한다.
@@ -27,6 +29,10 @@ CLOSE_PUNCT = r")\]\"”'』」"
 
 # 표의 빈 칸 마커 `| — |`는 연결자가 아니므로 검사 대상에서 뺀다.
 EMDASH_EMPTY_CELL_RE = re.compile(r"(?<=\|)\s*—\s*(?=\|)")
+
+# 서술형 종결: `~니다`(합니다·입니다·봅니다), `~다`(한다·된다·있다·쓴다),
+# `~세요`(하세요·주세요). 명사 종결(`참고`·`정리`)은 걸리지 않는다.
+DECLARATIVE_END_RE = re.compile(r"(니다|[가-힣]다|세요)\s*$")
 
 # 학교 수업계획서를 그대로 옮긴 파일 — 우리 스타일 규칙을 적용하지 않는다.
 # (원본이 갱신되면 통째로 교체하므로 손대지 않는 것이 규칙이다)
@@ -88,6 +94,25 @@ def check_file(path: str) -> list[str]:
     for i, line in enumerate(lines, 1):
         if re.search(r"\]\]\(", line):
             problems.append(f"{path}:{i}: ']](' — 위키링크 뒤 괄호가 마크다운 링크로 파싱됨, 문장을 다듬어 띄운다")
+
+    # 7) 서술형으로 끝나는데 마침표가 없는 줄
+    #    제목(#)·표 셀(|)·프론트매터·JSX 태그·구분선은 문장이 아니므로 뺀다.
+    in_frontmatter = False
+    for i, line in enumerate(lines, 1):
+        if line.strip() == "---":
+            # 파일 첫 줄의 `---`부터 다음 `---`까지가 프론트매터다.
+            if i == 1 or in_frontmatter:
+                in_frontmatter = not in_frontmatter
+                continue
+        if in_frontmatter:
+            continue
+        s = line.strip()
+        if not s or s.startswith(("#", "|", "<", ">")) or s.startswith("---"):
+            continue
+        if DECLARATIVE_END_RE.search(s):
+            problems.append(
+                f"{path}:{i}: 서술형인데 마침표가 없다 — 종결 형태로 판단한다 (불릿·카드도 동일)"
+            )
 
     return problems
 

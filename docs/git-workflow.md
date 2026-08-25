@@ -45,8 +45,8 @@
 ## 릴리스
 
 1. `develop`에서 `release/<버전>` 분기
-2. `CHANGELOG.md`와 `site/package.json`의 버전을 올린다
-3. `main`으로 머지 → GitHub Pages 배포가 자동으로 돈다
+2. `CHANGELOG.md`와 `site/package.json`의 버전을 올린다.
+3. `main`으로 머지 → GitHub Pages 배포가 자동으로 돈다.
 4. `main`에 `vX.Y.Z` 태그를 달고 `develop`으로 역머지
 5. `main`·`develop`·태그를 push하고 **GitHub Release를 만든다**
 

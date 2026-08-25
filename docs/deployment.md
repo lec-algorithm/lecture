@@ -11,9 +11,9 @@
 
 한 번만 하면 된다.
 
-1. GitHub 저장소 **Settings > Pages**로 간다
-2. **Source**를 `Deploy from a branch`가 아니라 **`GitHub Actions`**로 바꾼다
-3. `main`에 무언가 push하거나 Actions 탭에서 워크플로를 수동 실행한다
+1. GitHub 저장소 **Settings > Pages**로 간다.
+2. **Source**를 `Deploy from a branch`가 아니라 **`GitHub Actions`**로 바꾼다.
+3. `main`에 무언가 push하거나 Actions 탭에서 워크플로를 수동 실행한다.
 
 Source가 `GitHub Actions`가 아니면 워크플로는 성공해도 페이지가 갱신되지 않는다.
 
@@ -37,11 +37,11 @@ Source가 `GitHub Actions`가 아니면 워크플로는 성공해도 페이지�
 
 ## 워크플로가 하는 일
 
-1. `actions/checkout`으로 저장소를 받는다
-2. `pnpm/action-setup`이 `site/package.json`의 `packageManager` 버전으로 pnpm을 깐다
-3. `actions/setup-node`가 Node 26 + pnpm 캐시(`site/pnpm-lock.yaml` 기준)를 준비한다
-4. `site/`에서 `pnpm install --frozen-lockfile && pnpm build`를 돌린다
-5. `site/dist`를 Pages 아티팩트로 올리고 `deploy-pages`가 배포한다
+1. `actions/checkout`으로 저장소를 받는다.
+2. `pnpm/action-setup`이 `site/package.json`의 `packageManager` 버전으로 pnpm을 깐다.
+3. `actions/setup-node`가 Node 26 + pnpm 캐시(`site/pnpm-lock.yaml` 기준)를 준비한다.
+4. `site/`에서 `pnpm install --frozen-lockfile && pnpm build`를 돌린다.
+5. `site/dist`를 Pages 아티팩트로 올리고 `deploy-pages`가 배포한다.
 
 `--frozen-lockfile`이므로 **`site/pnpm-lock.yaml`이 `package.json`과 맞지 않으면
 빌드가 실패한다.** 의존성을 바꿨으면 락파일도 함께 커밋한다.

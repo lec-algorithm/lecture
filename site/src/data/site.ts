@@ -62,7 +62,7 @@ export const site = {
       {
         href: '/slides/',
         name: '슬라이드',
-        description: '수업에서 쓰는 발표 자료<br>브라우저에서 바로 넘겨 봅니다',
+        description: '수업에서 쓰는 발표 자료<br>브라우저에서 바로 넘겨 봅니다.',
         tags: ['프레젠테이션'],
       },
       {
