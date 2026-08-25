@@ -3,6 +3,29 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.1.0] - 2026-08-25
+
+### Changed
+
+- stack-site-builder를 **1.24.0**으로 올렸다. 1.23.2에서 사이트가 손댈 수
+  없던 자리 셋이 열려, 중국어 페이지에 한국어가 새던 문제가 모두 해결됐다.
+
+### Added
+
+- **로케일별 사이트 이름**. `site.name`을 레코드로 준다. 영어·중국어 페이지의
+  헤더 워드마크와 문서 제목이 각 언어로 나온다. 이전에는 세 언어 모두
+  `고급알고리즘`이었다.
+- **`pricingLabels.zh`**와 **`difficultyLabels.zh`**. 각각 도구 카탈로그의 가격
+  칩과 강의 난이도 라벨이다. 테마 내부 표라 손댈 수 없었고, 그래서 중국어
+  페이지에 `오픈소스`·`난이도: 고급`이 그대로 나왔다.
+- 중국어 UI 문자열 12개 추가. `title`·`alt`·`aria-label` 속성까지 훑어
+  누락을 찾았다.
+
+### Fixed
+
+- 언어 자동 감지 리다이렉트가 동작하게 됐다. 기본 로케일이 `en`이 아닌
+  사이트에서는 그 스크립트가 어느 페이지에도 실리지 않았다.
+
 ## [1.0.2] - 2026-08-25
 
 ### Added
@@ -67,6 +90,7 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.1.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.1.0
 [1.0.2]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.2
 [1.0.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.1
 [1.0.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.0
