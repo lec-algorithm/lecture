@@ -3,6 +3,15 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.0.2] - 2026-08-25
+
+### Added
+
+- 오리엔테이션 슬라이드에 "새 주제 받기 · VS Code로 열기" 한 장. 로컬로
+  시작한 뒤 무엇을 하는지가 비어 있었다. `git pull`로 새 주제를 받고,
+  `Reopen in Container`로 Codespaces와 같은 환경에서 여는 것을 담았다.
+  세 언어 모두 추가했다.
+
 ## [1.0.1] - 2026-08-25
 
 ### Fixed
@@ -58,5 +67,6 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.0.2]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.2
 [1.0.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.1
 [1.0.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.0
