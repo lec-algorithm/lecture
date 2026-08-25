@@ -5,8 +5,15 @@ import type { SectionKey } from 'stack-site-builder';
  * UI 문자열 오버라이드 키는 테마의 src/i18n/ui.ts와 동일하다.
  */
 export const site = {
-  /** 헤더와 홈 타이틀에 표시. */
-  name: '고급알고리즘',
+  /**
+   * 헤더와 페이지 제목에 표시. 로케일별로 줄 수 있다(테마 1.24.0).
+   * 이게 없으면 영어·중국어 페이지의 헤더에도 한국어 과목명이 나온다.
+   */
+  name: {
+    ko: '고급알고리즘',
+    en: 'Advanced Algorithms',
+    zh: '高级算法',
+  },
   /** 이 사이트의 소스 저장소 — 헤더의 GitHub 링크가 여기를 가리킨다. */
   repoUrl: 'https://github.com/lec-algorithm/lecture',
   /** 빌드 시 GitHub API 호출(스타 수 등)에 쓰는 User-Agent. */
@@ -135,6 +142,23 @@ export const site = {
       label: { ko: '실습 환경', en: 'Lab environment', zh: '实验环境' },
     },
   },
+  /**
+   * `pricing` 프론트매터 enum의 라벨. 테마는 en·ko만 갖고 있어서, 채우지 않으면
+   * 중국어 페이지의 가격 칩이 한국어로 나온다(테마 1.24.0에서 열린 자리).
+   */
+  pricingLabels: {
+    zh: {
+      'completely-free': '完全免费',
+      'open-source': '开源',
+      'free-tier': '免费额度',
+      paid: '付费',
+      free: '免费',
+    },
+  } as Record<string, Record<string, string>>,
+  /** 강의 `level`(1\~5)의 라벨. 카드의 별과 툴팁에 쓰인다. */
+  difficultyLabels: {
+    zh: { '1': '入门', '2': '初级', '3': '中级', '4': '高级', '5': '专家' },
+  } as Record<string, Record<string, string>>,
   /** 테마 UI 문자열의 로케일별 오버라이드. */
   ui: {
     ko: {
@@ -186,6 +210,9 @@ export const site = {
       'slides.prev': '上一页',
       'slides.next': '下一页',
       'slides.print': '打印 / PDF',
+      'slides.menu': '菜单',
+      'slides.overview': '总览',
+      'slides.close': '关闭',
 
       // 용어집
       'glossary.title': '术语表',
@@ -196,6 +223,7 @@ export const site = {
       'glossary.course': '课程',
       'glossary.concept': '概念',
       'glossary.noResults': '没有匹配的术语。',
+      'glossary.search': '搜索术语…',
 
       // 개념 (섹션은 꺼져 있지만 용어집이 라벨을 쓴다)
       'concept.title': '概念',
@@ -209,6 +237,7 @@ export const site = {
       'updated.6m': '6 个月以内',
       'updated.1y': '1 年以内',
       'updated.2y': '2 年以内',
+      'updated.all': '全部',
       'results.none': '没有符合条件的工具。',
       'search.placeholder': '搜索工具…',
       'tag.allTools': '全部工具',
@@ -230,6 +259,10 @@ export const site = {
       'tag.heading': '标签',
       'toc.collapseAll': '全部折叠',
       'detail.docs': '文档',
+      'detail.website': '官网',
+      'detail.license': '许可证',
+      'detail.relatedTools': '相关工具',
+      'project.relatedTools': '相关工具',
       'detail.pricing': '价格',
       'detail.price': '价格',
       'tab.pricing': '价格',
@@ -239,6 +272,7 @@ export const site = {
       'theme.label': '主题',
       'private.login': '登录',
       'detail.language': '语言',
+      'view.label': '视图',
       'view.standard': '标准',
       'view.gallery': '画廊',
 

@@ -67,6 +67,23 @@ import Slide from 'stack-site-builder/components/Slide.astro';
   슬라이드 높이만큼 늘리므로 짧은 코드가 큰 빈 상자가 된다.
 - 작성 후에는 브라우저에서 넘겨보며 줄바꿈을 확인한다 (writing-rules의 슬라이드 규칙)
 
+## 테마 버전 올리기
+
+```sh
+cd site && pnpm up stack-site-builder
+```
+
+**Docker로 보고 있다면 컨테이너를 다시 시작해야 합니다.** `node_modules`가
+익명 볼륨이라 호스트에서 설치한 것이 컨테이너에 닿지 않습니다. 그대로 두면
+사이트는 옛 테마로 렌더되고, 새 기능이 안 먹는 것처럼 보입니다.
+
+```sh
+docker compose restart app
+```
+
+테마가 새 site 데이터 필드를 요구하는지는 테마의 CHANGELOG를 봅니다.
+이 사이트가 공급하는 데이터는 위 표에 정리되어 있습니다.
+
 ## 알려진 빌드 로그
 
 빌드 중에 아래 메시지가 나오지만 오류가 아니다. 테마가 꺼진 섹션의 컬렉션도
