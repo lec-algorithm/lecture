@@ -3,6 +3,18 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.0.1] - 2026-08-25
+
+### Fixed
+
+- 실습 코드 경로에 `src/`가 빠져 있던 것. `algorithm-code`에서 주제 폴더를
+  `src/` 아래로 옮겼는데 자료가 따라가지 않아, 슬라이드의 `cd` 명령이 없는
+  경로를 가리켰다. 강의 문서 45편, 슬라이드 3종, 안내 글 3종, 도구 카탈로그
+  3종, 규칙 문서 3종을 함께 고쳤다.
+- 로컬 실행 안내가 학생 개인 저장소(`my-algorithm-code`)를 클론하도록 되어
+  있던 것. 강의 예제는 복사하지 않으므로 `lec-algorithm/algorithm-code`를
+  클론한다.
+
 ## [1.0.0] - 2026-08-25
 
 기본 셋업 완료. 사이트가 공개된다.
@@ -46,4 +58,5 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.0.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.1
 [1.0.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.0

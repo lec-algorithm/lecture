@@ -47,37 +47,44 @@ devcontainer·`.vscode`를 고쳐야 하면 그쪽을 먼저 고치고 `algorith
 
 ## algorithm-code
 
-수강생이 실제로 클론해서 실습하는 저장소. 주제 번호가 폴더 이름이 되고,
-한 주제 안에서 예제가 번호 순으로 늘어선다. 예제 하나에 **의사코드 · C ·
-Python**이 함께 들어간다.
+수강생이 codespace를 만들거나 클론해서 돌려 보는 저장소. 예제는 `src/` 아래
+주제 폴더에 들어가고, 한 주제 안에서 예제가 번호 순으로 늘어선다. 예제 하나에
+**의사코드 · C · Python**이 함께 들어간다.
 
 ```plaintext
 algorithm-code/
-├── compose.yml                          # 실습 컨테이너 (서비스 이름: lab)
-├── Dockerfile                           # gcc · gdb · python3
-├── AGENTS.md                            # AI 도구용 가이드 (CLAUDE.md와 동일)
-├── topic-01-intro-search/
-│   ├── 01_sequential_search/            # 2026-08-25 기준 여기까지 있다
-│   │   ├── README.md
-│   │   ├── sequentialSearch.pseudo
-│   │   ├── sequentialSearch.c
-│   │   └── sequential_search.py
-│   └── 02_binary_search/
-├── topic-02-basic-sorting/
-│   ├── 01_selection_sort/
-│   ├── 02_insertion_sort/
-│   └── ...
-└── README.md
+├── compose.yml                              # 실습 컨테이너 (서비스 이름: lab)
+├── Dockerfile                               # gcc · gdb · make · python3 · git
+├── Makefile                                 # 패턴 규칙 (%.out · %.debug.out)
+├── .devcontainer/  .vscode/                 # Codespaces · 빌드 · 디버그 설정
+└── src/
+    ├── topic-01-intro-search/
+    │   ├── 01_sequential_search/            # 2026-08-25 기준 여기까지 있다
+    │   │   ├── README.md
+    │   │   ├── sequentialSearch.pseudo
+    │   │   ├── sequentialSearch.c
+    │   │   └── sequential_search.py
+    │   └── 02_binary_search/
+    └── topic-02-basic-sorting/
+        ├── 01_selection_sort/
+        └── 02_insertion_sort/
 ```
 
-- 폴더 이름은 강의 자료의 주제 슬러그와 **글자 그대로 일치시킨다**.
+- 주제 폴더 이름은 강의 자료의 주제 슬러그와 **글자 그대로 일치시킨다**.
   대응표는 [course-plan.md](course-plan.md)에 있다.
+- **예제 하나가 폴더 하나다.** `Makefile`의 패턴 규칙이 같은 폴더의 `.c`를 함께
+  링크하므로, **한 폴더에 `main`은 하나만** 둔다. 두 개면 링크가 충돌한다.
+- **`src/` 아래에 두는 이유**는 `algorithm-env`와 최상위 모양을 맞추기
+  위해서다. 수강생이 과제 저장소와 예제 저장소를 오갈 때 구조가 같다.
 - C와 Python은 같은 알고리즘을 같은 이름의 함수로 구현한다. 언어 차이가
   알고리즘 차이로 보이지 않게 한다.
 - 파일명은 각 언어의 관례를 따른다. C는 camelCase(`sequentialSearch.c`),
   Python은 snake_case(`sequential_search.py`)다.
 - 외부 라이브러리를 쓰지 않는다. 이미지에 무언가를 더 깔아야 하는 예제는
   만들지 않는다.
+- **이 저장소에는 고정된 진입점이 없다.** `make run` 같은 타겟을 두지 않고,
+  실행은 열려 있는 파일을 대상으로 한다. `algorithm-env`와 `Makefile`·
+  `tasks.json`이 그 지점에서 갈린다.
 - 의사코드(`.pseudo`)가 기준이다. 두 구현은 의사코드를 옮긴 것이다.
 
 ### 실행 환경
@@ -194,8 +201,8 @@ gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 수업에서는 다음 한 줄로 시작한다.
 
 ```sh
-git clone https://github.com/<본인 계정>/my-algorithm-code.git
-cd my-algorithm-code
+git clone https://github.com/lec-algorithm/algorithm-code.git
+cd algorithm-code
 docker compose up -d
 docker compose exec lab bash
 ```
@@ -203,7 +210,7 @@ docker compose exec lab bash
 셸에 들어가면 그 다음은 평소 쓰던 명령 그대로다.
 
 ```sh
-cd topic-01-intro-search/01_sequential_search
+cd src/topic-01-intro-search/01_sequential_search
 gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 python3 sequential_search.py
 ```
