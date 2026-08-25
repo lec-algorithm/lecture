@@ -24,3 +24,6 @@
       GitHub 계정 셋이고, 실행 명령은 `docker compose exec` 기준으로 쓴다.
       `algorithm-code`의 compose·Dockerfile 설계는 `docs/repositories.md` 참고
     - GitHub Pages 배포 워크플로
+- `algorithm-code` 저장소 기본 셋업과의 정합 (2026-08-25)
+    - 실습 컨테이너를 실제로 만들어 돌려 보고, 자료의 명령·출력을 그 결과에
+      맞췄다. 실행 파일 이름 규약은 `*.out`이다.

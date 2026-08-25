@@ -36,12 +36,13 @@ Python**이 함께 들어간다.
 algorithm-code/
 ├── compose.yml                          # 실습 컨테이너 (서비스 이름: lab)
 ├── Dockerfile                           # gcc · gdb · python3
+├── AGENTS.md                            # AI 도구용 가이드 (CLAUDE.md와 동일)
 ├── topic-01-intro-search/
-│   ├── 01_sequential_search/
+│   ├── 01_sequential_search/            # 2026-08-25 기준 여기까지 있다
+│   │   ├── README.md
 │   │   ├── sequentialSearch.pseudo
 │   │   ├── sequentialSearch.c
-│   │   ├── sequential_search.py
-│   │   └── README.md
+│   │   └── sequential_search.py
 │   └── 02_binary_search/
 ├── topic-02-basic-sorting/
 │   ├── 01_selection_sort/
@@ -54,6 +55,10 @@ algorithm-code/
   대응표는 [course-plan.md](course-plan.md)에 있다.
 - C와 Python은 같은 알고리즘을 같은 이름의 함수로 구현한다. 언어 차이가
   알고리즘 차이로 보이지 않게 한다.
+- 파일명은 각 언어의 관례를 따른다. C는 camelCase(`sequentialSearch.c`),
+  Python은 snake_case(`sequential_search.py`)다.
+- 외부 라이브러리를 쓰지 않는다. 이미지에 무언가를 더 깔아야 하는 예제는
+  만들지 않는다.
 - 의사코드(`.pseudo`)가 기준이다. 두 구현은 의사코드를 옮긴 것이다.
 
 ### 실행 환경
@@ -98,8 +103,9 @@ WORKDIR /work
 마운트가 단일 원본이어야 한다. 이 점이 `lecture` 저장소의 사이트 이미지와
 다르다.
 
-2026-08-25에 이 구성을 실제로 띄워 확인했다. `debian:trixie-slim` 기준으로
-컨테이너 안의 버전은 아래와 같다. 자료에 찍는 출력은 이 값에 맞춘다.
+2026-08-25에 `algorithm-code` 저장소에서 이 구성을 실제로 띄워 확인했다.
+`debian:trixie-slim` 기준으로 컨테이너 안의 버전은 아래와 같다. 자료에 찍는
+출력은 이 값에 맞춘다.
 
 ```console
 $ gcc --version
@@ -108,16 +114,24 @@ $ python3 --version
 Python 3.13.5
 ```
 
-**빌드 산출물은 `.gitignore`에 넣는다.** 컨테이너에서 컴파일한 실행 파일이
+**실행 파일은 `*.out`으로 만든다.** 컨테이너에서 컴파일한 실행 파일이
 마운트를 타고 호스트에 그대로 남는다. macOS나 Windows에서는 돌지 않는
-Linux 바이너리이므로, 커밋에 섞이면 저장소만 지저분해진다.
+Linux 바이너리이므로, 커밋에 섞이면 저장소만 지저분해진다. 확장자를 규약으로
+정해 두면 `.gitignore`가 한 줄로 끝난다.
 
 ```gitignore
-# 컨테이너에서 컴파일한 실행 파일
-*.o
 *.out
-topic-*/**/[a-zA-Z]*[!.]
-!topic-*/**/*.*
+*.o
+*.dSYM/
+```
+
+"확장자 없는 파일은 전부 산출물로 본다" 같은 규칙은 쓰지 않는다. `Dockerfile`
+이나 `Makefile`처럼 확장자 없는 진짜 파일까지 조용히 무시하게 된다.
+
+자료에 빌드 명령을 적을 때도 이 규약을 따른다.
+
+```sh
+gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 ```
 
 ## algorithm-viz
@@ -144,7 +158,7 @@ docker compose exec lab bash
 
 ```sh
 cd topic-01-intro-search/01_sequential_search
-gcc -o sequentialSearch sequentialSearch.c && ./sequentialSearch
+gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 python3 sequential_search.py
 ```
 
