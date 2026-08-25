@@ -1,0 +1,33 @@
+---
+// 슬라이드용 스크린샷 이미지.
+//
+// 테마의 `aas-media-top`은 사진을 전제해 `object-fit: cover`로 박스를 채운다.
+// 스크린샷에는 맞지 않는다. 세로로 긴 화면 캡처가 위아래로 잘려서, 정작
+// 보여 주려던 버튼이 화면 밖으로 나간다.
+//
+// 여기서는 `contain`으로 바꿔 이미지 전체가 항상 보이게 한다. 이 과목은
+// GitHub·Codespaces·VS Code 화면을 자주 싣기 때문에 잘리지 않는 쪽이 기본이다.
+// (테마에 같은 기능이 생기면 이 컴포넌트는 지우고 테마 클래스를 쓰면 된다.)
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  src: ImageMetadata;
+  alt: string;
+  /** 화면 높이 대비 최대 높이. 기본 58vh */
+  maxHeight?: string;
+}
+const { src, alt, maxHeight = '58vh' } = Astro.props;
+---
+
+<Image src={src} alt={alt} class="aas-media-top aas-screenshot" style={`--shot-max-h: ${maxHeight}`} />
+
+<style is:global>
+  /* 테마의 aas-media-top(cover)을 이 클래스에서만 덮는다. */
+  .aas-slide-inner .aas-screenshot {
+    object-fit: contain;
+    max-height: var(--shot-max-h, 58vh);
+    background: color-mix(in srgb, currentColor 5%, transparent);
+    padding: 0.5rem;
+  }
+</style>

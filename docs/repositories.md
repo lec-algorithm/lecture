@@ -8,7 +8,7 @@
 | 저장소 | 담는 것 | 수강생이 하는 일 |
 | --- | --- | --- |
 | `lecture` | 강의 자료: 주제별 교안, 슬라이드, 공지·안내 글, 용어집. 빌드하면 공개 사이트가 된다 | 사이트를 본다 (클론할 필요 없음) |
-| `algorithm-code` | 실습 코드: 의사코드 + C + Python. 주제별 폴더. compose로 뜨는 컨테이너 하나가 딸린다 | 클론해서 컨테이너를 띄우고 직접 돌리고 고친다 |
+| `algorithm-code` | 실습 코드: 의사코드 + C + Python. 주제별 폴더. compose로 뜨는 컨테이너 하나가 딸린다. **template 저장소** | `Use this template`으로 내 저장소를 만들고 거기서 실습한다 |
 | `algorithm-viz` | 시각화 애니메이션: 알고리즘 동작을 움직이는 그림으로 만드는 코드와 산출물 | 슬라이드 안에서 본다. 필요하면 직접 돌려 본다 |
 
 경계가 흐려지기 쉬운 지점을 못 박아 둔다.
@@ -62,6 +62,11 @@ algorithm-code/
 - 의사코드(`.pseudo`)가 기준이다. 두 구현은 의사코드를 옮긴 것이다.
 
 ### 실행 환경
+
+**`algorithm-code`는 template 저장소다.** 수강생은 `Use this template`으로 자기
+계정에 사본(`my-algorithm-code` 등)을 만들고 거기서 실습한다. 공용 저장소에서
+작업하면 커밋할 권한이 없다. **자료의 명령은 그 사본을 기준으로 쓴다.**
+저장소 주소가 필요한 자리에는 `<본인 계정>/my-algorithm-code`처럼 적는다.
 
 수강생은 **Codespaces로 브라우저에서** 실습하는 것이 기본이다. 이 경우 설치할
 것이 없고 GitHub 계정만 있으면 된다. 로컬에서 하려면 Git과 Docker 둘을 깐다.
@@ -170,8 +175,8 @@ gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 수업에서는 다음 한 줄로 시작한다.
 
 ```sh
-git clone https://github.com/lec-algorithm/algorithm-code.git
-cd algorithm-code
+git clone https://github.com/<본인 계정>/my-algorithm-code.git
+cd my-algorithm-code
 docker compose up -d
 docker compose exec lab bash
 ```
