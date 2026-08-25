@@ -9,6 +9,9 @@
   표기, 슬라이드 규칙)
 - [documentation-rules.md](documentation-rules.md): 문서의 위치·파일명·구성
   규칙과 다른 저장소와의 역할 분담
+- 로케일 누수 검사: `scripts/check-locale-leaks.py`. 빌드 산출물에 다른 언어
+  문자가 남았는지 본다. 자세한 내용은 [writing-rules.md](writing-rules.md)의
+  다국어 절 참고
 - [git-workflow.md](git-workflow.md): git flow 브랜치 모델과 커밋 규칙
   (커밋하면서 진행, 커밋 전 검증, 메시지 스타일, 릴리스 절차)
 - [deployment.md](deployment.md): GitHub Pages 공개 배포 (워크플로 동작,

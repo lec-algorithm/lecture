@@ -3,6 +3,14 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.1.1] - 2026-08-25
+
+### Fixed
+
+- 중국어 페이지에 남아 있던 한국어 네 개. `이름순`·`저장소`·`초기화`·`로그아웃`
+  이었다. grep 기반 점검이 줄 단위라 텍스트 노드가 줄바꿈으로 끊긴 것을 놓쳤다.
+  `scripts/check-locale-leaks.py`로 바꿔 다시 훑었다.
+
 ## [1.1.0] - 2026-08-25
 
 ### Changed
@@ -18,8 +26,11 @@
 - **`pricingLabels.zh`**와 **`difficultyLabels.zh`**. 각각 도구 카탈로그의 가격
   칩과 강의 난이도 라벨이다. 테마 내부 표라 손댈 수 없었고, 그래서 중국어
   페이지에 `오픈소스`·`난이도: 고급`이 그대로 나왔다.
-- 중국어 UI 문자열 12개 추가. `title`·`alt`·`aria-label` 속성까지 훑어
-  누락을 찾았다.
+- 중국어 UI 문자열 16개 추가.
+- **`scripts/check-locale-leaks.py`**: 빌드 산출물에 다른 언어 문자가 남았는지
+  검사한다. grep으로 훑던 방식은 줄 단위라 텍스트 노드가 줄바꿈으로 끊기면
+  놓쳤고, 실제로 네 개를 놓쳐 공개 사이트에 한국어가 남았다. 태그를 걷어낸 뒤
+  본문과 속성값을 함께 본다.
 
 ### Fixed
 
@@ -90,6 +101,7 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.1.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.1.1
 [1.1.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.1.0
 [1.0.2]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.2
 [1.0.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.0.1

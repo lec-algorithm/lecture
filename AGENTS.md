@@ -62,8 +62,10 @@ pnpm dev / pnpm build / pnpm check
   콘텐츠는 로케일 폴더에 **같은 슬러그**로 둔다. 하나를 고치면 셋을 맞춘다.
 - 중국어 코드는 `zh`다. 테마가 로케일을 두 글자로 자르므로 `zh-CN`은 못 쓴다.
 - 이미지는 `site/src/assets/`에 두고 세 로케일이 공유한다.
-- 중국어 UI 문자열은 `site/src/data/site.ts`의 `ui.zh`가 공급한다. 빠진 키는
-  한국어로 떨어지므로, 빌드 후 `dist/zh/`에 한글이 새는지 확인한다.
+- 중국어 문자열은 `site/src/data/site.ts`가 공급한다. `name`(로케일별 사이트
+  이름) · `ui.zh` · `pricingLabels.zh` · `difficultyLabels.zh` 넷이다. 빠진 것은
+  한국어로 떨어지므로, 빌드 후 `python3 scripts/check-locale-leaks.py
+  site/dist/zh`로 확인한다.
 
 ## 콘텐츠 작성 규칙 (상세: `docs/writing-rules.md`, `docs/documentation-rules.md`)
 
