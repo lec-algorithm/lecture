@@ -139,12 +139,13 @@
   `aria-label` 같은 속성에도 들어간다.
 
 ```sh
-cd site && { grep -rhoE '>[^<>]*[가-힣][^<>]*<' dist/zh/ | sed 's/^>//;s/<$//'
-  grep -rhoE '(title|alt|aria-label|placeholder)="[^"]*[가-힣][^"]*"' dist/zh/ \
-    | sed 's/^[a-z-]*="//;s/"$//'; } | sort -u | grep -v '^한국어$'
+cd site && pnpm build && cd ..
+python3 scripts/check-locale-leaks.py site/dist/zh
+python3 scripts/check-locale-leaks.py site/dist/en
 ```
 
-  `한국어`만 남으면 정상이다. 언어 전환기에 표시되는 로케일 이름이다.
+  grep으로 훑지 않는다. grep은 줄 단위라 텍스트 노드가 줄바꿈으로 끊기면
+  놓친다. 실제로 그렇게 네 개를 놓쳤다.
 
 ## 슬라이드 규칙
 
