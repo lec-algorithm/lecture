@@ -1,15 +1,34 @@
 # 저장소 구성
 
 이 과정은 GitHub 조직 [lec-algorithm](https://github.com/lec-algorithm) 아래
-저장소 세 개로 나뉜다. 무엇을 어디에 두는지가 이 문서의 전부다.
+저장소 네 개로 나뉜다. 무엇을 어디에 두는지가 이 문서의 전부다.
 
-## 세 저장소
+## 네 저장소
 
 | 저장소 | 담는 것 | 수강생이 하는 일 |
 | --- | --- | --- |
 | `lecture` | 강의 자료: 주제별 교안, 슬라이드, 공지·안내 글, 용어집. 빌드하면 공개 사이트가 된다 | 사이트를 본다 (클론할 필요 없음) |
-| `algorithm-code` | 실습 코드: 의사코드 + C + Python. 주제별 폴더. compose로 뜨는 컨테이너 하나가 딸린다. **template 저장소** | `Use this template`으로 내 저장소를 만들고 거기서 실습한다 |
+| `algorithm-env` | 실습 환경만: compose·Dockerfile·devcontainer·`.vscode`·`src`/`tests` 뼈대. **template 저장소**이고 버전을 매긴다 | `Use this template`으로 과제·개인프로젝트용 내 저장소를 만든다 |
+| `algorithm-code` | 강의 예제: 의사코드 + C + Python. 주제별 폴더. 학기 중에 자란다 | **복사하지 않는다.** 여기서 바로 codespace를 만들거나 클론해서 `git pull` |
 | `algorithm-viz` | 시각화 애니메이션: 알고리즘 동작을 움직이는 그림으로 만드는 코드와 산출물 | 슬라이드 안에서 본다. 필요하면 직접 돌려 본다 |
+
+### 왜 환경과 예제를 나누는가
+
+환경은 학기 내내 거의 그대로이고, 예제는 매주 자란다. 성격이 다른 둘을 한
+저장소에 두면 둘 다 곤란해진다.
+
+- `algorithm-code`를 template으로 두면 수강생이 사본을 만든 뒤 **새 주제를 받을
+  방법이 없다.** `Use this template`은 git 히스토리를 끊으므로 `git pull`이
+  `refusing to merge unrelated histories`로 막힌다.
+- 반대로 예제가 쌓인 저장소를 과제·프로젝트의 출발점으로 삼으면, 관계없는
+  코드가 전부 딸려간다.
+
+그래서 **복사할 것(`algorithm-env`)과 복사하지 않을 것(`algorithm-code`)을
+나눈다.** `algorithm-code` 자체도 `algorithm-env` template에서 만들어졌다.
+
+**환경 파일의 단일 원본은 `algorithm-env`다.** compose·Dockerfile·Makefile·
+devcontainer·`.vscode`를 고쳐야 하면 그쪽을 먼저 고치고 `algorithm-code`로
+가져온다. 반대 방향으로 흐르게 두지 않는다.
 
 경계가 흐려지기 쉬운 지점을 못 박아 둔다.
 
@@ -63,10 +82,10 @@ algorithm-code/
 
 ### 실행 환경
 
-**`algorithm-code`는 template 저장소다.** 수강생은 `Use this template`으로 자기
-계정에 사본(`my-algorithm-code` 등)을 만들고 거기서 실습한다. 공용 저장소에서
-작업하면 커밋할 권한이 없다. **자료의 명령은 그 사본을 기준으로 쓴다.**
-저장소 주소가 필요한 자리에는 `<본인 계정>/my-algorithm-code`처럼 적는다.
+**`algorithm-env`가 template 저장소다.** 수강생은 `Use this template`으로 자기
+계정에 사본을 만들어 과제와 개인프로젝트를 시작한다. `algorithm-code`는
+복사하지 않고 저장소에서 바로 codespace를 만들거나 클론해서 `git pull`로
+새 주제를 받는다. **자료의 명령은 이 구분이 드러나게 쓴다.**
 
 수강생은 **Codespaces로 브라우저에서** 실습하는 것이 기본이다. 이 경우 설치할
 것이 없고 GitHub 계정만 있으면 된다. 로컬에서 하려면 Git과 Docker 둘을 깐다.

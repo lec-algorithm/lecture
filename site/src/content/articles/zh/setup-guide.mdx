@@ -9,6 +9,8 @@ tags: ["环境准备", "Codespaces", "Docker"]
 import { Image } from 'astro:assets';
 import repoTemplate from '@assets/slides/orientation/github-repo-1.png';
 import repoCreate from '@assets/slides/orientation/github-repo-2.png';
+import codeCodespace from '@assets/slides/orientation/algo-code-setup-1.png';
+import codeRunning from '@assets/slides/orientation/algo-code-setup-2.png';
 
 实验代码在**容器中**运行。编译器和 Python 已经在里面，无需安装。
 开始的方式有两种。
@@ -21,6 +23,16 @@ import repoCreate from '@assets/slides/orientation/github-repo-2.png';
 两种方式用的是**同一个容器**。仓库中的一份 `compose.yml` 同时服务于
 Codespaces 和你的笔记本。
 
+## 两个仓库，用法不同 \{#two-repos}
+
+| 仓库 | 用于 | 怎么用 |
+| --- | --- | --- |
+| [`algorithm-env`](https://github.com/lec-algorithm/algorithm-env) | 作业 · 个人项目 | 用 **Use this template** 创建自己的仓库 |
+| [`algorithm-code`](https://github.com/lec-algorithm/algorithm-code) | 课堂示例 | **直接在这里创建 Codespace** |
+
+**请不要复制 `algorithm-code`。** 学期中会不断添加主题，复制之后就没有办法
+接收新主题。直接在该仓库创建 Codespace，或者克隆后用 `git pull` 获取。
+
 ## 为什么用容器 \{#why-container}
 
 C 编译器在每个操作系统上的安装方式都不同，Python 版本也会各不相同。固定运行
@@ -32,25 +44,37 @@ C 编译器在每个操作系统上的安装方式都不同，Python 版本也�
 有浏览器就够了。请先在 [github.com/signup](https://github.com/signup) 注册
 GitHub 账号，提交个人项目时同样需要它。
 
-### 第 1 步：创建自己的仓库 \{#use-template}
-
-不要直接在公共仓库中工作。`algorithm-code` 是一个 **template 仓库**，请在自己
-账号下创建副本并在那里实验，这样才能把修改提交到自己的仓库。
+### 课堂示例：创建 Codespace \{#code-codespace}
 
 打开
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code)，
+点击绿色的 **Code** 按钮，切换到 **Codespaces** 标签页，再点击
+**Create codespace on main**。
+
+<Image src={codeCodespace} alt="在 algorithm-code 仓库点击 Code 按钮，Codespaces 标签页中出现 Create codespace on main" />
+
+创建好的 codespace 挂在 `main` 分支上。
+
+<Image src={codeRunning} alt="Codespaces 标签页中列出的 codespace，处于 Active 状态并挂在 main 分支" />
+
+有新主题发布时，在 codespace 终端中用 `git pull` 获取。
+
+### 作业用的自己的仓库 \{#use-template}
+
+作业与个人项目在**自己的仓库**中完成。`algorithm-env` 是 **template 仓库**，
+在自己账号下创建副本即可用同样的环境干净地开始。
+
+打开
+[lec-algorithm/algorithm-env](https://github.com/lec-algorithm/algorithm-env)，
 点击 **Use this template** → **Create a new repository**。
 
-<Image src={repoTemplate} alt="algorithm-code 仓库顶部的 Use this template 按钮，下方展开的 Create a new repository 菜单" />
+<Image src={repoTemplate} alt="algorithm-env 仓库顶部的 Use this template 按钮，下方展开的 Create a new repository 菜单" />
 
 取一个容易辨认的名字，例如 `my-algorithm-code`，然后点击 **Create repository**。
 
-<Image src={repoCreate} alt="Create a new repository 界面。Start with a template 处已选择 lec-algorithm/algorithm-code，Repository name 中填入 my-algorithm-code，底部是 Create repository 按钮" />
+<Image src={repoCreate} alt="Create a new repository 界面。Start with a template 处已选择 lec-algorithm/algorithm-env，Repository name 中填入 my-algorithm-code，底部是 Create repository 按钮" />
 
-### 第 2 步：用 Codespaces 打开 \{#open-codespace}
-
-在刚创建的**自己的仓库**中，点击绿色的 **Code** 按钮，切换到 **Codespaces**
-标签页，再点击 **Create codespace on main**。
+在那个仓库中用同样的方法打开 Codespace 即可。
 
 第一次会花几分钟构建容器。准备好后浏览器中会打开 VS Code，**那个终端就是容器
 内部**。可以直接跳到[运行一个示例](#run)。
@@ -94,13 +118,13 @@ docker compose version
 
 ### 克隆自己的仓库并进入容器 \{#clone}
 
-克隆你在[第 1 步](#use-template)创建的**自己的仓库**。
+若想在本地查看课堂示例，克隆 `algorithm-code`。
 
 - 执行
 
 ```sh
-git clone https://github.com/<你的账号>/my-algorithm-code.git
-cd my-algorithm-code
+git clone https://github.com/lec-algorithm/algorithm-code.git
+cd algorithm-code
 docker compose up -d
 docker compose exec lab bash
 ```

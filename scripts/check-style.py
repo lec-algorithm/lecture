@@ -5,11 +5,12 @@
     python3 scripts/check-style.py
 
 검사 항목:
-  1) `).`     — 닫는 괄호로 끝나는 문장의 마침표 겹침
+  1) `).`     — 닫는 괄호로 끝나는 문장의 마침표 겹침 (한국어 콘텐츠만)
   2) 취소선   — 한 문단에 이스케이프 안 된 `~` 2개 이상 (GFM 취소선 오발동)
   3) MDX 링크 — .mdx 안의 `<http…>` 꺾쇠 자동 링크 (JSX로 해석되어 빌드 실패)
   4) 볼드 경계 — 닫는 괄호·따옴표 뒤 `**` + 한글 (별표가 그대로 노출)
-  5) 줄표(—)  — 한글 문장에서 줄표(em dash)로 구절을 잇는 형태 (표의 빈 칸 마커는 제외)
+  5) 줄표(—)  — 한글 문장에서 줄표(em dash)로 구절을 잇는 형태 (한국어 콘텐츠만,
+     표의 빈 칸 마커는 제외)
   6) `]](`    — 위키링크 바로 뒤의 괄호. [[용어]](…)는 마크다운 링크로 파싱되어 위키링크가 깨진다
   7) 마침표 누락 — 서술형(`~합니다`, `~한다`, `~하세요`)으로 끝나는데 마침표가 없는 줄.
      제목·표 셀·프론트매터는 문장이 아니라 이름표이므로 검사에서 뺀다
@@ -18,6 +19,12 @@
 
 코드 펜스(``` … ```, mermaid 포함)와 인라인 코드 스팬(`…`)은 검사에서 제외한다.
 위반이 있으면 목록을 출력하고 종료 코드 1을 반환한다.
+
+규칙 1·5는 한국어 문장 스타일이라 한국어 콘텐츠에만 적용한다. 영어에서
+`(week 8).`는 올바른 문장부호이고 줄표도 정상적인 문체다. 로케일 콘텐츠
+디렉터리(`.../en/...`, `.../zh/...`)는 이 둘을 건너뛴다. 나머지 규칙(물결표,
+MDX 꺾쇠 링크, 위키링크 뒤 괄호, 붙은 코드 블록)은 언어와 무관하므로 전부
+적용한다. 규칙 4·7은 한글 문자를 직접 찾으므로 스스로 범위가 잡힌다.
 """
 
 import re
@@ -35,6 +42,10 @@ EMDASH_EMPTY_CELL_RE = re.compile(r"(?<=\|)\s*—\s*(?=\|)")
 # 서술형 종결: `~니다`(합니다·입니다·봅니다), `~다`(한다·된다·있다·쓴다),
 # `~세요`(하세요·주세요). 명사 종결(`참고`·`정리`)은 걸리지 않는다.
 DECLARATIVE_END_RE = re.compile(r"(니다|[가-힣]다|세요)\s*$")
+
+# 한국어 문장 규칙(1·5)을 건너뛸 경로: 로케일 콘텐츠 디렉터리.
+# 영어에서 `(week 8).`는 올바른 문장부호이고, 줄표도 정상적인 문체다.
+NON_KOREAN_PATH_RE = re.compile(r"/(en|zh)/")
 
 # 학교 수업계획서를 그대로 옮긴 파일 — 우리 스타일 규칙을 적용하지 않는다.
 # (원본이 갱신되면 통째로 교체하므로 손대지 않는 것이 규칙이다)
@@ -86,11 +97,13 @@ def check_file(path: str) -> list[str]:
     text = strip_code(raw)
     lines = text.split("\n")
     problems: list[str] = []
+    korean = not NON_KOREAN_PATH_RE.search(path)
 
-    # 1) `).` — 닫는 괄호 바로 뒤 마침표
-    for i, line in enumerate(lines, 1):
-        if re.search(r"\)\.", line):
-            problems.append(f"{path}:{i}: ').' — 괄호로 끝나는 문장에 마침표 겹침")
+    # 1) `).` — 닫는 괄호 바로 뒤 마침표 (한국어 콘텐츠만)
+    if korean:
+        for i, line in enumerate(lines, 1):
+            if re.search(r"\)\.", line):
+                problems.append(f"{path}:{i}: ').' — 괄호로 끝나는 문장에 마침표 겹침")
 
     # 2) 취소선 위험 — 문단 안에 이스케이프 안 된 ~ 2개 이상
     line_no = 1
@@ -111,10 +124,14 @@ def check_file(path: str) -> list[str]:
         if re.search(rf"[{CLOSE_PUNCT}]\*\*[가-힣A-Za-z0-9]", line):
             problems.append(f"{path}:{i}: '…)**한글' — 볼드가 닫히지 않음, 문장 다듬기/<strong> 사용")
 
-    # 5) 줄표(—) — 한글 문장에서 줄표로 잇는 형태 (표의 빈 칸 마커 `| — |`는 제외)
-    for i, line in enumerate(lines, 1):
-        if "—" in EMDASH_EMPTY_CELL_RE.sub("  ", line):
-            problems.append(f"{path}:{i}: '—' 줄표 — 문장을 끊거나 리스트·쉼표·콜론·괄호로 바꾼다")
+    # 5) 줄표(—) — 한글 문장에서 줄표로 잇는 형태 (한국어 콘텐츠만,
+    #    표의 빈 칸 마커 `| — |`는 제외)
+    if korean:
+        for i, line in enumerate(lines, 1):
+            if "—" in EMDASH_EMPTY_CELL_RE.sub("  ", line):
+                problems.append(
+                    f"{path}:{i}: '—' 줄표 — 문장을 끊거나 리스트·쉼표·콜론·괄호로 바꾼다"
+                )
 
     # 6) `]](` — 위키링크 바로 뒤 괄호는 마크다운 링크로 파싱된다
     for i, line in enumerate(lines, 1):

@@ -5,7 +5,8 @@
 GitHub Pages로 공개합니다.
 
 - 공개 사이트: [lec-algorithm.github.io/lecture](https://lec-algorithm.github.io/lecture/)
-- 실습 코드: [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code)
+- 실습 환경 template: [lec-algorithm/algorithm-env](https://github.com/lec-algorithm/algorithm-env)
+- 강의 예제 코드: [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code)
 - 시각화 자료: [lec-algorithm/algorithm-viz](https://github.com/lec-algorithm/algorithm-viz)
 - 수업계획서: [docs/syllabus.md](docs/syllabus.md)
 
@@ -33,7 +34,8 @@ flowchart LR
 | 저장소 | 담는 것 | 수강생이 하는 일 |
 | --- | --- | --- |
 | `lecture` | 강의 문서, 슬라이드, 공지, 용어집 | 사이트를 봅니다 |
-| `algorithm-code` | 주제별 의사코드 · C · Python 구현 | 클론해서 직접 돌립니다 |
+| `algorithm-env` | 실습 환경 template (버전 관리) | `Use this template`으로 과제·프로젝트 저장소를 만듭니다 |
+| `algorithm-code` | 주제별 의사코드 · C · Python 구현 | 여기서 바로 codespace를 만들거나 클론합니다 |
 | `algorithm-viz` | 알고리즘 동작 시각화 | 슬라이드 안에서 봅니다 |
 
 수강생이 설치하는 것은 **Git과 Docker 둘뿐**입니다. 컴파일러와 Python은 실습

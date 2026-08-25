@@ -9,6 +9,8 @@ tags: ["Setup", "Codespaces", "Docker"]
 import { Image } from 'astro:assets';
 import repoTemplate from '@assets/slides/orientation/github-repo-1.png';
 import repoCreate from '@assets/slides/orientation/github-repo-2.png';
+import codeCodespace from '@assets/slides/orientation/algo-code-setup-1.png';
+import codeRunning from '@assets/slides/orientation/algo-code-setup-2.png';
 
 The practice code runs **inside a container**. The compiler and Python are
 already in it, so you never install them. There are two ways to start.
@@ -20,6 +22,17 @@ already in it, so you never install them. There are two ways to start.
 
 Either way it is the **same container**. One `compose.yml` in the repository
 serves both Codespaces and your laptop.
+
+## Two repositories, used differently \{#two-repos}
+
+| Repository | For | How |
+| --- | --- | --- |
+| [`algorithm-env`](https://github.com/lec-algorithm/algorithm-env) | assignments · the project | **Use this template** to make your own |
+| [`algorithm-code`](https://github.com/lec-algorithm/algorithm-code) | course examples | **Create a codespace right here** |
+
+**Do not copy `algorithm-code`.** Topics keep being added through the semester,
+and a copy has no way to receive them. Create a codespace on it, or clone it and
+`git pull`.
 
 ## Why a container \{#why-container}
 
@@ -34,27 +47,39 @@ A browser is enough. First make a GitHub account at
 [github.com/signup](https://github.com/signup) — you will need it for the
 project submission anyway.
 
-### Step 1. Make your own repository \{#use-template}
-
-You do not work in the shared repository. `algorithm-code` is a **template
-repository**: you make a copy under your own account and work there, which is
-what lets you commit your changes.
+### Course examples: create a codespace \{#code-codespace}
 
 Go to
-[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code)
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code),
+press the green **Code** button, open the **Codespaces** tab and press
+**Create codespace on main**.
+
+<Image src={codeCodespace} alt="On the algorithm-code repository, the Code button is open on the Codespaces tab showing Create codespace on main" />
+
+The codespace sits on the `main` branch.
+
+<Image src={codeRunning} alt="The Codespaces tab listing the created codespace as Active on the main branch" />
+
+When a new topic goes up, pull it in the codespace terminal with `git pull`.
+
+### Your own repository for assignments \{#use-template}
+
+Assignments and the individual project go in **your own repository**.
+`algorithm-env` is a **template repository**, so a copy under your account
+starts you off with the same environment and nothing else.
+
+Go to
+[lec-algorithm/algorithm-env](https://github.com/lec-algorithm/algorithm-env)
 and press **Use this template** → **Create a new repository**.
 
-<Image src={repoTemplate} alt="The Use this template button at the top of the algorithm-code repository, with the Create a new repository menu open beneath it" />
+<Image src={repoTemplate} alt="The Use this template button at the top of the algorithm-env repository, with the Create a new repository menu open beneath it" />
 
 Give it a name you will recognize, such as `my-algorithm-code`, and press
 **Create repository**.
 
-<Image src={repoCreate} alt="The Create a new repository screen. lec-algorithm/algorithm-code is selected under Start with a template, my-algorithm-code is typed into Repository name, and the Create repository button is at the bottom" />
+<Image src={repoCreate} alt="The Create a new repository screen. lec-algorithm/algorithm-env is selected under Start with a template, my-algorithm-code is typed into Repository name, and the Create repository button is at the bottom" />
 
-### Step 2. Open it in Codespaces \{#open-codespace}
-
-In the repository you just made, press the green **Code** button, go to the
-**Codespaces** tab and press **Create codespace on main**.
+Open a codespace on that repository the same way.
 
 The first time takes a few minutes while the container is built. When it is
 ready, VS Code opens in the browser and **that terminal is the inside of the
@@ -101,13 +126,13 @@ docker compose version
 
 ### Clone your repository and step inside \{#clone}
 
-Clone the repository **you made** in [step 1](#use-template).
+To read the course examples locally, clone `algorithm-code`.
 
 - Run
 
 ```sh
-git clone https://github.com/<your-account>/my-algorithm-code.git
-cd my-algorithm-code
+git clone https://github.com/lec-algorithm/algorithm-code.git
+cd algorithm-code
 docker compose up -d
 docker compose exec lab bash
 ```
