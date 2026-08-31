@@ -11,9 +11,11 @@ toc_open: false
 
 import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
+import SearchTrace from '@components/SearchTrace.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
-    예제마다 절차 → 코드 → 실습 순서로 갑니다. 실습을 맨 뒤에 몰지 않습니다. */}
+    예제마다 절차 → 코드 → 실행 → 실습 순서로 갑니다. 코드는 저장소 파일을
+    그대로 옮긴 것이므로, 저장소가 바뀌면 여기도 함께 고칩니다. */}
 
 <Slide class="cover">
 
@@ -179,6 +181,51 @@ ALGORITHM SequentialSearch(A, n, key)
 
 </Slide>
 
+<Slide class="compact">
+
+### 코드로 옮기면
+::sub[`01_sequential_search/`]
+
+<div class="aas-split">
+<div>
+
+- `sequentialSearch.c`
+
+```c
+int sequentialSearch(const int a[], int n, int key,
+                     int *comparisons) {
+    for (int i = 0; i < n; i++) {
+        (*comparisons)++;
+        if (a[i] == key) {
+            return i;
+        }
+    }
+    return -1;
+}
+```
+
+</div>
+<div>
+
+- `sequential_search.py`
+
+```python
+def sequential_search(a, key):
+    comparisons = 0
+    for i, value in enumerate(a):
+        comparisons += 1
+        if value == key:
+            return i, comparisons
+    return -1, comparisons
+```
+
+</div>
+</div>
+
+비교할 때마다 세는 줄이 하나 더 있을 뿐, 절차는 의사코드 그대로입니다.
+
+</Slide>
+
 <Slide>
 
 ### 몇 번 비교하나
@@ -187,7 +234,7 @@ ALGORITHM SequentialSearch(A, n, key)
 | | 비교 횟수 | 언제 |
 | --- | --- | --- |
 | 최선 | 1 | 첫 원소가 `key`일 때 |
-| 평균 | $$\frac{n+1}{2}$$ | **찾는 값이 배열에 있고** 위치가 고루 분포할 때 |
+| 평균 | $$\dfrac{n+1}{2}$$ | **찾는 값이 배열에 있고** 위치가 고루 분포할 때 |
 | 최악 | n | 마지막 원소이거나 배열에 없을 때 |
 
 없는 값을 찾으면 언제나 n번을 다 셉니다. 평균에 조건이 붙는 이유입니다.  
@@ -218,9 +265,71 @@ ALGORITHM BinarySearch(A, n, key)
 
 </Slide>
 
-<Slide>
+<Slide class="compact">
+
+### 코드로 옮기면
+::sub[`02_binary_search/`]
+
+<div class="aas-split">
+<div>
+
+- `binarySearch.c`
+
+```c
+int binarySearch(const int a[], int n, int key,
+                 int *comparisons) {
+    int lo = 0;
+    int hi = n - 1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        (*comparisons)++;
+        if (a[mid] == key) {
+            return mid;
+        } else if (a[mid] < key) {
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return -1;
+}
+```
+
+</div>
+<div>
+
+- `binary_search.py`
+
+```python
+def binary_search(a, key):
+    lo, hi = 0, len(a) - 1
+    comparisons = 0
+    while lo <= hi:
+        mid = lo + (hi - lo) // 2
+        comparisons += 1
+        if a[mid] == key:
+            return mid, comparisons
+        elif a[mid] < key:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1, comparisons
+```
+
+</div>
+</div>
+
+`(lo + hi) / 2`가 아니라 `lo + (hi - lo) / 2`입니다. 두 값이 클 때 덧셈이
+자료형의 범위를 넘을 수 있습니다.
+
+</Slide>
+
+<Slide class="compact">
 
 ### 51을 찾는 네 번
+::sub[비교할 때마다 남은 범위가 절반이 됩니다]
+
+<SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
 
 | 비교 | lo | hi | mid | `A[mid]` | 판단 |
 | --- | --- | --- | --- | --- | --- |
@@ -229,8 +338,7 @@ ALGORITHM BinarySearch(A, n, key)
 | 3 | 4 | 6 | 5 | 43 | 43 < 51 → 오른쪽으로 |
 | 4 | 6 | 6 | 6 | **51** | 찾음 |
 
-순차 검색의 7번에 견주어 **4번**입니다.  
-**시간** $$O(\log n)$$ · **공간** $$O(1)$$
+순차 검색의 7번에 견주어 **4번**입니다. **시간** $$O(\log n)$$ · **공간** $$O(1)$$
 
 </Slide>
 
@@ -253,6 +361,29 @@ ALGORITHM BinarySearch(A, n, key)
 <SearchDemo slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={50} />
 
 순차 검색은 **15번을 다 세고** 나서야 없다고 답합니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 돌려 봅니다
+::sub[같은 배열, 같은 key]
+
+- 순차 검색
+
+```console
+n = 15, key = 51
+index = 6, comparisons = 7
+```
+
+- 이진 검색
+
+```console
+n = 15, key = 51
+index = 6, comparisons = 4
+```
+
+같은 답에 다른 비교 횟수입니다. 손으로 센 7과 4가 그대로 찍힙니다.
 
 </Slide>
 
@@ -287,13 +418,13 @@ $$O(n)$$과 $$O(\log n)$$의 차이입니다.
 ### 지금 해 볼 것
 ::sub[예제 1. 두 가지 검색]
 
-```plaintext
-src/topic-01-intro-search/
-├── 01_sequential_search/    # 비교 7회
-└── 02_binary_search/        # 비교 4회
-```
+파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다.
+터미널이면 이렇게 합니다.
 
-파일을 열고 **▶ 버튼**을 누르면 실행됩니다.
+```sh
+cd src/topic-01-intro-search/02_binary_search
+make -f /work/Makefile binarySearch.out && ./binarySearch.out
+```
 
 1. `key`를 첫 값 `6`, 마지막 값 `101`로 바꿔 비교 횟수를 봅니다.
 2. **이진 검색의 배열을 뒤섞어 보세요.** 답이 틀립니다. 순차 검색은 그대로 맞습니다.
@@ -372,6 +503,55 @@ ALGORITHM FibonacciIterative(n)
 
 </Slide>
 
+<Slide class="compact">
+
+### 코드로 옮기면
+::sub[`03_fibonacci/fibonacci.c` · 두 함수를 나란히 둡니다]
+
+<div class="aas-split">
+<div>
+
+- 재귀
+
+```c
+long fibonacciRecursive(int n) {
+    calls++;
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacciRecursive(n - 1)
+         + fibonacciRecursive(n - 2);
+}
+```
+
+</div>
+<div>
+
+- 반복
+
+```c
+long fibonacciIterative(int n) {
+    if (n <= 1) {
+        return n;
+    }
+    long prev = 0, curr = 1;
+    for (int i = 2; i <= n; i++) {
+        long next = prev + curr;
+        prev = curr;
+        curr = next;
+    }
+    return curr;
+}
+```
+
+</div>
+</div>
+
+`calls`는 재귀가 몇 번 갈라지는지 세려고 둔 것입니다. 시간보다 이 숫자가
+원인을 더 잘 보여 줍니다.
+
+</Slide>
+
 <Slide>
 
 ### 얼마나 벌어지나
@@ -406,8 +586,9 @@ n이 10 늘 때마다 호출 수가 **약 100배**가 됩니다.
 ### 지금 해 볼 것
 ::sub[예제 2. 재귀와 반복]
 
-```plaintext
-src/topic-01-intro-search/03_fibonacci/
+```sh
+cd src/topic-01-intro-search/03_fibonacci
+make -f /work/Makefile fibonacci.out && ./fibonacci.out
 ```
 
 1. `n`을 45, 50으로 올려 보세요. 재귀가 언제 실용성을 잃는지 보입니다.
