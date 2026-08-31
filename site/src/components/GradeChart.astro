@@ -1,0 +1,125 @@
+---
+// 평가 비중을 도넛 차트로 보여준다. 슬라이드의 평가 표와 같은 숫자를 시각화만
+// 다르게 반복하는 용도다.
+//
+// 색은 새로 만들지 않고 테마의 --aas-role-* 팔레트(다이어그램용, 라이트·다크
+// 공통 고정값)를 그대로 재사용한다. 의미상 이름은 다이어그램 역할용이지만
+// 평가 항목 색 구분에도 그대로 쓸 수 있다.
+//
+// `.aas-grade-layout`으로 감싸면 표 옆에 나란히 배치할 수 있다. 범례는 색
+// 색인용이라 항목명만 적고 비중은 안 적는다 — 비중은 옆 표에 이미 있다.
+// legend=false로 쓰면 그 색인도 뺀 도넛만 나온다.
+interface Item {
+  label: string;
+  value: number;
+  color: string;
+}
+interface Props {
+  items: Item[];
+  unit?: string;
+  legend?: boolean;
+  size?: string;
+}
+const { items, unit = '%', legend = true, size } = Astro.props;
+const total = items.reduce((sum, item) => sum + item.value, 0);
+const radius = 40;
+const circumference = 2 * Math.PI * radius;
+let cursor = 0;
+const segments = items.map((item) => {
+  const length = (item.value / total) * circumference;
+  const segment = { ...item, length, offset: cursor };
+  cursor += length;
+  return segment;
+});
+---
+
+<div class="aas-grade-chart">
+  <svg
+    viewBox="0 0 100 100"
+    class="aas-grade-chart-donut"
+    style={size ? `width:${size}` : undefined}
+    role="img"
+    aria-label={items.map((item) => `${item.label} ${item.value}${unit}`).join(', ')}
+  >
+    <g transform="rotate(-90 50 50)">
+      {segments.map((segment) => (
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          stroke={segment.color}
+          stroke-width="16"
+          stroke-dasharray={`${segment.length} ${circumference - segment.length}`}
+          stroke-dashoffset={-segment.offset}
+        />
+      ))}
+    </g>
+  </svg>
+  {legend && (
+    <ul class="aas-grade-chart-legend">
+      {items.map((item) => (
+        <li>
+          <span class="aas-grade-chart-swatch" style={`background:${item.color}`} />
+          <span class="aas-grade-chart-label">{item.label}</span>
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
+<style is:global>
+  .aas-grade-chart {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(1.25rem, 3vw, 2rem);
+    margin-block: 0.4rem;
+  }
+  .aas-grade-chart-donut {
+    width: clamp(100px, 13vw, 140px);
+    height: auto;
+    flex-shrink: 0;
+  }
+  ul.aas-grade-chart-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  ul.aas-grade-chart-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .aas-grade-chart-swatch {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  /* GradeChart(legend 없이)를 표 옆에 나란히 두는 레이아웃. 표는 markdown이
+     .aas-table-scroll로 자동 래핑되므로, 그 폭을 100%에서 flex 1로 풀어준다. */
+  .aas-grade-layout {
+    display: flex;
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 2.5rem);
+  }
+  .aas-grade-layout > .aas-grade-chart {
+    flex: 0 0 auto;
+    margin-block: 0;
+  }
+  .aas-grade-layout .aas-table-scroll {
+    flex: 1 1 auto;
+    width: auto;
+    margin: 0;
+  }
+</style>

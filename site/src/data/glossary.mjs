@@ -23,6 +23,14 @@ export const glossary = {
       zh: '把解决问题的步骤用有限且明确的步骤写下来。相同输入产生相同输出，并且必须终止。',
     },
   },
+  'data-structure': {
+    label: { ko: '데이터 구조', en: 'Data structure', zh: '数据结构' },
+    def: {
+      ko: '정보를 저장하고 꺼내는 방법. 알고리즘은 대개 알맞은 데이터 구조 위에서 돌고, 그 데이터 구조를 구현하는 데 또 알고리즘이 필요하다.',
+      en: 'A way of storing information and getting it back. An algorithm usually runs on top of a fitting data structure, and implementing that structure takes algorithms in turn.',
+      zh: '存储信息并将其取出的方式。算法通常运行在合适的数据结构之上，而实现该数据结构又需要算法。',
+    },
+  },
   'pseudo-code': {
     label: { ko: '의사코드', en: 'Pseudocode', zh: '伪代码' },
     def: {
@@ -45,6 +53,30 @@ export const glossary = {
       ko: '입력이 충분히 커졌을 때의 동작만 따지는 분석. 하드웨어나 언어에 좌우되는 상수를 걷어내고 알고리즘 자체를 비교하기 위한 도구다.',
       en: 'Analysis that considers only what happens once the input is large enough. It strips away constants that depend on hardware or language so algorithms can be compared on their own terms.',
       zh: '只考察输入足够大时行为的分析方法。剥离依赖硬件与语言的常数，从而单纯比较算法本身。',
+    },
+  },
+  'trade-off': {
+    label: { ko: '트레이드오프', en: 'Trade-off', zh: '权衡' },
+    def: {
+      ko: '하나를 얻으면 다른 하나를 내주어야 하는 관계. 알고리즘 선택은 대개 최선을 고르는 일이 아니라 무엇을 내줄지 정하는 일이다.',
+      en: 'A relation where gaining one thing costs another. Choosing an algorithm is usually less about picking the best one than about deciding what to give up.',
+      zh: '得到一样就要放弃另一样的关系。选择算法通常不是挑出最好的那个，而是决定放弃什么。',
+    },
+  },
+  'sequential-search': {
+    label: { ko: '순차 검색', en: 'Sequential search', zh: '顺序查找' },
+    def: {
+      ko: '배열을 앞에서부터 하나씩 비교해 찾는 검색. 정렬 여부와 무관하게 쓸 수 있고, 최악에는 n번 비교한다.',
+      en: 'Searching by comparing elements from the front, one at a time. It works whether or not the array is sorted, and compares n times in the worst case.',
+      zh: '从头开始逐个比较进行查找。无论数组是否有序都能使用，最坏情况下比较 n 次。',
+    },
+  },
+  'binary-search': {
+    label: { ko: '이진 검색', en: 'Binary search', zh: '二分查找' },
+    def: {
+      ko: '정렬된 배열에서 가운데와 비교해 남은 범위를 절반씩 줄여 가는 검색. 비교 한 번에 후보가 반으로 줄어 O(log n)이다.',
+      en: 'Searching a sorted array by comparing with the middle and halving the remaining range. Each comparison halves the candidates, giving O(log n).',
+      zh: '在有序数组中与中间元素比较、每次将剩余范围减半的查找。每比较一次候选就减半，因此是 O(log n)。',
     },
   },
   'time-complexity': {

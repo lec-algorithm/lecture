@@ -1,0 +1,466 @@
+---
+// 순차 검색과 이진 검색을 같은 배열 위에서 한 걸음씩 돌려 보는 데모.
+//
+// 두 알고리즘의 차이는 "비교 횟수"라는 숫자로만 말하면 잘 와닿지 않는다.
+// 순차 검색이 한 칸씩 기어가는 동안 이진 검색이 절반씩 잘라내는 것을 나란히
+// 보면 O(n)과 O(log n)의 차이가 눈에 들어온다.
+//
+// 교안(courses)과 슬라이드(slides) 양쪽에서 쓴다. 슬라이드에서는 mode로 한쪽만
+// 띄우거나 slide로 크기를 슬라이드에 맞춘다.
+//
+// 색은 테마의 --aas-role-* 팔레트(라이트·다크 공통 고정값)를 쓴다.
+// 스크립트는 이 컴포넌트 안에서만 도는 IIFE라 한 페이지에 여러 개 놓아도 된다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 검색할 배열. 이진 검색을 쓰려면 오름차순으로 정렬되어 있어야 한다. */
+  values: number[];
+  /** 찾을 값. 배열에 없는 값을 주면 실패 과정을 보여준다. */
+  target: number;
+  /** 어떤 알고리즘을 보여줄지. 기본은 둘 다 나란히. */
+  mode?: 'both' | 'sequential' | 'binary';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { values, target, mode = 'both', slide = false } = Astro.props;
+const id = `sd-${Math.random().toString(36).slice(2, 9)}`;
+const showSeq = mode === 'both' || mode === 'sequential';
+const showBin = mode === 'both' || mode === 'binary';
+
+/* 문구는 로케일별로. 테마가 en·ko만 갖고 있으므로 zh는 여기서 채운다.
+   본문 텍스트가 아니라 스크립트가 찍는 문장까지 포함해야 한다. */
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    target: '찾는 값',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    sequential: '순차 검색',
+    binary: '이진 검색',
+    countPre: '비교',
+    countPost: '회',
+    seqIdle: '앞에서부터 하나씩 봅니다.',
+    binIdle: '가운데를 보고 절반을 버립니다.',
+    found: 'A[{i}] = {v} — 찾았습니다.',
+    seqNext: 'A[{i}] = {v} ≠ {t} — 다음 칸으로.',
+    binLeft: 'A[{i}] = {v} > {t} — 오른쪽 절반을 버립니다.',
+    binRight: 'A[{i}] = {v} < {t} — 왼쪽 절반을 버립니다.',
+    seqFail: '끝까지 봤지만 없습니다. -1',
+    binFail: '범위가 비었습니다. 없습니다. -1',
+  },
+  en: {
+    target: 'Looking for',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    sequential: 'Sequential search',
+    binary: 'Binary search',
+    countPre: '',
+    countPost: ' comparisons',
+    seqIdle: 'Checks each element from the front.',
+    binIdle: 'Checks the middle and discards half.',
+    found: 'A[{i}] = {v} — found it.',
+    seqNext: 'A[{i}] = {v} ≠ {t} — on to the next.',
+    binLeft: 'A[{i}] = {v} > {t} — discard the right half.',
+    binRight: 'A[{i}] = {v} < {t} — discard the left half.',
+    seqFail: 'Reached the end. Not here. -1',
+    binFail: 'The range is empty. Not here. -1',
+  },
+  zh: {
+    target: '查找',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    sequential: '顺序查找',
+    binary: '二分查找',
+    countPre: '比较',
+    countPost: ' 次',
+    seqIdle: '从头开始逐个查看。',
+    binIdle: '看中间，丢掉一半。',
+    found: 'A[{i}] = {v} — 找到了。',
+    seqNext: 'A[{i}] = {v} ≠ {t} — 看下一个。',
+    binLeft: 'A[{i}] = {v} > {t} — 丢掉右半边。',
+    binRight: 'A[{i}] = {v} < {t} — 丢掉左半边。',
+    seqFail: '看到最后也没有。-1',
+    binFail: '范围空了。没有。-1',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-search-demo', slide && 'is-slide']}
+  id={id}
+  data-values={JSON.stringify(values)}
+  data-target={target}
+  data-strings={JSON.stringify(t)}
+>
+  <div class="sd-bar">
+    <span class="sd-target">{t.target} <strong>{target}</strong></span>
+    <div class="sd-controls">
+      <button type="button" data-act="step" class="sd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="sd-btn sd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="sd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sd-tracks" data-both={mode === 'both' ? '' : undefined}>
+    {showSeq && (
+      <section class="sd-track" data-algo="sequential">
+        <header class="sd-head">
+          <h4>{t.sequential}</h4>
+          <span class="sd-count">
+            {t.countPre} <strong data-count>0</strong>{t.countPost}
+          </span>
+        </header>
+        <div class="sd-cells" data-cells></div>
+        <p class="sd-note" data-note>{t.seqIdle}</p>
+      </section>
+    )}
+    {showBin && (
+      <section class="sd-track" data-algo="binary">
+        <header class="sd-head">
+          <h4>{t.binary}</h4>
+          <span class="sd-count">
+            {t.countPre} <strong data-count>0</strong>{t.countPost}
+          </span>
+        </header>
+        <div class="sd-cells" data-cells></div>
+        <p class="sd-note" data-note>{t.binIdle}</p>
+      </section>
+    )}
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const values = JSON.parse(root.dataset.values);
+    const target = Number(root.dataset.target);
+    const S = JSON.parse(root.dataset.strings);
+    const n = values.length;
+
+    /* "A[{i}] = {v} ≠ {t}" 같은 자리표시자를 채운다. */
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    /* 각 알고리즘의 전체 과정을 미리 단계 배열로 만들어 둔다.
+       재생은 이 배열을 앞에서부터 그려 주기만 하면 된다. */
+    const plans = {
+      sequential: (() => {
+        const steps = [];
+        for (let i = 0; i < n; i++) {
+          const hit = values[i] === target;
+          steps.push({
+            look: i,
+            range: [i, n - 1],
+            done: hit,
+            note: hit
+              ? fill(S.found, { i, v: target })
+              : fill(S.seqNext, { i, v: values[i], t: target }),
+          });
+          if (hit) return steps;
+        }
+        steps.push({
+          look: -1,
+          range: [0, -1],
+          done: true,
+          fail: true,
+          compare: false, /* 이 단계는 결론일 뿐 비교가 아니다 */
+          note: S.seqFail,
+        });
+        return steps;
+      })(),
+      binary: (() => {
+        const steps = [];
+        let lo = 0;
+        let hi = n - 1;
+        while (lo <= hi) {
+          const mid = lo + Math.floor((hi - lo) / 2);
+          if (values[mid] === target) {
+            steps.push({
+              look: mid,
+              range: [lo, hi],
+              done: true,
+              note: fill(S.found, { i: mid, v: target }),
+            });
+            return steps;
+          }
+          const goRight = values[mid] < target;
+          steps.push({
+            look: mid,
+            range: [lo, hi],
+            done: false,
+            note: goRight
+              ? fill(S.binRight, { i: mid, v: values[mid], t: target })
+              : fill(S.binLeft, { i: mid, v: values[mid], t: target }),
+          });
+          if (goRight) lo = mid + 1;
+          else hi = mid - 1;
+        }
+        steps.push({
+          look: -1,
+          range: [0, -1],
+          done: true,
+          fail: true,
+          compare: false, /* 이 단계는 결론일 뿐 비교가 아니다 */
+          note: S.binFail,
+        });
+        return steps;
+      })(),
+    };
+
+    /* 칸을 한 번만 만들고 이후에는 클래스만 바꾼다. */
+    const tracks = [...root.querySelectorAll('[data-algo]')].map((el) => {
+      const wrap = el.querySelector('[data-cells]');
+      const cells = values.map((v, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'sd-cell';
+        cell.innerHTML = `<span class="sd-val">${v}</span><span class="sd-idx">${i}</span>`;
+        wrap.appendChild(cell);
+        return cell;
+      });
+      return {
+        algo: el.dataset.algo,
+        cells,
+        count: el.querySelector('[data-count]'),
+        note: el.querySelector('[data-note]'),
+        steps: plans[el.dataset.algo],
+      };
+    });
+
+    /* i번째 단계까지 진행한 모습을 그린다. i = -1이면 시작 상태. */
+    function render(i) {
+      for (const t of tracks) {
+        const step = i >= 0 ? t.steps[Math.min(i, t.steps.length - 1)] : null;
+        /* compare: false인 단계(결론)는 비교로 세지 않는다. */
+        const shown = t.steps
+          .slice(0, Math.min(i + 1, t.steps.length))
+          .filter((st) => st.compare !== false).length;
+        t.count.textContent = String(shown);
+
+        t.cells.forEach((cell, idx) => {
+          cell.className = 'sd-cell';
+          if (!step) return;
+          const [lo, hi] = step.range;
+          if (idx < lo || idx > hi) cell.classList.add('is-out');
+          if (idx === step.look) cell.classList.add(step.done ? 'is-found' : 'is-look');
+        });
+
+        t.note.classList.toggle('is-fail', Boolean(step && step.fail));
+        if (step) t.note.textContent = step.note;
+        else t.note.textContent = t.algo === 'sequential' ? S.seqIdle : S.binIdle;
+      }
+    }
+
+    const maxSteps = Math.max(...tracks.map((t) => t.steps.length));
+    let at = -1;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-act="play"]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= maxSteps - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= maxSteps - 1) stop();
+    }
+
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    root.querySelector('[data-act="play"]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= maxSteps - 1) {
+        at = -1;
+        render(-1);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 700);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<!-- 셀은 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-search-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-search-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 루트 하나만 바꾸면 데모 전체가
+       비율을 지킨 채 커지고 작아진다(.is-slide). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-search-demo .sd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1em;
+  }
+  .aas-search-demo .sd-target {
+    font-size: 0.95em;
+    color: var(--aas-muted);
+  }
+  .aas-search-demo .sd-target strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.05em;
+  }
+  .aas-search-demo .sd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-search-demo .sd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-search-demo .sd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-search-demo .sd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-search-demo .sd-tracks[data-both] {
+    display: grid;
+    gap: 1.25em;
+  }
+  @media (min-width: 60rem) {
+    .aas-search-demo .sd-tracks[data-both] {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .aas-search-demo .sd-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  .aas-search-demo .sd-head h4 {
+    margin: 0;
+    font-size: 1em;
+  }
+  .aas-search-demo .sd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-search-demo .sd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 칸이 많아도 줄바꿈으로 흐르게 둔다. 가로 스크롤을 만들지 않는다. */
+  .aas-search-demo .sd-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+  }
+  .aas-search-demo .sd-cell {
+    flex: 0 0 auto;
+    width: 2.2em;
+    padding: 0.3em 0;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      opacity 0.18s;
+  }
+  .aas-search-demo .sd-val {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.3;
+  }
+  .aas-search-demo .sd-idx {
+    display: block;
+    font-size: 0.6em;
+    color: var(--aas-muted);
+  }
+
+  /* 버려진 범위는 흐리게. 지금 보는 칸과 찾은 칸은 색으로. */
+  .aas-search-demo .sd-cell.is-out {
+    opacity: 0.28;
+  }
+  .aas-search-demo .sd-cell.is-look {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-search-demo .sd-cell.is-found {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 30%, transparent);
+    font-weight: 700;
+  }
+
+  .aas-search-demo .sd-note.is-fail {
+    color: var(--aas-role-guard);
+    font-weight: 600;
+  }
+  .aas-search-demo .sd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 슬라이드는 강의실 뒤에서도 읽혀야 하므로 교안보다 크게 잡는다.
+     루트 font-size 하나로 칸·글자·버튼·간격이 함께 커진다. */
+  .aas-search-demo.is-slide {
+    /* 화면에 맞춰 자란다. 고정값을 쓰면 넓은 화면에서는 작고, 좁은 화면에서는
+       15칸이 두 줄로 접힌다.
+       단위가 vh인 것은 오타가 아니다. 테마의 슬라이드 본문 폭은
+       `max-width: min(96rem, (100dvh - 11vh) * 화면비)`라 뷰포트 **높이**가
+       정한다. vw로 잡으면 납작하고 넓은 창에서 글자만 커지고 폭은 그대로라
+       칸이 접힌다. 상한 2.3rem은 폭이 96rem에 걸린 뒤의 값이다. */
+    font-size: clamp(1rem, 3.6vh, 2.3rem);
+    margin: 0.5rem 0;
+  }
+  /* 슬라이드에서는 두 트랙을 위아래로 쌓는다. 가로로 나누면 트랙 하나가 슬라이드
+     절반이라 15칸이 그 폭에 갇히고, 칸을 키우면 두 줄로 접힌다. 접힌 배열은
+     "한 칸씩" 대 "절반씩"이라는 이 데모의 요점을 지운다. 쌓으면 각 트랙이 폭을
+     다 쓰고, 같은 인덱스가 위아래로 맞아 어느 범위가 버려졌는지도 더 잘 보인다. */
+  .aas-search-demo.is-slide .sd-tracks[data-both] {
+    grid-template-columns: 1fr;
+  }
+  .aas-search-demo.is-slide .sd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-search-demo .sd-cell {
+      transition: none;
+    }
+  }
+</style>
