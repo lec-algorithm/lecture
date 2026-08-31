@@ -6,7 +6,7 @@
 // 보면 O(n)과 O(log n)의 차이가 눈에 들어온다.
 //
 // 교안(courses)과 슬라이드(slides) 양쪽에서 쓴다. 슬라이드에서는 mode로 한쪽만
-// 띄우거나 compact로 여백을 줄인다.
+// 띄우거나 slide로 크기를 슬라이드에 맞춘다.
 //
 // 색은 테마의 --aas-role-* 팔레트(라이트·다크 공통 고정값)를 쓴다.
 // 스크립트는 이 컴포넌트 안에서만 도는 IIFE라 한 페이지에 여러 개 놓아도 된다.
@@ -19,10 +19,10 @@ interface Props {
   target: number;
   /** 어떤 알고리즘을 보여줄지. 기본은 둘 다 나란히. */
   mode?: 'both' | 'sequential' | 'binary';
-  /** 슬라이드용: 여백과 글자를 줄여 한 장에 들어가게 한다. */
-  compact?: boolean;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
 }
-const { values, target, mode = 'both', compact = false } = Astro.props;
+const { values, target, mode = 'both', slide = false } = Astro.props;
 const id = `sd-${Math.random().toString(36).slice(2, 9)}`;
 const showSeq = mode === 'both' || mode === 'sequential';
 const showBin = mode === 'both' || mode === 'binary';
@@ -93,7 +93,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 ---
 
 <div
-  class:list={['aas-search-demo', compact && 'is-compact']}
+  class:list={['aas-search-demo', slide && 'is-slide']}
   id={id}
   data-values={JSON.stringify(values)}
   data-target={target}
@@ -302,38 +302,41 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
      그래서 is:global로 두고, 선택자를 .aas-search-demo 아래로 한정한다. -->
 <style is:global>
   .aas-search-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 루트 하나만 바꾸면 데모 전체가
+       비율을 지킨 채 커지고 작아진다(.is-slide). */
+    font-size: 1rem;
     margin: 1.5rem 0;
-    padding: 1rem;
+    padding: 1em;
     border: 1px solid var(--aas-border);
-    border-radius: 0.9rem;
+    border-radius: 0.9em;
     background: var(--aas-panel);
   }
   .aas-search-demo .sd-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.75em;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1rem;
+    margin-bottom: 1em;
   }
   .aas-search-demo .sd-target {
-    font-size: 0.95rem;
+    font-size: 0.95em;
     color: var(--aas-muted);
   }
   .aas-search-demo .sd-target strong {
     color: var(--aas-text);
     font-family: var(--aas-mono, monospace);
-    font-size: 1.05rem;
+    font-size: 1.05em;
   }
   .aas-search-demo .sd-controls {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.5em;
   }
   .aas-search-demo .sd-btn {
-    padding: 0.35rem 0.8rem;
-    font-size: 0.85rem;
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
     border: 1px solid var(--aas-border);
-    border-radius: 0.5rem;
+    border-radius: 0.5em;
     background: var(--aas-bg);
     color: var(--aas-text);
     cursor: pointer;
@@ -349,7 +352,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 
   .aas-search-demo .sd-tracks[data-both] {
     display: grid;
-    gap: 1.25rem;
+    gap: 1.25em;
   }
   @media (min-width: 60rem) {
     .aas-search-demo .sd-tracks[data-both] {
@@ -360,15 +363,15 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    gap: 0.5em;
+    margin-bottom: 0.5em;
   }
   .aas-search-demo .sd-head h4 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 1em;
   }
   .aas-search-demo .sd-count {
-    font-size: 0.85rem;
+    font-size: 0.85em;
     color: var(--aas-muted);
   }
   .aas-search-demo .sd-count strong {
@@ -380,15 +383,15 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-search-demo .sd-cells {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
+    gap: 0.25em;
   }
   .aas-search-demo .sd-cell {
     flex: 0 0 auto;
-    width: 2.2rem;
-    padding: 0.3rem 0;
+    width: 2.2em;
+    padding: 0.3em 0;
     text-align: center;
     border: 1px solid var(--aas-border);
-    border-radius: 0.35rem;
+    border-radius: 0.35em;
     background: var(--aas-bg);
     transition:
       background-color 0.18s,
@@ -398,12 +401,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-search-demo .sd-val {
     display: block;
     font-family: var(--aas-mono, monospace);
-    font-size: 0.8rem;
+    font-size: 0.8em;
     line-height: 1.3;
   }
   .aas-search-demo .sd-idx {
     display: block;
-    font-size: 0.6rem;
+    font-size: 0.6em;
     color: var(--aas-muted);
   }
 
@@ -426,30 +429,33 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     font-weight: 600;
   }
   .aas-search-demo .sd-note {
-    margin: 0.6rem 0 0;
-    font-size: 0.85rem;
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
     color: var(--aas-muted);
     min-height: 2.4em;
   }
 
-  /* 슬라이드용: 한 장에 들어가도록 여백과 글자를 줄인다. */
-  .aas-search-demo.is-compact {
+  /* 슬라이드용. 슬라이드는 강의실 뒤에서도 읽혀야 하므로 교안보다 크게 잡는다.
+     루트 font-size 하나로 칸·글자·버튼·간격이 함께 커진다. */
+  .aas-search-demo.is-slide {
+    /* 화면에 맞춰 자란다. 고정값을 쓰면 넓은 화면에서는 작고, 좁은 화면에서는
+       15칸이 두 줄로 접힌다.
+       단위가 vh인 것은 오타가 아니다. 테마의 슬라이드 본문 폭은
+       `max-width: min(96rem, (100dvh - 11vh) * 화면비)`라 뷰포트 **높이**가
+       정한다. vw로 잡으면 납작하고 넓은 창에서 글자만 커지고 폭은 그대로라
+       칸이 접힌다. 상한 2.3rem은 폭이 96rem에 걸린 뒤의 값이다. */
+    font-size: clamp(1rem, 3.6vh, 2.3rem);
     margin: 0.5rem 0;
-    padding: 0.75rem;
   }
-  .aas-search-demo.is-compact .sd-bar {
-    margin-bottom: 0.6rem;
+  /* 슬라이드에서는 두 트랙을 위아래로 쌓는다. 가로로 나누면 트랙 하나가 슬라이드
+     절반이라 15칸이 그 폭에 갇히고, 칸을 키우면 두 줄로 접힌다. 접힌 배열은
+     "한 칸씩" 대 "절반씩"이라는 이 데모의 요점을 지운다. 쌓으면 각 트랙이 폭을
+     다 쓰고, 같은 인덱스가 위아래로 맞아 어느 범위가 버려졌는지도 더 잘 보인다. */
+  .aas-search-demo.is-slide .sd-tracks[data-both] {
+    grid-template-columns: 1fr;
   }
-  .aas-search-demo.is-compact .sd-cell {
-    width: 1.9rem;
-    padding: 0.2rem 0;
-  }
-  .aas-search-demo.is-compact .sd-note {
+  .aas-search-demo.is-slide .sd-note {
     min-height: 1.6em;
-    font-size: 0.8rem;
-  }
-  .aas-search-demo.is-compact .sd-head h4 {
-    font-size: 0.92rem;
   }
 
   @media (prefers-reduced-motion: reduce) {
