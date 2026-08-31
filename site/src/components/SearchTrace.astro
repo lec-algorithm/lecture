@@ -1,0 +1,150 @@
+---
+// 이진 검색이 범위를 절반씩 줄이는 과정을 한 장에 펼친 정지 그림.
+//
+// SearchDemo는 한 걸음씩 눌러 보는 것이고, 이쪽은 네 번의 비교를 위아래로
+// 쌓아 한눈에 보여 준다. lo/hi/mid 표만으로는 "절반을 버린다"가 숫자로만
+// 남는데, 흐려지는 칸이 옆에 있으면 그 말이 눈에 보인다.
+//
+// 전부 서버에서 그리므로 스크립트가 없다. 그래서 Astro의 scoped 스타일이
+// 그대로 먹는다(SearchDemo가 is:global을 써야 했던 이유는 셀을 JS로 만들기
+// 때문이다).
+//
+// 단계는 props로 받지 않고 여기서 이진 검색을 실제로 돌려 만든다. 손으로 적은
+// 표는 코드와 어긋날 수 있지만 이렇게 하면 어긋날 수가 없다.
+interface Props {
+  /** 오름차순으로 정렬된 배열. */
+  values: number[];
+  /** 찾을 값. */
+  target: number;
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
+  slide?: boolean;
+}
+const { values, target, slide = false } = Astro.props;
+
+type Step = { lo: number; hi: number; mid: number; found: boolean };
+const steps: Step[] = [];
+{
+  let lo = 0;
+  let hi = values.length - 1;
+  while (lo <= hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    const found = values[mid] === target;
+    steps.push({ lo, hi, mid, found });
+    if (found) break;
+    if (values[mid] < target) lo = mid + 1;
+    else hi = mid - 1;
+  }
+}
+---
+
+<div class:list={['aas-search-trace', slide && 'is-slide']}>
+  <div class="st-row st-head">
+    <span class="st-no" aria-hidden="true"></span>
+    <span class="st-cells">
+      {values.map((_, i) => <span class="st-idx">{i}</span>)}
+    </span>
+  </div>
+
+  {
+    steps.map((s, i) => (
+      <div class="st-row">
+        <span class="st-no">{i + 1}</span>
+        <span class="st-cells">
+          {values.map((v, j) => (
+            <span
+              class:list={[
+                'st-cell',
+                (j < s.lo || j > s.hi) && 'is-out',
+                j === s.mid && (s.found ? 'is-found' : 'is-look'),
+              ]}
+            >
+              {v}
+            </span>
+          ))}
+        </span>
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .aas-search-trace {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. SearchDemo와 같은 방식이라
+       루트 하나만 바꾸면 전체가 비율을 지킨 채 커진다. */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .st-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+  }
+  .st-row + .st-row {
+    margin-top: 0.3em;
+  }
+  .st-no {
+    flex: 0 0 auto;
+    width: 1.6em;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .st-cells {
+    display: flex;
+    gap: 0.25em;
+  }
+  .st-cell,
+  .st-idx {
+    flex: 0 0 auto;
+    width: 2.2em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .st-cell {
+    padding: 0.25em 0;
+    font-size: 0.8em;
+    line-height: 1.3;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+  }
+  .st-idx {
+    font-size: 0.6em;
+    color: var(--aas-muted);
+  }
+  /* 헤더의 인덱스 줄은 셀 폭에 맞춰야 하므로 셀과 같은 폭을 쓰되, 글자만
+     작다. 위 규칙의 2.2em은 각자의 font-size 기준이라 그대로는 어긋난다. */
+  .st-idx {
+    width: 2.933em; /* 2.2em × (0.8 / 0.6) */
+  }
+  .st-head {
+    margin-bottom: 0.15em;
+  }
+
+  /* 버려진 범위는 흐리게. 지금 보는 칸과 찾은 칸은 색으로. SearchDemo와
+     같은 팔레트를 쓴다 — 두 그림이 같은 뜻을 같은 색으로 말해야 한다. */
+  .st-cell.is-out {
+    opacity: 0.28;
+  }
+  .st-cell.is-look {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .st-cell.is-found {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 30%, transparent);
+    font-weight: 700;
+  }
+
+  /* 슬라이드용. 근거는 SearchDemo의 같은 규칙과 같다: 슬라이드 폭은
+     뷰포트 높이가 정하므로 vw가 아니라 vh로 잡는다. */
+  .aas-search-trace.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2rem);
+    margin: 0.5rem 0;
+  }
+</style>
