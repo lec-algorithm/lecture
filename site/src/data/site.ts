@@ -96,16 +96,6 @@ export const site = {
         tags: ['Slides'],
       },
       {
-        href: '/article/',
-        name: { ko: '공지와 안내', en: 'Notices & guides', zh: '公告与指南' },
-        description: {
-          ko: '휴강·보강 공지, 과제와 개인프로젝트 안내, 제출 규격',
-          en: 'Class notices, assignment and project briefs, submission rules',
-          zh: '停课与补课公告、作业与项目说明、提交规范',
-        },
-        tags: ['Notice', 'Guide'],
-      },
-      {
         href: '/categories/env/',
         name: { ko: '실습 환경', en: 'Lab environment', zh: '实验环境' },
         description: {
