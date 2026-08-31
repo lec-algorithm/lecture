@@ -47,6 +47,30 @@ export const glossary = {
       zh: '只考察输入足够大时行为的分析方法。剥离依赖硬件与语言的常数，从而单纯比较算法本身。',
     },
   },
+  'trade-off': {
+    label: { ko: '트레이드오프', en: 'Trade-off', zh: '权衡' },
+    def: {
+      ko: '하나를 얻으면 다른 하나를 내주어야 하는 관계. 알고리즘 선택은 대개 최선을 고르는 일이 아니라 무엇을 내줄지 정하는 일이다.',
+      en: 'A relation where gaining one thing costs another. Choosing an algorithm is usually less about picking the best one than about deciding what to give up.',
+      zh: '得到一样就要放弃另一样的关系。选择算法通常不是挑出最好的那个，而是决定放弃什么。',
+    },
+  },
+  'sequential-search': {
+    label: { ko: '순차 검색', en: 'Sequential search', zh: '顺序查找' },
+    def: {
+      ko: '배열을 앞에서부터 하나씩 비교해 찾는 검색. 정렬 여부와 무관하게 쓸 수 있고, 최악에는 n번 비교한다.',
+      en: 'Searching by comparing elements from the front, one at a time. It works whether or not the array is sorted, and compares n times in the worst case.',
+      zh: '从头开始逐个比较进行查找。无论数组是否有序都能使用，最坏情况下比较 n 次。',
+    },
+  },
+  'binary-search': {
+    label: { ko: '이진 검색', en: 'Binary search', zh: '二分查找' },
+    def: {
+      ko: '정렬된 배열에서 가운데와 비교해 남은 범위를 절반씩 줄여 가는 검색. 비교 한 번에 후보가 반으로 줄어 O(log n)이다.',
+      en: 'Searching a sorted array by comparing with the middle and halving the remaining range. Each comparison halves the candidates, giving O(log n).',
+      zh: '在有序数组中与中间元素比较、每次将剩余范围减半的查找。每比较一次候选就减半，因此是 O(log n)。',
+    },
+  },
   'time-complexity': {
     label: { ko: '시간 복잡도', en: 'Time complexity', zh: '时间复杂度' },
     def: {
