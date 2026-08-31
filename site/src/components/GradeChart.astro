@@ -6,8 +6,9 @@
 // 공통 고정값)를 그대로 재사용한다. 의미상 이름은 다이어그램 역할용이지만
 // 평가 항목 색 구분에도 그대로 쓸 수 있다.
 //
-// legend=false로 쓰면 도넛만 나온다. `.aas-grade-layout`으로 감싸면 표 옆에
-// 나란히 배치할 수 있다 — 항목·비중은 이미 표에 있으니 범례를 또 그리지 않는다.
+// `.aas-grade-layout`으로 감싸면 표 옆에 나란히 배치할 수 있다. 범례는 색
+// 색인용이라 항목명만 적고 비중은 안 적는다 — 비중은 옆 표에 이미 있다.
+// legend=false로 쓰면 그 색인도 뺀 도넛만 나온다.
 interface Item {
   label: string;
   value: number;
@@ -61,7 +62,6 @@ const segments = items.map((item) => {
         <li>
           <span class="aas-grade-chart-swatch" style={`background:${item.color}`} />
           <span class="aas-grade-chart-label">{item.label}</span>
-          <span class="aas-grade-chart-value">{item.value}{unit}</span>
         </li>
       ))}
     </ul>
@@ -81,32 +81,29 @@ const segments = items.map((item) => {
     height: auto;
     flex-shrink: 0;
   }
-  .aas-grade-chart-legend {
+  ul.aas-grade-chart-legend {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    column-gap: 1.25rem;
-    row-gap: 0.15rem;
-    font-size: 0.78rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
   }
-  .aas-grade-chart-legend li {
+  ul.aas-grade-chart-legend li {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1.2;
     white-space: nowrap;
   }
   .aas-grade-chart-swatch {
-    width: 0.55rem;
-    height: 0.55rem;
+    width: 0.6rem;
+    height: 0.6rem;
     border-radius: 999px;
     flex-shrink: 0;
-  }
-  .aas-grade-chart-value {
-    color: var(--aas-muted);
-    margin-left: auto;
-    font-variant-numeric: tabular-nums;
   }
 
   /* GradeChart(legend 없이)를 표 옆에 나란히 두는 레이아웃. 표는 markdown이
