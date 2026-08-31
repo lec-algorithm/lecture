@@ -1,0 +1,102 @@
+---
+// 평가 비중을 도넛 차트로 보여준다. 슬라이드의 평가 표와 같은 숫자를 시각화만
+// 다르게 반복하는 용도라, 표는 그대로 두고 이 컴포넌트를 표 아래에 덧붙인다.
+//
+// 색은 새로 만들지 않고 테마의 --aas-role-* 팔레트(다이어그램용, 라이트·다크
+// 공통 고정값)를 그대로 재사용한다. 의미상 이름은 다이어그램 역할용이지만
+// 평가 항목 색 구분에도 그대로 쓸 수 있다.
+interface Item {
+  label: string;
+  value: number;
+  color: string;
+}
+interface Props {
+  items: Item[];
+  unit?: string;
+}
+const { items, unit = '%' } = Astro.props;
+const total = items.reduce((sum, item) => sum + item.value, 0);
+const radius = 40;
+const circumference = 2 * Math.PI * radius;
+let cursor = 0;
+const segments = items.map((item) => {
+  const length = (item.value / total) * circumference;
+  const segment = { ...item, length, offset: cursor };
+  cursor += length;
+  return segment;
+});
+---
+
+<div class="aas-grade-chart">
+  <svg
+    viewBox="0 0 100 100"
+    class="aas-grade-chart-donut"
+    role="img"
+    aria-label={items.map((item) => `${item.label} ${item.value}${unit}`).join(', ')}
+  >
+    <g transform="rotate(-90 50 50)">
+      {segments.map((segment) => (
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          stroke={segment.color}
+          stroke-width="16"
+          stroke-dasharray={`${segment.length} ${circumference - segment.length}`}
+          stroke-dashoffset={-segment.offset}
+        />
+      ))}
+    </g>
+  </svg>
+  <ul class="aas-grade-chart-legend">
+    {items.map((item) => (
+      <li>
+        <span class="aas-grade-chart-swatch" style={`background:${item.color}`} />
+        <span class="aas-grade-chart-label">{item.label}</span>
+        <span class="aas-grade-chart-value">{item.value}{unit}</span>
+      </li>
+    ))}
+  </ul>
+</div>
+
+<style>
+  .aas-grade-chart {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.75rem, 2vw, 1.25rem);
+    margin-block: 0.4rem;
+  }
+  .aas-grade-chart-donut {
+    width: clamp(64px, 8vw, 88px);
+    height: auto;
+    flex-shrink: 0;
+  }
+  .aas-grade-chart-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    column-gap: 1.25rem;
+    row-gap: 0.15rem;
+    font-size: 0.78rem;
+  }
+  .aas-grade-chart-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+  }
+  .aas-grade-chart-swatch {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .aas-grade-chart-value {
+    color: var(--aas-muted);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
