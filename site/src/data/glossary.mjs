@@ -23,6 +23,14 @@ export const glossary = {
       zh: '把解决问题的步骤用有限且明确的步骤写下来。相同输入产生相同输出，并且必须终止。',
     },
   },
+  'data-structure': {
+    label: { ko: '데이터 구조', en: 'Data structure', zh: '数据结构' },
+    def: {
+      ko: '정보를 저장하고 꺼내는 방법. 알고리즘은 대개 알맞은 데이터 구조 위에서 돌고, 그 데이터 구조를 구현하는 데 또 알고리즘이 필요하다.',
+      en: 'A way of storing information and getting it back. An algorithm usually runs on top of a fitting data structure, and implementing that structure takes algorithms in turn.',
+      zh: '存储信息并将其取出的方式。算法通常运行在合适的数据结构之上，而实现该数据结构又需要算法。',
+    },
+  },
   'pseudo-code': {
     label: { ko: '의사코드', en: 'Pseudocode', zh: '伪代码' },
     def: {
