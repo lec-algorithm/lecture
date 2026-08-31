@@ -68,9 +68,9 @@ export const site = {
         zh: '高级算法',
       },
       subtitle: {
-        ko: '2026학년도 2학기 · 연세대학교 첨단융합공학부<br>정렬과 분할 정복에서 그래프와 동적 계획법까지<br>의사코드 한 벌, C와 Python 두 구현, 컨테이너 하나',
-        en: 'Fall 2026 · School of Integrated Technology, Yonsei University<br>From sorting and divide-and-conquer to graphs and dynamic programming<br>One pseudocode, two implementations in C and Python, one container',
-        zh: '2026学年第二学期 · 延世大学融合工程学部<br>从排序、分治到图与动态规划<br>一份伪代码，C 与 Python 两种实现，一个容器',
+        ko: '정렬과 분할 정복에서 그래프와 동적 계획법까지<br>의사코드 한 벌, C와 Python 두 구현, 컨테이너 하나',
+        en: 'From sorting and divide-and-conquer to graphs and dynamic programming<br>One pseudocode, two implementations in C and Python, one container',
+        zh: '从排序、分治到图与动态规划<br>一份伪代码，C 与 Python 两种实现，一个容器',
       },
     },
     cardsTitle: { ko: '바로가기', en: 'Quick links', zh: '快速入口' },
@@ -163,11 +163,11 @@ export const site = {
   ui: {
     ko: {
       'site.tagline':
-        '고급알고리즘 (SIT2001): 2026학년도 2학기 강의 자료, 슬라이드, 용어집',
+        '고급알고리즘 (SIT2001): 강의 자료, 슬라이드, 용어집',
     },
     en: {
       'site.tagline':
-        'Advanced Algorithms (SIT2001): lecture notes, slides and glossary for Fall 2026',
+        'Advanced Algorithms (SIT2001): lecture notes, slides and glossary',
     },
     /**
      * 중국어는 테마가 내장하지 않은 로케일이라(테마는 en·ko만 가짐), 여기서
@@ -175,7 +175,7 @@ export const site = {
      * 실제로 렌더하는 키를 채운다. 새 섹션을 켜면 그 섹션의 키도 여기 추가한다.
      */
     zh: {
-      'site.tagline': '高级算法 (SIT2001)：2026学年第二学期的讲义、幻灯片与术语表',
+      'site.tagline': '高级算法 (SIT2001)：讲义、幻灯片与术语表',
 
       // 내비게이션
       'nav.browse': '浏览',
