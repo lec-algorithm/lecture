@@ -1,0 +1,580 @@
+---
+// 퀵 정렬의 파티션·전체 정렬·퀵 선택을 한 걸음씩 돌려 보는 데모.
+//
+// mode="partition"은 파티션 한 번만 보여준다. 피벗(파랑)보다 작은 구간
+// (청록)이 왼쪽에서 자라고, 끝에 피벗이 경계로 들어가 자리를 확정한다
+// (초록). 퀵 정렬의 엔진이 이 한 번이다.
+// mode="sort"는 그 파티션을 재귀에 태운다. qs(lo, hi) 칩이 현재 호출이고,
+// 확정된 피벗이 초록으로 쌓인다.
+// mode="select"는 같은 파티션으로 k번째 작은 값을 찾는다. 버린 쪽은
+// 흐려진 채 그대로 남아, "다 정렬하지 않는다"가 화면에 남는다.
+//
+// 비교·이동을 세는 규칙은 algorithm-code의 구현과 같다. 교환 1번 = 이동
+// 3회, 제자리 교환은 세지 않는다. 데모의 카운터가 코드 실행 결과와 같은
+// 숫자에 도착하는 것이 이 데모의 요점이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 파티션 한 번(partition), 전체 정렬(sort), 퀵 선택(select) */
+  mode?: 'partition' | 'sort' | 'select';
+  /** 배열. 기본은 주제 03과 같은 예제 배열이다. */
+  values?: number[];
+  /** select 모드: 몇 번째로 작은 값을 찾는가 (1부터) */
+  k?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  mode = 'sort',
+  values = [2, 8, 5, 9, 1, 10, 7, 6, 4, 3],
+  k = 5,
+  slide = false,
+} = Astro.props;
+const id = `qd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    partition: '파티션',
+    sort: '퀵 정렬',
+    select: '퀵 선택',
+    pivotChip: '피벗',
+    kChip: '{k}번째',
+    compPre: '비교 ',
+    compPost: '회',
+    movePre: '이동 ',
+    movePost: '회',
+    partIdle: '첫 원소를 피벗으로 삼아, 작은 것을 왼쪽으로 모읍니다.',
+    sortIdle: '피벗을 제자리에 놓고, 양쪽을 각각 정렬합니다.',
+    selectIdle: '다 정렬하지 않고 {k}번째로 작은 값을 찾습니다.',
+    enter: 'qs({lo}, {hi}) — 파티션부터 합니다.',
+    leaf: 'qs({i}, {i}) — 원소 하나는 이미 정렬입니다.',
+    pick: '피벗 ← A[{lo}] = {p}. 작은 것은 왼쪽으로 보냅니다.',
+    smaller: 'A[{j}] = {v} < {p} — 작은 구간으로. 교환, 이동 3회.',
+    smallerStay: 'A[{j}] = {v} < {p} — 이미 작은 구간 끝이라 그대로 둡니다.',
+    bigger: 'A[{j}] = {v} ≥ {p} — 그대로 둡니다.',
+    place: '피벗을 경계로 — A[{i}] = {p} 자리 확정. 이동 3회.',
+    placeStay: '피벗이 이미 경계입니다 — A[{i}] = {p} 자리 확정.',
+    goLeft: '피벗 위치 {p}는 {k}번째보다 뒤 — 왼쪽만 봅니다. 오른쪽은 버립니다.',
+    goRight: '피벗 위치 {p}는 {k}번째보다 앞 — 오른쪽만 봅니다. 왼쪽은 버립니다.',
+    found: '피벗 위치 {p} == {k}번째 — 답은 {v}입니다. 나머지는 정렬하지 않았습니다.',
+    partDone: '파티션 끝 — 비교 {c}회, 이동 {m}회. 피벗의 자리는 확정입니다.',
+    done: '정렬 끝 — 비교 {c}회, 이동 {m}회.',
+  },
+  en: {
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    partition: 'Partition',
+    sort: 'Quicksort',
+    select: 'Quickselect',
+    pivotChip: 'pivot',
+    kChip: 'k = {k}',
+    compPre: 'comparisons ',
+    compPost: '',
+    movePre: 'moves ',
+    movePost: '',
+    partIdle: 'Take the first element as pivot; gather smaller ones on the left.',
+    sortIdle: 'Put the pivot in its place, then sort both sides.',
+    selectIdle: 'Find the {k}th smallest without sorting everything.',
+    enter: 'qs({lo}, {hi}) — partition first.',
+    leaf: 'qs({i}, {i}) — one element is already sorted.',
+    pick: 'pivot ← A[{lo}] = {p}. Smaller elements go left.',
+    smaller: 'A[{j}] = {v} < {p} — into the small zone. Swap, 3 moves.',
+    smallerStay: 'A[{j}] = {v} < {p} — already at the zone edge, leave it.',
+    bigger: 'A[{j}] = {v} ≥ {p} — leave it.',
+    place: 'Pivot to the boundary — A[{i}] = {p} is final. 3 moves.',
+    placeStay: 'The pivot already sits at the boundary — A[{i}] = {p} is final.',
+    goLeft: 'Pivot position {p} is past the {k}th — look left only. The right is discarded.',
+    goRight: 'Pivot position {p} is before the {k}th — look right only. The left is discarded.',
+    found: 'Pivot position {p} == the {k}th — the answer is {v}. The rest was never sorted.',
+    partDone: 'Partition done — {c} comparisons, {m} moves. The pivot is in its final place.',
+    done: 'Sorted — {c} comparisons, {m} moves.',
+  },
+  zh: {
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    partition: '划分',
+    sort: '快速排序',
+    select: '快速选择',
+    pivotChip: '基准',
+    kChip: '第 {k} 小',
+    compPre: '比较 ',
+    compPost: ' 次',
+    movePre: '移动 ',
+    movePost: ' 次',
+    partIdle: '拿第一个元素当基准，把小的聚到左边。',
+    sortIdle: '把基准放到它的位置，再分别排两边。',
+    selectIdle: '不全排序，找出第 {k} 小的值。',
+    enter: 'qs({lo}, {hi}) — 先做划分。',
+    leaf: 'qs({i}, {i}) — 单个元素本来就有序。',
+    pick: '基准 ← A[{lo}] = {p}。小的送到左边。',
+    smaller: 'A[{j}] = {v} < {p} — 进小区。交换，移动 3 次。',
+    smallerStay: 'A[{j}] = {v} < {p} — 已经在小区边上，不动。',
+    bigger: 'A[{j}] = {v} ≥ {p} — 不动。',
+    place: '基准放到边界 — A[{i}] = {p} 就位。移动 3 次。',
+    placeStay: '基准已经在边界上 — A[{i}] = {p} 就位。',
+    goLeft: '基准位置 {p} 在第 {k} 小之后 — 只看左边，右边丢弃。',
+    goRight: '基准位置 {p} 在第 {k} 小之前 — 只看右边，左边丢弃。',
+    found: '基准位置 {p} == 第 {k} 小 — 答案是 {v}。其余部分并没有排序。',
+    partDone: '划分结束 — 比较 {c} 次，移动 {m} 次。基准的位置定了。',
+    done: '排序完成 — 比较 {c} 次，移动 {m} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const fillSrv = (tpl: string, vars: Record<string, string | number>) =>
+  tpl.replace(/\{(\w+)\}/g, (_, key) => String(vars[key]));
+---
+
+<div
+  class:list={['aas-quick-demo', slide && 'is-slide']}
+  id={id}
+  data-qd-values={JSON.stringify(values)}
+  data-qd-mode={mode}
+  data-qd-k={k}
+  data-qd-strings={JSON.stringify(t)}
+>
+  <div class="qd-bar">
+    <span class="qd-head">
+      <strong>{t[mode]}</strong>
+      <span class="qd-pivotchip is-off" data-qd-pivotchip>
+        {t.pivotChip} = <strong data-qd-pivotval></strong>
+      </span>
+      {mode === 'select' && <span class="qd-kchip">{fillSrv(t.kChip, { k })}</span>}
+      {mode === 'sort' && (
+        <span class="qd-callchip is-off" data-qd-callchip>
+          <strong data-qd-callval></strong>
+        </span>
+      )}
+    </span>
+    <div class="qd-controls">
+      <button type="button" data-act="back" class="qd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="qd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="qd-btn qd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="qd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="qd-cells" data-qd-cells></div>
+
+  <div class="qd-foot">
+    <p class="qd-note" data-qd-note></p>
+    <span class="qd-count">
+      {t.compPre}<strong data-qd-comp>0</strong>{t.compPost}
+      · {t.movePre}<strong data-qd-mvs>0</strong>{t.movePost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const values = JSON.parse(root.dataset.qdValues);
+    const mode = root.dataset.qdMode;
+    const K = Number(root.dataset.qdK);
+    const S = JSON.parse(root.dataset.qdStrings);
+    const n = values.length;
+
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const snap = (a) => a.slice();
+    const range = (len) => Array.from({ length: len }, (_, x) => x);
+
+    /* 전체 과정을 미리 단계 배열로 만들어 둔다. 세는 규칙은
+       algorithm-code의 구현과 같다: 교환 1번 = 이동 3회, 제자리 교환은
+       세지 않는다. */
+    function plan() {
+      const a = snap(values);
+      const steps = [];
+      let c = 0;
+      let m = 0;
+      const done = [];   /* 자리가 확정된 인덱스 (피벗·잎) */
+      const out = [];    /* select 모드에서 버려진 인덱스 */
+
+      const push = (extra) =>
+        steps.push({
+          a: snap(a), done: snap(done), out: snap(out), c, m,
+          look: [], call: null, pivot: null, zone: null, rng: null,
+          ...extra,
+        });
+
+      function doPartition(lo, hi, call) {
+        const pivot = a[lo];
+        let i = lo;
+        push({
+          call, rng: [lo, hi], pivot: lo, zone: [lo + 1, i],
+          note: fill(S.pick, { lo, p: pivot }),
+        });
+        for (let j = lo + 1; j <= hi; j++) {
+          c++;
+          if (a[j] < pivot) {
+            i++;
+            const swapped = i !== j;
+            if (swapped) {
+              const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+              m += 3;
+            }
+            push({
+              call, rng: [lo, hi], pivot: lo, zone: [lo + 1, i],
+              look: [j], flash: swapped ? [i, j] : [],
+              note: fill(swapped ? S.smaller : S.smallerStay, { j, v: a[i], p: pivot }),
+            });
+          } else {
+            push({
+              call, rng: [lo, hi], pivot: lo, zone: [lo + 1, i],
+              look: [j],
+              note: fill(S.bigger, { j, v: a[j], p: pivot }),
+            });
+          }
+        }
+        const swapped = lo !== i;
+        if (swapped) {
+          const tmp = a[lo]; a[lo] = a[i]; a[i] = tmp;
+          m += 3;
+        }
+        done.push(i);
+        push({
+          call, rng: [lo, hi], pivot: i, zone: [lo, i - 1], flash: swapped ? [lo, i] : [i],
+          note: fill(swapped ? S.place : S.placeStay, { i, p: a[i] }),
+        });
+        return i;
+      }
+
+      if (mode === 'partition') {
+        doPartition(0, n - 1, null);
+        push({ note: fill(S.partDone, { c, m }) });
+      } else if (mode === 'sort') {
+        (function qs(lo, hi) {
+          const call = `qs(${lo}, ${hi})`;
+          if (lo > hi) return;
+          if (lo === hi) {
+            done.push(lo);
+            push({ call, rng: [lo, hi], note: fill(S.leaf, { i: lo }) });
+            return;
+          }
+          push({ call, rng: [lo, hi], note: fill(S.enter, { lo, hi }) });
+          const p = doPartition(lo, hi, call);
+          qs(lo, p - 1);
+          qs(p + 1, hi);
+        })(0, n - 1);
+        push({ done: range(n), note: fill(S.done, { c, m }) });
+      } else {
+        /* select: 한쪽만 파고든다 */
+        let lo = 0;
+        let hi = n - 1;
+        for (;;) {
+          const p = doPartition(lo, hi, null);
+          if (p === K - 1) {
+            push({ rng: [p, p], found: p, note: fill(S.found, { p, k: K, v: a[p] }) });
+            break;
+          }
+          if (p > K - 1) {
+            for (let x = p; x <= hi; x++) if (!out.includes(x)) out.push(x);
+            hi = p - 1;
+            push({ rng: [lo, hi], note: fill(S.goLeft, { p, k: K }) });
+          } else {
+            for (let x = lo; x <= p; x++) if (!out.includes(x)) out.push(x);
+            lo = p + 1;
+            push({ rng: [lo, hi], note: fill(S.goRight, { p, k: K }) });
+          }
+        }
+      }
+      return steps;
+    }
+
+    const steps = plan();
+
+    /* 칸을 한 번만 만들고 이후에는 클래스와 글자만 바꾼다. */
+    const wrap = root.querySelector('[data-qd-cells]');
+    const cells = values.map((v, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'qd-cell';
+      cell.innerHTML = `<span class="qd-val">${v}</span><span class="qd-idx">${i}</span>`;
+      wrap.appendChild(cell);
+      return cell;
+    });
+    const vals = cells.map((cell) => cell.querySelector('.qd-val'));
+    const comp = root.querySelector('[data-qd-comp]');
+    const mvs = root.querySelector('[data-qd-mvs]');
+    const note = root.querySelector('[data-qd-note]');
+    const pivotchip = root.querySelector('[data-qd-pivotchip]');
+    const pivotval = root.querySelector('[data-qd-pivotval]');
+    const callchip = root.querySelector('[data-qd-callchip]');
+    const callval = root.querySelector('[data-qd-callval]');
+    const idle =
+      mode === 'partition' ? S.partIdle
+      : mode === 'sort' ? S.sortIdle
+      : fill(S.selectIdle, { k: K });
+
+    /* s번째 단계까지 진행한 모습을 그린다. s = -1이면 시작 상태. */
+    function render(s) {
+      const step = s >= 0 ? steps[Math.min(s, steps.length - 1)] : null;
+      const a = step ? step.a : values;
+
+      cells.forEach((cell, idx) => {
+        cell.className = 'qd-cell';
+        vals[idx].textContent = String(a[idx]);
+        if (!step) return;
+        if (step.out.includes(idx)) cell.classList.add('is-out');
+        else if (step.rng && (idx < step.rng[0] || idx > step.rng[1]) && !step.done.includes(idx))
+          cell.classList.add('is-dim');
+        if (step.zone && idx >= step.zone[0] && idx <= step.zone[1]) cell.classList.add('is-part');
+        if (step.done.includes(idx)) cell.classList.add('is-done');
+        if (step.pivot === idx) cell.classList.add('is-key');
+        if (step.look.includes(idx)) cell.classList.add('is-look');
+        if (step.flash && step.flash.includes(idx)) cell.classList.add('is-swap');
+        if (step.found === idx) cell.classList.add('is-found');
+      });
+
+      comp.textContent = String(step ? step.c : 0);
+      mvs.textContent = String(step ? step.m : 0);
+      note.textContent = step ? step.note : idle;
+
+      const holding = step && step.pivot !== null && !step.done.includes(step.pivot);
+      pivotchip.classList.toggle('is-off', !holding);
+      if (holding) pivotval.textContent = String(step.a[step.pivot]);
+      if (callchip) {
+        const call = step ? step.call : null;
+        callchip.classList.toggle('is-off', call === null);
+        if (call !== null) callval.textContent = call;
+      }
+    }
+
+    let at = -1;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-act="play"]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    root.querySelector('[data-act="play"]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 600);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<!-- 셀은 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-quick-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-quick-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-quick-demo .qd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-quick-demo .qd-head {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.7em;
+    font-size: 0.95em;
+  }
+  .aas-quick-demo .qd-pivotchip,
+  .aas-quick-demo .qd-callchip,
+  .aas-quick-demo .qd-kchip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+  }
+  .aas-quick-demo .qd-pivotchip {
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-quick-demo .qd-callchip {
+    border: 1px solid color-mix(in srgb, var(--aas-role-tool) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-tool) 14%, transparent);
+  }
+  .aas-quick-demo .qd-kchip {
+    border: 1px solid color-mix(in srgb, var(--aas-role-focus) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, transparent);
+  }
+  .aas-quick-demo .qd-pivotchip strong,
+  .aas-quick-demo .qd-callchip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-quick-demo .qd-pivotchip.is-off,
+  .aas-quick-demo .qd-callchip.is-off {
+    visibility: hidden;
+  }
+  .aas-quick-demo .qd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-quick-demo .qd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-quick-demo .qd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-quick-demo .qd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-quick-demo .qd-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+  }
+  .aas-quick-demo .qd-cell {
+    flex: 0 0 auto;
+    min-width: 2.2em;
+    padding: 0.3em 0.2em;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      opacity 0.18s;
+  }
+  .aas-quick-demo .qd-val {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.3;
+    min-height: 1.3em;
+  }
+  .aas-quick-demo .qd-idx {
+    display: block;
+    font-size: 0.6em;
+    color: var(--aas-muted);
+  }
+
+  /* 피벗은 파랑, 피벗보다 작은 구간은 청록, 지금 보는 칸은 주황,
+     방금 교환된 칸은 호박색, 자리가 확정된 칸은 초록.
+     지금 호출 밖은 살짝, select에서 버린 쪽은 더 흐리게. */
+  .aas-quick-demo .qd-cell.is-dim {
+    opacity: 0.45;
+  }
+  .aas-quick-demo .qd-cell.is-out {
+    opacity: 0.25;
+  }
+  .aas-quick-demo .qd-cell.is-part {
+    border-color: color-mix(in srgb, var(--aas-role-source) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-source) 12%, transparent);
+  }
+  .aas-quick-demo .qd-cell.is-key {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 16%, transparent);
+  }
+  .aas-quick-demo .qd-cell.is-look {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-quick-demo .qd-cell.is-swap {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 26%, transparent);
+    font-weight: 700;
+  }
+  .aas-quick-demo .qd-cell.is-done {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, transparent);
+  }
+  .aas-quick-demo .qd-cell.is-found {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 32%, transparent);
+    font-weight: 700;
+  }
+
+  .aas-quick-demo .qd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-quick-demo .qd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-quick-demo .qd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-quick-demo .qd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. SortDemo와 같은 크기.
+     vh 단위인 이유는 SearchDemo 참고: 슬라이드 폭은 뷰포트 높이가 정한다. */
+  .aas-quick-demo.is-slide {
+    font-size: clamp(1rem, 3.6vh, 2.3rem);
+    margin: 0.5rem 0;
+  }
+  .aas-quick-demo.is-slide .qd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-quick-demo .qd-cell {
+      transition: none;
+    }
+  }
+</style>

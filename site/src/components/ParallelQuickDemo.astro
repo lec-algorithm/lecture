@@ -1,0 +1,465 @@
+---
+// 같은 파티션 여섯 번을 혼자 차례로 할 때와 레벨마다 동시에 할 때의
+// "단계 수"를 나란히 세는 데모. ParallelMergeDemo와 같은 문법이다.
+//
+// 퀵 정렬의 재귀 트리에서 같은 레벨의 파티션들은 서로 다른 구간을
+// 만진다. 겹치지 않으니 동시에 돌릴 수 있다. 병합 정렬과 방향만
+// 반대다: 병합은 아래에서 위로 합쳤고, 퀵은 위에서 아래로 가른다.
+// 그래서 벽시계의 바닥도 반대에 있다. 병합은 마지막 병합이,
+// 퀵은 첫 파티션이 혼자 전체를 다룬다.
+//
+// 기본 배열은 피벗이 늘 한가운데에 서는 최선 배열이다. 트리가 균형이라
+// 레벨마다 파티션이 여럿 생겨 병렬이 산다. 정렬된 입력을 넣으면 트리가
+// 외길이 되어 단계 수가 똑같아지는 것도 values로 실험할 수 있다.
+//
+// 표식은 테마의 덱 크롬과 부딪히지 않도록 `data-pq-*`로 접두를 붙였다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 정렬할 배열. 기본은 피벗이 늘 중앙값이 되는 최선 배열 */
+  values?: number[];
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
+  slide?: boolean;
+}
+const { values = [5, 1, 3, 4, 2, 8, 7, 6, 9, 10], slide = false } = Astro.props;
+const id = `pq-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    seq: '혼자서 차례로',
+    par: '레벨마다 동시에',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    stage: '단계',
+    now: '이번 단계의 파티션',
+    sofar: '지금까지',
+    unit: '번',
+    start: '재귀 트리를 위에서부터 실제로 가릅니다.',
+    seqNote: 'qs({lo}, {hi}) 파티션 — 한 단계에 하나씩입니다.',
+    seqDone: '파티션 {a}번, {s}단계 걸렸습니다.',
+    parNote: '파티션 {k}개를 **한 단계에 동시에** — 구간이 겹치지 않아 서로 기다리지 않습니다.',
+    parDone: '{s}단계 만에 끝났습니다. 파티션은 똑같이 {a}번입니다.',
+    verdict: '파티션 횟수는 {a}번으로 같습니다. 줄어든 것은 시간입니다. {s1}단계가 {s2}단계(트리 깊이)가 되었습니다.',
+  },
+  en: {
+    seq: 'One at a time',
+    par: 'A level at a time',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    stage: 'step',
+    now: 'partitions this step',
+    sofar: 'so far',
+    unit: '',
+    start: 'The recursion tree, actually split from the top down.',
+    seqNote: 'Partition qs({lo}, {hi}) — one per step.',
+    seqDone: '{a} partitions took {s} steps.',
+    parNote: '{k} partitions **in one step** — the ranges do not overlap, so nobody waits.',
+    parDone: 'Finished in {s} steps, with the same {a} partitions.',
+    verdict: 'The number of partitions is the same, {a}. What shrank is the time: {s1} steps became {s2}, the depth of the tree.',
+  },
+  zh: {
+    seq: '一个人按顺序',
+    par: '一层一起做',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    stage: '步',
+    now: '本步的划分数',
+    sofar: '累计',
+    unit: '次',
+    start: '把递归树从最上层真的切下去。',
+    seqNote: '划分 qs({lo}, {hi}) — 一步只做一个。',
+    seqDone: '划分 {a} 次，用了 {s} 步。',
+    parNote: '{k} 个划分**在一步之内同时做** — 区间互不重叠，谁也不用等谁。',
+    parDone: '{s} 步就结束了，划分同样是 {a} 次。',
+    verdict: '划分次数同样是 {a} 次。减少的是时间：{s1} 步变成了 {s2} 步，也就是树的深度。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-parallel-quick', slide && 'is-slide']}
+  id={id}
+  data-pq-values={JSON.stringify(values)}
+  data-pq-strings={JSON.stringify(t)}
+>
+  <div class="pq-bar">
+    <span class="pq-stage">{t.stage} <strong data-pq-stage>0</strong> / <span data-pq-total></span></span>
+    <span class="pq-controls">
+      <button type="button" class="pq-btn" data-pq-back>{t.back}</button>
+      <button type="button" class="pq-btn" data-pq-step>{t.step}</button>
+      <button type="button" class="pq-btn pq-btn-primary" data-pq-play>{t.play}</button>
+      <button type="button" class="pq-btn" data-pq-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="pq-lane" data-pq-lane="seq">
+    <div class="pq-head">
+      <h4>{t.seq}</h4>
+      <span class="pq-counts">
+        <span>{t.now} <strong data-pq-now>0</strong></span>
+        <span>{t.sofar} <strong data-pq-sofar>0</strong>{t.unit}</span>
+      </span>
+    </div>
+    <div class="pq-row" data-pq-row></div>
+    <p class="pq-note" data-pq-note></p>
+  </div>
+
+  <div class="pq-lane" data-pq-lane="par">
+    <div class="pq-head">
+      <h4>{t.par}</h4>
+      <span class="pq-counts">
+        <span>{t.now} <strong data-pq-now>0</strong></span>
+        <span>{t.sofar} <strong data-pq-sofar>0</strong>{t.unit}</span>
+      </span>
+    </div>
+    <div class="pq-row" data-pq-row></div>
+    <p class="pq-note" data-pq-note></p>
+  </div>
+
+  <p class="pq-verdict" data-pq-verdict hidden></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const values = JSON.parse(root.dataset.pqValues);
+    const S = JSON.parse(root.dataset.pqStrings);
+    const n = values.length;
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    /* 재귀 트리의 파티션 이벤트를 깊이별로 모은다. 조상 파티션이 끝나야
+       자식 구간의 내용이 정해지므로, 레벨 순서로 적용해도 정식 실행과
+       결과가 같다 (서로 다른 구간의 파티션은 순서를 바꿔도 무방하다). */
+    function partitionOf(a, lo, hi) {
+      const pivot = a[lo];
+      let i = lo;
+      for (let j = lo + 1; j <= hi; j++) {
+        if (a[j] < pivot) {
+          i++;
+          if (i !== j) {
+            const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+          }
+        }
+      }
+      if (lo !== i) {
+        const tmp = a[lo]; a[lo] = a[i]; a[i] = tmp;
+      }
+      return i;
+    }
+
+    const rounds = []; /* rounds[d] = 깊이 d의 [lo, hi] 목록 */
+    {
+      const a = values.slice();
+      (function qs(lo, hi, d) {
+        if (lo >= hi) return;
+        (rounds[d] ??= []).push([lo, hi]);
+        const p = partitionOf(a, lo, hi);
+        qs(lo, p - 1, d + 1);
+        qs(p + 1, hi, d + 1);
+      })(0, n - 1, 0);
+    }
+    const events = rounds.flat();
+    const totalParts = events.length;
+    const totalSteps = totalParts;
+    const parSteps = rounds.length;
+
+    /* 레인별 상태를 미리 만든다. 각 단계는 배열 스냅샷, 확정된 칸,
+       활성 구간(길이 2 이상), 이번에 가른 구간을 갖는다. */
+    function makeStates(perStep) {
+      const a = values.slice();
+      const states = [];
+      const settled = new Set();
+      const active = [[0, n - 1]];
+      let sofar = 0;
+      const snap = () => ({
+        a: a.slice(),
+        settled: [...settled],
+        active: active.map((r) => r.slice()),
+      });
+      states.push({ ...snap(), flash: [], now: 0, sofar });
+      for (const evs of perStep) {
+        const flash = [];
+        for (const [lo, hi] of evs) {
+          const p = partitionOf(a, lo, hi);
+          settled.add(p);
+          flash.push([lo, hi]);
+          const idx = active.findIndex((r) => r[0] === lo && r[1] === hi);
+          active.splice(idx, 1);
+          for (const [l2, h2] of [[lo, p - 1], [p + 1, hi]]) {
+            if (l2 > h2) continue;
+            if (l2 === h2) settled.add(l2); /* 원소 하나는 이미 정렬 */
+            else active.push([l2, h2]);
+          }
+        }
+        active.sort((x, y) => x[0] - y[0]);
+        sofar += evs.length;
+        states.push({ ...snap(), flash, now: evs.length, sofar, evs });
+      }
+      return states;
+    }
+    const seqStates = makeStates(events.map((e) => [e]));
+    const parStates = makeStates(rounds);
+
+    const lanes = [...root.querySelectorAll('[data-pq-lane]')].map((el) => ({
+      kind: el.dataset.pqLane,
+      row: el.querySelector('[data-pq-row]'),
+      now: el.querySelector('[data-pq-now]'),
+      sofar: el.querySelector('[data-pq-sofar]'),
+      note: el.querySelector('[data-pq-note]'),
+      states: el.dataset.pqLane === 'seq' ? seqStates : parStates,
+    }));
+    const stageEl = root.querySelector('[data-pq-stage]');
+    const verdictEl = root.querySelector('[data-pq-verdict]');
+    root.querySelector('[data-pq-total]').textContent = String(totalSteps);
+
+    /* 활성 구간은 상자로 묶고, 확정된 칸은 초록 단독 칸으로 그린다. */
+    function renderLane(lane, k) {
+      const st = lane.states[Math.min(k, lane.states.length - 1)];
+      lane.row.textContent = '';
+      const inFlash = (idx) => st.flash.some(([lo, hi]) => idx >= lo && idx <= hi);
+      let idx = 0;
+      while (idx < n) {
+        const range = st.active.find((r) => r[0] === idx);
+        if (range) {
+          const seg = document.createElement('span');
+          seg.className = 'pq-seg';
+          if (inFlash(range[0])) seg.classList.add('is-new');
+          for (let x = range[0]; x <= range[1]; x++) {
+            const cell = document.createElement('span');
+            cell.className = 'pq-cell';
+            cell.textContent = String(st.a[x]);
+            seg.appendChild(cell);
+          }
+          lane.row.appendChild(seg);
+          idx = range[1] + 1;
+        } else {
+          const seg = document.createElement('span');
+          seg.className = 'pq-seg is-settled';
+          if (inFlash(idx)) seg.classList.add('is-new');
+          const cell = document.createElement('span');
+          cell.className = 'pq-cell';
+          cell.textContent = String(st.a[idx]);
+          seg.appendChild(cell);
+          lane.row.appendChild(seg);
+          idx++;
+        }
+      }
+      lane.now.textContent = String(st.now);
+      lane.sofar.textContent = String(st.sofar);
+
+      const finished = k >= lane.states.length - 1;
+      if (k <= 0) {
+        lane.note.textContent = S.start;
+      } else if (lane.kind === 'seq') {
+        lane.note.textContent = finished
+          ? fill(S.seqDone, { a: totalParts, s: totalSteps })
+          : fill(S.seqNote, { lo: st.evs[0][0], hi: st.evs[0][1] });
+      } else {
+        lane.note.innerHTML = finished
+          ? fill(S.parDone, { s: parSteps, a: totalParts })
+          : fill(S.parNote, { k: st.now }).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      }
+    }
+
+    function render(k) {
+      stageEl.textContent = String(Math.max(0, k));
+      for (const lane of lanes) renderLane(lane, k);
+      const allDone = k >= totalSteps;
+      verdictEl.hidden = !allDone;
+      if (allDone) {
+        verdictEl.textContent = fill(S.verdict, { a: totalParts, s1: totalSteps, s2: parSteps });
+      }
+    }
+
+    let at = 0;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-pq-play]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= totalSteps) return stop();
+      at += 1;
+      render(at);
+      if (at >= totalSteps) stop();
+    }
+
+    root.querySelector('[data-pq-back]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-pq-step]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-pq-reset]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0);
+    });
+    root.querySelector('[data-pq-play]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= totalSteps) {
+        at = 0;
+        render(0);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    render(0);
+  })();
+</script>
+
+<!-- 상자는 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-parallel-quick 아래로 한정한다. -->
+<style is:global>
+  .aas-parallel-quick {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-parallel-quick .pq-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-parallel-quick .pq-stage {
+    font-size: 0.9em;
+    color: var(--aas-muted);
+  }
+  .aas-parallel-quick .pq-stage strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-parallel-quick .pq-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-parallel-quick .pq-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-parallel-quick .pq-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-parallel-quick .pq-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-parallel-quick .pq-lane + .pq-lane {
+    margin-top: 0.9em;
+  }
+  .aas-parallel-quick .pq-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-bottom: 0.45em;
+  }
+  .aas-parallel-quick .pq-head h4 {
+    margin: 0;
+    font-size: 1em;
+  }
+  .aas-parallel-quick .pq-counts {
+    display: inline-flex;
+    gap: 1em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-parallel-quick .pq-counts strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-parallel-quick .pq-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-parallel-quick .pq-seg {
+    display: inline-flex;
+    gap: 0.14em;
+    padding: 0.16em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s;
+  }
+  .aas-parallel-quick .pq-cell {
+    min-width: 1.9em;
+    padding: 0.14em 0;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+    line-height: 1.3;
+  }
+
+  /* 이번 단계에 가른 구간은 호박색, 자리가 확정된 칸은 초록. */
+  .aas-parallel-quick .pq-seg.is-new {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 22%, transparent);
+  }
+  .aas-parallel-quick .pq-seg.is-settled {
+    border-color: color-mix(in srgb, var(--aas-role-eval) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+
+  .aas-parallel-quick .pq-note {
+    margin: 0.45em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.6em;
+  }
+  .aas-parallel-quick .pq-verdict {
+    margin: 0.9em 0 0;
+    font-size: 0.9em;
+    font-weight: 600;
+  }
+
+  /* 슬라이드용. 두 레인이라 SortDemo보다 조금 작게 잡는다.
+     vh 단위인 이유는 SearchDemo 참고: 슬라이드 폭은 뷰포트 높이가 정한다. */
+  .aas-parallel-quick.is-slide {
+    font-size: clamp(0.95rem, 2.9vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-parallel-quick .pq-seg {
+      transition: none;
+    }
+  }
+</style>
