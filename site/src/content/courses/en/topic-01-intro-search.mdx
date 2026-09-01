@@ -226,6 +226,32 @@ each round, and they arrive at the same place.
 
 One thing decides whether parallelism is available: **what waits on what**.
 
+#### Even with many cores \{#cores}
+
+None of this is only on paper. A modern CPU has several cores, each running its
+own thread, so eight additions really can happen at the same moment.
+
+**And yet running the sequential sum on eight cores keeps one core busy.** The
+other seven wait for the previous sum. Move to sixteen cores and it is still 15
+steps, **because the waiting is in the algorithm, not in the hardware**.
+
+Adding in pairs does not use all eight the whole way either. It falls
+8 → 4 → 2 → 1 and the last addition is done alone. Whatever stays sequential is
+the floor, however many cores you add.
+
+So the road forks.
+
+- **Reshape the algorithm to fit the hardware.** Knowing there are many cores,
+  rewrite the procedure so nothing waits.
+- **Build hardware to fit the algorithm.** GPUs exist to run thousands of the
+  same computation at once; NPUs exist to do little but matrix multiplication.
+  The deferred carry we saw earlier (carry-save) sits inside multipliers for the
+  same reason.
+
+**Algorithms run on machines.** The question the subtraction example asked,
+where are you going to run it, comes back here. Which side to change is also a
+choice.
+
 ### Accuracy and speed \{#accuracy-speed}
 
 The same story shows up in deep learning. Say you are choosing between three

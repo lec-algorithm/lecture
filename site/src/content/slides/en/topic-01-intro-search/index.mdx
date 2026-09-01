@@ -157,13 +157,32 @@ In the end it is about **deciding what to give up**.
 | --- | --- | --- |
 | Additions | 15 | 15 |
 | Steps | 15 | **4** |
-| Workers needed per step | 1 | up to 8 |
+| Cores needed per step | 1 | up to 8 |
 
 **The amount of work is the same. What shrank is the time.**  
 There is one reason it could: no pair waits on another.
 
 Adding one at a time needs the previous sum before the next addition.  
 **What waits on what** is what decides whether parallelism is possible.
+
+</Slide>
+
+<Slide>
+
+### Even with many cores
+::sub[If the waiting is inside the algorithm, the cores sit idle]
+
+- **Run the sequential sum on eight cores and one core does the work.**
+  - The other seven wait for the previous sum.
+  - Go to sixteen cores and it is still 15 steps.
+- **Adding in pairs does not use all eight the whole way either.**
+  - It falls 8 → 4 → 2 → 1, and the last addition is done alone.
+  - Whatever stays sequential is the floor.
+
+<br/>
+
+**So the road forks.** Reshape the algorithm to fit the hardware, or build
+hardware to fit the algorithm. GPUs and NPUs are the second.
 
 </Slide>
 
