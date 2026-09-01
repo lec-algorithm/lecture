@@ -1,0 +1,827 @@
+---
+title: "主题 03. 分治与归并排序"
+description: "把问题拆开来解的策略，翻过 O(n²) 之墙的归并排序，比较的下界与计数排序"
+date: "主题 03 · v1"
+order: 3
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import MergeDemo from '@components/MergeDemo.astro';
+import CountingDemo from '@components/CountingDemo.astro';
+import MergeTrace from '@components/MergeTrace.astro';
+import ParallelMergeDemo from '@components/ParallelMergeDemo.astro';
+
+{/* 幻灯片规则见 docs/writing-rules.md 的"슬라이드 규칙"。
+    每个例子按 演示 → 过程 → 代码 → 分析 的顺序。代码与 algorithm-code
+    仓库一致，那边改了这里也要跟着改。演示的计数器会落在代码打印的数字上。 */}
+
+<Slide class="cover">
+
+# 分治与归并排序
+
+主题 03
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 上个主题的墙
+::sub[四种排序最坏都是 O(n²)]
+
+| 排序 | 最坏 | 排序 | 最坏 |
+| --- | --- | --- | --- |
+| 选择排序 | $$O(n^2)$$ | 希尔排序 | $$O(n^2)$$ |
+| 插入排序 | $$O(n^2)$$ | 冒泡排序 | $$O(n^2)$$ |
+
+<br/>
+
+本主题要翻过这堵墙**两次**。
+
+- 一次靠**把问题拆开**
+- 一次靠**根本不做比较**
+
+</Slide>
+
+<Slide>
+
+## 拆开为什么会变快
+::sub[要立一千张多米诺骨牌]
+
+- **一个人**：要立很久。
+- **十个人各一百张**：很快就完。
+
+<br/>
+
+小组作业也一样。
+
+- 公司调研、访谈、准备发表分头去做。
+- 最后再合起来。
+
+</Slide>
+
+<Slide>
+
+#### 到这里没什么可惊讶的
+::sub[主题 01 已经讲过]
+
+- 人多十倍所以快十倍，那是**并行**。
+- 主题 01 的并行求和正是这样。
+  - 十六个数字，第一步的八个加法同时做。
+
+<br/>
+
+本主题的惊讶在别处。
+
+</Slide>
+
+<Slide class="center">
+
+### 一个人做也会变快
+### 不是工人变多，而是**活本身变少**
+
+</Slide>
+
+<Slide>
+
+### 分治
+::sub[divide and conquer · 三个步骤]
+
+- **分（divide）**
+  - 把问题拆成同样形状的小问题。
+- **治（conquer）**
+  - 解决小问题。
+  - 足够小就直接解，否则继续拆。
+- **合（combine）**
+  - 把小答案拼成整体的答案。
+
+</Slide>
+
+<Slide>
+
+#### 其实不是第一次见
+::sub[主题 01 的二分查找就是分治]
+
+- **分**：以中间为界对半拆开。
+- **治**：只挖**可能有答案的那一边**。
+- **合**：无事可做。
+
+<br/>
+
+这一次要**两边都治**，还要合。
+
+</Slide>
+
+<Slide>
+
+#### 怎么拆
+::sub[两个人分工排序 1 到 100]
+
+<div class="aas-split">
+<div>
+
+- **按值拆**
+  - 50 以下 / 51 以上
+  - 各自排好，**接起来就完**
+  - 合并免费
+  - 但拆时要全部分类
+
+</div>
+<div>
+
+- **按位置拆**
+  - 前 50 个 / 后 50 个
+  - 对半一切就好
+  - 拆是免费的
+  - 但两堆要**交错合并**
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="center">
+
+### 拆得容易，合就难
+### 合得容易，拆就难
+
+归并排序**按位置**拆，下一个主题的快速排序**按值**拆。
+
+</Slide>
+
+<Slide>
+
+#### 参考：乘法也能拆
+::sub[卡拉楚巴（Karatsuba）· 大乘法拆成小乘法]
+
+$$
+1234 \times 5678 = (12 \cdot 100 + 34)(56 \cdot 100 + 78)
+$$
+
+$$
+= a \cdot 10^4 + b \cdot 10^2 + c
+$$
+
+<br/>
+
+- $$a = 12 \times 56$$
+- $$b = 12 \times 78 + 34 \times 56$$
+- $$c = 34 \times 78$$
+
+<br/>
+
+直接算需要 **4 次**两位数乘法。
+
+</Slide>
+
+<Slide>
+
+#### 4 次乘法变 3 次
+::sub[用 a 和 c 换掉 b]
+
+$$
+b = (12 + 34)(56 + 78) - a - c
+$$
+
+- $$a$$ 和 $$c$$ 反正都要算。
+- 新的乘法只有 $$(12+34)(56+78) = 46 \times 134$$ **一次**。
+
+<br/>
+
+- 递归地做下去，$$O(n^2)$$ 变成 $$O(n^{\log_2 3}) \approx O(n^{1.585})$$。
+- 验算：$$672 \cdot 10^4 + 2840 \cdot 10^2 + 2652 = 7{,}006{,}652$$
+
+</Slide>
+
+<Slide class="center">
+
+## 例 1. 归并排序
+::sub[对半拆开各自排序，再合并有序的两半]
+
+</Slide>
+
+<Slide>
+
+### 引擎是归并
+::sub[前后两半各自已经有序。请按**单步**]
+
+<MergeDemo slide mode="merge" />
+
+</Slide>
+
+<Slide>
+
+#### 9 次比较就够了
+::sub[有序这件事帮我们省了比较]
+
+- 比较两堆的**排头**，取走小的。
+- 永远只看每堆的排头。
+- 一边取完，剩下的直接倒进去，不用比较。
+
+<br/>
+
+合并 10 个元素：比较 9 次，移动 20 次。  
+进 temp 十次，回原位十次。
+
+</Slide>
+
+<Slide>
+
+### 完整的排序
+::sub[把归并放上递归。`ms(0, 9)` 芯片标出当前的调用]
+
+<MergeDemo slide mode="sort" />
+
+</Slide>
+
+<Slide>
+
+#### 一眼看全
+::sub[分合树 · 上面是分，下面是合，中间是递归的底部]
+
+<MergeTrace slide />
+
+</Slide>
+
+<Slide>
+
+#### 归并可以同时做
+::sub[同一层的归并区间互不重叠 · 和主题 01 的并行求和是同一幅图]
+
+<ParallelMergeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 活一样多，步数变少
+::sub[分治的第二件礼物]
+
+- 归并还是九次。
+- 一个人：**9 步**。一层一起：**4 步**，也就是层数。
+- 拆开让活变少（比较 22 次），拆出的块还**可以同时跑**。
+
+<br/>
+
+不过最后一次归并要独自处理整个数组。  
+核心再多，这一步也定下墙钟时间的下限。
+
+</Slide>
+
+<Slide>
+
+#### 写成过程
+::sub[单个元素本来就有序，那里是递归的底部]
+
+```plaintext
+ALGORITHM MergeSort(A, lo, hi)
+    if lo >= hi then return          // 单个元素：本来就有序
+    mid <- (lo + hi) / 2
+    MergeSort(A, lo, mid)            // 左半
+    MergeSort(A, mid+1, hi)          // 右半
+    Merge(A, lo, mid, hi)            // 合并有序的两半
+```
+
+和主题 01 的斐波那契一样，是**调用自己的定义**。  
+不同之处：左右两段不重叠，同一个值不会被算两遍。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码 1. merge
+::sub[`01_merge_sort/` · `<=` 让相同的值左边先出：稳定]
+
+<div class="aas-split">
+<div>
+
+- `mergeSort.c`
+
+```c
+static void merge(int a[], int lo, int mid,
+                  int hi, int temp[],
+                  int *comparisons, int *moves) {
+    int i = lo;
+    int j = mid + 1;
+    int k = lo;
+    while (i <= mid && j <= hi) {
+        (*comparisons)++;
+        if (a[i] <= a[j]) {
+            temp[k++] = a[i++];
+        } else {
+            temp[k++] = a[j++];
+        }
+        (*moves)++;
+    }
+    while (i <= mid) {
+        temp[k++] = a[i++];
+        (*moves)++;
+    }
+    while (j <= hi) {
+        temp[k++] = a[j++];
+        (*moves)++;
+    }
+    for (k = lo; k <= hi; k++) {
+        a[k] = temp[k];
+        (*moves)++;
+    }
+}
+```
+
+</div>
+<div>
+
+- `merge_sort.py`
+
+```python
+def _merge(a, lo, mid, hi, temp, counts):
+    i, j, k = lo, mid + 1, lo
+    while i <= mid and j <= hi:
+        counts[0] += 1
+        if a[i] <= a[j]:
+            temp[k] = a[i]
+            i += 1
+        else:
+            temp[k] = a[j]
+            j += 1
+        counts[1] += 1
+        k += 1
+    while i <= mid:
+        temp[k] = a[i]
+        i += 1; k += 1
+        counts[1] += 1
+    while j <= hi:
+        temp[k] = a[j]
+        j += 1; k += 1
+        counts[1] += 1
+    for k in range(lo, hi + 1):
+        a[k] = temp[k]
+        counts[1] += 1
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码 2. mergeSort
+::sub[`01_merge_sort/` · 递归就是过程的直接翻译]
+
+<div class="aas-split">
+<div>
+
+- `mergeSort.c`
+
+```c
+void mergeSort(int a[], int lo, int hi,
+               int temp[],
+               int *comparisons, int *moves) {
+    if (lo >= hi) {
+        return;
+    }
+    int mid = lo + (hi - lo) / 2;
+    mergeSort(a, lo, mid,
+              temp, comparisons, moves);
+    mergeSort(a, mid + 1, hi,
+              temp, comparisons, moves);
+    merge(a, lo, mid, hi,
+          temp, comparisons, moves);
+}
+```
+
+</div>
+<div>
+
+- 运行结果
+
+```console
+before: 2 8 5 9 1 10 7 6 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 22, moves = 68
+```
+
+演示的计数器落在同样的数字上。
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 为什么是 n log n
+::sub[任何一层，被合并的元素加起来都是 n]
+
+```mermaid
+graph TD
+  subgraph SG0 ["第 0 层 · 代价 n"]
+    A["n"]
+  end
+  subgraph SG1 ["第 1 层 · 代价 n"]
+    B1["n/2"]
+    B2["n/2"]
+  end
+  subgraph SG2 ["第 2 层 · 代价 n"]
+    C1["n/4"]
+    C2["n/4"]
+    C3["n/4"]
+    C4["n/4"]
+  end
+  subgraph SG3 ["第 log n 层 · 底部"]
+    D1["1"]
+    D2["1"]
+    D3["⋯"]
+    D4["1"]
+  end
+  A --> B1
+  A --> B2
+  B1 --> C1
+  B1 --> C2
+  B2 --> C3
+  B2 --> C4
+  C1 -.-> D1
+  C2 -.-> D2
+  C3 -.-> D3
+  C4 -.-> D4
+```
+
+- 对半分，层数是 $$\log_2 n$$。
+- 每层代价 $$n$$，所以总共 $$O(n \log n)$$。
+
+</Slide>
+
+<Slide>
+
+#### 换了输入
+::sub[最好、平均、最坏都是 O(n log n)]
+
+| 输入 | 比较次数 | 移动次数 |
+| --- | --- | --- |
+| 示例数组 | $$22$$ | $$68$$ |
+| 已排序 | $$19$$ | $$68$$ |
+| 逆序 | $$15$$ | $$68$$ |
+
+<br/>
+
+- **移动永远是 68 次**。每次归并整段都经 temp 往返。
+- **逆序比已排序的比较更少**。一边提前取完，
+  剩下的不用比较直接倒进去。
+
+</Slide>
+
+<Slide>
+
+#### 付出的代价
+::sub[不是免费的]
+
+- **空间 $$O(n)$$**
+  - 需要临时数组 temp。
+  - 主题 02 的四种排序全是 $$O(1)$$。
+- **稳定排序**
+  - `merge` 里的 `<=` 让相同的值左边先出。
+  - 改成 `<`，答案不变，稳定性没了。
+
+</Slide>
+
+<Slide>
+
+#### 五种排序并排看
+::sub[同一个数组 `2 8 5 9 1 10 7 6 4 3` 上]
+
+| 排序 | 比较 | 移动 | 最坏 |
+| --- | --- | --- | --- |
+| 选择排序 | 45 | 21 | $$O(n^2)$$ |
+| 插入排序 | 33 | 43 | $$O(n^2)$$ |
+| 希尔排序 | 30 | 57 | $$O(n^2)$$ |
+| 冒泡排序 | 45 | 75 | $$O(n^2)$$ |
+| **归并排序** | **22** | 68 | $$O(n \log n)$$ |
+
+</Slide>
+
+<Slide>
+
+#### 差距在 n 变大时显现
+::sub[n = 十亿时]
+
+- $$n^2 = 10^{18}$$
+- $$n \log_2 n \approx 3 \times 10^{10}$$
+
+<br/>
+
+相差 **3 千万倍**。
+
+- 主题 02 的表里插入排序 317 年、归并排序 18 分钟，原因就在这里。
+- 换更好的计算机，跨不过这道沟。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手
+::sub[例 1. 归并排序]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-03-divide-conquer/`  
+打开文件，按编辑器右上角的 **▶ 按钮**运行。
+
+1. **喂它已排序和逆序的数组。**
+   - 比较变成 19 次和 15 次。
+   - 移动始终 68 次，去代码里找找为什么。
+2. **把 `merge` 的 `<=` 改成 `<`。**
+   - 答案不变，稳定性没了。
+3. **把数组扩到 20 个元素。**
+   - 用比较次数确认多出来的那一层。
+
+</Slide>
+
+<Slide class="center">
+
+## 靠比较只能到这里
+::sub[能造出比归并更快的比较排序吗]
+
+</Slide>
+
+<Slide>
+
+### 决策树
+::sub[把比较画成一棵树 · n = 3]
+
+```mermaid
+graph TD
+  A{{"a[0] < a[1] ?"}} -->|是| B{{"a[1] < a[2] ?"}}
+  A -->|否| C{{"a[0] < a[2] ?"}}
+  B -->|是| L1(["0 1 2"])
+  B -->|否| D{{"a[0] < a[2] ?"}}
+  C -->|是| L2(["1 0 2"])
+  C -->|否| E{{"a[1] < a[2] ?"}}
+  D -->|是| L3(["0 2 1"])
+  D -->|否| L4(["2 0 1"])
+  E -->|是| L5(["1 2 0"])
+  E -->|否| L6(["2 1 0"])
+```
+
+- 每个结点一次比较，分支是它的结果。
+- 叶子是排序结果（排列）。$$3! = 6$$ 种全在。
+
+</Slide>
+
+<Slide>
+
+#### 叶子 n! 个，高度就是比较次数
+::sub[三行的证明]
+
+1. 叶子**至少要有 $$n!$$ 个**。
+   - 少了哪个排列，算法在那个输入上就错。
+2. 高度为 $$h$$ 的二叉树，叶子**至多 $$2^h$$ 个**。
+3. 于是 $$2^h \geq n!$$，即 $$h \geq \log_2(n!)$$。
+
+<br/>
+
+而 $$h$$ 正是**最坏情况的比较次数**。
+
+</Slide>
+
+<Slide>
+
+#### 下界：Ω(n log n)
+::sub[斯特林近似收尾]
+
+$$
+\log_2(n!) \approx n \log_2 n
+$$
+
+- **任何比较排序在最坏情况下都要比较 $$\Omega(n \log n)$$ 次。**
+- 归并排序的阶已经贴着这条下界。
+  - 没有比较排序能好过这个阶。
+
+</Slide>
+
+<Slide>
+
+#### 用数字量一下
+::sub[n = 10]
+
+- $$\lceil \log_2 10! \rceil = 22$$
+- 10 个元素靠比较来排，最坏至少要比 **22 次**。
+- 我们的归并排序在示例数组上用的恰好是 **22 次**。
+
+</Slide>
+
+<Slide class="center">
+
+### 这个证明带着一个条件
+### **"只要靠比较来排序"**
+
+如果可以不比较呢？
+
+</Slide>
+
+<Slide class="center">
+
+## 例 2. 计数排序
+::sub[数出每个值有几个，位置就能算出来]
+
+</Slide>
+
+<Slide>
+
+### 计数排序
+::sub[比较计数器到最后都停在 0。请按**单步**]
+
+<CountingDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 写成过程
+::sub[计数、累加、从后往前放]
+
+```plaintext
+ALGORITHM CountingSort(A, n, k)
+    // 1) 计数：每个值有几个
+    for v <- 0 to k do count[v] <- 0
+    for i <- 0 to n-1 do
+        count[A[i]] <- count[A[i]] + 1
+
+    // 2) 累加：值 v 结束的位置（个数和）
+    for v <- 1 to k do
+        count[v] <- count[v] + count[v-1]
+
+    // 3) 放置：从后往前读，放进该去的位置
+    for i <- n-1 downto 0 do
+        count[A[i]] <- count[A[i]] - 1
+        B[count[A[i]]] <- A[i]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`02_counting_sort/` · 只适用于 0 到 k 的整数]
+
+<div class="aas-split">
+<div>
+
+- `countingSort.c`
+
+```c
+void countingSort(const int a[], int b[],
+                  int n, int count[],
+                  int *moves) {
+    for (int v = 0; v <= MAX_KEY; v++) {
+        count[v] = 0;
+    }
+    for (int i = 0; i < n; i++) {
+        count[a[i]]++;
+    }
+    for (int v = 1; v <= MAX_KEY; v++) {
+        count[v] += count[v - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        count[a[i]]--;
+        b[count[a[i]]] = a[i];
+        (*moves)++;
+    }
+}
+```
+
+</div>
+<div>
+
+- 运行结果
+
+```console
+before: 1 0 1 5 4 3 1 4 5 2 1
+after : 0 1 1 1 1 2 3 4 4 5 5
+comparisons = 0, moves = 11
+```
+
+**比较 0 次。**  
+11 个元素只用 11 次移动
+就各就各位。
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### 为什么从后往前
+::sub[给相同的值挂名牌：甲乙丙的顺序保住了]
+
+<CountingDemo
+  slide
+  values={[2, 1, 2, 0, 1]}
+  maxKey={2}
+  labels={['甲', '乙', '丙', '丁', '戊']}
+/>
+
+</Slide>
+
+<Slide>
+
+#### 稳定性成立的原因
+::sub[累加数组记着每个值的最后一个位置]
+
+- 累加值是值 $$v$$ 那一段的**结束位置**。
+- 从后往前读，相同值里靠后的拿到靠后的位置。
+  - 原来的顺序保住了。**稳定排序**。
+- 改成从前往后读，结果照样有序，但相同值的顺序翻过来。
+  - 实践代码的**改改看**会带着做。
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[不是打破下界，而是站在前提之外]
+
+- 计数 $$O(n)$$，累加 $$O(k)$$，放置 $$O(n)$$ → 总共 $$O(n + k)$$
+- $$k$$ 和 $$n$$ 差不多大时，相当于 $$O(n)$$。
+- $$\Omega(n \log n)$$ 是**比较排序**的下界。
+  - 不做比较，决策树的论证就套不上来。
+
+</Slide>
+
+<Slide>
+
+#### 付出的代价
+::sub[不是免费的]
+
+- **键必须是窄范围的整数。**
+  - 实数、字符串、范围未知的值都不行。
+  - 比较排序只要能比较，什么都能排。
+- **空间 $$O(n + k)$$**
+  - `MAX_KEY` 提到一百万：11 个元素配一百万个格子。
+
+<br/>
+
+分数（0\~100）、年龄、月份（1\~12）：**又窄又密的整数键**
+才是计数排序的主场。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手
+::sub[例 2. 计数排序]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-03-divide-conquer/`  
+打开文件，按编辑器右上角的 **▶ 按钮**运行。
+
+1. **把第 3 步改成从前往后读。**
+   - 结果照样有序，但相同值的顺序翻了。
+2. **把 `MAX_KEY` 提到 1000000。**
+   - 11 个元素配一百万个格子。
+   - 这就是 $$O(n + k)$$ 里 $$k$$ 的含义。
+3. **放一个负数进去。**
+   - 观察在哪里、怎样坏掉。
+
+</Slide>
+
+<Slide>
+
+### 六种排序并排看
+::sub[付出什么，得到什么]
+
+| 排序 | 最好 | 平均 | 最坏 | 空间 | 稳定性 | 类别 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 选择 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 不稳定 | 比较 |
+| 插入 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 稳定 | 比较 |
+| 希尔 | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | 不稳定 | 比较 |
+| 冒泡 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 稳定 | 比较 |
+| 归并 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | 稳定 | 比较 |
+| 计数 | $$O(n+k)$$ | $$O(n+k)$$ | $$O(n+k)$$ | $$O(n+k)$$ | 稳定 | 非比较 |
+
+<br/>
+
+归并翻过时间之墙，付的是**空间**；计数抛弃比较，付的是
+**键的普适性**。
+
+</Slide>
+
+<Slide>
+
+## 要带走的
+
+1. **分治缩小的是活本身。**
+   - 分、治、合。一个人做也变快。
+   - 拆出的块互不重叠，还能同时跑。
+2. **拆与合是跷跷板。**
+   - 归并排序拆免费，快速排序合免费。
+3. **归并排序：每层 n，共 log n 层。**
+   - 最好、平均、最坏一致，稳定，付 $$O(n)$$ 空间。
+4. **比较排序的下界是 $$\Omega(n \log n)$$。**
+   - 决策树至少要 $$n!$$ 个叶子。
+5. **计数排序站在下界的前提之外。**
+   - 窄范围整数键：零比较，$$O(n + k)$$。
+
+</Slide>

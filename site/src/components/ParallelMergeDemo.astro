@@ -1,0 +1,424 @@
+---
+// 같은 병합 아홉 번을 혼자 차례로 할 때와 레벨마다 동시에 할 때의
+// "단계 수"를 나란히 세는 데모. 주제 01의 병렬 덧셈과 같은 문법이다.
+//
+// 분할·병합 트리의 선물은 일이 줄어드는 것만이 아니다. 같은 레벨의
+// 병합들은 서로 다른 구간을 만지므로 동시에 돌릴 수 있다. 병합 횟수는
+// 9번으로 같고, 단계는 9가 4(레벨 수)가 된다. 두 레인의 "지금까지"
+// 카운터가 끝에서 만나는 것이 이 데모가 하려는 말이다.
+//
+// 각 레인은 현재 분할 상태를 한 줄로 보여준다. 병합이 끝난 구간은
+// 경계가 사라지며 한 상자로 합쳐지고, 내용은 정렬된 채로 나타난다.
+// 표식은 테마의 덱 크롬과 부딪히지 않도록 `data-pm-*`로 접두를 붙였다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 정렬할 배열 */
+  values?: number[];
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
+  slide?: boolean;
+}
+const { values = [2, 8, 5, 9, 1, 10, 7, 6, 4, 3], slide = false } = Astro.props;
+const id = `pm-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    seq: '혼자서 차례로',
+    par: '레벨마다 동시에',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    stage: '단계',
+    now: '이번 단계의 병합',
+    sofar: '지금까지',
+    unit: '번',
+    start: '한눈에 펼친 그 트리를 아래 레벨부터 실제로 돌립니다.',
+    seqNote: 'ms({lo}, {hi}) 병합 — 한 단계에 하나씩입니다.',
+    seqDone: '병합 {a}번, {s}단계 걸렸습니다.',
+    parNote: '병합 {k}개를 **한 단계에 동시에** — 구간이 겹치지 않아 서로 기다리지 않습니다.',
+    parDone: '{s}단계 만에 끝났습니다. 병합은 똑같이 {a}번입니다.',
+    verdict: '병합 횟수는 {a}번으로 같습니다. 줄어든 것은 시간입니다. {s1}단계가 {s2}단계(레벨 수)가 되었습니다.',
+  },
+  en: {
+    seq: 'One at a time',
+    par: 'A level at a time',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    stage: 'step',
+    now: 'merges this step',
+    sofar: 'so far',
+    unit: '',
+    start: 'The tree from the previous figure, run bottom-up for real.',
+    seqNote: 'Merge ms({lo}, {hi}) — one per step.',
+    seqDone: '{a} merges took {s} steps.',
+    parNote: '{k} merges **in one step** — the ranges do not overlap, so nobody waits.',
+    parDone: 'Finished in {s} steps, with the same {a} merges.',
+    verdict: 'The number of merges is the same, {a}. What shrank is the time: {s1} steps became {s2}, the number of levels.',
+  },
+  zh: {
+    seq: '一个人按顺序',
+    par: '一层一起做',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    stage: '步',
+    now: '本步的归并数',
+    sofar: '累计',
+    unit: '次',
+    start: '把上一张图的树从最下层真的跑起来。',
+    seqNote: '归并 ms({lo}, {hi}) — 一步只做一个。',
+    seqDone: '归并 {a} 次，用了 {s} 步。',
+    parNote: '{k} 个归并**在一步之内同时做** — 区间互不重叠，谁也不用等谁。',
+    parDone: '{s} 步就结束了，归并同样是 {a} 次。',
+    verdict: '归并次数同样是 {a} 次。减少的是时间：{s1} 步变成了 {s2} 步，也就是层数。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-parallel-merge', slide && 'is-slide']}
+  id={id}
+  data-pm-values={JSON.stringify(values)}
+  data-pm-strings={JSON.stringify(t)}
+>
+  <div class="pm-bar">
+    <span class="pm-stage">{t.stage} <strong data-pm-stage>0</strong> / <span data-pm-total></span></span>
+    <span class="pm-controls">
+      <button type="button" class="pm-btn" data-pm-back>{t.back}</button>
+      <button type="button" class="pm-btn" data-pm-step>{t.step}</button>
+      <button type="button" class="pm-btn pm-btn-primary" data-pm-play>{t.play}</button>
+      <button type="button" class="pm-btn" data-pm-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="pm-lane" data-pm-lane="seq">
+    <div class="pm-head">
+      <h4>{t.seq}</h4>
+      <span class="pm-counts">
+        <span>{t.now} <strong data-pm-now>0</strong></span>
+        <span>{t.sofar} <strong data-pm-sofar>0</strong>{t.unit}</span>
+      </span>
+    </div>
+    <div class="pm-row" data-pm-row></div>
+    <p class="pm-note" data-pm-note></p>
+  </div>
+
+  <div class="pm-lane" data-pm-lane="par">
+    <div class="pm-head">
+      <h4>{t.par}</h4>
+      <span class="pm-counts">
+        <span>{t.now} <strong data-pm-now>0</strong></span>
+        <span>{t.sofar} <strong data-pm-sofar>0</strong>{t.unit}</span>
+      </span>
+    </div>
+    <div class="pm-row" data-pm-row></div>
+    <p class="pm-note" data-pm-note></p>
+  </div>
+
+  <p class="pm-verdict" data-pm-verdict hidden></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const values = JSON.parse(root.dataset.pmValues);
+    const S = JSON.parse(root.dataset.pmStrings);
+    const n = values.length;
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    /* 분할 재귀에서 병합 이벤트를 아래 레벨부터 모은다. MergeTrace와 같은
+       구간 분할이다. 라운드 = 트리의 한 레벨, 이벤트 = 병합 하나. */
+    const byDepth = new Map();
+    (function walk(d, lo, hi) {
+      if (lo >= hi) return;
+      const mid = lo + Math.floor((hi - lo) / 2);
+      walk(d + 1, lo, mid);
+      walk(d + 1, mid + 1, hi);
+      if (!byDepth.has(d)) byDepth.set(d, []);
+      byDepth.get(d).push([lo, hi]);
+    })(0, 0, n - 1);
+    const depths = [...byDepth.keys()].sort((a, b) => b - a); /* 깊은 것부터 */
+    const rounds = depths.map((d) => byDepth.get(d));
+    const events = rounds.flat();
+    const totalMerges = events.length; /* 9 */
+    const totalSteps = totalMerges;    /* 순차 레인이 끝나는 단계 */
+    const parSteps = rounds.length;    /* 4 */
+
+    /* 완료된 병합 집합으로 현재 분할을 계산한다. 병합은 아래에서 위로만
+       완료되므로, 가장 큰 완료 구간이 곧 상자 하나다. */
+    function partition(doneSet, lo, hi) {
+      if (lo >= hi || doneSet.has(`${lo},${hi}`)) return [[lo, hi]];
+      const mid = lo + Math.floor((hi - lo) / 2);
+      return [...partition(doneSet, lo, mid), ...partition(doneSet, mid + 1, hi)];
+    }
+
+    /* 레인별 상태를 미리 만든다. states[k] = k단계까지 진행한 모습. */
+    function makeStates(perStep) {
+      /* perStep[k] = k번째 단계에 완료되는 병합들의 배열 */
+      const states = [];
+      const done = new Set();
+      let sofar = 0;
+      states.push({ parts: partition(done, 0, n - 1), flash: [], now: 0, sofar });
+      for (const evs of perStep) {
+        for (const [lo, hi] of evs) done.add(`${lo},${hi}`);
+        sofar += evs.length;
+        states.push({
+          parts: partition(done, 0, n - 1),
+          flash: evs.map(([lo, hi]) => `${lo},${hi}`),
+          now: evs.length,
+          sofar,
+          evs,
+        });
+      }
+      return states;
+    }
+    const seqStates = makeStates(events.map((e) => [e]));
+    const parStates = makeStates(rounds);
+
+    const lanes = [...root.querySelectorAll('[data-pm-lane]')].map((el) => ({
+      kind: el.dataset.pmLane,
+      row: el.querySelector('[data-pm-row]'),
+      now: el.querySelector('[data-pm-now]'),
+      sofar: el.querySelector('[data-pm-sofar]'),
+      note: el.querySelector('[data-pm-note]'),
+      states: el.dataset.pmLane === 'seq' ? seqStates : parStates,
+    }));
+    const stageEl = root.querySelector('[data-pm-stage]');
+    const verdictEl = root.querySelector('[data-pm-verdict]');
+    root.querySelector('[data-pm-total]').textContent = String(totalSteps);
+
+    const sortedSlice = (lo, hi) => values.slice(lo, hi + 1).sort((a, b) => a - b);
+
+    function renderLane(lane, k) {
+      const st = lane.states[Math.min(k, lane.states.length - 1)];
+      lane.row.textContent = '';
+      for (const [lo, hi] of st.parts) {
+        const seg = document.createElement('span');
+        seg.className = 'pm-seg';
+        if (st.flash.includes(`${lo},${hi}`)) seg.classList.add('is-new');
+        if (st.parts.length === 1 && k > 0) seg.classList.add('is-final');
+        for (const v of sortedSlice(lo, hi)) {
+          const cell = document.createElement('span');
+          cell.className = 'pm-cell';
+          cell.textContent = String(v);
+          seg.appendChild(cell);
+        }
+        lane.row.appendChild(seg);
+      }
+      lane.now.textContent = String(st.now);
+      lane.sofar.textContent = String(st.sofar);
+
+      const finished = k >= lane.states.length - 1;
+      if (k <= 0) {
+        lane.note.textContent = S.start;
+      } else if (lane.kind === 'seq') {
+        lane.note.innerHTML = finished
+          ? fill(S.seqDone, { a: totalMerges, s: totalSteps })
+          : fill(S.seqNote, { lo: st.evs[0][0], hi: st.evs[0][1] });
+      } else {
+        lane.note.innerHTML = finished
+          ? fill(S.parDone, { s: parSteps, a: totalMerges })
+          : fill(S.parNote, { k: st.now }).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      }
+    }
+
+    function render(k) {
+      stageEl.textContent = String(Math.max(0, k));
+      for (const lane of lanes) renderLane(lane, k);
+      const allDone = k >= totalSteps;
+      verdictEl.hidden = !allDone;
+      if (allDone) {
+        verdictEl.textContent = fill(S.verdict, { a: totalMerges, s1: totalSteps, s2: parSteps });
+      }
+    }
+
+    let at = 0;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-pm-play]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= totalSteps) return stop();
+      at += 1;
+      render(at);
+      if (at >= totalSteps) stop();
+    }
+
+    root.querySelector('[data-pm-back]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-pm-step]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-pm-reset]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0);
+    });
+    root.querySelector('[data-pm-play]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= totalSteps) {
+        at = 0;
+        render(0);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    render(0);
+  })();
+</script>
+
+<!-- 상자는 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-parallel-merge 아래로 한정한다. -->
+<style is:global>
+  .aas-parallel-merge {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-parallel-merge .pm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-parallel-merge .pm-stage {
+    font-size: 0.9em;
+    color: var(--aas-muted);
+  }
+  .aas-parallel-merge .pm-stage strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-parallel-merge .pm-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-parallel-merge .pm-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-parallel-merge .pm-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-parallel-merge .pm-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-parallel-merge .pm-lane + .pm-lane {
+    margin-top: 0.9em;
+  }
+  .aas-parallel-merge .pm-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-bottom: 0.45em;
+  }
+  .aas-parallel-merge .pm-head h4 {
+    margin: 0;
+    font-size: 1em;
+  }
+  .aas-parallel-merge .pm-counts {
+    display: inline-flex;
+    gap: 1em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-parallel-merge .pm-counts strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-parallel-merge .pm-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-parallel-merge .pm-seg {
+    display: inline-flex;
+    gap: 0.14em;
+    padding: 0.16em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s;
+  }
+  .aas-parallel-merge .pm-cell {
+    min-width: 1.9em;
+    padding: 0.14em 0;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+    line-height: 1.3;
+  }
+
+  /* 이번 단계에 합쳐진 상자는 호박색, 전체가 한 상자가 되면 초록. */
+  .aas-parallel-merge .pm-seg.is-new {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 22%, transparent);
+  }
+  .aas-parallel-merge .pm-seg.is-final {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, transparent);
+  }
+
+  .aas-parallel-merge .pm-note {
+    margin: 0.45em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.6em;
+  }
+  .aas-parallel-merge .pm-verdict {
+    margin: 0.9em 0 0;
+    font-size: 0.9em;
+    font-weight: 600;
+  }
+
+  /* 슬라이드용. 두 레인이라 SortDemo보다 조금 작게 잡는다.
+     vh 단위인 이유는 SearchDemo 참고: 슬라이드 폭은 뷰포트 높이가 정한다. */
+  .aas-parallel-merge.is-slide {
+    font-size: clamp(0.95rem, 2.9vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-parallel-merge .pm-seg {
+      transition: none;
+    }
+  }
+</style>
