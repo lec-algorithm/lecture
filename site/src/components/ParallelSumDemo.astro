@@ -47,6 +47,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   ko: {
     seq: '순차로 더하기',
     par: '짝지어 더하기',
+    back: '뒤로',
     step: '한 걸음',
     play: '자동 재생',
     stop: '멈춤',
@@ -68,6 +69,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   en: {
     seq: 'Adding one at a time',
     par: 'Adding in pairs',
+    back: 'Back',
     step: 'Step',
     play: 'Play',
     stop: 'Pause',
@@ -89,6 +91,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   zh: {
     seq: '逐个相加',
     par: '成对相加',
+    back: '后退',
     step: '单步',
     play: '播放',
     stop: '暂停',
@@ -122,6 +125,7 @@ const payload = { n, depth, levels, running, totalAdds, totalSteps, answer };
   <div class="ps-bar">
     <span class="ps-stage">{t.stage} <strong data-ps-stage>0</strong> / {totalSteps}</span>
     <span class="ps-controls">
+      <button type="button" class="ps-btn" data-ps-back>{t.back}</button>
       <button type="button" class="ps-btn" data-ps-step>{t.step}</button>
       <button type="button" class="ps-btn ps-btn-primary" data-ps-play>{t.play}</button>
       <button type="button" class="ps-btn" data-ps-reset>{t.reset}</button>
@@ -204,6 +208,7 @@ const payload = { n, depth, levels, running, totalAdds, totalSteps, answer };
       const badge = q('[data-ps-badge]');
       const stageEl = q('[data-ps-stage]');
       const verdictEl = q('[data-ps-verdict]');
+      const backBtn = q<HTMLButtonElement>('[data-ps-back]');
       const stepBtn = q<HTMLButtonElement>('[data-ps-step]');
       const playBtn = q<HTMLButtonElement>('[data-ps-play]');
       const resetBtn = q<HTMLButtonElement>('[data-ps-reset]');
@@ -284,6 +289,11 @@ const payload = { n, depth, levels, running, totalAdds, totalSteps, answer };
         render();
       };
 
+      backBtn.addEventListener('click', () => {
+        stop();
+        if (at > -1) at--;
+        render();
+      });
       stepBtn.addEventListener('click', () => {
         stop();
         step();
