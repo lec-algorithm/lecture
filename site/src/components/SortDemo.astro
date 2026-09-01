@@ -156,6 +156,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       <span class="sod-keychip is-off" data-keychip>
         {t.keyChip} = <strong data-keyval></strong>
       </span>
+      {algo === 'shell' && (
+        <span class="sod-gapchip is-off" data-gapchip>
+          gap = <strong data-gapval></strong>
+        </span>
+      )}
     </span>
     <div class="sod-controls">
       <button type="button" data-act="step" class="sod-btn">{t.step}</button>
@@ -257,7 +262,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         g === 1 ? range(i + 1).filter((x) => a[x] !== null) : [];
       for (const g of gaps) {
         if (multi) {
-          steps.push({ a: snap(a), look: [], gap: g, c, m, note: fill(S.gapStart, { g }) });
+          steps.push({ a: snap(a), look: [], gap: g, g, c, m, note: fill(S.gapStart, { g }) });
         }
         for (let i = g; i < n; i++) {
           const key = a[i];
@@ -266,7 +271,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           const gap = multi && g > 1 ? g : 0;
           const group = gap ? i % g : -1;
           steps.push({
-            a: snap(a), look: [i], key, gap, group, c, m,
+            a: snap(a), look: [i], key, gap, g, group, c, m,
             part: partOf(i, g),
             note: fill(S.pick, { i, k: key.v }),
           });
@@ -275,7 +280,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
             c++;
             if (a[j].v <= key.v) {
               steps.push({
-                a: snap(a), look: [j], key, gap, group, c, m,
+                a: snap(a), look: [j], key, gap, g, group, c, m,
                 part: partOf(i, g),
                 note: fill(S.stopAt, { j, v: a[j].v, k: key.v }),
               });
@@ -285,7 +290,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
             a[j] = null;
             m++;
             steps.push({
-              a: snap(a), look: [j + g], key, gap, group, c, m,
+              a: snap(a), look: [j + g], key, gap, g, group, c, m,
               part: partOf(i, g),
               note: fill(g > 1 ? S.shiftG : S.shift, { j, v: a[j + g].v, k: key.v, g }),
             });
@@ -294,7 +299,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           a[j + g] = key;
           m++;
           steps.push({
-            a: snap(a), look: [], placed: j + g, gap, group, c, m,
+            a: snap(a), look: [], placed: j + g, gap, g, group, c, m,
             part: partOf(i, g),
             note: fill(S.place, { p: j + g, k: key.v }),
           });
@@ -373,6 +378,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const note = root.querySelector('[data-note]');
     const keychip = root.querySelector('[data-keychip]');
     const keyval = root.querySelector('[data-keyval]');
+    const gapchip = root.querySelector('[data-gapchip]');
+    const gapval = root.querySelector('[data-gapval]');
     const idle = { selection: S.selIdle, insertion: S.insIdle, shell: S.shellIdle, bubble: S.bubIdle }[algo];
 
     /* k번째 단계까지 진행한 모습을 그린다. k = -1이면 시작 상태. */
@@ -399,6 +406,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       comp.textContent = String(step ? step.c : 0);
       mvs.textContent = String(step ? step.m : 0);
       note.textContent = step ? step.note : idle;
+      if (gapchip) {
+        const gv = step && step.g !== undefined ? step.g : null;
+        gapchip.classList.toggle('is-off', gv === null);
+        if (gv !== null) gapval.textContent = String(gv);
+      }
       const holding = step && step.key !== undefined && step.placed === undefined;
       keychip.classList.toggle('is-off', !holding);
       if (holding) {
@@ -484,7 +496,20 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     font-family: var(--aas-mono, monospace);
     color: var(--aas-text);
   }
-  .aas-sort-demo .sod-keychip.is-off {
+  .aas-sort-demo .sod-gapchip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border: 1px solid color-mix(in srgb, var(--aas-role-tool) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-tool) 14%, transparent);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+  }
+  .aas-sort-demo .sod-gapchip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-sort-demo .sod-keychip.is-off,
+  .aas-sort-demo .sod-gapchip.is-off {
     visibility: hidden;
   }
   .aas-sort-demo .sod-controls {
