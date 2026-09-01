@@ -11,6 +11,7 @@ slides: ["topic-03-divide-conquer"]
 
 import MergeDemo from '@components/MergeDemo.astro';
 import CountingDemo from '@components/CountingDemo.astro';
+import MergeTrace from '@components/MergeTrace.astro';
 
 > 主题 02 的结尾是一堵墙：四种排序最坏都是 $$O(n^2)$$。本主题要翻过它
 > 两次。一次靠**把问题拆开**，一次靠**根本不做比较**。
@@ -97,6 +98,17 @@ $$672 \cdot 10^4 + 2840 \cdot 10^2 + 2652 = 7{,}006{,}652$$，
 底部，从那里开始一路向上合并。`ms(0, 9)` 芯片标出当前所在的调用。
 
 <MergeDemo mode="sort" />
+
+### 一眼看全 \{#merge-tree}
+
+演示按时间走，这张图给出整体结构，叫**分合树**（递归树）。上半部分
+一路对半，直到只剩单个元素，蓝色的中间一行是递归的底部；下半部分
+相邻两段一路归并上来，绿色的每一段始终有序。
+
+<MergeTrace />
+
+分的过程不挪动任何元素，所以上半部分保持原来的顺序；所有的重排都
+发生在下半部分。稍后的分析要数的，正是这张图的行数（层数）。
 
 ### 写成过程 \{#merge-pseudo}
 
