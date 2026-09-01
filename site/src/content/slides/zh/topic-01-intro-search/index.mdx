@@ -5,7 +5,7 @@ presenter: 李泰奎
 date: "主题 01"
 order: 1
 transition: none
-toc_level: 3
+toc_level: 4
 toc_open: false
 ---
 
@@ -13,6 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
 import SearchTrace from '@components/SearchTrace.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 {/* 遵循 docs/writing-rules.md 的幻灯片规则。
     每个例子按 步骤 → 代码 → 运行 → 练习 的顺序。代码是从 algorithm-code
@@ -106,7 +107,7 @@ flowchart LR
 
 <Slide>
 
-### 分析回答的五件事
+#### 分析回答的五件事
 
 | 要做的事 | 回答什么 |
 | --- | --- |
@@ -141,81 +142,47 @@ flowchart LR
 
 <Slide>
 
-### 两种减法
+### 必须按顺序的事，和不必的事
+::sub[把十六个数相加。看看每一步加了几次]
 
-$$
-\begin{array}{r}
-\text{借位} \\[4pt]
-361 \\
-\underline{-\;192} \\
-169
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{允许负数} \\[4pt]
-361 \\
-\underline{-\;192} \\
-(2)\,(-3)\,(-1)
-\end{array}
-$$
-
-右边还不是答案。  
-要去掉负的位，得从右边开始向左借 10。
-
-$$
-(2)\,(-3)\,(-1) \;\longrightarrow\; (2)\,(-4)\,(9) \;\longrightarrow\; (1)\,(6)\,(9) = 169
-$$
-
-**这一步收尾是顺序的。** 先处理完右边，左边的值才定得下来。  
-也就是**计算并行、收尾顺序**的结构。
+<ParallelSumDemo slide />
 
 </Slide>
 
 <Slide>
 
-### 是推迟了，不是消除了
-::sub[`301 - 192` 里收尾要多波及一位]
+#### 同样的工作，不同的时间
 
-$$
-\begin{array}{r}
-\text{借位} \\[4pt]
-301 \\
-\underline{-\;192} \\
-109
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{允许负数} \\[4pt]
-301 \\
-\underline{-\;192} \\
-(2)\,(-9)\,(-1)
-\end{array}
-$$
-
-$$
-(2)\,(-9)\,(-1) \;\longrightarrow\; (2)\,(-10)\,(9) \;\longrightarrow\; (1)\,(0)\,(9) = 109
-$$
-
-十位变成 $$-10$$，**再次**动到百位。  
-相减时消掉的依赖，在收尾阶段又回来了。
-
-</Slide>
-
-<Slide>
-
-### 那么哪一个更好
-
-| | 借位 | 允许负数 |
+| | 逐个相加 | 成对相加 |
 | --- | --- | --- |
-| 逐位计算 | 顺序 | **可以并行** |
-| 位之间的依赖 | 有 | 相减时无，收尾时有 |
-| 收尾 | 没有 | 进位传播 |
+| 加法次数 | 15 | 15 |
+| 步数 | 15 | **4** |
+| 每一步需要的核心 | 1 | 最多 8 |
 
-有能同时处理各位的硬件，就选右边。  
-一次处理一位，就选没有收尾的左边。
+**工作量相同，减少的是时间。**  
+能这样只有一个原因：各对之间不用互相等待。
 
-两者都给出正确答案。  
-**要在什么地方运行**才是决定因素。
+逐个相加要先有前一个和，才能加下一个。  
+**什么在等什么**决定了能不能并行。
+
+</Slide>
+
+<Slide>
+
+#### 就算有很多核心
+::sub[等待若在算法里面，核心就只能闲着]
+
+- **在八核上跑逐个相加，也只有一个核心在工作。**
+  - 其余七个都在等前一个和。
+  - 把核心加到十六个，仍然是 15 步。
+- **成对相加也不是全程都用满八个。**
+  - 会按 8 → 4 → 2 → 1 递减，最后一次是单独完成的。
+  - 留下多少顺序的部分，那里就是下限。
+
+<br/>
+
+**于是路分成两条。** 改写算法去配合硬件，或者制造硬件去配合算法。  
+GPU 和 NPU 属于后者。
 
 </Slide>
 
@@ -248,9 +215,21 @@ $$
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
 ### 顺序查找
+::sub[从头开始逐个看。请按**单步**]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+从索引 0 开始逐个查看。  
+`51` 在索引 6，所以第七次才碰到。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成步骤
 ::sub[从头开始逐个比较]
 
 ```plaintext
@@ -267,7 +246,7 @@ ALGORITHM SequentialSearch(A, n, key)
 
 <Slide class="compact">
 
-### 写成代码
+#### 写成代码
 ::sub[`01_sequential_search/`]
 
 <div class="aas-split">
@@ -312,26 +291,72 @@ def sequential_search(a, key):
 
 <Slide>
 
-### 比较多少次
+#### 最好：第一个元素就是要找的值
+::sub[`key = 6`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={6} />
+
+**一次**就结束。数组再长也一样。
+
+</Slide>
+
+<Slide>
+
+#### 平均：在中间某处
+::sub[`key = 53`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**八次**。十五个元素时 $$\dfrac{n+1}{2} = 8$$。  
+若要找的值位置均匀分布，平均就在这里。
+
+</Slide>
+
+<Slide>
+
+#### 最坏：最后一个，或者根本不在
+::sub[`key = 101`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={101} />
+
+**十五次**，把整个数组数完。  
+找数组里没有的值，同样是十五次。
+
+</Slide>
+
+<Slide>
+
+#### 比较多少次
 ::sub[取决于要找的值在哪里]
 
-| | 比较次数 | 什么时候 |
-| --- | --- | --- |
-| 最好 | 1 | 第一个元素就是 `key` |
-| 平均 | $$\dfrac{n+1}{2}$$ | **值在数组里**且位置分布均匀 |
-| 最坏 | n | 是最后一个元素，或根本不在 |
+| | 比较次数 | 时间 | 什么时候 |
+| --- | --- | --- | --- |
+| 最好 | $$1$$ | $$O(1)$$ | 第一个元素就是 `key` |
+| 平均 | $$\dfrac{n+1}{2}$$ | $$O(n)$$ | **值在数组里**且位置分布均匀 |
+| 最坏 | $$n$$ | $$O(n)$$ | 是最后一个元素，或根本不在 |
 
-找不存在的值，永远要数满 n 次。  
-这就是平均要加条件的原因。  
+找不存在的值，永远要数满 n 次。这就是平均要加条件的原因。  
 **谈性能的时候，要一并说清楚以哪些实例为前提。**
 
-以最坏情况为准：**时间** $$O(n)$$ · **空间** $$O(1)$$
+**空间**三种情况都是 $$O(1)$$，只有一个索引变量。
 
 </Slide>
 
 <Slide class="compact">
 
 ### 二分查找
+::sub[看中间，把不必再看的一半丢掉。请按**单步**]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+每比较一次，剩下的候选就减半。  
+变淡的格子就是那一步丢掉的范围。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成步骤
 ::sub[先看中间。它利用了数组已经有序这个事实]
 
 ```plaintext
@@ -352,7 +377,7 @@ ALGORITHM BinarySearch(A, n, key)
 
 <Slide class="compact">
 
-### 写成代码
+#### 写成代码
 ::sub[`02_binary_search/`]
 
 <div class="aas-split">
@@ -409,10 +434,32 @@ def binary_search(a, key):
 
 </Slide>
 
+<Slide>
+
+#### 最好：中间恰好就是要找的值
+::sub[`key = 53`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**一次**就结束，和顺序查找的最好情况一样。
+
+</Slide>
+
+<Slide>
+
+#### 平均：大约三次
+::sub[`key = 43`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={43} />
+
+**三次**。把十五个位置都量一遍，平均是 $$49/15 \approx 3.3$$。
+
+</Slide>
+
 <Slide class="compact">
 
-### 找到 51 的四次比较
-::sub[每比较一次，剩余范围就减半]
+#### 最坏：一直分到底
+::sub[`key = 51` · 把四个步骤一次摊开]
 
 <SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
 
@@ -425,6 +472,24 @@ def binary_search(a, key):
 
 **4 次**，对比顺序查找的 7 次。  
 **时间** $$O(\log n)$$ · **空间** $$O(1)$$
+
+</Slide>
+
+<Slide>
+
+#### 比较多少次
+::sub[二分查找按位置不同，介于 1 次和 4 次之间]
+
+| | 比较次数 | 时间 | 什么时候 |
+| --- | --- | --- | --- |
+| 最好 | $$1$$ | $$O(1)$$ | 中间恰好是 `key` |
+| 平均 | 约 $$\log_2 n$$ | $$O(\log n)$$ | 无论在哪里 |
+| 最坏 | $$\lfloor \log_2 n \rfloor + 1$$ | $$O(\log n)$$ | 最深的格子，或根本不在 |
+
+十五个元素时是 1 次 · 约 3.3 次 · 4 次。  
+和顺序查找的 1 次 · 8 次 · 15 次比一比。
+
+**空间**三种情况都是 $$O(1)$$，只有 `lo`、`hi`、`mid` 三个变量。
 
 </Slide>
 
@@ -452,7 +517,7 @@ def binary_search(a, key):
 
 <Slide class="compact">
 
-### 跑一下看看
+#### 跑一下看看
 ::sub[同样的数组，同样的 key]
 
 - 顺序查找
@@ -503,7 +568,7 @@ index = 6, comparisons = 4
 
 <Slide class="compact">
 
-### 可以改的地方
+#### 可以改的地方
 ::sub[`02_binary_search/` · 数组和 key 在这里]
 
 <div class="aas-split">
@@ -557,7 +622,7 @@ Python 用元组把两个一起返回。
 
 <Slide class="compact">
 
-### 现在动手试试
+#### 现在动手试试
 ::sub[例题 1. 两种查找]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/`  
@@ -611,7 +676,7 @@ ALGORITHM FibonacciRecursive(n)
 
 <Slide>
 
-### 栈堆起来又退下去
+#### 栈堆起来又退下去
 ::sub[按单步，看看 $$F(5)$$ 是怎么跑的]
 
 <RecursionDemo slide n={5} />
@@ -620,7 +685,7 @@ ALGORITHM FibonacciRecursive(n)
 
 <Slide class="center">
 
-### 调用 15 次，不同的值只有 6 个
+#### 调用 15 次，不同的值只有 6 个
 
 深度**与 n 成正比**地增长。这就是递归占用 $$O(n)$$ 空间的原因。  
 调用次数**每分叉一次就翻倍**。这就是时间为 $$O(2^n)$$ 的原因。
@@ -654,7 +719,7 @@ ALGORITHM FibonacciIterative(n)
 
 <Slide class="compact">
 
-### 写成代码
+#### 写成代码
 ::sub[`03_fibonacci/fibonacci.c` · 把两个函数并排放]
 
 <div class="aas-split">
@@ -702,16 +767,17 @@ long fibonacciIterative(int n) {
 
 <Slide>
 
-### 差距有多大
+#### 差距有多大
 
 | n | 递归调用次数 | 递归（ms） | 迭代（ms） |
 | --- | --- | --- | --- |
-| 10 | 177 | 0.00 | 0.0000 |
-| 20 | 21,891 | 0.01 | 0.0000 |
-| 30 | 2,692,537 | 0.82 | 0.0000 |
-| 40 | **331,160,281** | 120.58 | 0.0000 |
+| 10 | 177 | 0.00 | 0.0010 |
+| 20 | 21,891 | 0.03 | 0.0010 |
+| 30 | 2,692,537 | 5.59 | 0.0020 |
+| 40 | **331,160,281** | 363.86 | 0.0010 |
 
-n 每增加 10，调用次数大约变成 **100 倍**。  
+n 每增加 10，调用次数大约变成 **100 倍**，时间也随之增长。  
+迭代在 n 变成四倍的过程中一直停在 0.001 毫秒上下。  
 调用次数在哪里跑都一样，**毫秒则因机器而异。**  
 递归 $$O(2^n)$$ · 迭代 $$O(n)$$
 
@@ -719,7 +785,7 @@ n 每增加 10，调用次数大约变成 **100 倍**。
 
 <Slide class="compact">
 
-### 一共算了多少项
+#### 一共算了多少项
 ::sub[$$O(2^n)$$ 和 $$O(n)$$ 是结论，依据是项数]
 
 - **迭代算 $$n + 1$$ 项。**
@@ -752,7 +818,7 @@ C(100) = 2 × F(101) - 1
 
 <Slide class="compact">
 
-### 可以改的地方
+#### 可以改的地方
 ::sub[`03_fibonacci/` · 计量的部分在这里]
 
 <div class="aas-split">
@@ -807,7 +873,7 @@ for n in (10, 20, 30, 35):
 
 <Slide class="compact">
 
-### 现在动手试试
+#### 现在动手试试
 ::sub[例题 2. 递归与迭代]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/03_fibonacci/`  

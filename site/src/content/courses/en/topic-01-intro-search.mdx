@@ -11,6 +11,7 @@ slides: ["topic-01-intro-search"]
 
 import SearchDemo from '@components/SearchDemo.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 > The **first topic** of the course. It raises the two questions the remaining
 > fourteen topics keep coming back to: **what do you give up to get what**, and
@@ -202,6 +203,55 @@ cleanup pass, so the left one wins.
 the same answer, and which is better depending on **where you are going to run
 it**.
 
+### Where parallelism actually wins \{#parallel}
+
+The subtraction above does not show the payoff well. The per-column subtraction
+finishes at once, but the carry propagation is sequential again, so at three
+digits the step counts tie, three against three.
+
+Other operations keep the payoff. **Adding up many values** is one. Adding
+sixteen numbers one at a time takes 15 steps, because each addition needs the
+previous sum. Adding them in pairs and climbing takes 4.
+
+<ParallelSumDemo />
+
+**The number of additions is the same, 15.** That is 8 + 4 + 2 + 1. Only the
+time shrank, and it cost eight workers in the first step. The
+[[trade-off|trade-off]] of spending resources to buy time is here too.
+
+Adding n values takes $$n-1$$ steps in sequence and $$\log_2 n$$ steps in
+pairs. **That is the same shape as sequential versus binary search, which this
+topic reaches shortly.** One halves the input, the other halves the work in
+each round, and they arrive at the same place.
+
+One thing decides whether parallelism is available: **what waits on what**.
+
+#### Even with many cores \{#cores}
+
+None of this is only on paper. A modern CPU has several cores, each running its
+own thread, so eight additions really can happen at the same moment.
+
+**And yet running the sequential sum on eight cores keeps one core busy.** The
+other seven wait for the previous sum. Move to sixteen cores and it is still 15
+steps, **because the waiting is in the algorithm, not in the hardware**.
+
+Adding in pairs does not use all eight the whole way either. It falls
+8 → 4 → 2 → 1 and the last addition is done alone. Whatever stays sequential is
+the floor, however many cores you add.
+
+So the road forks.
+
+- **Reshape the algorithm to fit the hardware.** Knowing there are many cores,
+  rewrite the procedure so nothing waits.
+- **Build hardware to fit the algorithm.** GPUs exist to run thousands of the
+  same computation at once; NPUs exist to do little but matrix multiplication.
+  The deferred carry we saw earlier (carry-save) sits inside multipliers for the
+  same reason.
+
+**Algorithms run on machines.** The question the subtraction example asked,
+where are you going to run it, comes back here. Which side to change is also a
+choice.
+
 ### Accuracy and speed \{#accuracy-speed}
 
 The same story shows up in deep learning. Say you are choosing between three
@@ -264,19 +314,23 @@ index = 6, comparisons = 7
 
 The comparison count depends on where the value sits.
 
-| | Comparisons | When |
-| --- | --- | --- |
-| Best | 1 | the first element is `key` |
-| Average | $$\dfrac{n+1}{2}$$ | **the value is in the array** and its position is evenly distributed |
-| Worst | n | it is the last element, or not there at all |
+| | Comparisons | Time | When |
+| --- | --- | --- | --- |
+| Best | $$1$$ | $$O(1)$$ | the first element is `key` |
+| Average | $$\dfrac{n+1}{2}$$ | $$O(n)$$ | **the value is in the array** and its position is evenly distributed |
+| Worst | $$n$$ | $$O(n)$$ | it is the last element, or not there at all |
 
 Here is why the average carries a condition. Looking for a value that is not
 there always costs all n comparisons. So once "it might not be there" is in the
 mix, the average rises above $$\frac{n+1}{2}$$.
 **When you state a performance, state which instances you are assuming.**
 
-Taking the worst case: **time** $$O(n)$$, and since the only extra memory is an
-index variable, **space** $$O(1)$$.
+**Space is $$O(1)$$ in all three cases.** The only extra memory is one index
+variable, so it does not change with where the value sits.
+
+Stating the algorithm in one line means stating the worst case: **time
+$$O(n)$$ · space $$O(1)$$.** That is the line it can be guaranteed not to
+cross.
 
 ### Binary search \{#binary}
 
@@ -454,13 +508,15 @@ The program prints its column headers in Korean; the same run reads like this.
 
 | n | Recursive calls | Recursive (ms) | Iterative (ms) | F(n) |
 | --- | --- | --- | --- | --- |
-| 10 | 177 | 0.00 | 0.0000 | 55 |
-| 20 | 21,891 | 0.01 | 0.0000 | 6,765 |
-| 30 | 2,692,537 | 0.82 | 0.0000 | 832,040 |
-| 40 | **331,160,281** | 120.58 | 0.0000 | 102,334,155 |
+| 10 | 177 | 0.00 | 0.0010 | 55 |
+| 20 | 21,891 | 0.03 | 0.0010 | 6,765 |
+| 30 | 2,692,537 | 5.59 | 0.0020 | 832,040 |
+| 40 | **331,160,281** | 363.86 | 0.0010 | 102,334,155 |
 
-Every ten steps of n multiply the call count by **roughly 100**. Iteration grows
-in proportion to n, which rounds to zero in this table.
+Every ten steps of n multiply the call count by **roughly 100**, and the
+recursive time follows it from 0.00 to 363.86 ms. The iterative column stays
+around 0.001 ms while n quadruples — too fast for milliseconds to show the
+difference at all.
 
 | | Time | Space |
 | --- | --- | --- |
