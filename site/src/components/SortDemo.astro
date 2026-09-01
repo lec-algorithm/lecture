@@ -39,6 +39,7 @@ const id = `sod-${Math.random().toString(36).slice(2, 9)}`;
    본문 텍스트가 아니라 스크립트가 찍는 문장까지 포함해야 한다. */
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
+    back: '뒤로',
     step: '한 걸음',
     play: '자동 재생',
     stop: '멈춤',
@@ -72,6 +73,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     done: '정렬 끝 — 비교 {c}회, 이동 {m}회.',
   },
   en: {
+    back: 'Back',
     step: 'Step',
     play: 'Play',
     stop: 'Pause',
@@ -105,6 +107,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     done: 'Sorted — {c} comparisons, {m} moves.',
   },
   zh: {
+    back: '后退',
     step: '单步',
     play: '播放',
     stop: '暂停',
@@ -163,6 +166,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       )}
     </span>
     <div class="sod-controls">
+      <button type="button" data-act="back" class="sod-btn">{t.back}</button>
       <button type="button" data-act="step" class="sod-btn">{t.step}</button>
       <button type="button" data-act="play" class="sod-btn sod-btn-primary">{t.play}</button>
       <button type="button" data-act="reset" class="sod-btn">{t.reset}</button>
@@ -434,6 +438,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       if (at >= steps.length - 1) stop();
     }
 
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
     root.querySelector('[data-act="step"]').addEventListener('click', () => {
       stop();
       step();

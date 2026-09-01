@@ -99,6 +99,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   ko: {
     stack: '호출 스택',
     tree: '호출 트리',
+    back: '뒤로',
     step: '한 걸음',
     play: '자동 재생',
     stop: '멈춤',
@@ -118,6 +119,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   en: {
     stack: 'Call stack',
     tree: 'Call tree',
+    back: 'Back',
     step: 'Step',
     play: 'Play',
     stop: 'Pause',
@@ -137,6 +139,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   zh: {
     stack: '调用栈',
     tree: '调用树',
+    back: '后退',
     step: '单步',
     play: '播放',
     stop: '暂停',
@@ -173,6 +176,7 @@ const uniqueValues = computed.size;
       <span class="rd-count">{t.depth} <strong data-rd-depth>0</strong>{t.depthUnit}</span>
     </span>
     <span class="rd-controls">
+      <button type="button" class="rd-btn" data-rd-back>{t.back}</button>
       <button type="button" class="rd-btn" data-rd-step>{t.step}</button>
       <button type="button" class="rd-btn rd-btn-primary" data-rd-play>{t.play}</button>
       <button type="button" class="rd-btn" data-rd-reset>{t.reset}</button>
@@ -251,6 +255,7 @@ const uniqueValues = computed.size;
       const noteEl = root.querySelector<HTMLElement>('[data-rd-note]')!;
       const callsEl = root.querySelector<HTMLElement>('[data-rd-calls]')!;
       const depthEl = root.querySelector<HTMLElement>('[data-rd-depth]')!;
+      const backBtn = root.querySelector<HTMLButtonElement>('[data-rd-back]')!;
       const stepBtn = root.querySelector<HTMLButtonElement>('[data-rd-step]')!;
       const playBtn = root.querySelector<HTMLButtonElement>('[data-rd-play]')!;
       const resetBtn = root.querySelector<HTMLButtonElement>('[data-rd-reset]')!;
@@ -333,6 +338,11 @@ const uniqueValues = computed.size;
         render();
       };
 
+      backBtn.addEventListener('click', () => {
+        stop();
+        if (at > -1) at--;
+        render();
+      });
       stepBtn.addEventListener('click', () => {
         stop();
         step();

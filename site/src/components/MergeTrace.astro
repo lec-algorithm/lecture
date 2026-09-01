@@ -1,0 +1,168 @@
+---
+// 병합 정렬의 분할·병합 트리(재귀 트리)를 한 장에 펼친 정지 그림.
+//
+// MergeDemo는 한 걸음씩 시간 순서로 보는 것이고, 이쪽은 전체 구조를
+// 위아래로 쌓아 한눈에 보여 준다. 위쪽 절반은 나누기: 원소 하나가 될
+// 때까지 반씩 쪼개진다. 가운데 줄이 재귀의 바닥이고, 아래쪽 절반은
+// 합치기: 이웃한 두 묶음이 정렬된 묶음으로 병합되며 올라온다.
+//
+// 전부 서버에서 그리므로 스크립트가 없고 Astro의 scoped 스타일이 그대로
+// 먹는다(SearchTrace와 같은 방식). 행은 손으로 적지 않고 여기서 분할
+// 재귀를 실제로 돌려 만든다. 병합 행의 내용은 구간의 정렬 결과와 같으므로
+// 시뮬레이션 없이 slice().sort()로 얻는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 정렬할 배열 */
+  values?: number[];
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
+  slide?: boolean;
+}
+const { values = [2, 8, 5, 9, 1, 10, 7, 6, 4, 3], slide = false } = Astro.props;
+const n = values.length;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    divide: '나누기 — 원소 하나가 될 때까지 반씩',
+    merge: '합치기 — 이웃한 두 묶음을 병합, 묶음은 언제나 정렬된 채로',
+  },
+  en: {
+    divide: 'Divide — halve until single elements',
+    merge: 'Merge — neighboring runs combine, each run always sorted',
+  },
+  zh: {
+    divide: '分 — 对半，直到只剩一个元素',
+    merge: '合 — 相邻两段归并，每段始终有序',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 분할 재귀를 돌려 깊이별 구간을 얻는다. 이미 원소 하나가 된 구간은
+   더 깊은 줄에도 그대로 실어, 어느 줄이든 배열 전체가 보이게 한다. */
+type Range = [number, number];
+
+function depthOf(lo: number, hi: number): number {
+  if (lo >= hi) return 0;
+  const mid = lo + Math.floor((hi - lo) / 2);
+  return 1 + Math.max(depthOf(lo, mid), depthOf(mid + 1, hi));
+}
+const maxD = depthOf(0, n - 1);
+
+const rowsDown: Range[][] = Array.from({ length: maxD + 1 }, () => []);
+function fill(d: number, lo: number, hi: number) {
+  rowsDown[d].push([lo, hi]);
+  if (lo >= hi) {
+    if (d < maxD) fill(d + 1, lo, hi);
+    return;
+  }
+  const mid = lo + Math.floor((hi - lo) / 2);
+  fill(d + 1, lo, mid);
+  fill(d + 1, mid + 1, hi);
+}
+fill(0, 0, n - 1);
+
+/* 병합 행: 같은 구간 분할을 아래에서 위로, 내용은 정렬된 채로. */
+const rowsUp: Range[][] = rowsDown.slice(0, maxD).reverse();
+const sortedSlice = ([lo, hi]: Range) =>
+  values.slice(lo, hi + 1).sort((a, b) => a - b);
+const rawSlice = ([lo, hi]: Range) => values.slice(lo, hi + 1);
+---
+
+<div class:list={['aas-merge-trace', slide && 'is-slide']}>
+  <p class="mt-phase">{t.divide}</p>
+  {
+    rowsDown.map((segs, d) => (
+      <div class="mt-row">
+        {segs.map((seg) => (
+          <span class:list={['mt-seg', d === maxD && 'is-base']}>
+            {rawSlice(seg).map((v) => (
+              <span class="mt-cell">{v}</span>
+            ))}
+          </span>
+        ))}
+      </div>
+    ))
+  }
+  <p class="mt-phase">{t.merge}</p>
+  {
+    rowsUp.map((segs, i) => (
+      <div class="mt-row">
+        {segs.map((seg) => (
+          <span class:list={['mt-seg', 'is-merged', i === rowsUp.length - 1 && 'is-final']}>
+            {sortedSlice(seg).map((v) => (
+              <span class="mt-cell">{v}</span>
+            ))}
+          </span>
+        ))}
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .aas-merge-trace {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .mt-phase {
+    margin: 0 0 0.5em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    text-align: center;
+  }
+  .mt-phase + .mt-phase,
+  .mt-row + .mt-phase {
+    margin-top: 0.9em;
+  }
+  .mt-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4em;
+    margin-bottom: 0.35em;
+  }
+  .mt-seg {
+    display: inline-flex;
+    gap: 0.14em;
+    padding: 0.16em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+  }
+  .mt-cell {
+    min-width: 1.7em;
+    padding: 0.08em 0;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.3;
+  }
+
+  /* 가운데(재귀의 바닥)는 파랑, 병합된 묶음은 초록, 마지막 줄은 완성. */
+  .mt-seg.is-base {
+    border-color: color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 10%, transparent);
+  }
+  .mt-seg.is-merged {
+    border-color: color-mix(in srgb, var(--aas-role-eval) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-eval) 10%, transparent);
+  }
+  .mt-seg.is-final {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, transparent);
+    font-weight: 700;
+  }
+
+  /* 슬라이드용. 줄이 아홉이라 다른 데모보다 작게 잡는다.
+     vh 단위인 이유는 SearchDemo 참고: 슬라이드 폭은 뷰포트 높이가 정한다. */
+  .aas-merge-trace.is-slide {
+    font-size: clamp(0.9rem, 3vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+</style>
