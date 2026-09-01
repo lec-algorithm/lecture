@@ -183,6 +183,14 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         let i = lo;
         let j = mid + 1;
         let k = lo;
+        /* 이미 temp로 내려간 칸: [lo..i-1]과 [mid+1..j-1]. 윗줄에서 흐리게
+           표시해 "옮겨졌다"를 보여준다. */
+        const taken = () => {
+          const t = [];
+          for (let x = lo; x < i; x++) t.push(x);
+          for (let x = mid + 1; x < j; x++) t.push(x);
+          return t;
+        };
         while (i <= mid && j <= hi) {
           c++;
           const takeLeft = a[i] <= a[j];
@@ -192,7 +200,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           const look = [i, j];
           tmp[k] = takeLeft ? a[i] : a[j];
           m++;
-          steps.push({ a: snap(a), t: snap(tmp), range: [lo, hi], call, look, tlook: k, c, m, note });
+          steps.push({ a: snap(a), t: snap(tmp), range: [lo, hi], call, look, tlook: k, taken: taken(), c, m, note });
           if (takeLeft) i++;
           else j++;
           k++;
@@ -201,7 +209,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           tmp[k] = a[i];
           m++;
           steps.push({
-            a: snap(a), t: snap(tmp), range: [lo, hi], call, look: [i], tlook: k, c, m,
+            a: snap(a), t: snap(tmp), range: [lo, hi], call, look: [i], tlook: k, taken: taken(), c, m,
             note: fill(S.drain, { v: a[i] }),
           });
           i++;
@@ -211,7 +219,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           tmp[k] = a[j];
           m++;
           steps.push({
-            a: snap(a), t: snap(tmp), range: [lo, hi], call, look: [j], tlook: k, c, m,
+            a: snap(a), t: snap(tmp), range: [lo, hi], call, look: [j], tlook: k, taken: taken(), c, m,
             note: fill(S.drain, { v: a[j] }),
           });
           j++;
@@ -289,15 +297,17 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       const a = step ? step.a : values;
       const tm = step ? step.t : Array(n).fill(null);
 
+      /* merge 모드에서는 두 절반이 별개의 묶음임을 간격으로 보여준다.
+         합쳐져 제자리로 돌아오면(flash·done) 간격도 사라진다. */
+      const gap = mode === 'merge' && (!step || (!step.flash && !step.done));
+
       mainCells.forEach((cell, idx) => {
         cell.className = 'md-cell';
         mainVals[idx].textContent = String(a[idx]);
-        if (!step) {
-          /* merge 모드의 시작 상태: 두 절반을 경계로 보여준다. */
-          if (mode === 'merge' && idx === mid0) cell.classList.add('is-split');
-          return;
-        }
+        if (gap && idx === mid0) cell.classList.add('has-gap');
+        if (!step) return;
         if (step.range && (idx < step.range[0] || idx > step.range[1])) cell.classList.add('is-out');
+        if (step.taken && step.taken.includes(idx)) cell.classList.add('is-taken');
         if (step.done && step.done.includes(idx)) cell.classList.add('is-done');
         if (step.look.includes(idx)) cell.classList.add('is-look');
         if (step.flash && idx >= step.flash[0] && idx <= step.flash[1]) cell.classList.add('is-swap');
@@ -307,6 +317,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         cell.className = 'md-cell is-slot';
         tempVals[idx].textContent = tm[idx] === null ? '' : String(tm[idx]);
         if (tm[idx] !== null) cell.classList.remove('is-slot');
+        if (gap && idx === mid0) cell.classList.add('has-gap');
         if (step && step.range && (idx < step.range[0] || idx > step.range[1])) cell.classList.add('is-out');
         if (step && step.tlook === idx) cell.classList.add('is-swap');
       });
@@ -314,7 +325,9 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       comp.textContent = String(step ? step.c : 0);
       mvs.textContent = String(step ? step.m : 0);
       note.textContent = step ? step.note : idle;
-      const call = step ? step.call : null;
+      /* ms(lo, hi) 표기는 전체 정렬(sort)에서 소개된다. merge 모드에서
+         먼저 보이면 앞선 참조가 되므로 sort 모드에서만 칩을 띄운다. */
+      const call = mode === 'sort' && step ? step.call : null;
       callchip.classList.toggle('is-off', call === null);
       if (call !== null) callval.textContent = call;
     }
@@ -490,8 +503,15 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     border-style: dashed;
     background: transparent;
   }
-  .aas-merge-demo .md-cell.is-split {
-    box-shadow: 2px 0 0 0 color-mix(in srgb, var(--aas-role-model) 60%, transparent);
+  /* merge 모드: 두 절반 사이의 간격. 하나의 배열이 아니라 정렬된 두
+     묶음이라는 것을 자리로 말한다. 합쳐지면 간격도 없어진다. */
+  .aas-merge-demo .md-cell.has-gap {
+    margin-right: 0.9em;
+  }
+  /* 이미 temp로 내려간 칸. 구간 밖(is-out)보다는 진하게 남겨,
+     "지금 이 병합에서 소진되었다"로 읽히게 한다. */
+  .aas-merge-demo .md-cell.is-taken {
+    opacity: 0.45;
   }
 
   .aas-merge-demo .md-foot {
