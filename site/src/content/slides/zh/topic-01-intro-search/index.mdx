@@ -215,6 +215,18 @@ GPU 和 NPU 属于后者。
 
 </Slide>
 
+<Slide>
+
+### 顺序查找是这样走的
+::sub[从头开始逐个看。请按**单步**]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+从索引 0 开始逐个查看。  
+`51` 在索引 6，所以第七次才碰到。
+
+</Slide>
+
 <Slide class="compact">
 
 ### 顺序查找
@@ -279,6 +291,41 @@ def sequential_search(a, key):
 
 <Slide>
 
+### 最好：第一个元素就是要找的值
+::sub[`key = 6`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={6} />
+
+**一次**就结束。数组再长也一样。
+
+</Slide>
+
+<Slide>
+
+### 平均：在中间某处
+::sub[`key = 53`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**八次**。十五个元素时 $$\dfrac{n+1}{2} = 8$$。  
+若要找的值位置均匀分布，平均就在这里。
+
+</Slide>
+
+<Slide>
+
+### 最坏：最后一个，或者根本不在
+::sub[`key = 101`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={101} />
+
+**十五次**，把整个数组数完。  
+找数组里没有的值，同样是十五次。
+
+</Slide>
+
+<Slide>
+
 ### 比较多少次
 ::sub[取决于要找的值在哪里]
 
@@ -293,6 +340,18 @@ def sequential_search(a, key):
 **谈性能的时候，要一并说清楚以哪些实例为前提。**
 
 以最坏情况为准：**时间** $$O(n)$$ · **空间** $$O(1)$$
+
+</Slide>
+
+<Slide class="compact">
+
+### 二分查找每次抹掉一半范围
+::sub[看中间，把不必再看的一半丢掉]
+
+<SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+四次就到达 `51`。  
+变淡的格子就是那一步丢掉的范围。
 
 </Slide>
 
@@ -379,9 +438,7 @@ def binary_search(a, key):
 <Slide class="compact">
 
 ### 找到 51 的四次比较
-::sub[每比较一次，剩余范围就减半]
-
-<SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+::sub[把刚才的四步写成数字]
 
 | 比较 | lo | hi | mid | `A[mid]` | 判断 |
 | --- | --- | --- | --- | --- | --- |
