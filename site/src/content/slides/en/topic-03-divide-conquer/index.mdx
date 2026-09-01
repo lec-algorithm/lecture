@@ -1,0 +1,763 @@
+---
+title: "Topic 03. Divide and Conquer, Merge Sort"
+description: "Splitting problems to solve them, merge sort breaking the O(n²) wall, the comparison lower bound, and counting sort"
+presenter: Taekyu Lee
+date: "Topic 03"
+order: 3
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import MergeDemo from '@components/MergeDemo.astro';
+import CountingDemo from '@components/CountingDemo.astro';
+
+{/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
+    Each example goes demo → procedure → code → analysis. The code mirrors
+    the algorithm-code repository, so changes there must land here too.
+    The demo counters arrive at the same numbers the code prints. */}
+
+<Slide class="cover">
+
+# Divide and Conquer, Merge Sort
+
+Topic 03
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## Last topic's wall
+::sub[All four sorts were worst-case O(n²)]
+
+| Sort | Worst | Sort | Worst |
+| --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | Shell sort | $$O(n^2)$$ |
+| Insertion sort | $$O(n^2)$$ | Bubble sort | $$O(n^2)$$ |
+
+<br/>
+
+This topic climbs over the wall **twice**.
+
+- Once by **splitting the problem**
+- Once by **not comparing at all**
+
+</Slide>
+
+<Slide>
+
+## Why does splitting help
+::sub[A thousand dominoes to stand up]
+
+- **Alone**: it takes a while.
+- **Ten people, a hundred each**: done quickly.
+
+<br/>
+
+Group projects work the same way.
+
+- Split the company research, the interviews, the presentation.
+- Combine at the end.
+
+</Slide>
+
+<Slide>
+
+#### Nothing surprising yet
+::sub[We saw this in Topic 01]
+
+- Ten times the people, ten times the speed — that is **parallelism**.
+- Topic 01's parallel sum was exactly this.
+  - Sixteen additions split across eight cores.
+
+<br/>
+
+The surprise of this topic lies elsewhere.
+
+</Slide>
+
+<Slide class="center">
+
+### It gets faster even alone
+### Not more workers — **less work to do**
+
+</Slide>
+
+<Slide>
+
+### Divide and conquer
+::sub[Three steps]
+
+- **Divide**
+  - Split the problem into smaller problems of the same shape.
+- **Conquer**
+  - Solve the small problems.
+  - Solve directly if small enough; otherwise split again.
+- **Combine**
+  - Assemble the small answers into the whole answer.
+
+</Slide>
+
+<Slide>
+
+#### Not our first encounter
+::sub[Topic 01's binary search was divide and conquer]
+
+- **Divide**: split in half at the middle.
+- **Conquer**: dig into **only the side** that can hold the answer.
+- **Combine**: nothing to do.
+
+<br/>
+
+This time we conquer **both sides**, and must combine too.
+
+</Slide>
+
+<Slide>
+
+#### How do you split
+::sub[Two people sorting the numbers 1 to 100]
+
+<div class="aas-split">
+<div>
+
+- **Split by value**
+  - Up to 50 / 51 and up
+  - Sort, then **just concatenate**
+  - Combining is free
+  - But the split classifies everything
+
+</div>
+<div>
+
+- **Split by position**
+  - First 50 / last 50
+  - Cut in half, done
+  - Splitting is free
+  - But the piles must be **interleaved**
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="center">
+
+### Easy splitting means hard combining
+### Easy combining means hard splitting
+
+Merge sort splits **by position**; the next topic's quicksort splits **by value**.
+
+</Slide>
+
+<Slide>
+
+#### Aside: multiplication splits too
+::sub[Karatsuba · big multiplications into small ones]
+
+$$
+1234 \times 5678 = (12 \cdot 100 + 34)(56 \cdot 100 + 78)
+$$
+
+$$
+= a \cdot 10^4 + b \cdot 10^2 + c
+$$
+
+<br/>
+
+- $$a = 12 \times 56$$
+- $$b = 12 \times 78 + 34 \times 56$$
+- $$c = 34 \times 78$$
+
+<br/>
+
+Computed directly, that takes **4** two-digit multiplications.
+
+</Slide>
+
+<Slide>
+
+#### Four multiplications become three
+::sub[Trade b for a and c]
+
+$$
+b = (12 + 34)(56 + 78) - a - c
+$$
+
+- $$a$$ and $$c$$ are computed anyway.
+- The only new multiplication is $$(12+34)(56+78) = 46 \times 134$$ — **one**.
+
+<br/>
+
+- Applied recursively, $$O(n^2)$$ becomes $$O(n^{\log_2 3}) \approx O(n^{1.585})$$.
+- Check: $$672 \cdot 10^4 + 2840 \cdot 10^2 + 2652 = 7{,}006{,}652$$
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. Merge sort
+::sub[Split in half, sort each half, merge the sorted halves]
+
+</Slide>
+
+<Slide>
+
+### The engine is the merge
+::sub[Each half is already sorted. Press **Step**]
+
+<MergeDemo slide mode="merge" />
+
+</Slide>
+
+<Slide>
+
+#### Nine comparisons suffice
+::sub[Being sorted is what saves comparisons]
+
+- Compare the **fronts** of the two piles, take the smaller.
+- You only ever look at the front of each pile.
+- When one side runs out, the rest pours in without comparisons.
+
+<br/>
+
+Merging 10 elements took 9 comparisons and 20 moves.  
+Ten into temp, ten back in place.
+
+</Slide>
+
+<Slide>
+
+### The full sort
+::sub[Put the merge on top of recursion. The `ms(0, 9)` chip names the current call]
+
+<MergeDemo slide mode="sort" />
+
+</Slide>
+
+<Slide>
+
+#### As a procedure
+::sub[One element is already sorted — the base of the recursion]
+
+```plaintext
+ALGORITHM MergeSort(A, lo, hi)
+    if lo >= hi then return          // one element: already sorted
+    mid <- (lo + hi) / 2
+    MergeSort(A, lo, mid)            // left half
+    MergeSort(A, mid+1, hi)          // right half
+    Merge(A, lo, mid, hi)            // merge the sorted halves
+```
+
+Like Topic 01's Fibonacci, **a definition that calls itself**.  
+The difference: left and right do not overlap, so nothing is computed twice.
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code 1. merge
+::sub[`01_merge_sort/` · `<=` keeps equal keys stable]
+
+<div class="aas-split">
+<div>
+
+- `mergeSort.c`
+
+```c
+static void merge(int a[], int lo, int mid,
+                  int hi, int temp[],
+                  int *comparisons, int *moves) {
+    int i = lo;
+    int j = mid + 1;
+    int k = lo;
+    while (i <= mid && j <= hi) {
+        (*comparisons)++;
+        if (a[i] <= a[j]) {
+            temp[k++] = a[i++];
+        } else {
+            temp[k++] = a[j++];
+        }
+        (*moves)++;
+    }
+    while (i <= mid) {
+        temp[k++] = a[i++];
+        (*moves)++;
+    }
+    while (j <= hi) {
+        temp[k++] = a[j++];
+        (*moves)++;
+    }
+    for (k = lo; k <= hi; k++) {
+        a[k] = temp[k];
+        (*moves)++;
+    }
+}
+```
+
+</div>
+<div>
+
+- `merge_sort.py`
+
+```python
+def _merge(a, lo, mid, hi, temp, counts):
+    i, j, k = lo, mid + 1, lo
+    while i <= mid and j <= hi:
+        counts[0] += 1
+        if a[i] <= a[j]:
+            temp[k] = a[i]
+            i += 1
+        else:
+            temp[k] = a[j]
+            j += 1
+        counts[1] += 1
+        k += 1
+    while i <= mid:
+        temp[k] = a[i]
+        i += 1; k += 1
+        counts[1] += 1
+    while j <= hi:
+        temp[k] = a[j]
+        j += 1; k += 1
+        counts[1] += 1
+    for k in range(lo, hi + 1):
+        a[k] = temp[k]
+        counts[1] += 1
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code 2. mergeSort
+::sub[`01_merge_sort/` · the recursion mirrors the procedure]
+
+<div class="aas-split">
+<div>
+
+- `mergeSort.c`
+
+```c
+void mergeSort(int a[], int lo, int hi,
+               int temp[],
+               int *comparisons, int *moves) {
+    if (lo >= hi) {
+        return;
+    }
+    int mid = lo + (hi - lo) / 2;
+    mergeSort(a, lo, mid,
+              temp, comparisons, moves);
+    mergeSort(a, mid + 1, hi,
+              temp, comparisons, moves);
+    merge(a, lo, mid, hi,
+          temp, comparisons, moves);
+}
+```
+
+</div>
+<div>
+
+- Run result
+
+```console
+before: 2 8 5 9 1 10 7 6 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 22, moves = 68
+```
+
+The demo's counters land on the same numbers.
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Why n log n
+::sub[At every level, the merged elements add up to n]
+
+```plaintext
+level 0              [########  n  ########]      cost n
+level 1          [### n/2 ###]  [### n/2 ###]     cost n
+level 2        [ n/4 ] [ n/4 ]  [ n/4 ] [ n/4 ]   cost n
+  ⋮                       ⋮                        ⋮
+level log n    [1] [1] [1]  ⋯   [1] [1] [1]       (base)
+```
+
+- Halving gives $$\log_2 n$$ levels.
+- Each level costs $$n$$, so the total is $$O(n \log n)$$.
+
+</Slide>
+
+<Slide>
+
+#### Change the input
+::sub[Best, average, and worst are all O(n log n)]
+
+| Input | Comparisons | Moves |
+| --- | --- | --- |
+| Sample array | $$22$$ | $$68$$ |
+| Already sorted | $$19$$ | $$68$$ |
+| Reversed | $$15$$ | $$68$$ |
+
+<br/>
+
+- **Moves are always 68.** Every merge round-trips its range through temp.
+- **Reversed beats sorted on comparisons.** One side runs out early,
+  and the rest pours in comparison-free.
+
+</Slide>
+
+<Slide>
+
+#### What it gives up
+::sub[Not free]
+
+- **Space $$O(n)$$**
+  - The temp array.
+  - All four sorts of Topic 02 used $$O(1)$$.
+- **Stable sort**
+  - The `<=` in `merge` sends equal keys out left-first.
+  - Change it to `<` and the answer stays right, but stability breaks.
+
+</Slide>
+
+<Slide>
+
+#### Five sorts side by side
+::sub[On the same array `2 8 5 9 1 10 7 6 4 3`]
+
+| Sort | Comparisons | Moves | Worst |
+| --- | --- | --- | --- |
+| Selection sort | 45 | 21 | $$O(n^2)$$ |
+| Insertion sort | 33 | 43 | $$O(n^2)$$ |
+| Shell sort | 30 | 57 | $$O(n^2)$$ |
+| Bubble sort | 45 | 75 | $$O(n^2)$$ |
+| **Merge sort** | **22** | 68 | $$O(n \log n)$$ |
+
+</Slide>
+
+<Slide>
+
+#### The difference shows as n grows
+::sub[At n = one billion]
+
+- $$n^2 = 10^{18}$$
+- $$n \log_2 n \approx 3 \times 10^{10}$$
+
+<br/>
+
+A factor of **30 million**.
+
+- That is why Topic 02's table read 317 years for insertion and 18 minutes for merge.
+- A better computer does not cross this gap.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Example 1. Merge sort]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-03-divide-conquer/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Feed it a sorted array and a reversed one.**
+   - Comparisons change to 19 and 15.
+   - Moves stay at 68 — find out why in the code.
+2. **Change the `<=` in `merge` to `<`.**
+   - The answer is unchanged, but stability breaks.
+3. **Grow the array to 20 elements.**
+   - Watch the extra level appear in the comparison count.
+
+</Slide>
+
+<Slide class="center">
+
+## Comparison takes you only this far
+::sub[Can a comparison sort beat merge sort?]
+
+</Slide>
+
+<Slide>
+
+### The decision tree
+::sub[Draw the comparisons as a tree · n = 3]
+
+```plaintext
+              a[0] < a[1] ?
+       yes ↙              ↘ no
+  a[1] < a[2] ?          a[0] < a[2] ?
+   ↙        ↘             ↙        ↘
+[0 1 2]  a[0] < a[2]?  [1 0 2]  a[1] < a[2]?
+          ↙    ↘                 ↙    ↘
+      [0 2 1] [2 0 1]        [1 2 0] [2 1 0]
+```
+
+- One comparison per node; branches are its outcomes.
+- Leaves are sorted orders (permutations). All $$3! = 6$$ are there.
+
+</Slide>
+
+<Slide>
+
+#### n! leaves, and height is comparisons
+::sub[A three-line proof]
+
+1. There must be **at least $$n!$$ leaves**.
+   - Miss one permutation and the algorithm is wrong on that input.
+2. A binary tree of height $$h$$ has **at most $$2^h$$ leaves**.
+3. Therefore $$2^h \geq n!$$, that is, $$h \geq \log_2(n!)$$.
+
+<br/>
+
+And $$h$$ is the **worst-case comparison count**.
+
+</Slide>
+
+<Slide>
+
+#### The lower bound: Ω(n log n)
+::sub[Stirling's approximation finishes it]
+
+$$
+\log_2(n!) \approx n \log_2 n
+$$
+
+- **Every comparison sort must make $$\Omega(n \log n)$$ comparisons in the worst case.**
+- Merge sort's order already touches this bound.
+  - No comparison sort can do better than that order.
+
+</Slide>
+
+<Slide>
+
+#### In numbers
+::sub[n = 10]
+
+- $$\lceil \log_2 10! \rceil = 22$$
+- Sorting 10 elements by comparison takes at least **22** comparisons in the worst case.
+- Our merge sort used exactly **22** on the sample array.
+
+</Slide>
+
+<Slide class="center">
+
+### The proof carries one condition
+### **"As long as you sort by comparing"**
+
+What if you could sort without comparing?
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. Counting sort
+::sub[Count how many of each value, and positions can be computed]
+
+</Slide>
+
+<Slide>
+
+### Counting sort
+::sub[The comparison counter stays at 0 to the end. Press **Step**]
+
+<CountingDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### As a procedure
+::sub[Count, accumulate, place from the back]
+
+```plaintext
+ALGORITHM CountingSort(A, n, k)
+    // 1) count: how many of each value
+    for v <- 0 to k do count[v] <- 0
+    for i <- 0 to n-1 do
+        count[A[i]] <- count[A[i]] + 1
+
+    // 2) accumulate: where each value ends
+    for v <- 1 to k do
+        count[v] <- count[v] + count[v-1]
+
+    // 3) place: read the input from the back
+    for i <- n-1 downto 0 do
+        count[A[i]] <- count[A[i]] - 1
+        B[count[A[i]]] <- A[i]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code
+::sub[`02_counting_sort/` · only for integers between 0 and k]
+
+<div class="aas-split">
+<div>
+
+- `countingSort.c`
+
+```c
+void countingSort(const int a[], int b[],
+                  int n, int count[],
+                  int *moves) {
+    for (int v = 0; v <= MAX_KEY; v++) {
+        count[v] = 0;
+    }
+    for (int i = 0; i < n; i++) {
+        count[a[i]]++;
+    }
+    for (int v = 1; v <= MAX_KEY; v++) {
+        count[v] += count[v - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        count[a[i]]--;
+        b[count[a[i]]] = a[i];
+        (*moves)++;
+    }
+}
+```
+
+</div>
+<div>
+
+- Run result
+
+```console
+before: 1 0 1 5 4 3 1 4 5 2 1
+after : 0 1 1 1 1 2 3 4 4 5 5
+comparisons = 0, moves = 11
+```
+
+**Zero comparisons.**  
+Eleven elements found their places
+in eleven moves.
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### Why from the back
+::sub[Tag equal values with names: a-b-c order survives]
+
+<CountingDemo
+  slide
+  values={[2, 1, 2, 0, 1]}
+  maxKey={2}
+  labels={['a', 'b', 'c', 'd', 'e']}
+/>
+
+</Slide>
+
+<Slide>
+
+#### Why stability holds
+::sub[The accumulated array knows each value's last slot]
+
+- The accumulated count is the **end position** of value $$v$$'s block.
+- Reading from the back, the later of two equal values gets the later slot.
+  - The original order survives. A **stable sort**.
+- Read from the front instead, and the result is sorted but ties flip.
+  - The practice code's **Try changing** section walks through this.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[Not breaking the bound — outside its premise]
+
+- Count $$O(n)$$, accumulate $$O(k)$$, place $$O(n)$$ → total $$O(n + k)$$
+- When $$k$$ is about the size of $$n$$, effectively $$O(n)$$.
+- $$\Omega(n \log n)$$ is the bound for **comparison sorts**.
+  - No comparisons, so the decision-tree argument does not apply.
+
+</Slide>
+
+<Slide>
+
+#### What it gives up
+::sub[Not free]
+
+- **Keys must be integers in a narrow range.**
+  - Reals, strings, unknown ranges are out.
+  - Comparison sorts handle anything comparable.
+- **Space $$O(n + k)$$**
+  - Raise `MAX_KEY` to a million: a million slots for 11 elements.
+
+<br/>
+
+Scores (0\~100), ages, months (1\~12): **dense, narrow integer keys**
+are counting sort's home ground.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Example 2. Counting sort]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-03-divide-conquer/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Flip phase 3 to read from the front.**
+   - Still sorted, but equal values swap order.
+2. **Raise `MAX_KEY` to 1000000.**
+   - A million slots for 11 elements.
+   - That is what the $$k$$ in $$O(n + k)$$ means.
+3. **Put a negative value in.**
+   - Watch where and how it breaks.
+
+</Slide>
+
+<Slide>
+
+### Six sorts side by side
+::sub[What do you give up, and what do you get]
+
+| Sort | Best | Average | Worst | Space | Stability | Kind |
+| --- | --- | --- | --- | --- | --- | --- |
+| Selection | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable | Comparison |
+| Insertion | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable | Comparison |
+| Shell | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable | Comparison |
+| Bubble | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable | Comparison |
+| Merge | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | Stable | Comparison |
+| Counting | $$O(n+k)$$ | $$O(n+k)$$ | $$O(n+k)$$ | $$O(n+k)$$ | Stable | Non-comparison |
+
+<br/>
+
+Merge pays **space** to cross the time wall; counting pays **key
+generality** to abandon comparison.
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **Divide and conquer shrinks the work itself.**
+   - Divide, conquer, combine. Faster even alone.
+2. **Splitting and combining are a seesaw.**
+   - Merge sort gets the split free; quicksort gets the combine free.
+3. **Merge sort: cost n per level, log n levels.**
+   - Best, average, worst agree; stable; pays $$O(n)$$ space.
+4. **The comparison lower bound is $$\Omega(n \log n)$$.**
+   - A decision tree needs $$n!$$ leaves.
+5. **Counting sort stands outside the bound's premise.**
+   - Narrow-range integer keys: $$O(n + k)$$ with zero comparisons.
+
+</Slide>

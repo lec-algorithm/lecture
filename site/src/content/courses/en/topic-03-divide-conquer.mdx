@@ -1,30 +1,452 @@
 ---
 title: "Topic 03. Divide and Conquer, Merge Sort"
-description: "The strategy of splitting a problem, merge sort and counting sort"
+description: "Splitting problems to solve them, merge sort breaking the O(n²) wall, the comparison lower bound, and counting sort"
 date: 2026-08-25
 category: sorting
 order: "9097"
 level: 2
 hours: "4:00"
+slides: ["topic-03-divide-conquer"]
 ---
 
-> Material is in preparation; this page fills in before the topic is taught.
+import MergeDemo from '@components/MergeDemo.astro';
+import CountingDemo from '@components/CountingDemo.astro';
 
-## What it covers
+> Topic 02 ended at a wall: all four sorts are $$O(n^2)$$ in the worst
+> case. This topic climbs over it twice. Once by **splitting the
+> problem**, and once by **not comparing at all**.
 
-- The three steps of divide and conquer: split, solve, combine
-- Karatsuba multiplication: why splitting makes it faster
-- Merge sort and the merge operation
-- Why merge sort is always O(n log n)
-- Counting sort: sorting without comparisons
+## Why does splitting help \{#divide}
 
-## Practice code
+Say you have a thousand dominoes to stand up. Alone it takes a while;
+ten people doing a hundred each finish quickly. Group projects work the
+same way: split the company research, the interviews, and the
+presentation, then combine at the end.
 
-Lands in the `src/topic-03-divide-conquer/` folder of the `algorithm-code` repository.
-Each example pairs one pseudocode file with a C and a Python implementation.
+Nothing surprising so far. **Ten times the people, ten times the
+speed** is the story we already saw in Topic 01's parallel sum.
+
+The surprise of this topic lies elsewhere. **It gets faster even
+alone.** Split the sort in half, sort each half, merge them, and even
+one person doing everything in sequence has **less total work to do**.
+$$O(n^2)$$ becomes $$O(n \log n)$$ not because there are more workers
+but because the work itself shrinks.
+
+### Divide and conquer \{#divide-conquer}
+
+This strategy is called [[divide-and-conquer|divide and conquer]].
+Three steps.
+
+- **Divide**: split the problem into smaller problems of the same shape.
+- **Conquer**: solve the small problems. Solve directly if small
+  enough; otherwise split again.
+- **Combine**: assemble the small answers into the whole answer.
+
+This is not actually our first encounter. Topic 01's binary search was
+divide and conquer: split in half, conquer **only one side**, and there
+was nothing to combine. This time we conquer both sides and must
+combine too.
+
+### How do you split \{#split-ways}
+
+If two people split the job of sorting the numbers 1 to 100, there are
+two ways to divide it.
+
+- **Split by value**: one takes everything up to 50, the other takes 51
+  and up. After each sorts their pile, **just concatenate**. Combining
+  is free, but the split itself must classify all 100 elements by
+  value.
+- **Split by position**: one takes the first 50, the other the last 50.
+  Splitting is free, just cut in half. But now the two sorted piles
+  must be **interleaved together**.
+
+Either way, work remains. If splitting is easy, combining is hard; if
+combining is easy, splitting is hard. Merge sort takes the second road.
+The next topic's quicksort takes the first.
+
+### Aside: multiplication splits too \{#karatsuba}
+
+Divide and conquer is not just for sorting. Karatsuba split
+multiplication.
+
+$$
+1234 \times 5678 = (12 \cdot 100 + 34)(56 \cdot 100 + 78) = a \cdot 10^4 + b \cdot 10^2 + c
+$$
+
+$$
+a = 12 \times 56, \quad b = 12 \times 78 + 34 \times 56, \quad c = 34 \times 78
+$$
+
+Computed directly, that takes **4** two-digit multiplications. But
+$$b$$ can be rewritten:
+
+$$b = (12 + 34)(56 + 78) - a - c$$
+
+Since $$a$$ and $$c$$ are computed anyway, the only new multiplication
+is $$(12+34)(56+78) = 46 \times 134$$ — **one**. Four multiplications
+become three, and applying this recursively turns $$O(n^2)$$ big-number
+multiplication into $$O(n^{\log_2 3}) \approx O(n^{1.585})$$. Checking:
+$$672 \cdot 10^4 + 2840 \cdot 10^2 + 2652 = 7{,}006{,}652$$, exactly
+$$1234 \times 5678$$.
+
+## Example 1. Merge sort \{#merge-sort}
+
+The idea fits in one line: **split in half, sort each half, merge the
+sorted halves.** And the way to sort each half is merge sort again —
+recursion.
+
+### The engine is the merge \{#merge}
+
+Before the recursion, look at the engine: **merging two sorted piles.**
+Compare the front of each pile and take the smaller, over and over.
+
+The top row is the array, the bottom row the temp array. The front half
+and the back half are each sorted.
+
+<MergeDemo mode="merge" />
+
+Merging 10 elements took only 9 comparisons. The fact that both piles
+are **already sorted** is what saves comparisons: you only ever look at
+the front of each pile.
+
+### The full sort \{#merge-sort-demo}
+
+Put that merge on top of recursion and you have the full sort. A single
+element is already sorted, so it is the base of the recursion, and
+merges build upward from there. The `ms(0, 9)` chip names the call you
+are inside.
+
+<MergeDemo mode="sort" />
+
+### As a procedure \{#merge-pseudo}
+
+```plaintext
+ALGORITHM MergeSort(A, lo, hi)
+    if lo >= hi then return          // one element: already sorted
+    mid <- (lo + hi) / 2
+    MergeSort(A, lo, mid)            // left half
+    MergeSort(A, mid+1, hi)          // right half
+    Merge(A, lo, mid, hi)            // merge the sorted halves
+
+ALGORITHM Merge(A, lo, mid, hi)
+    i <- lo, j <- mid+1, k <- lo
+    while i <= mid and j <= hi do
+        if A[i] <= A[j] then
+            T[k] <- A[i]; i++
+        else
+            T[k] <- A[j]; j++
+        k++
+    copy the leftovers to T
+    copy T[lo..hi] back to A[lo..hi]
+```
+
+Like Topic 01's Fibonacci, it is **a definition that calls itself**.
+The difference: the left and right ranges do not overlap, so nothing is
+computed twice.
+
+### As code \{#merge-code}
+
+```c
+static void merge(int a[], int lo, int mid, int hi, int temp[],
+                  int *comparisons, int *moves) {
+    int i = lo;
+    int j = mid + 1;
+    int k = lo;
+    while (i <= mid && j <= hi) {
+        (*comparisons)++;
+        if (a[i] <= a[j]) {   /* <= keeps equal keys stable */
+            temp[k++] = a[i++];
+        } else {
+            temp[k++] = a[j++];
+        }
+        (*moves)++;
+    }
+    while (i <= mid) { temp[k++] = a[i++]; (*moves)++; }
+    while (j <= hi)  { temp[k++] = a[j++]; (*moves)++; }
+    for (k = lo; k <= hi; k++) { a[k] = temp[k]; (*moves)++; }
+}
+
+void mergeSort(int a[], int lo, int hi, int temp[],
+               int *comparisons, int *moves) {
+    if (lo >= hi) {
+        return;
+    }
+    int mid = lo + (hi - lo) / 2;
+    mergeSort(a, lo, mid, temp, comparisons, moves);
+    mergeSort(a, mid + 1, hi, temp, comparisons, moves);
+    merge(a, lo, mid, hi, temp, comparisons, moves);
+}
+```
+
+- Run
+
+```sh
+cd src/topic-03-divide-conquer/01_merge_sort
+make -f /work/Makefile mergeSort.out && ./mergeSort.out
+```
+
+- Result
+
+```console
+before: 2 8 5 9 1 10 7 6 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 22, moves = 68
+```
+
+The demo's counters land on the same numbers.
+
+### Analysis \{#merge-analysis}
+
+One picture shows why it is $$O(n \log n)$$. Group the merges by
+level: **at every level, the elements being merged add up to $$n$$.**
+
+```plaintext
+level 0              [########  n  ########]      cost n
+level 1          [### n/2 ###]  [### n/2 ###]     cost n
+level 2        [ n/4 ] [ n/4 ]  [ n/4 ] [ n/4 ]   cost n
+  ⋮                       ⋮                        ⋮
+level log n    [1] [1] [1]  ⋯   [1] [1] [1]       (base)
+```
+
+Halving gives $$\log_2 n$$ levels, each costing $$n$$, so the total is
+$$O(n \log n)$$. **Best, average, and worst are all the same**, because
+the splitting pattern never depends on the input.
+
+Measured on our array:
+
+| Input | Comparisons | Moves |
+| --- | --- | --- |
+| Sample array | $$22$$ | $$68$$ |
+| Already sorted | $$19$$ | $$68$$ |
+| Reversed | $$15$$ | $$68$$ |
+
+Two things stand out.
+
+- **Moves are always 68.** Every merge round-trips its whole range
+  through temp, so the move count is fixed regardless of input.
+- **Reversed (15) takes fewer comparisons than sorted (19).** In a
+  reversed array one side of each merge runs out early, and the rest
+  pours in without comparisons.
+
+What it gives up is also clear. **Space $$O(n)$$** — the temp array.
+All four sorts of Topic 02 used $$O(1)$$. And thanks to the `<=` in
+`merge`, equal keys come out left-first: it is a **stable sort**.
+
+### Five sorts side by side \{#five-sorts}
+
+All five sorts run on the same array `2 8 5 9 1 10 7 6 4 3`:
+
+| Sort | Comparisons | Moves | Worst |
+| --- | --- | --- | --- |
+| Selection sort | 45 | 21 | $$O(n^2)$$ |
+| Insertion sort | 33 | 43 | $$O(n^2)$$ |
+| Shell sort | 30 | 57 | $$O(n^2)$$ |
+| Bubble sort | 45 | 75 | $$O(n^2)$$ |
+| **Merge sort** | **22** | 68 | $$O(n \log n)$$ |
+
+At $$n = 10$$ the difference looks tame. But as Topic 02 showed, the
+difference appears when $$n$$ grows. At $$n = 10^9$$, $$n^2$$ is
+$$10^{18}$$ while $$n \log n$$ is about $$3 \times 10^{10}$$ — a
+factor of **30 million**. That is why the job that took insertion sort
+317 years takes merge sort 18 minutes.
+
+## Comparison takes you only this far \{#lower-bound}
+
+Can a sort beat merge sort? Remarkably, we can prove that **as long as
+you sort by comparing, no lower order is possible.**
+
+Draw the comparisons an algorithm makes as a tree: one comparison per
+node, one branch per outcome. For $$n = 3$$ there are $$3! = 6$$
+possible sorted orders (permutations), and the algorithm must follow
+the answers down to one of them.
+
+- There must be **at least $$n!$$ leaves.** Miss one permutation and
+  the algorithm is wrong on that input.
+- A binary tree of height $$h$$ has **at most $$2^h$$ leaves.**
+- Therefore $$2^h \geq n!$$, that is, $$h \geq \log_2(n!)$$.
+
+And $$h$$ is the worst-case comparison count. By Stirling's
+approximation $$\log_2(n!) \approx n \log_2 n$$, so **every comparison
+sort must make $$\Omega(n \log n)$$ comparisons in the worst case.**
+Merge sort's order already touches this bound; no comparison sort can
+do better than that order.
+
+In numbers: $$\lceil \log_2 10! \rceil = 22$$. Sorting 10 elements by
+comparison takes at least 22 comparisons in the worst case. Our merge
+sort happened to use exactly 22 on the sample array.
+
+But the proof carries one condition: **"as long as you sort by
+comparing."** What if you could sort without comparing?
+
+## Example 2. Counting sort \{#counting}
+
+If the values are integers between 0 and $$k$$, elements never need to
+be compared. **Count how many of each value there are**, and every
+element's position can be computed.
+
+Watch three rows: input, the counting array, and output. Note that the
+comparison counter stays at 0 to the very end.
+
+<CountingDemo />
+
+### As a procedure \{#counting-pseudo}
+
+```plaintext
+ALGORITHM CountingSort(A, n, k)
+    // 1) count: how many of each value
+    for v <- 0 to k do count[v] <- 0
+    for i <- 0 to n-1 do
+        count[A[i]] <- count[A[i]] + 1
+
+    // 2) accumulate: where each value ends
+    for v <- 1 to k do
+        count[v] <- count[v] + count[v-1]
+
+    // 3) place: read the input from the back
+    for i <- n-1 downto 0 do
+        count[A[i]] <- count[A[i]] - 1
+        B[count[A[i]]] <- A[i]
+```
+
+### As code \{#counting-code}
+
+```c
+void countingSort(const int a[], int b[], int n, int count[], int *moves) {
+    for (int v = 0; v <= MAX_KEY; v++) {
+        count[v] = 0;
+    }
+    for (int i = 0; i < n; i++) {         /* 1) count */
+        count[a[i]]++;
+    }
+    for (int v = 1; v <= MAX_KEY; v++) {  /* 2) accumulate */
+        count[v] += count[v - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {    /* 3) place from the back: stable */
+        count[a[i]]--;
+        b[count[a[i]]] = a[i];
+        (*moves)++;
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-03-divide-conquer/02_counting_sort
+make -f /work/Makefile countingSort.out && ./countingSort.out
+```
+
+- Result
+
+```console
+before: 1 0 1 5 4 3 1 4 5 2 1
+after : 0 1 1 1 1 2 3 4 4 5 5
+comparisons = 0, moves = 11
+```
+
+**Zero comparisons.** Eleven elements found their places in eleven
+moves.
+
+### Why from the back \{#counting-stable}
+
+Phase 3 reads the input from the back for a reason. The accumulated
+array knows "the **last** slot for value $$v$$". Reading from the back,
+the later of two equal values gets the later slot, so the original
+order survives. The sort is **stable**.
+
+Tag equal values with names and it becomes visible.
+
+<CountingDemo
+  values={[2, 1, 2, 0, 1]}
+  maxKey={2}
+  labels={['a', 'b', 'c', 'd', 'e']}
+/>
+
+There are two 2s (a and c) and two 1s (b and e), and in the output a
+still precedes c, and b still precedes e. As the practice code's **Try
+changing** section shows, switch to reading from the front and the
+result is still sorted, but these orders flip.
+
+### Analysis \{#counting-analysis}
+
+Counting is $$O(n)$$, accumulating $$O(k)$$, placing $$O(n)$$ — in
+total $$O(n + k)$$. When $$k$$ is about the size of $$n$$, that is
+effectively $$O(n)$$, faster than the $$\Omega(n \log n)$$ bound. Not
+by breaking the bound but by **moving outside its premise**: with no
+comparisons, the decision-tree argument does not apply.
+
+It is not free. Two things are given up.
+
+- **Keys must be integers in a narrow range.** Reals, strings, and
+  values of unknown range are out. Comparison sorts handle anything
+  comparable.
+- **Space $$O(n + k)$$.** The counting array and the output array. A
+  large $$k$$ makes this a disaster: sort 11 elements whose values
+  range up to a million and you allocate a million slots, almost all
+  idle zeros.
+
+In short: for **dense integer keys in a narrow range** — exam scores
+(0\~100), ages, months (1\~12) — counting sort dominates; elsewhere,
+comparison sorts are the safe choice.
+
+## Six sorts side by side \{#comparison}
+
+| Sort | Best | Average | Worst | Space | Stability | Kind |
+| --- | --- | --- | --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable | Comparison |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable | Comparison |
+| Shell sort | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable | Comparison |
+| Bubble sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable | Comparison |
+| Merge sort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | Stable | Comparison |
+| Counting sort | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | Stable | Non-comparison |
+
+The question we have repeated since Topic 01 sits in this table too.
+Merge sort buys past the time wall by paying space; counting sort
+abandons comparison by paying generality of keys. **What do you give
+up, and what do you get.**
+
+## What to keep \{#takeaway}
+
+- **Divide and conquer**: divide, conquer, combine. Faster not because
+  more people share the work but because **the work itself shrinks**.
+- Easy splitting means hard combining, and vice versa. Merge sort is
+  the free-split side.
+- **Merge sort**: cost $$n$$ per level, $$\log n$$ levels, so
+  $$O(n \log n)$$. Best, average, and worst agree; stable; pays
+  $$O(n)$$ space.
+- **The comparison lower bound**: a decision tree needs $$n!$$ leaves,
+  so every comparison sort is worst-case $$\Omega(n \log n)$$.
+- **Counting sort**: for narrow-range integer keys, $$O(n + k)$$
+  without a single comparison. It does not break the bound; it stands
+  outside the bound's premise.
+- Multiplication splits too: Karatsuba turns 4 multiplications into 3
+  for $$O(n^{1.585})$$.
+
+## Practice code \{#code}
+
+It lives in the
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main)
+repository under `src/topic-03-divide-conquer/`. Each example pairs one
+pseudocode file with C and Python implementations.
 
 ```plaintext
 src/topic-03-divide-conquer/
-├── 01_merge_sort/
-└── 02_counting_sort/
+├── 01_merge_sort/       # merge sort, 22 comparisons 68 moves
+└── 02_counting_sort/    # counting sort, 0 comparisons 11 moves
 ```
+
+Open a file and press the **▶ button** at the top right of the editor
+to run it. See
+[Setting up the practice environment](/article/setup-guide/) for how to
+run things.
+
+**Try it yourself**
+
+- Feed merge sort a sorted array and a reversed one. Comparisons change
+  to 19 and 15, but moves stay at 68.
+- Change the `<=` in `merge` to `<`. The answer is unchanged, but
+  stability breaks.
+- Flip counting sort's phase 3 to read from the front and watch equal
+  values swap order.
+- Raise `MAX_KEY` to 1000000: a million slots for 11 elements. That is
+  what the $$k$$ in $$O(n + k)$$ means.
