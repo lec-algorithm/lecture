@@ -5,7 +5,7 @@ presenter: 李泰奎
 date: "主题 01"
 order: 1
 transition: none
-toc_level: 3
+toc_level: 4
 toc_open: false
 ---
 
@@ -107,7 +107,7 @@ flowchart LR
 
 <Slide>
 
-### 分析回答的五件事
+#### 分析回答的五件事
 
 | 要做的事 | 回答什么 |
 | --- | --- |
@@ -151,7 +151,7 @@ flowchart LR
 
 <Slide>
 
-### 同样的工作，不同的时间
+#### 同样的工作，不同的时间
 
 | | 逐个相加 | 成对相加 |
 | --- | --- | --- |
@@ -169,7 +169,7 @@ flowchart LR
 
 <Slide>
 
-### 就算有很多核心
+#### 就算有很多核心
 ::sub[等待若在算法里面，核心就只能闲着]
 
 - **在八核上跑逐个相加，也只有一个核心在工作。**
@@ -217,7 +217,7 @@ GPU 和 NPU 属于后者。
 
 <Slide>
 
-### 顺序查找是这样走的
+### 顺序查找
 ::sub[从头开始逐个看。请按**单步**]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
@@ -229,7 +229,7 @@ GPU 和 NPU 属于后者。
 
 <Slide class="compact">
 
-### 顺序查找
+#### 写成步骤
 ::sub[从头开始逐个比较]
 
 ```plaintext
@@ -246,7 +246,7 @@ ALGORITHM SequentialSearch(A, n, key)
 
 <Slide class="compact">
 
-### 写成代码
+#### 写成代码
 ::sub[`01_sequential_search/`]
 
 <div class="aas-split">
@@ -291,7 +291,7 @@ def sequential_search(a, key):
 
 <Slide>
 
-### 最好：第一个元素就是要找的值
+#### 最好：第一个元素就是要找的值
 ::sub[`key = 6`]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={6} />
@@ -302,7 +302,7 @@ def sequential_search(a, key):
 
 <Slide>
 
-### 平均：在中间某处
+#### 平均：在中间某处
 ::sub[`key = 53`]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
@@ -314,7 +314,7 @@ def sequential_search(a, key):
 
 <Slide>
 
-### 最坏：最后一个，或者根本不在
+#### 最坏：最后一个，或者根本不在
 ::sub[`key = 101`]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={101} />
@@ -326,7 +326,7 @@ def sequential_search(a, key):
 
 <Slide>
 
-### 比较多少次
+#### 比较多少次
 ::sub[取决于要找的值在哪里]
 
 | | 比较次数 | 时间 | 什么时候 |
@@ -344,7 +344,7 @@ def sequential_search(a, key):
 
 <Slide class="compact">
 
-### 二分查找每次抹掉一半范围
+### 二分查找
 ::sub[看中间，把不必再看的一半丢掉]
 
 <SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
@@ -356,7 +356,7 @@ def sequential_search(a, key):
 
 <Slide class="compact">
 
-### 二分查找
+#### 写成步骤
 ::sub[先看中间。它利用了数组已经有序这个事实]
 
 ```plaintext
@@ -377,7 +377,7 @@ ALGORITHM BinarySearch(A, n, key)
 
 <Slide class="compact">
 
-### 写成代码
+#### 写成代码
 ::sub[`02_binary_search/`]
 
 <div class="aas-split">
@@ -434,10 +434,32 @@ def binary_search(a, key):
 
 </Slide>
 
+<Slide>
+
+#### 最好：中间恰好就是要找的值
+::sub[`key = 53`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**一次**就结束，和顺序查找的最好情况一样。
+
+</Slide>
+
+<Slide>
+
+#### 平均：大约三次
+::sub[`key = 43`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={43} />
+
+**三次**。把十五个位置都量一遍，平均是 $$49/15 \approx 3.3$$。
+
+</Slide>
+
 <Slide class="compact">
 
-### 找到 51 的四次比较
-::sub[把刚才的四步写成数字]
+#### 最坏：一直分到底
+::sub[`key = 51` · 把前面的四步写成数字]
 
 | 比较 | lo | hi | mid | `A[mid]` | 判断 |
 | --- | --- | --- | --- | --- | --- |
@@ -448,6 +470,24 @@ def binary_search(a, key):
 
 **4 次**，对比顺序查找的 7 次。  
 **时间** $$O(\log n)$$ · **空间** $$O(1)$$
+
+</Slide>
+
+<Slide>
+
+#### 比较多少次
+::sub[二分查找按位置不同，介于 1 次和 4 次之间]
+
+| | 比较次数 | 时间 | 什么时候 |
+| --- | --- | --- | --- |
+| 最好 | $$1$$ | $$O(1)$$ | 中间恰好是 `key` |
+| 平均 | 约 $$\log_2 n$$ | $$O(\log n)$$ | 无论在哪里 |
+| 最坏 | $$\lfloor \log_2 n \rfloor + 1$$ | $$O(\log n)$$ | 最深的格子，或根本不在 |
+
+十五个元素时是 1 次 · 约 3.3 次 · 4 次。  
+和顺序查找的 1 次 · 8 次 · 15 次比一比。
+
+**空间**三种情况都是 $$O(1)$$，只有 `lo`、`hi`、`mid` 三个变量。
 
 </Slide>
 
@@ -475,7 +515,7 @@ def binary_search(a, key):
 
 <Slide class="compact">
 
-### 跑一下看看
+#### 跑一下看看
 ::sub[同样的数组，同样的 key]
 
 - 顺序查找
@@ -526,7 +566,7 @@ index = 6, comparisons = 4
 
 <Slide class="compact">
 
-### 可以改的地方
+#### 可以改的地方
 ::sub[`02_binary_search/` · 数组和 key 在这里]
 
 <div class="aas-split">
@@ -580,7 +620,7 @@ Python 用元组把两个一起返回。
 
 <Slide class="compact">
 
-### 现在动手试试
+#### 现在动手试试
 ::sub[例题 1. 两种查找]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/`  
@@ -634,7 +674,7 @@ ALGORITHM FibonacciRecursive(n)
 
 <Slide>
 
-### 栈堆起来又退下去
+#### 栈堆起来又退下去
 ::sub[按单步，看看 $$F(5)$$ 是怎么跑的]
 
 <RecursionDemo slide n={5} />
@@ -643,7 +683,7 @@ ALGORITHM FibonacciRecursive(n)
 
 <Slide class="center">
 
-### 调用 15 次，不同的值只有 6 个
+#### 调用 15 次，不同的值只有 6 个
 
 深度**与 n 成正比**地增长。这就是递归占用 $$O(n)$$ 空间的原因。  
 调用次数**每分叉一次就翻倍**。这就是时间为 $$O(2^n)$$ 的原因。
@@ -677,7 +717,7 @@ ALGORITHM FibonacciIterative(n)
 
 <Slide class="compact">
 
-### 写成代码
+#### 写成代码
 ::sub[`03_fibonacci/fibonacci.c` · 把两个函数并排放]
 
 <div class="aas-split">
@@ -725,7 +765,7 @@ long fibonacciIterative(int n) {
 
 <Slide>
 
-### 差距有多大
+#### 差距有多大
 
 | n | 递归调用次数 | 递归（ms） | 迭代（ms） |
 | --- | --- | --- | --- |
@@ -742,7 +782,7 @@ n 每增加 10，调用次数大约变成 **100 倍**。
 
 <Slide class="compact">
 
-### 一共算了多少项
+#### 一共算了多少项
 ::sub[$$O(2^n)$$ 和 $$O(n)$$ 是结论，依据是项数]
 
 - **迭代算 $$n + 1$$ 项。**
@@ -775,7 +815,7 @@ C(100) = 2 × F(101) - 1
 
 <Slide class="compact">
 
-### 可以改的地方
+#### 可以改的地方
 ::sub[`03_fibonacci/` · 计量的部分在这里]
 
 <div class="aas-split">
@@ -830,7 +870,7 @@ for n in (10, 20, 30, 35):
 
 <Slide class="compact">
 
-### 现在动手试试
+#### 现在动手试试
 ::sub[例题 2. 递归与迭代]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/03_fibonacci/`  

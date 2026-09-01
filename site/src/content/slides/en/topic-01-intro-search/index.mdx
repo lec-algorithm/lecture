@@ -5,7 +5,7 @@ presenter: Taekyu Lee
 date: "Topic 01"
 order: 1
 transition: none
-toc_level: 3
+toc_level: 4
 toc_open: false
 ---
 
@@ -107,7 +107,7 @@ The analysis says it is slow, so you redesign, and analyse again.
 
 <Slide>
 
-### The five things analysis answers
+#### The five things analysis answers
 
 | What it does | What it answers |
 | --- | --- |
@@ -151,7 +151,7 @@ In the end it is about **deciding what to give up**.
 
 <Slide>
 
-### Same work, different time
+#### Same work, different time
 
 | | One at a time | In pairs |
 | --- | --- | --- |
@@ -169,7 +169,7 @@ Adding one at a time needs the previous sum before the next addition.
 
 <Slide>
 
-### Even with many cores
+#### Even with many cores
 ::sub[If the waiting is inside the algorithm, the cores sit idle]
 
 - **Run the sequential sum on eight cores and one core does the work.**
@@ -217,7 +217,7 @@ It sits at index 6.
 
 <Slide>
 
-### What sequential search does
+### Sequential search
 ::sub[One element at a time from the front. Press **step**]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
@@ -229,7 +229,7 @@ It walks from index 0 one cell at a time.
 
 <Slide class="compact">
 
-### Sequential search
+#### Written as a procedure
 ::sub[Compare one element at a time from the front]
 
 ```plaintext
@@ -246,7 +246,7 @@ Indices 0 through 6, one at a time, so **7 comparisons** to find it.
 
 <Slide class="compact">
 
-### In code
+#### In code
 ::sub[`01_sequential_search/`]
 
 <div class="aas-split">
@@ -291,7 +291,7 @@ One extra line counting each comparison, and otherwise the pseudocode as written
 
 <Slide>
 
-### Best: the first element is the key
+#### Best: the first element is the key
 ::sub[`key = 6`]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={6} />
@@ -302,7 +302,7 @@ One extra line counting each comparison, and otherwise the pseudocode as written
 
 <Slide>
 
-### Average: somewhere in the middle
+#### Average: somewhere in the middle
 ::sub[`key = 53`]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
@@ -314,7 +314,7 @@ If the key's position is evenly spread, this is the average.
 
 <Slide>
 
-### Worst: the last element, or absent
+#### Worst: the last element, or absent
 ::sub[`key = 101`]
 
 <SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={101} />
@@ -326,7 +326,7 @@ Searching for a value that is not there costs the same fifteen.
 
 <Slide>
 
-### How many comparisons
+#### How many comparisons
 ::sub[It depends on where the value sits]
 
 | | Comparisons | Time | When |
@@ -345,7 +345,7 @@ a condition.
 
 <Slide class="compact">
 
-### Binary search erases half the range
+### Binary search
 ::sub[Look at the middle, throw away the half you no longer need]
 
 <SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
@@ -357,7 +357,7 @@ The dimmed cells are what that step threw away.
 
 <Slide class="compact">
 
-### Binary search
+#### Written as a procedure
 ::sub[Look at the middle first. It uses the fact that the array is sorted]
 
 ```plaintext
@@ -378,7 +378,7 @@ If the key is larger than the middle, **throw away the whole left half.**
 
 <Slide class="compact">
 
-### In code
+#### In code
 ::sub[`02_binary_search/`]
 
 <div class="aas-split">
@@ -435,10 +435,32 @@ When both values are large, the addition can overflow the type.
 
 </Slide>
 
+<Slide>
+
+#### Best: the middle is the key
+::sub[`key = 53`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**One comparison**, the same as sequential search's best case.
+
+</Slide>
+
+<Slide>
+
+#### Average: about three
+::sub[`key = 43`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={43} />
+
+**Three.** Measuring all fifteen positions gives an average of $$49/15 \approx 3.3$$.
+
+</Slide>
+
 <Slide class="compact">
 
-### Four comparisons to find 51
-::sub[The four steps just seen, written out]
+#### Worst: splitting all the way down
+::sub[`key = 51` · the four steps from earlier, written out]
 
 | Comparison | lo | hi | mid | `A[mid]` | Decision |
 | --- | --- | --- | --- | --- | --- |
@@ -449,6 +471,24 @@ When both values are large, the addition can overflow the type.
 
 **Four**, against sequential search's seven.  
 **Time** $$O(\log n)$$ · **space** $$O(1)$$
+
+</Slide>
+
+<Slide>
+
+#### How many comparisons
+::sub[Binary search costs between 1 and 4, depending on where the key sits]
+
+| | Comparisons | Time | When |
+| --- | --- | --- | --- |
+| Best | $$1$$ | $$O(1)$$ | the middle is the `key` |
+| Average | about $$\log_2 n$$ | $$O(\log n)$$ | wherever it sits |
+| Worst | $$\lfloor \log_2 n \rfloor + 1$$ | $$O(\log n)$$ | the deepest cell, or not there at all |
+
+For fifteen elements: 1 · about 3.3 · 4.  
+Set that against sequential search's 1 · 8 · 15.
+
+**Space** is $$O(1)$$ in all three: just `lo`, `hi` and `mid`.
 
 </Slide>
 
@@ -476,7 +516,7 @@ Sequential search has to **count all fifteen** before answering.
 
 <Slide class="compact">
 
-### Running it
+#### Running it
 ::sub[Same array, same key]
 
 - Sequential search
@@ -527,7 +567,7 @@ It buys speed by putting a condition on its input.
 
 <Slide class="compact">
 
-### Where to change things
+#### Where to change things
 ::sub[`02_binary_search/` · the array and the key live here]
 
 <div class="aas-split">
@@ -582,7 +622,7 @@ Python returns both as a tuple.
 
 <Slide class="compact">
 
-### Try it now
+#### Try it now
 ::sub[Example 1. Two searches]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/`  
@@ -636,7 +676,7 @@ Unfold `F(5)`, though, and the problem shows.
 
 <Slide>
 
-### The stack deepens and drains
+#### The stack deepens and drains
 ::sub[Step through it and watch how $$F(5)$$ runs]
 
 <RecursionDemo slide n={5} />
@@ -645,7 +685,7 @@ Unfold `F(5)`, though, and the problem shows.
 
 <Slide class="center">
 
-### 15 calls, 6 distinct values
+#### 15 calls, 6 distinct values
 
 The depth grows **in proportion to n**. That is why recursion costs $$O(n)$$ space.  
 The call count **doubles at every branch**. That is why the time is $$O(2^n)$$.
@@ -679,7 +719,7 @@ Each term is computed exactly once.
 
 <Slide class="compact">
 
-### In code
+#### In code
 ::sub[`03_fibonacci/fibonacci.c` · the two functions side by side]
 
 <div class="aas-split">
@@ -728,7 +768,7 @@ the cause better than the clock does.
 
 <Slide>
 
-### How far apart they get
+#### How far apart they get
 
 | n | Recursive calls | Recursive (ms) | Iterative (ms) |
 | --- | --- | --- | --- |
@@ -745,7 +785,7 @@ Recursion $$O(2^n)$$ · iteration $$O(n)$$
 
 <Slide class="compact">
 
-### How many terms get computed
+#### How many terms get computed
 ::sub[$$O(2^n)$$ and $$O(n)$$ are conclusions; the term count is the reason]
 
 - **Iteration computes $$n + 1$$ terms.**
@@ -778,7 +818,7 @@ Store the values and recursion is $$O(n)$$ too.
 
 <Slide class="compact">
 
-### Where to change things
+#### Where to change things
 ::sub[`03_fibonacci/` · the measuring loop lives here]
 
 <div class="aas-split">
@@ -834,7 +874,7 @@ never have to wonder whether the faster one is simply wrong.
 
 <Slide class="compact">
 
-### Try it now
+#### Try it now
 ::sub[Example 2. Recursion and iteration]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/03_fibonacci/`  
