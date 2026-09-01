@@ -11,6 +11,7 @@ toc_open: false
 
 import Slide from 'stack-site-builder/components/Slide.astro';
 import QuickDemo from '@components/QuickDemo.astro';
+import ParallelQuickDemo from '@components/ParallelQuickDemo.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Each example goes demo → procedure → code → analysis. The code mirrors
@@ -66,8 +67,9 @@ And to guard that split, **randomness** enters as an ingredient.
 
 <br/>
 
-```plaintext
-seed  ──▶  some function  ──▶  random value
+```mermaid
+graph LR
+  A["seed"] --> B["some function"] --> C["random value"]
 ```
 
 </Slide>
@@ -296,13 +298,32 @@ comparisons = 25, moves = 21
 
 <Slide>
 
+#### Best case: the pivot always in the middle
+::sub[An array built on purpose. The tree comes out perfectly balanced]
+
+<QuickDemo slide mode="sort" values={[5, 1, 3, 4, 2, 8, 7, 6, 9, 10]} />
+
+</Slide>
+
+<Slide>
+
+#### Worst case: sorted input
+::sub[The pivot is the minimum every time. The tree becomes a single lane]
+
+<QuickDemo slide mode="sort" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} />
+
+</Slide>
+
+<Slide>
+
 #### Change the input
-::sub[The trouble is a bad pivot]
+::sub[19 is this size's minimum; 45 is n(n-1)/2]
 
 | Input | Comparisons | Moves |
 | --- | --- | --- |
-| Sample array | $$25$$ | $$21$$ |
-| Already sorted | $$45$$ | $$0$$ |
+| Best-case array | $$19$$ | $$9$$ |
+| Sample array (near average) | $$25$$ | $$21$$ |
+| Already sorted (worst) | $$45$$ | $$0$$ |
 | Reversed | $$45$$ | $$15$$ |
 
 <br/>
@@ -371,6 +392,31 @@ It cuts the array exactly in half.
 - Quicksort pays three comparisons for **a third of the moves** and no temp.
 - The price: the $$O(n^2)$$ risk, and stability.
 - Why libraries favor quicksort variants is written in this table.
+
+</Slide>
+
+<Slide>
+
+#### Partitions can run at the same time too
+::sub[Same-level partitions touch disjoint ranges · merge sort's parallelism, direction flipped]
+
+<ParallelQuickDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Same work, fewer steps
+::sub[And the wall-clock floor sits at the other end]
+
+- Still six partitions; the steps go from **6 to 3**, the tree's depth.
+- Merging built upward: the **final merge** handles the whole array alone.
+- Quicksort splits downward: the **first partition** does.
+
+<br/>
+
+A one-lane tree (sorted input) holds one partition per level,  
+so the **parallel gain drops to zero**. A good pivot creates the room.
 
 </Slide>
 
@@ -570,6 +616,7 @@ Open a file and press the **▶ button** at the top right of the editor.
    - The exact opposite of insertion sort. Good inputs differ by algorithm.
 4. **The antidote is a random pivot.**
    - Expected $$O(n \log n)$$ on any input.
+   - A balanced tree also keeps the room to run in parallel.
 5. **Quickselect digs one side for average $$O(n)$$.**
    - The k-th value, without finishing the sort.
 

@@ -10,6 +10,7 @@ slides: ["topic-04-quick-sort"]
 ---
 
 import QuickDemo from '@components/QuickDemo.astro';
+import ParallelQuickDemo from '@components/ParallelQuickDemo.astro';
 
 > Topic 03 called splitting and combining a seesaw. Merge sort got the
 > split for free and worked in the combine. This topic sits on the other
@@ -176,12 +177,26 @@ in half, and the picture becomes merge sort's: partition costs sum to
 $$n$$ per level, $$\log n$$ levels, so the **average is
 $$O(n \log n)$$.**
 
-The trouble is a bad pivot. Measured on our array:
+Run the three cases yourself. The **best case** first: feed it an array
+built on purpose so the pivot always stands in the middle, and the tree
+comes out perfectly balanced.
+
+<QuickDemo mode="sort" values={[5, 1, 3, 4, 2, 8, 7, 6, 9, 10]} />
+
+It finished in 19 comparisons, exactly the minimum quicksort can
+achieve at $$n = 10$$. The **worst case**, by contrast, is the sorted
+input.
+
+<QuickDemo mode="sort" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} />
+
+The pivot is the minimum every time, the left side stays empty, and the
+tree becomes a single lane. Collected in numbers:
 
 | Input | Comparisons | Moves |
 | --- | --- | --- |
-| Sample array | $$25$$ | $$21$$ |
-| Already sorted | $$45$$ | $$0$$ |
+| Best-case array | $$19$$ | $$9$$ |
+| Sample array (near average) | $$25$$ | $$21$$ |
+| Already sorted (worst) | $$45$$ | $$0$$ |
 | Reversed | $$45$$ | $$15$$ |
 
 **Already-sorted input is the worst case.** The first-element pivot is
@@ -225,6 +240,26 @@ Since the median came up, three terms worth separating: the **mean** is
 the sum divided by the count, the **median** is the middle of the
 lineup, and the **mode** is the most frequent value. The ideal pivot is
 the median, because it cuts the array exactly in half.
+
+### Partitions can run at the same time too \{#parallel-quick}
+
+Merge sort's parallel story holds for quicksort as well. **Same-level
+partitions touch different ranges**, so they can run simultaneously.
+Only the direction flips: merging built upward, quicksort splits
+downward.
+
+<ParallelQuickDemo />
+
+The work stays at six partitions, and a level at a time takes only
+**3 steps**, the depth of the tree. With the direction flipped, the
+wall-clock floor flips too: for merge sort it was the **final merge**;
+for quicksort it is the **first partition** that handles the whole
+array alone.
+
+One more virtue of the random pivot appears here. When the tree becomes
+a single lane, as with sorted input, each level holds just one
+partition and the **parallel gain drops to zero**. A good pivot does
+not just save time — it **creates the room to run in parallel.**
 
 ## Example 2. Quickselect \{#quick-select}
 
@@ -363,7 +398,8 @@ is choosing a trade-off.**
 - **Sorted input is quicksort's worst case**, the exact opposite of
   insertion sort. Good inputs differ by algorithm.
 - The antidote to the worst case is a **random pivot**: expected
-  $$O(n \log n)$$ on any input.
+  $$O(n \log n)$$ on any input, and a balanced tree that leaves
+  **room to run same-level partitions in parallel**.
 - **Quickselect**: the same partition digging one side gives the k-th
   value in average $$O(n)$$, without finishing the sort.
 
@@ -390,6 +426,8 @@ run things.
 
 - Feed quicksort the sorted array `1 2 … 10`. Comparisons jump to 45;
   watch what the worst case looks like.
+- Try the best-case array `5 1 3 4 2 8 7 6 9 10` too: 19 comparisons,
+  the minimum at this size.
 - Change the partition to pick its pivot with `01_random`'s generator.
   The sorted-input trap disappears.
 - Set quickselect's `k` to 1 and 10 and measure: 9 and 20 comparisons,
