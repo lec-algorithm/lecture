@@ -1,0 +1,471 @@
+---
+// 카운팅 정렬을 한 걸음씩 돌려 보는 데모.
+//
+// 세 줄을 보여준다. 입력, 카운팅 배열(누적으로 변한다), 출력이다.
+// 1) 세기: 입력을 훑으며 값마다 개수를 센다.
+// 2) 누적: 왼쪽에서 오른쪽으로 더해 "그 값 이하가 몇 개"로 바꾼다.
+// 3) 배치: 입력을 뒤에서부터 읽어, 누적값을 1 줄인 자리에 놓는다.
+// 뒤에서부터 읽는 이유(안정성)는 labels를 주면 눈에 보인다. 같은 값에
+// 붙은 이름표가 출력에서도 같은 순서로 남는다.
+//
+// 원소끼리 비교하는 일이 한 번도 없으므로 비교 카운터는 0에 머문다.
+// 그것이 이 데모의 요점이다. 이동은 출력에 적은 횟수로, algorithm-code의
+// 구현과 같은 규칙이다.
+//
+// 색은 테마의 --aas-role-* 팔레트(라이트·다크 공통 고정값)를 쓴다.
+// 스크립트는 이 컴포넌트 안에서만 도는 IIFE라 한 페이지에 여러 개 놓아도 된다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 정렬할 배열. 0 이상 maxKey 이하의 정수만 */
+  values?: number[];
+  /** 값의 최댓값 k. 카운팅 배열이 0..k로 만들어진다. */
+  maxKey?: number;
+  /** 값 아래 이름표. 출력까지 따라간다. 안정성 예제용. */
+  labels?: string[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  values = [1, 0, 1, 5, 4, 3, 1, 4, 5, 2, 1],
+  maxKey = 5,
+  labels,
+  slide = false,
+} = Astro.props;
+const id = `cd-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 문구는 로케일별로. 테마가 en·ko만 갖고 있으므로 zh는 여기서 채운다.
+   본문 텍스트가 아니라 스크립트가 찍는 문장까지 포함해야 한다. */
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    title: '카운팅 정렬',
+    inRow: '입력',
+    countRow: 'count',
+    outRow: '출력',
+    compPre: '비교 ',
+    compPost: '회',
+    movePre: '이동 ',
+    movePost: '회',
+    idle: '값을 비교하지 않습니다. 값마다 몇 개 있는지 세서 자리를 계산합니다.',
+    phaseCount: '1) 세기 — 값마다 몇 개 있는지 셉니다.',
+    phaseCum: '2) 누적 — 왼쪽부터 더해 "그 값 이하의 개수"로 바꿉니다.',
+    phasePlace: '3) 배치 — 입력을 뒤에서부터 읽어 제자리에 놓습니다.',
+    countStep: 'A[{i}] = {v} — count[{v}]에 1을 더합니다.',
+    cumStep: 'count[{v}] += count[{p}] — {c}가 됩니다.',
+    placeStep: 'A[{i}] = {v} — count[{v}]를 {c}로 줄이고, 출력 {c}번에 놓습니다. 이동 1회.',
+    done: '정렬 끝 — 비교 0회, 이동 {m}회.',
+  },
+  en: {
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    title: 'Counting sort',
+    inRow: 'input',
+    countRow: 'count',
+    outRow: 'output',
+    compPre: 'comparisons ',
+    compPost: '',
+    movePre: 'moves ',
+    movePost: '',
+    idle: 'No comparisons. Count how many of each value, then compute positions.',
+    phaseCount: '1) Count — how many of each value.',
+    phaseCum: '2) Accumulate — left to right, into "how many are ≤ this value".',
+    phasePlace: '3) Place — read the input from the back, drop each into its slot.',
+    countStep: 'A[{i}] = {v} — add 1 to count[{v}].',
+    cumStep: 'count[{v}] += count[{p}] — becomes {c}.',
+    placeStep: 'A[{i}] = {v} — count[{v}] drops to {c}; place at output {c}. 1 move.',
+    done: 'Sorted — 0 comparisons, {m} moves.',
+  },
+  zh: {
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    title: '计数排序',
+    inRow: '输入',
+    countRow: 'count',
+    outRow: '输出',
+    compPre: '比较 ',
+    compPost: ' 次',
+    movePre: '移动 ',
+    movePost: ' 次',
+    idle: '不比较元素。数出每个值有几个，再算出各自的位置。',
+    phaseCount: '1) 计数 — 每个值出现几次。',
+    phaseCum: '2) 累加 — 从左到右，变成"小于等于该值的个数"。',
+    phasePlace: '3) 放置 — 从后往前读输入，放进对应的位置。',
+    countStep: 'A[{i}] = {v} — count[{v}] 加 1。',
+    cumStep: 'count[{v}] += count[{p}] — 变成 {c}。',
+    placeStep: 'A[{i}] = {v} — count[{v}] 减到 {c}，放进输出第 {c} 格。移动 1 次。',
+    done: '排序完成 — 比较 0 次，移动 {m} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-count-demo', slide && 'is-slide']}
+  id={id}
+  data-values={JSON.stringify(values)}
+  data-max-key={maxKey}
+  data-labels={labels ? JSON.stringify(labels) : undefined}
+  data-strings={JSON.stringify(t)}
+>
+  <div class="cd-bar">
+    <span class="cd-head"><strong>{t.title}</strong></span>
+    <div class="cd-controls">
+      <button type="button" data-act="step" class="cd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="cd-btn cd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="cd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cd-rows">
+    <div class="cd-row">
+      <span class="cd-rowlabel">{t.inRow}</span>
+      <div class="cd-cells" data-input></div>
+    </div>
+    <div class="cd-row">
+      <span class="cd-rowlabel">{t.countRow}</span>
+      <div class="cd-cells" data-count></div>
+    </div>
+    <div class="cd-row">
+      <span class="cd-rowlabel">{t.outRow}</span>
+      <div class="cd-cells" data-output></div>
+    </div>
+  </div>
+
+  <div class="cd-foot">
+    <p class="cd-note" data-note></p>
+    <span class="cd-count">
+      {t.compPre}<strong>0</strong>{t.compPost}
+      · {t.movePre}<strong data-mvs>0</strong>{t.movePost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const values = JSON.parse(root.dataset.values);
+    const maxKey = Number(root.dataset.maxKey);
+    const labels = root.dataset.labels ? JSON.parse(root.dataset.labels) : null;
+    const S = JSON.parse(root.dataset.strings);
+    const n = values.length;
+
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const snap = (a) => a.slice();
+
+    /* 전체 과정을 미리 단계 배열로 만들어 둔다. 원소끼리 비교하는 일이
+       없으므로 비교 카운터는 만들지도 않는다. */
+    function plan() {
+      const steps = [];
+      const count = Array(maxKey + 1).fill(null); /* null = 아직 등장 전 */
+      const out = Array(n).fill(null);
+      let m = 0;
+
+      steps.push({ count: snap(count), out: snap(out), m, note: S.phaseCount, marker: true });
+      for (let i = 0; i < n; i++) {
+        const v = values[i];
+        count[v] = (count[v] ?? 0) + 1;
+        steps.push({
+          count: snap(count), out: snap(out), m,
+          inLook: i, cntLook: v,
+          note: fill(S.countStep, { i, v }),
+        });
+      }
+      for (let v = 0; v <= maxKey; v++) count[v] = count[v] ?? 0;
+
+      steps.push({ count: snap(count), out: snap(out), m, note: S.phaseCum, marker: true });
+      for (let v = 1; v <= maxKey; v++) {
+        count[v] += count[v - 1];
+        steps.push({
+          count: snap(count), out: snap(out), m,
+          cntLook: v, cntPrev: v - 1,
+          note: fill(S.cumStep, { v, p: v - 1, c: count[v] }),
+        });
+      }
+
+      steps.push({ count: snap(count), out: snap(out), m, note: S.phasePlace, marker: true });
+      for (let i = n - 1; i >= 0; i--) {
+        const v = values[i];
+        count[v]--;
+        out[count[v]] = i; /* 출력에는 입력의 인덱스를 담아 이름표를 따라가게 한다 */
+        m++;
+        steps.push({
+          count: snap(count), out: snap(out), m,
+          inLook: i, cntLook: v, outLook: count[v],
+          note: fill(S.placeStep, { i, v, c: count[v] }),
+        });
+      }
+
+      steps.push({ count: snap(count), out: snap(out), m, doneAll: true, note: fill(S.done, { m }) });
+      return steps;
+    }
+
+    const steps = plan();
+
+    /* 칸을 한 번만 만들고 이후에는 클래스와 글자만 바꾼다. */
+    const build = (wrap, texts, subs) =>
+      texts.map((txt, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'cd-cell';
+        cell.innerHTML = `<span class="cd-val">${txt}</span><span class="cd-idx">${subs[i]}</span>`;
+        wrap.appendChild(cell);
+        return cell;
+      });
+    const inputCells = build(
+      root.querySelector('[data-input]'),
+      values.map(String),
+      labels ?? values.map((_, i) => String(i)),
+    );
+    const countCells = build(
+      root.querySelector('[data-count]'),
+      Array(maxKey + 1).fill(''),
+      Array.from({ length: maxKey + 1 }, (_, v) => String(v)),
+    );
+    const outputCells = build(
+      root.querySelector('[data-output]'),
+      Array(n).fill(''),
+      Array(n).fill(''),
+    );
+    const countVals = countCells.map((cell) => cell.querySelector('.cd-val'));
+    const outVals = outputCells.map((cell) => cell.querySelector('.cd-val'));
+    const outSubs = outputCells.map((cell) => cell.querySelector('.cd-idx'));
+    const mvs = root.querySelector('[data-mvs]');
+    const note = root.querySelector('[data-note]');
+
+    /* k번째 단계까지 진행한 모습을 그린다. k = -1이면 시작 상태. */
+    function render(k) {
+      const step = k >= 0 ? steps[Math.min(k, steps.length - 1)] : null;
+      const count = step ? step.count : Array(maxKey + 1).fill(null);
+      const out = step ? step.out : Array(n).fill(null);
+
+      inputCells.forEach((cell, idx) => {
+        cell.className = 'cd-cell';
+        if (step && step.inLook === idx) cell.classList.add('is-look');
+      });
+      countCells.forEach((cell, idx) => {
+        cell.className = 'cd-cell';
+        countVals[idx].textContent = count[idx] === null ? '' : String(count[idx]);
+        if (count[idx] === null) cell.classList.add('is-slot');
+        if (!step) return;
+        if (step.cntLook === idx) cell.classList.add('is-min');
+        if (step.cntPrev === idx) cell.classList.add('is-look');
+      });
+      outputCells.forEach((cell, idx) => {
+        cell.className = 'cd-cell';
+        const src = out[idx];
+        outVals[idx].textContent = src === null ? '' : String(values[src]);
+        outSubs[idx].textContent = src === null ? String(idx) : (labels ? labels[src] : String(idx));
+        if (src === null) cell.classList.add('is-slot');
+        if (step && step.outLook === idx) cell.classList.add('is-swap');
+        if (step && step.doneAll) cell.classList.add('is-done');
+      });
+
+      mvs.textContent = String(step ? step.m : 0);
+      note.textContent = step ? step.note : S.idle;
+    }
+
+    let at = -1;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-act="play"]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    root.querySelector('[data-act="play"]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 600);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<!-- 셀은 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-count-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-count-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(SortDemo와 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-count-demo .cd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-count-demo .cd-head {
+    font-size: 0.95em;
+  }
+  .aas-count-demo .cd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-count-demo .cd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-count-demo .cd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-count-demo .cd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-count-demo .cd-rows {
+    display: grid;
+    gap: 0.5em;
+  }
+  .aas-count-demo .cd-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+  }
+  .aas-count-demo .cd-rowlabel {
+    flex: 0 0 2.6em;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+    text-align: right;
+  }
+  .aas-count-demo .cd-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+  }
+  .aas-count-demo .cd-cell {
+    flex: 0 0 auto;
+    min-width: 2.2em;
+    padding: 0.3em 0.2em;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      opacity 0.18s;
+  }
+  .aas-count-demo .cd-val {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.3;
+    min-height: 1.3em;
+  }
+  .aas-count-demo .cd-idx {
+    display: block;
+    font-size: 0.6em;
+    color: var(--aas-muted);
+    min-height: 1em;
+  }
+
+  /* 지금 읽는 입력 칸은 주황, 건드리는 count 칸은 보라(더해지는 이전
+     칸은 주황), 방금 적힌 출력 칸은 호박색, 끝난 출력은 초록.
+     아직 값이 없는 칸은 점선이다. */
+  .aas-count-demo .cd-cell.is-look {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-count-demo .cd-cell.is-min {
+    border-color: var(--aas-role-tool);
+    background: color-mix(in srgb, var(--aas-role-tool) 20%, transparent);
+  }
+  .aas-count-demo .cd-cell.is-swap {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 26%, transparent);
+    font-weight: 700;
+  }
+  .aas-count-demo .cd-cell.is-done {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, transparent);
+  }
+  .aas-count-demo .cd-cell.is-slot {
+    border-style: dashed;
+    background: transparent;
+  }
+
+  .aas-count-demo .cd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-count-demo .cd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-count-demo .cd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-count-demo .cd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 세 줄이라 MergeDemo와 같은 크기로 잡는다.
+     vh 단위인 이유는 SearchDemo 참고: 슬라이드 폭은 뷰포트 높이가 정한다. */
+  .aas-count-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-count-demo.is-slide .cd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-count-demo .cd-cell {
+      transition: none;
+    }
+  }
+</style>
