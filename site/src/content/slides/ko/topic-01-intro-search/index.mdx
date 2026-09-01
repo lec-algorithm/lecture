@@ -5,7 +5,7 @@ presenter: 이태규
 date: "주제 01"
 order: 1
 transition: none
-toc_level: 3
+toc_level: 4
 toc_open: false
 ---
 
@@ -13,6 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
 import SearchTrace from '@components/SearchTrace.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     예제마다 절차 → 코드 → 실행 → 실습 순서로 갑니다. 코드는 algorithm-code
@@ -106,7 +107,7 @@ flowchart LR
 
 <Slide>
 
-### 분석이 답하는 다섯 가지
+#### 분석이 답하는 다섯 가지
 
 | 하는 일 | 무엇을 답하는가 |
 | --- | --- |
@@ -141,81 +142,47 @@ flowchart LR
 
 <Slide>
 
-### 뺄셈 두 가지
+### 순서를 지켜야 하는 일, 아닌 일
+::sub[열여섯 개를 더합니다. 한 단계에 몇 번 더하는지 보세요]
 
-$$
-\begin{array}{r}
-\text{자리 내림} \\[4pt]
-361 \\
-\underline{-\;192} \\
-169
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{음수 허용} \\[4pt]
-361 \\
-\underline{-\;192} \\
-(2)\,(-3)\,(-1)
-\end{array}
-$$
-
-오른쪽은 아직 답이 아닙니다.  
-음수 자리를 없애려면 오른쪽부터 10을 빌려 올려야 합니다.
-
-$$
-(2)\,(-3)\,(-1) \;\longrightarrow\; (2)\,(-4)\,(9) \;\longrightarrow\; (1)\,(6)\,(9) = 169
-$$
-
-**이 마무리는 순차적입니다.** 오른쪽을 정리해야 왼쪽 값이 정해집니다.  
-즉 **계산은 병렬로, 정리는 순차로** 하는 구조입니다.
+<ParallelSumDemo slide />
 
 </Slide>
 
 <Slide>
 
-### 미룬 것이지 없앤 것이 아닙니다
-::sub[`301 - 192`에서는 정리가 한 칸 더 번집니다]
+#### 같은 일, 다른 시간
 
-$$
-\begin{array}{r}
-\text{자리 내림} \\[4pt]
-301 \\
-\underline{-\;192} \\
-109
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{음수 허용} \\[4pt]
-301 \\
-\underline{-\;192} \\
-(2)\,(-9)\,(-1)
-\end{array}
-$$
-
-$$
-(2)\,(-9)\,(-1) \;\longrightarrow\; (2)\,(-10)\,(9) \;\longrightarrow\; (1)\,(0)\,(9) = 109
-$$
-
-십의 자리가 $$-10$$이 되어 백의 자리를 **다시** 건드립니다.  
-뺄 때 없앴던 의존이 정리 단계에서 되살아납니다.
-
-</Slide>
-
-<Slide>
-
-### 그래서 무엇이 나은가
-
-| | 자리 내림 | 음수 허용 |
+| | 순차로 더하기 | 짝지어 더하기 |
 | --- | --- | --- |
-| 자리별 계산 | 순차적 | **병렬 가능** |
-| 자리 사이 의존 | 있음 | 뺄 때 없음, 정리할 때 있음 |
-| 마무리 | 없음 | 자리올림 전파 |
+| 덧셈 횟수 | 15 | 15 |
+| 단계 수 | 15 | **4** |
+| 한 단계에 필요한 코어 | 1 | 최대 8 |
 
-자리를 동시에 처리할 하드웨어가 있다면 오른쪽,  
-한 번에 하나씩 처리한다면 뒤처리가 없는 왼쪽입니다.
+**일의 양은 같습니다. 줄어든 것은 시간입니다.**  
+그럴 수 있는 이유는 하나입니다. 짝끼리 서로를 기다리지 않기 때문입니다.
 
-둘 다 맞는 답을 냅니다.  
-**어디서 돌릴 것인가**가 고릅니다.
+순차 쪽은 앞의 합이 나와야 다음을 더할 수 있습니다.  
+**무엇이 무엇을 기다리는가**가 병렬로 갈 수 있는지를 정합니다.
+
+</Slide>
+
+<Slide>
+
+#### 코어가 여러 개라도
+::sub[기다림이 알고리즘 안에 있으면 코어는 놀고 있습니다]
+
+- **8코어에서 순차 덧셈을 돌려도 코어 하나만 일합니다.**
+  - 나머지 일곱은 앞의 합이 나오기를 기다립니다.
+  - 코어를 열여섯으로 늘려도 15단계는 그대로입니다.
+- **짝지어 더하기도 끝까지 여덟을 쓰지는 않습니다.**
+  - 8 → 4 → 2 → 1로 줄고, 마지막 한 번은 혼자 합니다.
+  - 순차로 남는 부분이 있으면 거기가 바닥입니다.
+
+<br/>
+
+**그래서 길이 둘로 갈립니다.** 하드웨어에 맞게 알고리즘을 다시 짜거나,  
+알고리즘에 맞게 하드웨어를 만듭니다. GPU와 NPU가 뒤쪽입니다.
 
 </Slide>
 
@@ -248,9 +215,21 @@ $$
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
 ### 순차 검색
+::sub[앞에서부터 하나씩 봅니다. **한 걸음**을 눌러 보세요]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+인덱스 0부터 하나씩 짚어 갑니다.  
+`51`은 인덱스 6에 있으니 일곱 번째에 만납니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 절차로 적으면
 ::sub[앞에서부터 하나씩 비교합니다]
 
 ```plaintext
@@ -267,7 +246,7 @@ ALGORITHM SequentialSearch(A, n, key)
 
 <Slide class="compact">
 
-### 코드로 옮기면
+#### 코드로 옮기면
 ::sub[`01_sequential_search/`]
 
 <div class="aas-split">
@@ -312,26 +291,72 @@ def sequential_search(a, key):
 
 <Slide>
 
-### 몇 번 비교하나
+#### 최선: 첫 원소가 찾는 값일 때
+::sub[`key = 6`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={6} />
+
+**한 번**이면 끝납니다. 배열이 아무리 길어도 마찬가지입니다.
+
+</Slide>
+
+<Slide>
+
+#### 평균: 가운데쯤에 있을 때
+::sub[`key = 53`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**여덟 번**입니다. 열다섯 개에서 $$\dfrac{n+1}{2} = 8$$입니다.  
+찾는 값의 위치가 고루 흩어져 있다면 평균이 여기입니다.
+
+</Slide>
+
+<Slide>
+
+#### 최악: 마지막이거나 아예 없을 때
+::sub[`key = 101`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={101} />
+
+**열다섯 번**, 배열을 다 셉니다.  
+배열에 없는 값을 찾을 때도 똑같이 열다섯 번입니다.
+
+</Slide>
+
+<Slide>
+
+#### 몇 번 비교하나
 ::sub[찾는 값이 어디 있느냐에 달렸습니다]
 
-| | 비교 횟수 | 언제 |
-| --- | --- | --- |
-| 최선 | 1 | 첫 원소가 `key`일 때 |
-| 평균 | $$\dfrac{n+1}{2}$$ | **찾는 값이 배열에 있고** 위치가 고루 분포할 때 |
-| 최악 | n | 마지막 원소이거나 배열에 없을 때 |
+| | 비교 횟수 | 시간 | 언제 |
+| --- | --- | --- | --- |
+| 최선 | $$1$$ | $$O(1)$$ | 첫 원소가 `key`일 때 |
+| 평균 | $$\dfrac{n+1}{2}$$ | $$O(n)$$ | **찾는 값이 배열에 있고** 위치가 고루 분포할 때 |
+| 최악 | $$n$$ | $$O(n)$$ | 마지막 원소이거나 배열에 없을 때 |
 
-없는 값을 찾으면 언제나 n번을 다 셉니다.  
-평균에 조건이 붙는 이유입니다.  
+없는 값을 찾으면 언제나 n번을 다 셉니다. 평균에 조건이 붙는 이유입니다.  
 **성능을 말할 때는 어떤 인스턴스를 전제하는지 함께 말해야 합니다.**
 
-최악 기준 **시간** $$O(n)$$ · **공간** $$O(1)$$
+**공간**은 셋 다 $$O(1)$$입니다. 인덱스 변수 하나뿐입니다.
 
 </Slide>
 
 <Slide class="compact">
 
 ### 이진 검색
+::sub[가운데를 보고, 볼 필요 없어진 절반을 버립니다. **한 걸음**을 눌러 보세요]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+한 번 비교할 때마다 남은 후보가 반으로 줄어듭니다.  
+흐려진 칸이 그 단계에서 버린 범위입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 절차로 적으면
 ::sub[가운데를 먼저 봅니다. 배열이 정렬되어 있다는 사실을 씁니다]
 
 ```plaintext
@@ -352,7 +377,7 @@ ALGORITHM BinarySearch(A, n, key)
 
 <Slide class="compact">
 
-### 코드로 옮기면
+#### 코드로 옮기면
 ::sub[`02_binary_search/`]
 
 <div class="aas-split">
@@ -409,10 +434,32 @@ def binary_search(a, key):
 
 </Slide>
 
+<Slide>
+
+#### 최선: 가운데가 바로 찾는 값일 때
+::sub[`key = 53`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**한 번**이면 끝납니다. 순차 검색의 최선과 같습니다.
+
+</Slide>
+
+<Slide>
+
+#### 평균: 대개 세 번쯤
+::sub[`key = 43`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={43} />
+
+**세 번**입니다. 열다섯 자리를 하나씩 다 재어 보면 평균은 $$49/15 \approx 3.3$$입니다.
+
+</Slide>
+
 <Slide class="compact">
 
-### 51을 찾는 네 번
-::sub[비교할 때마다 남은 범위가 절반이 됩니다]
+#### 최악: 끝까지 갈라야 할 때
+::sub[`key = 51` · 네 단계를 한눈에 펼치면]
 
 <SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
 
@@ -425,6 +472,24 @@ def binary_search(a, key):
 
 순차 검색의 7번에 견주어 **4번**입니다.  
 **시간** $$O(\log n)$$ · **공간** $$O(1)$$
+
+</Slide>
+
+<Slide>
+
+#### 몇 번 비교하나
+::sub[이진 검색은 자리에 따라 1회에서 4회 사이입니다]
+
+| | 비교 횟수 | 시간 | 언제 |
+| --- | --- | --- | --- |
+| 최선 | $$1$$ | $$O(1)$$ | 가운데가 바로 `key`일 때 |
+| 평균 | 약 $$\log_2 n$$ | $$O(\log n)$$ | 어디에 있든 |
+| 최악 | $$\lfloor \log_2 n \rfloor + 1$$ | $$O(\log n)$$ | 가장 깊은 칸이거나 배열에 없을 때 |
+
+열다섯 개면 1회 · 약 3.3회 · 4회입니다.  
+순차 검색의 1회 · 8회 · 15회와 견주어 보세요.
+
+**공간**은 셋 다 $$O(1)$$입니다. `lo`·`hi`·`mid` 세 변수뿐입니다.
 
 </Slide>
 
@@ -452,7 +517,7 @@ def binary_search(a, key):
 
 <Slide class="compact">
 
-### 돌려 봅니다
+#### 돌려 봅니다
 ::sub[같은 배열, 같은 key]
 
 - 순차 검색
@@ -503,7 +568,7 @@ $$O(n)$$과 $$O(\log n)$$의 차이입니다.
 
 <Slide class="compact">
 
-### 바꿔 볼 자리
+#### 바꿔 볼 자리
 ::sub[`02_binary_search/` · 배열과 key가 여기 있습니다]
 
 <div class="aas-split">
@@ -558,7 +623,7 @@ Python은 튜플로 둘을 함께 돌려줍니다.
 
 <Slide class="compact">
 
-### 지금 해 볼 것
+#### 지금 해 볼 것
 ::sub[예제 1. 두 가지 검색]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/`  
@@ -612,7 +677,7 @@ ALGORITHM FibonacciRecursive(n)
 
 <Slide>
 
-### 스택이 쌓였다 빠집니다
+#### 스택이 쌓였다 빠집니다
 ::sub[한 걸음씩 눌러 $$F(5)$$가 어떻게 도는지 보세요]
 
 <RecursionDemo slide n={5} />
@@ -621,7 +686,7 @@ ALGORITHM FibonacciRecursive(n)
 
 <Slide class="center">
 
-### 호출 15번, 서로 다른 값 6개
+#### 호출 15번, 서로 다른 값 6개
 
 깊이는 **n에 비례**해서 자랍니다. 재귀의 공간이 $$O(n)$$인 이유입니다.  
 호출 수는 **가지가 갈라질 때마다 두 배**가 됩니다. 시간이 $$O(2^n)$$인 이유입니다.
@@ -655,7 +720,7 @@ ALGORITHM FibonacciIterative(n)
 
 <Slide class="compact">
 
-### 코드로 옮기면
+#### 코드로 옮기면
 ::sub[`03_fibonacci/fibonacci.c` · 두 함수를 나란히 둡니다]
 
 <div class="aas-split">
@@ -704,16 +769,17 @@ long fibonacciIterative(int n) {
 
 <Slide>
 
-### 얼마나 벌어지나
+#### 얼마나 벌어지나
 
 | n | 재귀 호출 수 | 재귀(ms) | 반복(ms) |
 | --- | --- | --- | --- |
-| 10 | 177 | 0.00 | 0.0000 |
-| 20 | 21,891 | 0.01 | 0.0000 |
-| 30 | 2,692,537 | 0.82 | 0.0000 |
-| 40 | **331,160,281** | 120.58 | 0.0000 |
+| 10 | 177 | 0.00 | 0.0010 |
+| 20 | 21,891 | 0.03 | 0.0010 |
+| 30 | 2,692,537 | 5.59 | 0.0020 |
+| 40 | **331,160,281** | 363.86 | 0.0010 |
 
-n이 10 늘 때마다 호출 수가 **약 100배**가 됩니다.  
+n이 10 늘 때마다 호출 수가 **약 100배**, 재귀 시간도 그만큼 늘어납니다.  
+반복은 n이 네 배가 되는 동안 0.001ms 언저리에 머뭅니다.  
 호출 수는 어디서 돌려도 같고, **밀리초는 기계마다 다릅니다.**  
 재귀 $$O(2^n)$$ · 반복 $$O(n)$$
 
@@ -721,7 +787,7 @@ n이 10 늘 때마다 호출 수가 **약 100배**가 됩니다.
 
 <Slide class="compact">
 
-### 몇 개의 항을 계산하는가
+#### 몇 개의 항을 계산하는가
 ::sub[$$O(2^n)$$과 $$O(n)$$은 결론이고, 근거는 항의 개수입니다]
 
 - **반복은 $$n + 1$$개**를 계산합니다.
@@ -754,7 +820,7 @@ C(100) = 2 × F(101) - 1
 
 <Slide class="compact">
 
-### 바꿔 볼 자리
+#### 바꿔 볼 자리
 ::sub[`03_fibonacci/` · 재는 쪽이 여기 있습니다]
 
 <div class="aas-split">
@@ -810,7 +876,7 @@ for n in (10, 20, 30, 35):
 
 <Slide class="compact">
 
-### 지금 해 볼 것
+#### 지금 해 볼 것
 ::sub[예제 2. 재귀와 반복]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/03_fibonacci/`  

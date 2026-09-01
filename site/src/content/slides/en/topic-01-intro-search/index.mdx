@@ -5,7 +5,7 @@ presenter: Taekyu Lee
 date: "Topic 01"
 order: 1
 transition: none
-toc_level: 3
+toc_level: 4
 toc_open: false
 ---
 
@@ -13,6 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
 import SearchTrace from '@components/SearchTrace.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 {/* Follows the slide rules in docs/writing-rules.md.
     Each example goes procedure → code → run → practice. The code is copied
@@ -106,7 +107,7 @@ The analysis says it is slow, so you redesign, and analyse again.
 
 <Slide>
 
-### The five things analysis answers
+#### The five things analysis answers
 
 | What it does | What it answers |
 | --- | --- |
@@ -141,81 +142,47 @@ In the end it is about **deciding what to give up**.
 
 <Slide>
 
-### Two ways to subtract
+### Work that must wait, and work that need not
+::sub[Adding sixteen numbers. Watch how many additions happen per step]
 
-$$
-\begin{array}{r}
-\text{borrowing} \\[4pt]
-361 \\
-\underline{-\;192} \\
-169
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{negative digits} \\[4pt]
-361 \\
-\underline{-\;192} \\
-(2)\,(-3)\,(-1)
-\end{array}
-$$
-
-The right one is not the answer yet.  
-To clear the negative digits, carry a 10 leftwards starting from the right.
-
-$$
-(2)\,(-3)\,(-1) \;\longrightarrow\; (2)\,(-4)\,(9) \;\longrightarrow\; (1)\,(6)\,(9) = 169
-$$
-
-**This tidying is sequential.** The left digit settles only after the right one.  
-So the shape is **compute in parallel, tidy up in sequence**.
+<ParallelSumDemo slide />
 
 </Slide>
 
 <Slide>
 
-### Deferred, not removed
-::sub[In `301 - 192` the tidying spreads one place further]
+#### Same work, different time
 
-$$
-\begin{array}{r}
-\text{borrowing} \\[4pt]
-301 \\
-\underline{-\;192} \\
-109
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{negative digits} \\[4pt]
-301 \\
-\underline{-\;192} \\
-(2)\,(-9)\,(-1)
-\end{array}
-$$
-
-$$
-(2)\,(-9)\,(-1) \;\longrightarrow\; (2)\,(-10)\,(9) \;\longrightarrow\; (1)\,(0)\,(9) = 109
-$$
-
-The tens digit becomes $$-10$$ and reaches into the hundreds **again**.  
-The dependency the subtraction removed returns during the tidying.
-
-</Slide>
-
-<Slide>
-
-### So which is better
-
-| | Borrowing | Negative digits |
+| | One at a time | In pairs |
 | --- | --- | --- |
-| Per-column work | sequential | **can be parallel** |
-| Dependency between columns | yes | none while subtracting, yes while tidying |
-| Finishing | none | carry propagation |
+| Additions | 15 | 15 |
+| Steps | 15 | **4** |
+| Cores needed per step | 1 | up to 8 |
 
-With hardware that handles the columns at once, the right one wins.  
-Handling one column at a time, the left one wins: no cleanup pass.
+**The amount of work is the same. What shrank is the time.**  
+There is one reason it could: no pair waits on another.
 
-Both give the right answer.  
-**Where you are going to run it** decides.
+Adding one at a time needs the previous sum before the next addition.  
+**What waits on what** is what decides whether parallelism is possible.
+
+</Slide>
+
+<Slide>
+
+#### Even with many cores
+::sub[If the waiting is inside the algorithm, the cores sit idle]
+
+- **Run the sequential sum on eight cores and one core does the work.**
+  - The other seven wait for the previous sum.
+  - Go to sixteen cores and it is still 15 steps.
+- **Adding in pairs does not use all eight the whole way either.**
+  - It falls 8 → 4 → 2 → 1, and the last addition is done alone.
+  - Whatever stays sequential is the floor.
+
+<br/>
+
+**So the road forks.** Reshape the algorithm to fit the hardware, or build
+hardware to fit the algorithm. GPUs and NPUs are the second.
 
 </Slide>
 
@@ -248,9 +215,21 @@ It sits at index 6.
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
 ### Sequential search
+::sub[One element at a time from the front. Press **step**]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+It walks from index 0 one cell at a time.  
+`51` sits at index 6, so it turns up on the seventh look.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Written as a procedure
 ::sub[Compare one element at a time from the front]
 
 ```plaintext
@@ -267,7 +246,7 @@ Indices 0 through 6, one at a time, so **7 comparisons** to find it.
 
 <Slide class="compact">
 
-### In code
+#### In code
 ::sub[`01_sequential_search/`]
 
 <div class="aas-split">
@@ -312,26 +291,73 @@ One extra line counting each comparison, and otherwise the pseudocode as written
 
 <Slide>
 
-### How many comparisons
+#### Best: the first element is the key
+::sub[`key = 6`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={6} />
+
+**One comparison** and it is done, however long the array gets.
+
+</Slide>
+
+<Slide>
+
+#### Average: somewhere in the middle
+::sub[`key = 53`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**Eight.** For fifteen elements $$\dfrac{n+1}{2} = 8$$.  
+If the key's position is evenly spread, this is the average.
+
+</Slide>
+
+<Slide>
+
+#### Worst: the last element, or absent
+::sub[`key = 101`]
+
+<SearchDemo slide mode="sequential" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={101} />
+
+**Fifteen** — the whole array.  
+Searching for a value that is not there costs the same fifteen.
+
+</Slide>
+
+<Slide>
+
+#### How many comparisons
 ::sub[It depends on where the value sits]
 
-| | Comparisons | When |
-| --- | --- | --- |
-| Best | 1 | the first element is `key` |
-| Average | $$\dfrac{n+1}{2}$$ | **the value is in the array** and evenly distributed |
-| Worst | n | it is the last element, or not there at all |
+| | Comparisons | Time | When |
+| --- | --- | --- | --- |
+| Best | $$1$$ | $$O(1)$$ | the first element is `key` |
+| Average | $$\dfrac{n+1}{2}$$ | $$O(n)$$ | **the value is in the array** and evenly distributed |
+| Worst | $$n$$ | $$O(n)$$ | it is the last element, or not there at all |
 
-Looking for a value that is not there always costs all n.  
-That is why the average carries a condition.  
+A value that is not there always costs all n, which is why the average carries
+a condition.  
 **When you state a performance, state which instances you assume.**
 
-Worst case: **time** $$O(n)$$ · **space** $$O(1)$$
+**Space** is $$O(1)$$ in all three: one index variable.
 
 </Slide>
 
 <Slide class="compact">
 
 ### Binary search
+::sub[Look at the middle, throw away the half you no longer need. Press **step**]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
+
+Every comparison halves the candidates that are left.  
+The dimmed cells are what that step threw away.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Written as a procedure
 ::sub[Look at the middle first. It uses the fact that the array is sorted]
 
 ```plaintext
@@ -352,7 +378,7 @@ If the key is larger than the middle, **throw away the whole left half.**
 
 <Slide class="compact">
 
-### In code
+#### In code
 ::sub[`02_binary_search/`]
 
 <div class="aas-split">
@@ -409,10 +435,32 @@ When both values are large, the addition can overflow the type.
 
 </Slide>
 
+<Slide>
+
+#### Best: the middle is the key
+::sub[`key = 53`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={53} />
+
+**One comparison**, the same as sequential search's best case.
+
+</Slide>
+
+<Slide>
+
+#### Average: about three
+::sub[`key = 43`]
+
+<SearchDemo slide mode="binary" values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={43} />
+
+**Three.** Measuring all fifteen positions gives an average of $$49/15 \approx 3.3$$.
+
+</Slide>
+
 <Slide class="compact">
 
-### Four comparisons to find 51
-::sub[Every comparison halves the range that is left]
+#### Worst: splitting all the way down
+::sub[`key = 51` · the four steps laid out at once]
 
 <SearchTrace slide values={[6, 13, 14, 25, 33, 43, 51, 53, 64, 72, 84, 93, 95, 96, 101]} target={51} />
 
@@ -425,6 +473,24 @@ When both values are large, the addition can overflow the type.
 
 **Four**, against sequential search's seven.  
 **Time** $$O(\log n)$$ · **space** $$O(1)$$
+
+</Slide>
+
+<Slide>
+
+#### How many comparisons
+::sub[Binary search costs between 1 and 4, depending on where the key sits]
+
+| | Comparisons | Time | When |
+| --- | --- | --- | --- |
+| Best | $$1$$ | $$O(1)$$ | the middle is the `key` |
+| Average | about $$\log_2 n$$ | $$O(\log n)$$ | wherever it sits |
+| Worst | $$\lfloor \log_2 n \rfloor + 1$$ | $$O(\log n)$$ | the deepest cell, or not there at all |
+
+For fifteen elements: 1 · about 3.3 · 4.  
+Set that against sequential search's 1 · 8 · 15.
+
+**Space** is $$O(1)$$ in all three: just `lo`, `hi` and `mid`.
 
 </Slide>
 
@@ -452,7 +518,7 @@ Sequential search has to **count all fifteen** before answering.
 
 <Slide class="compact">
 
-### Running it
+#### Running it
 ::sub[Same array, same key]
 
 - Sequential search
@@ -503,7 +569,7 @@ It buys speed by putting a condition on its input.
 
 <Slide class="compact">
 
-### Where to change things
+#### Where to change things
 ::sub[`02_binary_search/` · the array and the key live here]
 
 <div class="aas-split">
@@ -558,7 +624,7 @@ Python returns both as a tuple.
 
 <Slide class="compact">
 
-### Try it now
+#### Try it now
 ::sub[Example 1. Two searches]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/`  
@@ -612,7 +678,7 @@ Unfold `F(5)`, though, and the problem shows.
 
 <Slide>
 
-### The stack deepens and drains
+#### The stack deepens and drains
 ::sub[Step through it and watch how $$F(5)$$ runs]
 
 <RecursionDemo slide n={5} />
@@ -621,7 +687,7 @@ Unfold `F(5)`, though, and the problem shows.
 
 <Slide class="center">
 
-### 15 calls, 6 distinct values
+#### 15 calls, 6 distinct values
 
 The depth grows **in proportion to n**. That is why recursion costs $$O(n)$$ space.  
 The call count **doubles at every branch**. That is why the time is $$O(2^n)$$.
@@ -655,7 +721,7 @@ Each term is computed exactly once.
 
 <Slide class="compact">
 
-### In code
+#### In code
 ::sub[`03_fibonacci/fibonacci.c` · the two functions side by side]
 
 <div class="aas-split">
@@ -704,16 +770,17 @@ the cause better than the clock does.
 
 <Slide>
 
-### How far apart they get
+#### How far apart they get
 
 | n | Recursive calls | Recursive (ms) | Iterative (ms) |
 | --- | --- | --- | --- |
-| 10 | 177 | 0.00 | 0.0000 |
-| 20 | 21,891 | 0.01 | 0.0000 |
-| 30 | 2,692,537 | 0.82 | 0.0000 |
-| 40 | **331,160,281** | 120.58 | 0.0000 |
+| 10 | 177 | 0.00 | 0.0010 |
+| 20 | 21,891 | 0.03 | 0.0010 |
+| 30 | 2,692,537 | 5.59 | 0.0020 |
+| 40 | **331,160,281** | 363.86 | 0.0010 |
 
-Every ten steps of n multiply the call count by **roughly 100**.  
+Ten more in n multiplies the calls by **roughly 100**, and the time with it.  
+Iteration stays around 0.001 ms while n quadruples.  
 The call count is the same everywhere; **the milliseconds are not.**  
 Recursion $$O(2^n)$$ · iteration $$O(n)$$
 
@@ -721,7 +788,7 @@ Recursion $$O(2^n)$$ · iteration $$O(n)$$
 
 <Slide class="compact">
 
-### How many terms get computed
+#### How many terms get computed
 ::sub[$$O(2^n)$$ and $$O(n)$$ are conclusions; the term count is the reason]
 
 - **Iteration computes $$n + 1$$ terms.**
@@ -754,7 +821,7 @@ Store the values and recursion is $$O(n)$$ too.
 
 <Slide class="compact">
 
-### Where to change things
+#### Where to change things
 ::sub[`03_fibonacci/` · the measuring loop lives here]
 
 <div class="aas-split">
@@ -810,7 +877,7 @@ never have to wonder whether the faster one is simply wrong.
 
 <Slide class="compact">
 
-### Try it now
+#### Try it now
 ::sub[Example 2. Recursion and iteration]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-01-intro-search/03_fibonacci/`  
