@@ -1,0 +1,644 @@
+---
+// 기본 정렬 네 가지(선택·삽입·셸·버블)를 한 걸음씩 돌려 보는 데모.
+//
+// 정렬은 "비교 45회, 이동 15회" 같은 숫자만으로는 차이가 와닿지 않는다.
+// 선택 정렬이 스캔만 하다가 한 번 교환하는 것과, 버블 정렬이 이웃을
+// 계속 뒤집는 것을 직접 보면 같은 비교 횟수가 왜 다른 이동 횟수가
+// 되는지 눈에 들어온다.
+//
+// 비교·이동을 세는 규칙은 algorithm-code의 구현과 같다. 교환 1번 = 이동
+// 3회(temp 경유), 삽입의 key 꺼내기·밀기·넣기 = 각 1회. 데모의 카운터가
+// 코드 실행 결과와 같은 숫자에 도착하는 것이 이 데모의 요점이다.
+//
+// labels를 주면 인덱스 대신 이름표가 붙는다. 같은 키(160cm)를 가진 원소의
+// 순서가 유지되는지(안정성)를 보여줄 때 쓴다.
+//
+// 색은 테마의 --aas-role-* 팔레트(라이트·다크 공통 고정값)를 쓴다.
+// 스크립트는 이 컴포넌트 안에서만 도는 IIFE라 한 페이지에 여러 개 놓아도 된다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 어떤 정렬을 보여줄지 */
+  algo: 'selection' | 'insertion' | 'shell' | 'bubble';
+  /** 정렬할 배열. 기본은 원본 덱의 예제 배열이다. */
+  values?: number[];
+  /** 값 아래 이름표. 인덱스 대신 표시된다. 안정성 예제용. */
+  labels?: string[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  algo,
+  values = [6, 8, 5, 9, 10, 1, 7, 2, 4, 3],
+  labels,
+  slide = false,
+} = Astro.props;
+const id = `sod-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 문구는 로케일별로. 테마가 en·ko만 갖고 있으므로 zh는 여기서 채운다.
+   본문 텍스트가 아니라 스크립트가 찍는 문장까지 포함해야 한다. */
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    selection: '선택 정렬',
+    insertion: '삽입 정렬',
+    shell: '셸 정렬',
+    bubble: '버블 정렬',
+    compPre: '비교 ',
+    compPost: '회',
+    movePre: '이동 ',
+    movePost: '회',
+    keyChip: 'key',
+    selIdle: '남은 것 중 최솟값을 찾아 앞으로 보냅니다.',
+    insIdle: '정렬된 앞부분에 새 원소를 끼워 넣습니다.',
+    shellIdle: '멀리 떨어진 원소끼리 먼저 정렬하고, gap을 줄여 갑니다.',
+    bubIdle: '이웃끼리 비교해서 큰 것을 뒤로 보냅니다.',
+    selBetter: 'A[{j}] = {v} — 새 최솟값 후보입니다.',
+    selKeep: 'A[{j}] = {v} — 최솟값 {m} 그대로입니다.',
+    selSwap: 'A[{i}] ← {v} — 교환, 이동 3회.',
+    selNoSwap: 'A[{i}] = {v} — 이미 최솟값이라 그대로 둡니다.',
+    pick: 'key ← A[{i}] = {k} — 꺼내기, 이동 1회.',
+    shift: 'A[{j}] = {v} > {k} — 한 칸 밀기, 이동 1회.',
+    shiftG: 'A[{j}] = {v} > {k} — {g}칸 밀기, 이동 1회.',
+    stopAt: 'A[{j}] = {v} ≤ {k} — 여기서 멈춥니다.',
+    place: 'A[{p}] ← {k} — 넣기, 이동 1회.',
+    gapStart: 'gap = {g} — {g}칸 떨어진 원소끼리 삽입 정렬합니다.',
+    bubSwap: '{v} > {w} — 교환, 이동 3회.',
+    bubKeep: '{v} ≤ {w} — 그대로 둡니다.',
+    bubFixed: '회전 끝 — A[{p}] = {v} 확정.',
+    done: '정렬 끝 — 비교 {c}회, 이동 {m}회.',
+  },
+  en: {
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    selection: 'Selection sort',
+    insertion: 'Insertion sort',
+    shell: 'Shell sort',
+    bubble: 'Bubble sort',
+    compPre: 'comparisons ',
+    compPost: '',
+    movePre: 'moves ',
+    movePost: '',
+    keyChip: 'key',
+    selIdle: 'Find the minimum of the rest and bring it to the front.',
+    insIdle: 'Insert each new element into the sorted front.',
+    shellIdle: 'Sort far-apart elements first, then shrink the gap.',
+    bubIdle: 'Compare neighbors and push the bigger one back.',
+    selBetter: 'A[{j}] = {v} — new minimum candidate.',
+    selKeep: 'A[{j}] = {v} — minimum stays {m}.',
+    selSwap: 'A[{i}] ← {v} — swap, 3 moves.',
+    selNoSwap: 'A[{i}] = {v} — already the minimum, leave it.',
+    pick: 'key ← A[{i}] = {k} — take out, 1 move.',
+    shift: 'A[{j}] = {v} > {k} — shift one slot, 1 move.',
+    shiftG: 'A[{j}] = {v} > {k} — shift {g} slots, 1 move.',
+    stopAt: 'A[{j}] = {v} ≤ {k} — stop here.',
+    place: 'A[{p}] ← {k} — put in, 1 move.',
+    gapStart: 'gap = {g} — insertion sort among elements {g} apart.',
+    bubSwap: '{v} > {w} — swap, 3 moves.',
+    bubKeep: '{v} ≤ {w} — leave them.',
+    bubFixed: 'Pass done — A[{p}] = {v} is final.',
+    done: 'Sorted — {c} comparisons, {m} moves.',
+  },
+  zh: {
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    selection: '选择排序',
+    insertion: '插入排序',
+    shell: '希尔排序',
+    bubble: '冒泡排序',
+    compPre: '比较 ',
+    compPost: ' 次',
+    movePre: '移动 ',
+    movePost: ' 次',
+    keyChip: 'key',
+    selIdle: '在剩下的元素里找最小值，放到前面。',
+    insIdle: '把新元素插入已排序的前段。',
+    shellIdle: '先让相距很远的元素排好，再缩小 gap。',
+    bubIdle: '比较相邻元素，把大的往后送。',
+    selBetter: 'A[{j}] = {v} — 新的最小值候选。',
+    selKeep: 'A[{j}] = {v} — 最小值仍是 {m}。',
+    selSwap: 'A[{i}] ← {v} — 交换，移动 3 次。',
+    selNoSwap: 'A[{i}] = {v} — 已经是最小值，不动。',
+    pick: 'key ← A[{i}] = {k} — 取出，移动 1 次。',
+    shift: 'A[{j}] = {v} > {k} — 后移一格，移动 1 次。',
+    shiftG: 'A[{j}] = {v} > {k} — 后移 {g} 格，移动 1 次。',
+    stopAt: 'A[{j}] = {v} ≤ {k} — 在这里停下。',
+    place: 'A[{p}] ← {k} — 放入，移动 1 次。',
+    gapStart: 'gap = {g} — 相距 {g} 的元素之间做插入排序。',
+    bubSwap: '{v} > {w} — 交换，移动 3 次。',
+    bubKeep: '{v} ≤ {w} — 不动。',
+    bubFixed: '一轮结束 — A[{p}] = {v} 就位。',
+    done: '排序完成 — 比较 {c} 次，移动 {m} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-sort-demo', slide && 'is-slide']}
+  id={id}
+  data-values={JSON.stringify(values)}
+  data-labels={labels ? JSON.stringify(labels) : undefined}
+  data-sort-algo={algo}
+  data-strings={JSON.stringify(t)}
+>
+  <div class="sod-bar">
+    <span class="sod-head">
+      <strong>{t[algo]}</strong>
+      <span class="sod-keychip is-off" data-keychip>
+        {t.keyChip} = <strong data-keyval></strong>
+      </span>
+      {algo === 'shell' && (
+        <span class="sod-gapchip is-off" data-gapchip>
+          gap = <strong data-gapval></strong>
+        </span>
+      )}
+    </span>
+    <div class="sod-controls">
+      <button type="button" data-act="step" class="sod-btn">{t.step}</button>
+      <button type="button" data-act="play" class="sod-btn sod-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="sod-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sod-cells" data-cells></div>
+
+  <div class="sod-foot">
+    <p class="sod-note" data-note></p>
+    <span class="sod-count">
+      {t.compPre}<strong data-comp>0</strong>{t.compPost}
+      · {t.movePre}<strong data-mvs>0</strong>{t.movePost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const values = JSON.parse(root.dataset.values);
+    const labels = root.dataset.labels ? JSON.parse(root.dataset.labels) : null;
+    const algo = root.dataset.sortAlgo;
+    const S = JSON.parse(root.dataset.strings);
+    const n = values.length;
+
+    /* 원소는 (값, 이름표) 쌍이다. 이름표는 값을 따라 움직인다. 같은 값이
+       두 개일 때(안정성 예제) 어느 것이 앞에 있는지는 이름표만 말해 준다. */
+    const items = values.map((v, i) => ({ v, l: labels ? labels[i] : null }));
+
+    /* "A[{j}] = {v}" 같은 자리표시자를 채운다. */
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const snap = (a) => a.slice();
+    const range = (k) => Array.from({ length: k }, (_, x) => x);
+
+    /* 전체 과정을 미리 단계 배열로 만들어 둔다. 각 단계는 그 시점의 배열
+       스냅샷과 누적 비교·이동 횟수를 갖는다. 재생은 그리기만 하면 된다.
+       숫자를 세는 규칙은 algorithm-code의 구현과 같다. */
+
+    function planSelection() {
+      const a = snap(items);
+      const steps = [];
+      let c = 0;
+      let m = 0;
+      const done = [];
+      for (let i = 0; i < n - 1; i++) {
+        let min = i;
+        for (let j = i + 1; j < n; j++) {
+          c++;
+          const better = a[j].v < a[min].v;
+          if (better) min = j;
+          steps.push({
+            a: snap(a), look: [j], min, base: i, done: snap(done), c, m,
+            note: better
+              ? fill(S.selBetter, { j, v: a[j].v })
+              : fill(S.selKeep, { j, v: a[j].v, m: a[min].v }),
+          });
+        }
+        if (min !== i) {
+          const tmp = a[i];
+          a[i] = a[min];
+          a[min] = tmp;
+          m += 3;
+          steps.push({
+            a: snap(a), look: [], swap: [i, min], done: snap(done), c, m,
+            note: fill(S.selSwap, { i, v: a[i].v }),
+          });
+        } else {
+          steps.push({
+            a: snap(a), look: [], base: i, done: snap(done), c, m,
+            note: fill(S.selNoSwap, { i, v: a[i].v }),
+          });
+        }
+        done.push(i);
+      }
+      steps.push({
+        a: snap(a), look: [], done: range(n), c, m,
+        note: fill(S.done, { c, m }),
+      });
+      return steps;
+    }
+
+    /* 삽입 정렬과 셸 정렬은 같은 절차다. 삽입은 gap 수열이 [1]일 뿐이다.
+       꺼낸 key의 자리는 null(빈 칸)로 두어 원소가 실제로 옮겨 다니는 것을
+       보여준다. */
+    function planGapInsertion(gaps) {
+      const a = snap(items);
+      const steps = [];
+      let c = 0;
+      let m = 0;
+      const multi = gaps.length > 1;
+      /* 정렬된 앞부분: 0..i에서 구멍(null)을 뺀 칸. 밀려난 원소가 i 자리에
+         나가 있어도 앞부분의 일원이므로, 고정 범위가 아니라 배열 상태로 센다. */
+      const partOf = (i, g) =>
+        g === 1 ? range(i + 1).filter((x) => a[x] !== null) : [];
+      for (const g of gaps) {
+        if (multi) {
+          steps.push({ a: snap(a), look: [], gap: g, g, c, m, note: fill(S.gapStart, { g }) });
+        }
+        for (let i = g; i < n; i++) {
+          const key = a[i];
+          m++;
+          a[i] = null;
+          const gap = multi && g > 1 ? g : 0;
+          const group = gap ? i % g : -1;
+          steps.push({
+            a: snap(a), look: [i], key, gap, g, group, c, m,
+            part: partOf(i, g),
+            note: fill(S.pick, { i, k: key.v }),
+          });
+          let j = i - g;
+          while (j >= 0) {
+            c++;
+            if (a[j].v <= key.v) {
+              steps.push({
+                a: snap(a), look: [j], key, gap, g, group, c, m,
+                part: partOf(i, g),
+                note: fill(S.stopAt, { j, v: a[j].v, k: key.v }),
+              });
+              break;
+            }
+            a[j + g] = a[j];
+            a[j] = null;
+            m++;
+            steps.push({
+              a: snap(a), look: [j + g], key, gap, g, group, c, m,
+              part: partOf(i, g),
+              note: fill(g > 1 ? S.shiftG : S.shift, { j, v: a[j + g].v, k: key.v, g }),
+            });
+            j -= g;
+          }
+          a[j + g] = key;
+          m++;
+          steps.push({
+            a: snap(a), look: [], placed: j + g, gap, g, group, c, m,
+            part: partOf(i, g),
+            note: fill(S.place, { p: j + g, k: key.v }),
+          });
+        }
+      }
+      steps.push({
+        a: snap(a), look: [], done: range(n), c, m,
+        note: fill(S.done, { c, m }),
+      });
+      return steps;
+    }
+
+    function planBubble() {
+      const a = snap(items);
+      const steps = [];
+      let c = 0;
+      let m = 0;
+      const done = [];
+      for (let i = 0; i < n - 1; i++) {
+        for (let j = 0; j < n - 1 - i; j++) {
+          c++;
+          const x = a[j];
+          const y = a[j + 1];
+          const sw = x.v > y.v;
+          if (sw) {
+            a[j] = y;
+            a[j + 1] = x;
+            m += 3;
+          }
+          steps.push({
+            a: snap(a), look: [j, j + 1], swap: sw ? [j, j + 1] : undefined,
+            done: snap(done), c, m,
+            note: fill(sw ? S.bubSwap : S.bubKeep, { v: x.v, w: y.v }),
+          });
+        }
+        done.unshift(n - 1 - i);
+        steps.push({
+          a: snap(a), look: [], done: snap(done), c, m,
+          note: fill(S.bubFixed, { p: n - 1 - i, v: a[n - 1 - i].v }),
+        });
+      }
+      steps.push({
+        a: snap(a), look: [], done: range(n), c, m,
+        note: fill(S.done, { c, m }),
+      });
+      return steps;
+    }
+
+    /* 셸 정렬의 gap 수열: 절반씩 줄인다. 10개면 5, 2, 1. */
+    const halvingGaps = (() => {
+      const gaps = [];
+      for (let g = Math.floor(n / 2); g >= 1; g = Math.floor(g / 2)) gaps.push(g);
+      return gaps;
+    })();
+
+    const steps =
+      algo === 'selection' ? planSelection()
+      : algo === 'insertion' ? planGapInsertion([1])
+      : algo === 'shell' ? planGapInsertion(halvingGaps)
+      : planBubble();
+
+    /* 칸을 한 번만 만들고 이후에는 클래스와 글자만 바꾼다. */
+    const wrap = root.querySelector('[data-cells]');
+    const cells = values.map((v, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'sod-cell';
+      const sub = labels ? labels[i] : String(i);
+      cell.innerHTML = `<span class="sod-val">${v}</span><span class="sod-idx">${sub}</span>`;
+      wrap.appendChild(cell);
+      return cell;
+    });
+    const vals = cells.map((cell) => cell.querySelector('.sod-val'));
+    const subs = cells.map((cell) => cell.querySelector('.sod-idx'));
+    const comp = root.querySelector('[data-comp]');
+    const mvs = root.querySelector('[data-mvs]');
+    const note = root.querySelector('[data-note]');
+    const keychip = root.querySelector('[data-keychip]');
+    const keyval = root.querySelector('[data-keyval]');
+    const gapchip = root.querySelector('[data-gapchip]');
+    const gapval = root.querySelector('[data-gapval]');
+    const idle = { selection: S.selIdle, insertion: S.insIdle, shell: S.shellIdle, bubble: S.bubIdle }[algo];
+
+    /* k번째 단계까지 진행한 모습을 그린다. k = -1이면 시작 상태. */
+    function render(k) {
+      const step = k >= 0 ? steps[Math.min(k, steps.length - 1)] : null;
+      const a = step ? step.a : items;
+
+      cells.forEach((cell, idx) => {
+        cell.className = 'sod-cell';
+        vals[idx].textContent = a[idx] === null ? '' : String(a[idx].v);
+        if (labels) subs[idx].textContent = a[idx] === null ? '' : a[idx].l;
+        if (!step) return;
+        if (a[idx] === null) cell.classList.add('is-hole');
+        if (step.gap && idx % step.gap !== step.group) cell.classList.add('is-out');
+        if (step.part && step.part.includes(idx)) cell.classList.add('is-part');
+        if (step.done && step.done.includes(idx)) cell.classList.add('is-done');
+        if (step.look.includes(idx)) cell.classList.add('is-look');
+        if (step.min === idx) cell.classList.add('is-min');
+        if (step.base === idx) cell.classList.add('is-base');
+        if (step.swap && step.swap.includes(idx)) cell.classList.add('is-swap');
+        if (step.placed === idx) cell.classList.add('is-swap');
+      });
+
+      comp.textContent = String(step ? step.c : 0);
+      mvs.textContent = String(step ? step.m : 0);
+      note.textContent = step ? step.note : idle;
+      if (gapchip) {
+        const gv = step && step.g !== undefined ? step.g : null;
+        gapchip.classList.toggle('is-off', gv === null);
+        if (gv !== null) gapval.textContent = String(gv);
+      }
+      const holding = step && step.key !== undefined && step.placed === undefined;
+      keychip.classList.toggle('is-off', !holding);
+      if (holding) {
+        keyval.textContent = labels ? `${step.key.v} ${step.key.l}` : String(step.key.v);
+      }
+    }
+
+    let at = -1;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-act="play"]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    root.querySelector('[data-act="play"]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 600);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<!-- 셀은 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-sort-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-sort-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 루트 하나만 바꾸면 데모 전체가
+       비율을 지킨 채 커지고 작아진다(.is-slide). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-sort-demo .sod-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-sort-demo .sod-head {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.7em;
+    font-size: 0.95em;
+  }
+  .aas-sort-demo .sod-keychip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+  }
+  .aas-sort-demo .sod-keychip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-sort-demo .sod-gapchip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border: 1px solid color-mix(in srgb, var(--aas-role-tool) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-tool) 14%, transparent);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+  }
+  .aas-sort-demo .sod-gapchip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-sort-demo .sod-keychip.is-off,
+  .aas-sort-demo .sod-gapchip.is-off {
+    visibility: hidden;
+  }
+  .aas-sort-demo .sod-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-sort-demo .sod-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-sort-demo .sod-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-sort-demo .sod-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 칸이 많아도 줄바꿈으로 흐르게 둔다. 가로 스크롤을 만들지 않는다. */
+  .aas-sort-demo .sod-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+  }
+  .aas-sort-demo .sod-cell {
+    flex: 0 0 auto;
+    min-width: 2.2em;
+    padding: 0.3em 0.2em;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      opacity 0.18s;
+  }
+  .aas-sort-demo .sod-val {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.3;
+    min-height: 1.3em;
+  }
+  .aas-sort-demo .sod-idx {
+    display: block;
+    font-size: 0.6em;
+    color: var(--aas-muted);
+  }
+
+  /* 상태별 색. 지금 비교하는 칸은 주황, 확정된 칸은 초록, 정렬된(아직
+     확정은 아닌) 앞부분은 청록, 최솟값 후보는 보라, key의 빈 자리와
+     채우는 자리는 파랑, 방금 교환된 칸은 호박색이다. */
+  .aas-sort-demo .sod-cell.is-out {
+    opacity: 0.28;
+  }
+  .aas-sort-demo .sod-cell.is-part {
+    border-color: color-mix(in srgb, var(--aas-role-source) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-source) 12%, transparent);
+  }
+  .aas-sort-demo .sod-cell.is-done {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, transparent);
+  }
+  .aas-sort-demo .sod-cell.is-look {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-sort-demo .sod-cell.is-min {
+    border-color: var(--aas-role-tool);
+    background: color-mix(in srgb, var(--aas-role-tool) 20%, transparent);
+  }
+  .aas-sort-demo .sod-cell.is-base {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--aas-role-model) 60%, transparent);
+  }
+  .aas-sort-demo .sod-cell.is-swap {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 26%, transparent);
+    font-weight: 700;
+  }
+  .aas-sort-demo .sod-cell.is-hole {
+    border-style: dashed;
+    background: transparent;
+  }
+
+  .aas-sort-demo .sod-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-sort-demo .sod-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-sort-demo .sod-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-sort-demo .sod-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 슬라이드는 강의실 뒤에서도 읽혀야 하므로 교안보다 크게 잡는다.
+     루트 font-size 하나로 칸·글자·버튼·간격이 함께 커진다.
+     단위가 vh인 것은 오타가 아니다. 테마의 슬라이드 본문 폭은 뷰포트
+     높이가 정하므로 vw로 잡으면 납작한 창에서 칸이 접힌다(SearchDemo 참고). */
+  .aas-sort-demo.is-slide {
+    font-size: clamp(1rem, 3.6vh, 2.3rem);
+    margin: 0.5rem 0;
+  }
+  .aas-sort-demo.is-slide .sod-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-sort-demo .sod-cell {
+      transition: none;
+    }
+  }
+</style>

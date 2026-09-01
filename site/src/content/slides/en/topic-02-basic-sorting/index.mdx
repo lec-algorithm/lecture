@@ -1,0 +1,910 @@
+---
+title: "Topic 02. Basic Sorting"
+description: "Selection, insertion, shell, and bubble sort measured in comparisons and moves, plus stability"
+presenter: Taekyu Lee
+date: "Topic 02"
+order: 2
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import SortDemo from '@components/SortDemo.astro';
+
+{/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
+    Each example goes demo → procedure → code → analysis. The code mirrors
+    the algorithm-code repository, so changes there must land here too.
+    The demo counters arrive at the same numbers the code prints. */}
+
+<Slide class="cover">
+
+# Basic Sorting
+
+Topic 02
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## A word about levels
+::sub[High level and low level are layers]
+
+- **Not grades of skill.**
+  - High-level programming is neither harder nor nobler.
+- **Just different layers.**
+  - High level: declare that pressing a button opens a popup.
+  - Low level: specify every shape, color, and animation yourself.
+- **Both are needed, and they complement each other.**
+
+</Slide>
+
+<Slide>
+
+#### A train-ticket reservation server
+::sub[Load is spiking. Which layer answers]
+
+- **The high-level answer**
+  - More users, more servers.
+- **The low-level answer**
+  - Change the algorithm so requests run concurrently.
+  - Control the number of servers dynamically.
+
+<br/>
+
+There comes a moment when adding servers is not enough.  
+What you need then is an understanding of the lower layer.
+
+</Slide>
+
+<Slide class="center">
+
+### That layer is what this course is about
+### Sorting is its **signature problem**
+
+</Slide>
+
+<Slide>
+
+## The sorting problem
+::sub[Rearrange the elements of an array into ascending order]
+
+```plaintext
+input    6   8   5   9  10   1   7   2   4   3
+
+output   1   2   3   4   5   6   7   8   9  10
+```
+
+- We use this one array throughout the topic.
+- Topic 01's binary search only ran on a **sorted array**.
+  - The power to discard half came from sorting.
+- Sorting is the foundation other algorithms stand on.
+
+</Slide>
+
+<Slide>
+
+#### What do we sort by
+::sub[The value a sort orders by is the key]
+
+<div class="aas-split">
+<div>
+
+```c
+struct laptop {
+    int id;
+    int ram;
+    int ssd;
+};
+```
+
+</div>
+<div>
+
+- A list sorted by `id` and one sorted by `ram` are **different lists**.
+- This topic uses the simplest case: a single integer key.
+- Elements sharing the **same** key raise a new problem.
+  - Covered later, under stability.
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### What do we measure
+::sub[Searching only counted comparisons. Sorting moves elements]
+
+<div class="aas-split">
+<div>
+
+- **Comparisons**
+  - How many times two elements were compared
+- **Moves**
+  - How many times one element was written to a new place
+
+</div>
+<div>
+
+- One swap is **3 moves**.
+
+```c
+int temp = a[i];    /* move 1 */
+a[i] = a[min];      /* move 2 */
+a[min] = temp;      /* move 3 */
+```
+
+</div>
+</div>
+
+<br/>
+
+Fixing the rule is what lets four sorts share one table.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. Selection sort
+::sub[Find the minimum of what remains and bring it to the front]
+
+</Slide>
+
+<Slide>
+
+### Selection sort
+::sub[Orange compares, violet is the minimum candidate, green is settled. Press **Step**]
+
+<SortDemo slide algo="selection" />
+
+</Slide>
+
+<Slide>
+
+#### As a procedure
+::sub[The scan is long; the swap is at most once per pass]
+
+```plaintext
+ALGORITHM SelectionSort(A, n)
+    for i <- 0 to n-2 do
+        min <- i
+        for j <- i+1 to n-1 do
+            if A[j] < A[min] then
+                min <- j
+        if min != i then
+            swap A[i], A[min]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code
+::sub[`01_selection_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `selectionSort.c`
+
+```c
+void selectionSort(int a[], int n,
+                   int *comparisons, int *moves) {
+    for (int i = 0; i < n - 1; i++) {
+        int min = i;
+        for (int j = i + 1; j < n; j++) {
+            (*comparisons)++;
+            if (a[j] < a[min]) {
+                min = j;
+            }
+        }
+        if (min != i) {
+            int temp = a[i];
+            a[i] = a[min];
+            a[min] = temp;
+            *moves += 3;
+        }
+    }
+}
+```
+
+</div>
+<div>
+
+- `selection_sort.py`
+
+```python
+def selection_sort(a):
+    comparisons = 0
+    moves = 0
+    n = len(a)
+    for i in range(n - 1):
+        min_index = i
+        for j in range(i + 1, n):
+            comparisons += 1
+            if a[j] < a[min_index]:
+                min_index = j
+        if min_index != i:
+            a[i], a[min_index] = \
+                a[min_index], a[i]
+            moves += 3
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### The comparison count is fixed
+::sub[n-1 on the first pass, then n-2, down to 1]
+
+$$(n-1) + (n-2) + \cdots + 1 = \frac{n(n-1)}{2}$$
+
+- For $$n = 10$$ that is **45**.
+- The demo's counter and the code's output both land on 45.
+
+- Run
+
+```console
+before: 6 8 5 9 10 1 7 2 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 45, moves = 15
+```
+
+</Slide>
+
+<Slide>
+
+#### Change the input, same comparisons
+::sub[You only know the minimum after looking at everything]
+
+| Input | Comparisons | Moves |
+| --- | --- | --- |
+| Sample array | $$45$$ | $$15$$ |
+| Already sorted | $$45$$ | $$0$$ |
+| Reversed | $$45$$ | $$15$$ |
+
+<br/>
+
+- **Even a sorted array costs 45 comparisons.**
+- Moves: at most 3 per pass, at most $$3(n-1)$$ in total.
+
+</Slide>
+
+<Slide class="center">
+
+### Many comparisons, fewest moves
+### An advantage when elements are **large structs**
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. Insertion sort
+::sub[Keep the front sorted; insert each new element into its place]
+
+</Slide>
+
+<Slide>
+
+### Insertion sort
+::sub[The dashed empty cell is where the key came out. Press **Step**]
+
+<SortDemo slide algo="insertion" />
+
+</Slide>
+
+<Slide>
+
+#### As a procedure
+::sub[Shift what is bigger than the key; drop the key where it stops]
+
+```plaintext
+ALGORITHM InsertionSort(A, n)
+    for i <- 1 to n-1 do
+        key <- A[i]
+        j <- i-1
+        while j >= 0 and A[j] > key do
+            A[j+1] <- A[j]
+            j <- j-1
+        A[j+1] <- key
+```
+
+The opposite of selection sort.  
+It may stop comparing early, but it must keep shifting elements.
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code
+::sub[`02_insertion_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `insertionSort.c`
+
+```c
+void insertionSort(int a[], int n,
+                   int *comparisons, int *moves) {
+    for (int i = 1; i < n; i++) {
+        int key = a[i];
+        (*moves)++;
+        int j = i - 1;
+        while (j >= 0) {
+            (*comparisons)++;
+            if (a[j] <= key) {
+                break;
+            }
+            a[j + 1] = a[j];
+            (*moves)++;
+            j--;
+        }
+        a[j + 1] = key;
+        (*moves)++;
+    }
+}
+```
+
+</div>
+<div>
+
+- `insertion_sort.py`
+
+```python
+def insertion_sort(a):
+    comparisons = 0
+    moves = 0
+    for i in range(1, len(a)):
+        key = a[i]
+        moves += 1
+        j = i - 1
+        while j >= 0:
+            comparisons += 1
+            if a[j] <= key:
+                break
+            a[j + 1] = a[j]
+            moves += 1
+            j -= 1
+        a[j + 1] = key
+        moves += 1
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Best case: sorted input
+::sub[Each element compares once with its predecessor and stops]
+
+<SortDemo slide algo="insertion" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} />
+
+</Slide>
+
+<Slide>
+
+#### Worst case: reversed input
+::sub[Every element migrates all the way to the front]
+
+<SortDemo slide algo="insertion" values={[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]} />
+
+</Slide>
+
+<Slide>
+
+#### How many comparisons
+::sub[Unlike selection, it depends on the input]
+
+| | Comparisons | Time |
+| --- | --- | --- |
+| Best (sorted) | $$n-1$$ | $$O(n)$$ |
+| Average | $$\approx \dfrac{n^2}{4}$$ | $$O(n^2)$$ |
+| Worst (reversed) | $$\dfrac{n(n-1)}{2}$$ | $$O(n^2)$$ |
+
+<br/>
+
+On the sample array: 36 comparisons, 47 moves.
+
+</Slide>
+
+<Slide>
+
+#### The two sorts side by side
+::sub[The dividing question: must you compare everything even when sorted]
+
+| | Best | Average | Worst | Character |
+| --- | --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | Constant regardless of input |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | Faster the closer to sorted |
+
+<br/>
+
+- Selection must; insertion need not.
+- Where nearly-sorted data keeps arriving, insertion sort is a practical tool.
+- Both are $$O(1)$$ space, in place.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Examples 1 and 2: selection and insertion]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-02-basic-sorting/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Change the array to `1 2 … 10`.**
+   - Selection stays at 45 comparisons; insertion drops to 9.
+2. **Change it to reversed, `10 9 … 1`.**
+   - Now both take 45.
+   - The moves split: 15 versus 63.
+3. **Fill in the analysis tables with your two results.**
+   - The table numbers must come straight out of the runs.
+
+</Slide>
+
+<Slide class="center">
+
+## Stability
+::sub[Does the order of equal keys survive]
+
+</Slide>
+
+<Slide>
+
+### Selection sort leaps over
+::sub[Both 160cm, Sena was first. After sorting?]
+
+<SortDemo
+  slide
+  algo="selection"
+  values={[160, 160, 150, 170]}
+  labels={['Sena', 'Jihun', 'Yuri', 'Taemin']}
+/>
+
+</Slide>
+
+<Slide>
+
+### Insertion sort preserves
+::sub[Same input. 160 ≤ 160 stops the scan; nothing is leapt over]
+
+<SortDemo
+  slide
+  algo="insertion"
+  values={[160, 160, 150, 170]}
+  labels={['Sena', 'Jihun', 'Yuri', 'Taemin']}
+/>
+
+</Slide>
+
+<Slide>
+
+#### When it matters
+::sub[It shows when you sort twice]
+
+- Sort a list by name, then re-sort it by key.
+- **Stable sort**
+  - Ties keep their name order.
+  - The result is fully determined.
+- **Unstable sort**
+  - The order within ties is not guaranteed.
+  - Change the implementation and the result can change.
+
+<br/>
+
+A sort that swaps distant elements can leap over an equal key in between.  
+That is why selection sort is unstable.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 3. Shell sort
+::sub[Sort far-apart elements first]
+
+</Slide>
+
+<Slide>
+
+#### Insertion sort's weakness
+::sub[Elements move one slot at a time]
+
+- In the reversed demo, `10` traveled **one slot per pass, for nine passes**.
+- The farther an element must go, the slower it gets there.
+
+<br/>
+
+Shell sort's answer:
+
+- Use a large gap so elements move in **strides**.
+- Shrink the gap and repeat.
+- The final gap is 1, plain insertion sort.
+  - By then the array is nearly sorted, exactly what insertion sort is best at.
+
+</Slide>
+
+<Slide>
+
+### Shell sort
+::sub[The gap shrinks through 5, 2, 1. Undimmed cells are the current gap group]
+
+<SortDemo slide algo="shell" />
+
+</Slide>
+
+<Slide>
+
+#### As a procedure
+::sub[Insertion sort with gap where 1 used to be]
+
+```plaintext
+ALGORITHM ShellSort(A, n)
+    gap <- n / 2
+    while gap >= 1 do
+        for i <- gap to n-1 do
+            key <- A[i]
+            j <- i - gap
+            while j >= 0 and A[j] > key do
+                A[j+gap] <- A[j]
+                j <- j - gap
+            A[j+gap] <- key
+        gap <- gap / 2
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code
+::sub[`03_shell_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `shellSort.c`
+
+```c
+void shellSort(int a[], int n,
+               int *comparisons, int *moves) {
+    for (int gap = n / 2; gap >= 1; gap /= 2) {
+        for (int i = gap; i < n; i++) {
+            int key = a[i];
+            (*moves)++;
+            int j = i - gap;
+            while (j >= 0) {
+                (*comparisons)++;
+                if (a[j] <= key) {
+                    break;
+                }
+                a[j + gap] = a[j];
+                (*moves)++;
+                j -= gap;
+            }
+            a[j + gap] = key;
+            (*moves)++;
+        }
+    }
+}
+```
+
+</div>
+<div>
+
+- `shell_sort.py`
+
+```python
+def shell_sort(a):
+    comparisons = 0
+    moves = 0
+    n = len(a)
+    gap = n // 2
+    while gap >= 1:
+        for i in range(gap, n):
+            key = a[i]
+            moves += 1
+            j = i - gap
+            while j >= 0:
+                comparisons += 1
+                if a[j] <= key:
+                    break
+                a[j + gap] = a[j]
+                moves += 1
+                j -= gap
+            a[j + gap] = key
+            moves += 1
+        gap //= 2
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### No payoff at n = 10
+::sub[Fewest comparisons, yet more moves than insertion]
+
+| Sort | Comparisons | Moves |
+| --- | --- | --- |
+| Insertion sort | $$36$$ | $$47$$ |
+| Shell sort | $$29$$ | $$57$$ |
+
+<br/>
+
+- Every gap round pays the take-out and put-in overhead again.
+- Ten elements cannot recoup that cost.
+- **The payoff appears as n grows.**
+
+</Slide>
+
+<Slide>
+
+#### As n grows
+::sub[`performance_comparison.py` · timings vary by machine]
+
+| n | Insertion sort | Shell sort | Difference |
+| --- | --- | --- | --- |
+| 20 | 0.000006s | 0.000010s | insertion wins |
+| 40 | 0.000017s | 0.000024s | insertion wins |
+| 1,000 | 0.014s | 0.0014s | **shell, 10x** |
+| 10,000 | 1.21s | 0.024s | **shell, 51x** |
+
+</Slide>
+
+<Slide>
+
+#### The gap sequence sets the complexity
+::sub[Same procedure, different parameter, different complexity]
+
+- Halving (our code): worst case $$O(n^2)$$
+- Knuth sequence $$1, 4, 13, 40, \ldots$$: worst case $$O(n^{1.5})$$
+
+<br/>
+
+- Shell sort's worst case is not the reversed input.
+  - Sample array 29 comparisons, reversed only 27.
+  - The worst case comes from patterns that fight the gap sequence.
+- **A procedure's parameters are design decisions too.**
+  - That is the reason to study shell sort.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 4. Bubble sort
+::sub[Compare neighbors and push the bigger one back]
+
+</Slide>
+
+<Slide>
+
+### Bubble sort
+::sub[After one pass, the largest element has arrived at the end]
+
+<SortDemo slide algo="bubble" />
+
+</Slide>
+
+<Slide>
+
+#### As a procedure
+::sub[Large elements bubble up to the end]
+
+```plaintext
+ALGORITHM BubbleSort(A, n)
+    for i <- 0 to n-2 do
+        for j <- 0 to n-2-i do
+            if A[j] > A[j+1] then
+                swap A[j], A[j+1]
+```
+
+The most famous sort, and the least efficient.
+
+</Slide>
+
+<Slide class="compact">
+
+#### As code
+::sub[`04_bubble_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `bubbleSort.c`
+
+```c
+void bubbleSort(int a[], int n,
+                int *comparisons, int *moves) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - 1 - i; j++) {
+            (*comparisons)++;
+            if (a[j] > a[j + 1]) {
+                int temp = a[j];
+                a[j] = a[j + 1];
+                a[j + 1] = temp;
+                *moves += 3;
+            }
+        }
+    }
+}
+```
+
+</div>
+<div>
+
+- `bubble_sort.py`
+
+```python
+def bubble_sort(a):
+    comparisons = 0
+    moves = 0
+    n = len(a)
+    for i in range(n - 1):
+        for j in range(n - 1 - i):
+            comparisons += 1
+            if a[j] > a[j + 1]:
+                a[j], a[j + 1] = \
+                    a[j + 1], a[j]
+                moves += 3
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### The numbers are the verdict
+::sub[Selection sort's comparisons, nearly six times its moves]
+
+| Sort | Comparisons | Moves |
+| --- | --- | --- |
+| Selection sort | $$45$$ | $$15$$ |
+| Bubble sort | $$45$$ | $$87$$ |
+
+<br/>
+
+- Neighbors-only swaps move elements one slot at a time.
+- Every swap costs 3 moves.
+- On reversed input, every comparison becomes a swap.
+  - Moves climb to $$3 \cdot \dfrac{n(n-1)}{2} = 135$$.
+
+</Slide>
+
+<Slide>
+
+#### A place to practice improving
+::sub[The procedure is simple enough to fix]
+
+- If a pass makes no swaps, the array is already sorted.
+- **Add a flag that stops right there.**
+  - On sorted input, comparisons drop from 45 to **9**.
+  - The best case improves from $$O(n^2)$$ to $$O(n)$$.
+
+<br/>
+
+The practice code's **Try changing** section walks through this.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Examples 3 and 4: shell and bubble]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-02-basic-sorting/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Switch shell sort's gaps to the Knuth sequence.**
+   - Compare against halving with `performance_comparison.py`.
+2. **Add the flag to bubble sort.**
+   - Confirm sorted input takes 9 comparisons.
+3. **Feed all four sorts the same three inputs and complete the table.**
+   - Sample array, sorted, reversed.
+
+</Slide>
+
+<Slide>
+
+### The four sorts side by side
+::sub["Fast" alone cannot choose a sort]
+
+| Sort | Best | Average | Worst | Space | Stability |
+| --- | --- | --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable |
+| Shell sort | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable |
+| Bubble sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable |
+
+<br/>
+
+Shell sort's worst $$O(n^2)$$ is for halving gaps; the Knuth sequence gives $$O(n^{1.5})$$.
+
+</Slide>
+
+<Slide>
+
+#### In numbers we measured
+::sub[On the sample array `6 8 5 9 10 1 7 2 4 3`]
+
+| Sort | Comparisons | Moves | One line |
+| --- | --- | --- | --- |
+| Selection sort | 45 | 15 | Many comparisons, fewest moves |
+| Insertion sort | 36 | 47 | Fewer comparisons the more sorted |
+| Shell sort | 29 | 57 | Fewest comparisons. Pays off at large n |
+| Bubble sort | 45 | 87 | Saves neither |
+
+<br/>
+
+Each sort gives up something different.
+
+</Slide>
+
+<Slide>
+
+### Faster sorts exist
+::sub[All four are worst-case O(n²). To break that wall]
+
+| Sort | Best | Average | Worst |
+| --- | --- | --- | --- |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ |
+| Merge sort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ |
+| Quicksort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n^2)$$ |
+
+<br/>
+
+We build them in the next two topics.
+
+</Slide>
+
+<Slide>
+
+#### A better computer does not break the wall
+::sub[Sorting one billion elements · Sedgewick's empirical analysis]
+
+| Computer | Insertion sort | Merge sort | Quicksort |
+| --- | --- | --- | --- |
+| Ordinary PC | **317 years** | 18 min | 12 min |
+| Supercomputer | 1 week | instant | instant |
+
+<br/>
+
+- A supercomputer running insertion sort (1 week) loses to a PC running merge sort (18 min).
+- The same picture as Topic 01's Fibonacci.
+- Watch sorts race at [toptal.com/developers/sorting-algorithms](https://www.toptal.com/developers/sorting-algorithms).
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **Sorting performance has two axes.**
+   - Comparisons and moves. One swap is 3 moves.
+2. **Each sort gives up something different.**
+   - Selection saves moves; insertion saves comparisons.
+   - Bubble saves neither.
+3. **A procedure's parameters are design decisions too.**
+   - Shell sort's gap sequence sets its complexity.
+4. **A sort that preserves the order of equal keys is stable.**
+   - The difference shows when you sort twice.
+5. **All four are worst-case $$O(n^2)$$.**
+   - The next topic's divide and conquer breaks that wall.
+
+</Slide>
