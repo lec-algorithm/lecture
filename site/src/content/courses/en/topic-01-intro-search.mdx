@@ -11,7 +11,7 @@ slides: ["topic-01-intro-search"]
 
 import SearchDemo from '@components/SearchDemo.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
-import SubtractionDemo from '@components/SubtractionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 > The **first topic** of the course. It raises the two questions the remaining
 > fourteen topics keep coming back to: **what do you give up to get what**, and
@@ -170,22 +170,6 @@ from the right.
 one has been dealt with. So the shape is **compute in parallel, tidy up in
 sequence**.
 
-Step through the same subtraction both ways. What to watch is not the result
-but **how many columns work in each step**.
-
-<SubtractionDemo a={361} b={192} />
-
-On the left a column cannot start until the borrow beside it is known, so each
-step handles exactly one. On the right all three finish in a single step,
-because none of them has any reason to wait.
-
-At three digits the step counts tie, three against three, because the parallel
-subtraction is followed by a sequential tidy. **At n digits the left-hand
-subtraction takes n steps and the right-hand one always takes 1.** Chain
-several operations together and tidy up only once at the end, and that
-difference is what remains. Deferring the carry this way is exactly what a
-hardware multiplier does (carry-save).
-
 One more, `301 - 192`, where the tidying spreads one place further.
 
 ```plaintext
@@ -218,6 +202,29 @@ cleanup pass, so the left one wins.
 **This example is not about subtraction.** It is about several procedures giving
 the same answer, and which is better depending on **where you are going to run
 it**.
+
+### Where parallelism actually wins \{#parallel}
+
+The subtraction above does not show the payoff well. The per-column subtraction
+finishes at once, but the carry propagation is sequential again, so at three
+digits the step counts tie, three against three.
+
+Other operations keep the payoff. **Adding up many values** is one. Adding
+sixteen numbers one at a time takes 15 steps, because each addition needs the
+previous sum. Adding them in pairs and climbing takes 4.
+
+<ParallelSumDemo />
+
+**The number of additions is the same, 15.** That is 8 + 4 + 2 + 1. Only the
+time shrank, and it cost eight workers in the first step. The
+[[trade-off|trade-off]] of spending resources to buy time is here too.
+
+Adding n values takes $$n-1$$ steps in sequence and $$\log_2 n$$ steps in
+pairs. **That is the same shape as sequential versus binary search, which this
+topic reaches shortly.** One halves the input, the other halves the work in
+each round, and they arrive at the same place.
+
+One thing decides whether parallelism is available: **what waits on what**.
 
 ### Accuracy and speed \{#accuracy-speed}
 

@@ -1,0 +1,507 @@
+---
+// 같은 덧셈을 순차로 할 때와 짝지어 할 때의 "단계 수"를 나란히 세는 데모.
+//
+// 뺄셈으로는 이 이야기가 되지 않는다. 자리별 뺄셈은 병렬로 끝나지만 자리올림
+// 정리가 다시 순차라서, 세 자리에서는 단계 수가 3 대 3으로 같아진다. 합은
+// 다르다. 열여섯 개를 순차로 더하면 15단계지만, 짝끼리 더해 올라가면 4단계다.
+// 덧셈 횟수는 15로 **같다**. 줄어든 것은 시간뿐이다.
+//
+// 그래서 화면이 세는 것은 두 가지다. 이번 단계에 동시에 한 덧셈 수와, 지금까지
+// 한 덧셈의 누계. 앞의 것은 갈라지고 뒤의 것은 끝에서 만난다. 이 데모가 하려는
+// 말이 그 두 숫자 사이에 있다.
+//
+// 전부 서버에서 그리고 스크립트는 class와 textContent만 바꾼다. 표식은 테마의
+// 덱 크롬과 부딪히지 않도록 `data-ps-*`로 접두를 붙였다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 더할 값들. 2의 거듭제곱 개수여야 짝이 딱 맞는다. */
+  values?: number[];
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
+  slide?: boolean;
+}
+const { values = [3, 7, 1, 9, 4, 2, 8, 5, 6, 0, 7, 3, 1, 9, 2, 4], slide = false } =
+  Astro.props;
+
+const n = values.length;
+
+// ── 짝지어 더하기: 한 단계에 그 층 전체를 동시에 ─────────────────────────
+const levels: number[][] = [values];
+while (levels[levels.length - 1].length > 1) {
+  const prev = levels[levels.length - 1];
+  const next: number[] = [];
+  for (let i = 0; i < prev.length; i += 2) next.push(prev[i] + prev[i + 1]);
+  levels.push(next);
+}
+const depth = levels.length - 1; // 4
+const totalAdds = n - 1; // 15
+
+// ── 순차로 더하기: 한 단계에 하나씩 ──────────────────────────────────────
+const running: number[] = [values[0]];
+for (let i = 1; i < n; i++) running.push(running[i - 1] + values[i]);
+
+const answer = running[n - 1];
+const totalSteps = totalAdds; // 순차가 끝나는 데 걸리는 단계
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    seq: '순차로 더하기',
+    par: '짝지어 더하기',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    stage: '단계',
+    now: '이번 단계의 덧셈',
+    sofar: '지금까지',
+    unit: '번',
+    sum: '합계',
+    done: '끝남',
+    start: '같은 열여섯 개를 두 방식으로 더합니다. 한 걸음씩 눌러 보세요.',
+    seqNote: '앞의 합이 나와야 다음을 더할 수 있습니다. 한 단계에 한 번뿐입니다.',
+    seqDone: '{a}번 더해 {v}가 나왔습니다. {s}단계 걸렸습니다.',
+    parNote: '{k}쌍을 **한 단계에 동시에** 더합니다. 짝끼리 서로를 기다리지 않습니다.',
+    parDone: '{s}단계 만에 끝났습니다. 덧셈은 똑같이 {a}번 했습니다.',
+    verdict:
+      '덧셈 횟수는 **{a}번으로 같습니다.** 줄어든 것은 시간입니다. {s1}단계가 {s2}단계가 되었습니다.',
+  },
+  en: {
+    seq: 'Adding one at a time',
+    par: 'Adding in pairs',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    stage: 'step',
+    now: 'additions this step',
+    sofar: 'so far',
+    unit: '',
+    sum: 'total',
+    done: 'done',
+    start: 'The same sixteen numbers, added two ways. Press step to follow along.',
+    seqNote: 'The next addition needs the previous sum, so only one fits in a step.',
+    seqDone: '{a} additions gave {v}. It took {s} steps.',
+    parNote: '{k} pairs added **in one step**. No pair waits on another.',
+    parDone: 'Finished in {s} steps, with the same {a} additions.',
+    verdict:
+      'The number of additions is **the same, {a}.** What shrank is the time: {s1} steps became {s2}.',
+  },
+  zh: {
+    seq: '逐个相加',
+    par: '成对相加',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    stage: '步',
+    now: '本步的加法次数',
+    sofar: '累计',
+    unit: '次',
+    sum: '合计',
+    done: '结束',
+    start: '同样的十六个数，用两种方式相加。请逐步查看。',
+    seqNote: '要先有前一个和，才能加下一个。一步只能加一次。',
+    seqDone: '加了 {a} 次得到 {v}，用了 {s} 步。',
+    parNote: '{k} 对**在一步之内同时**相加。各对之间不用等待。',
+    parDone: '{s} 步就结束了，加法同样是 {a} 次。',
+    verdict: '加法次数**同样是 {a} 次。** 减少的是时间：{s1} 步变成了 {s2} 步。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+const payload = { n, depth, levels, running, totalAdds, totalSteps, answer };
+---
+
+<div
+  class:list={['aas-parallel-sum', slide && 'is-slide']}
+  data-ps-strings={JSON.stringify(t)}
+  data-ps-data={JSON.stringify(payload)}
+  style={`--ps-n:${n}`}
+>
+  <div class="ps-bar">
+    <span class="ps-stage">{t.stage} <strong data-ps-stage>0</strong> / {totalSteps}</span>
+    <span class="ps-controls">
+      <button type="button" class="ps-btn" data-ps-step>{t.step}</button>
+      <button type="button" class="ps-btn ps-btn-primary" data-ps-play>{t.play}</button>
+      <button type="button" class="ps-btn" data-ps-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="ps-lane">
+    <div class="ps-head">
+      <h4>{t.seq}</h4>
+      <span class="ps-counts">
+        <span>{t.now} <strong data-ps-now="seq">0</strong></span>
+        <span>{t.sofar} <strong data-ps-sofar="seq">0</strong>{t.unit}</span>
+      </span>
+    </div>
+    <div class="ps-row">
+      {
+        values.map((v, i) => (
+          <span class="ps-cell" data-ps-seq={i}>
+            {v}
+          </span>
+        ))
+      }
+      <span class="ps-total" data-ps-total><span class="ps-total-label">{t.sum}</span><b data-ps-acc>—</b></span>
+    </div>
+    <p class="ps-note" data-ps-note="seq"></p>
+  </div>
+
+  <div class="ps-lane">
+    <div class="ps-head">
+      <h4>{t.par}</h4>
+      <span class="ps-counts">
+        <span>{t.now} <strong data-ps-now="par">0</strong></span>
+        <span>{t.sofar} <strong data-ps-sofar="par">0</strong>{t.unit}</span>
+        <span class="ps-badge" data-ps-badge hidden>{t.done}</span>
+      </span>
+    </div>
+    <div class="ps-tree">
+      {
+        levels.map((row, l) =>
+          row.map((v, i) => (
+            <span
+              class:list={['ps-cell', l > 0 && 'ps-sum']}
+              data-ps-par={`${l}-${i}`}
+              style={`grid-column: span ${2 ** l}`}
+            >
+              {l === 0 ? v : ''}
+            </span>
+          )),
+        )
+      }
+    </div>
+    <p class="ps-note" data-ps-note="par"></p>
+  </div>
+
+  <p class="ps-verdict" data-ps-verdict></p>
+</div>
+
+<script>
+  (() => {
+    const md = (s: string) => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const fill = (tpl: string, vars: Record<string, string | number>) =>
+      tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+
+    document.querySelectorAll<HTMLElement>('.aas-parallel-sum').forEach((root) => {
+      if (root.dataset.psWired) return;
+      root.dataset.psWired = '1';
+
+      const t = JSON.parse(root.dataset.psStrings || '{}');
+      const d = JSON.parse(root.dataset.psData || '{}');
+      const seqCells: HTMLElement[] = [];
+      root.querySelectorAll<HTMLElement>('[data-ps-seq]').forEach((el) => {
+        seqCells[Number(el.dataset.psSeq)] = el;
+      });
+      const parCells = new Map<string, HTMLElement>();
+      root.querySelectorAll<HTMLElement>('[data-ps-par]').forEach((el) =>
+        parCells.set(el.dataset.psPar!, el),
+      );
+      const q = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+      const accEl = q('[data-ps-acc]');
+      const badge = q('[data-ps-badge]');
+      const stageEl = q('[data-ps-stage]');
+      const verdictEl = q('[data-ps-verdict]');
+      const stepBtn = q<HTMLButtonElement>('[data-ps-step]');
+      const playBtn = q<HTMLButtonElement>('[data-ps-play]');
+      const resetBtn = q<HTMLButtonElement>('[data-ps-reset]');
+      const nowOf = (k: string) => q(`[data-ps-now="${k}"]`);
+      const sofarOf = (k: string) => q(`[data-ps-sofar="${k}"]`);
+      const noteOf = (k: string) => q(`[data-ps-note="${k}"]`);
+
+      let at = 0;
+      let timer: number | null = null;
+
+      // 매번 처음부터 다시 그린다. 되감기가 공짜이고 두 레인이 어긋날 수 없다.
+      const render = () => {
+        // 순차: 단계 k면 값 k+1개를 더한 상태
+        const taken = at === 0 ? 0 : at + 1;
+        seqCells.forEach((el, i) => {
+          el.classList.toggle('is-done', i < taken - 1);
+          el.classList.toggle('is-live', at > 0 && i === at);
+        });
+        accEl.textContent = at === 0 ? '—' : String(d.running[at]);
+        accEl.parentElement!.classList.toggle('is-live', at > 0);
+        nowOf('seq').textContent = at === 0 ? '0' : '1';
+        sofarOf('seq').textContent = String(at);
+        noteOf('seq').innerHTML =
+          at === 0
+            ? ''
+            : at >= d.totalSteps
+              ? md(fill(t.seqDone, { a: d.totalAdds, v: d.answer, s: d.totalSteps }))
+              : md(t.seqNote);
+
+        // 짝지어: 단계 k면 k층까지 채워진 상태. depth를 넘으면 이미 끝났다.
+        const filled = Math.min(at, d.depth);
+        let addsDone = 0;
+        for (let l = 1; l <= filled; l++) addsDone += d.levels[l].length;
+        d.levels.forEach((row: number[], l: number) => {
+          row.forEach((v: number, i: number) => {
+            const el = parCells.get(`${l}-${i}`)!;
+            if (l === 0) return;
+            const shown = l <= filled;
+            el.textContent = shown ? String(v) : '';
+            el.classList.toggle('is-par', shown && l === at);
+            el.classList.toggle('is-done', shown && l !== at);
+          });
+        });
+        nowOf('par').textContent =
+          at >= 1 && at <= d.depth ? String(d.levels[at].length) : '0';
+        sofarOf('par').textContent = String(addsDone);
+        badge.hidden = at < d.depth;
+        noteOf('par').innerHTML =
+          at === 0
+            ? ''
+            : at < d.depth
+              ? md(fill(t.parNote, { k: d.levels[at].length }))
+              : md(fill(t.parDone, { s: d.depth, a: d.totalAdds }));
+
+        stageEl.textContent = String(at);
+        verdictEl.innerHTML =
+          at === 0
+            ? md(t.start)
+            : at >= d.totalSteps
+              ? md(fill(t.verdict, { a: d.totalAdds, s1: d.totalSteps, s2: d.depth }))
+              : '';
+        verdictEl.classList.toggle('is-done', at >= d.totalSteps);
+
+        const finished = at >= d.totalSteps;
+        stepBtn.disabled = finished;
+        if (finished) stop();
+      };
+
+      const stop = () => {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+          playBtn.textContent = t.play;
+        }
+      };
+      const step = () => {
+        if (at < d.totalSteps) at++;
+        render();
+      };
+
+      stepBtn.addEventListener('click', () => {
+        stop();
+        step();
+      });
+      playBtn.addEventListener('click', () => {
+        if (timer !== null) {
+          stop();
+          return;
+        }
+        if (at >= d.totalSteps) at = 0;
+        playBtn.textContent = t.stop;
+        timer = window.setInterval(step, 520);
+      });
+      resetBtn.addEventListener('click', () => {
+        stop();
+        at = 0;
+        render();
+      });
+
+      render();
+    });
+  })();
+</script>
+
+<style>
+  .aas-parallel-sum {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 루트 하나로 전체가 함께 커진다. */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .ps-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .ps-stage {
+    font-size: 0.9em;
+    color: var(--aas-muted);
+  }
+  .ps-stage strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .ps-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .ps-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .ps-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .ps-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .ps-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .ps-lane + .ps-lane {
+    margin-top: 1em;
+  }
+  .ps-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-bottom: 0.4em;
+  }
+  .ps-head h4 {
+    margin: 0;
+    font-size: 1em;
+  }
+  .ps-counts {
+    display: flex;
+    gap: 1em;
+    align-items: baseline;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  /* 이 데모의 요점이 되는 두 숫자. 앞은 갈라지고 뒤는 끝에서 만난다. */
+  .ps-counts strong {
+    color: var(--aas-role-focus);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .ps-badge {
+    padding: 0.1em 0.5em;
+    border-radius: 0.4em;
+    background: color-mix(in srgb, var(--aas-role-eval) 30%, transparent);
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+
+  .ps-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2em;
+  }
+  /* 트리는 잎의 개수만큼 열을 나눠 두고, 각 층의 칸이 자기 몫만큼 걸치게 한다.
+     그래야 합이 자기를 만든 두 칸 한가운데에 놓인다. */
+  .ps-tree {
+    display: grid;
+    grid-template-columns: repeat(var(--ps-n), 1fr);
+    gap: 0.2em;
+  }
+  .ps-cell {
+    padding: 0.25em 0;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.4;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      opacity 0.18s;
+  }
+  .ps-row .ps-cell {
+    width: 2.2em;
+  }
+  .ps-sum {
+    min-height: 1.9em;
+    border-style: dashed;
+    background: transparent;
+  }
+  .ps-cell.is-done {
+    opacity: 0.4;
+  }
+  .ps-sum.is-done {
+    opacity: 1;
+    border-style: solid;
+    background: var(--aas-bg);
+  }
+  .ps-cell.is-live {
+    opacity: 1;
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+    font-weight: 700;
+  }
+  /* 한 단계에 한 층 전체가 켜지는 것이 이 데모가 말하려는 전부다. */
+  .ps-cell.is-par {
+    opacity: 1;
+    border-style: solid;
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 28%, transparent);
+    font-weight: 700;
+  }
+
+  .ps-total {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+    margin-left: 0.8em;
+    padding: 0.25em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+  }
+  .ps-total-label {
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .ps-total b {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+  }
+  .ps-total.is-live {
+    border-color: var(--aas-role-focus);
+  }
+
+  .ps-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.6em;
+  }
+  .ps-verdict {
+    margin: 1em 0 0;
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    min-height: 1.6em;
+  }
+  .ps-verdict.is-done {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 근거는 SearchDemo의 같은 규칙과 같다: 슬라이드 폭은 뷰포트
+     높이가 정하므로 vw가 아니라 vh로 잡는다. */
+  .aas-parallel-sum.is-slide {
+    font-size: clamp(1rem, 3vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ps-cell {
+      transition: none;
+    }
+  }
+</style>

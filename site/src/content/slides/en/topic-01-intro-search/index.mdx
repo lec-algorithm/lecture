@@ -13,7 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
 import SearchTrace from '@components/SearchTrace.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
-import SubtractionDemo from '@components/SubtractionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 {/* Follows the slide rules in docs/writing-rules.md.
     Each example goes procedure → code → run → practice. The code is copied
@@ -142,63 +142,28 @@ In the end it is about **deciding what to give up**.
 
 <Slide>
 
-### Two ways to subtract
+### Work that must wait, and work that need not
+::sub[Adding sixteen numbers. Watch how many additions happen per step]
 
-$$
-\begin{array}{r}
-\text{borrowing} \\[4pt]
-361 \\
-\underline{-\;192} \\
-169
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{negative digits} \\[4pt]
-361 \\
-\underline{-\;192} \\
-(2)\,(-3)\,(-1)
-\end{array}
-$$
-
-The right one is not the answer yet.  
-To clear the negative digits, carry a 10 leftwards starting from the right.
-
-$$
-(2)\,(-3)\,(-1) \;\longrightarrow\; (2)\,(-4)\,(9) \;\longrightarrow\; (1)\,(6)\,(9) = 169
-$$
-
-**This tidying is sequential.** The left digit settles only after the right one.  
-So the shape is **compute in parallel, tidy up in sequence**.
+<ParallelSumDemo slide />
 
 </Slide>
 
 <Slide>
 
-### Same answer, different computation
-::sub[Watch how many columns work in each step]
+### Same work, different time
 
-<SubtractionDemo slide a={361} b={192} />
-
-On the left, a column cannot start until the borrow beside it is known.  
-On the right, all three finish in one step and the tidying is deferred.
-
-</Slide>
-
-<Slide>
-
-### So which is better
-
-| | Borrowing | Negative digits |
+| | One at a time | In pairs |
 | --- | --- | --- |
-| Per-column work | sequential | **can be parallel** |
-| Dependency between columns | yes | none while subtracting, yes while tidying |
-| Finishing | none | carry propagation |
+| Additions | 15 | 15 |
+| Steps | 15 | **4** |
+| Workers needed per step | 1 | up to 8 |
 
-With hardware that handles the columns at once, the right one wins.  
-Handling one column at a time, the left one wins: no cleanup pass.
+**The amount of work is the same. What shrank is the time.**  
+There is one reason it could: no pair waits on another.
 
-Both give the right answer.  
-**Where you are going to run it** decides.
+Adding one at a time needs the previous sum before the next addition.  
+**What waits on what** is what decides whether parallelism is possible.
 
 </Slide>
 

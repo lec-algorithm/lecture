@@ -13,7 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
 import SearchTrace from '@components/SearchTrace.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
-import SubtractionDemo from '@components/SubtractionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 {/* 遵循 docs/writing-rules.md 的幻灯片规则。
     每个例子按 步骤 → 代码 → 运行 → 练习 的顺序。代码是从 algorithm-code
@@ -142,63 +142,28 @@ flowchart LR
 
 <Slide>
 
-### 两种减法
+### 必须按顺序的事，和不必的事
+::sub[把十六个数相加。看看每一步加了几次]
 
-$$
-\begin{array}{r}
-\text{借位} \\[4pt]
-361 \\
-\underline{-\;192} \\
-169
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{允许负数} \\[4pt]
-361 \\
-\underline{-\;192} \\
-(2)\,(-3)\,(-1)
-\end{array}
-$$
-
-右边还不是答案。  
-要去掉负的位，得从右边开始向左借 10。
-
-$$
-(2)\,(-3)\,(-1) \;\longrightarrow\; (2)\,(-4)\,(9) \;\longrightarrow\; (1)\,(6)\,(9) = 169
-$$
-
-**这一步收尾是顺序的。** 先处理完右边，左边的值才定得下来。  
-也就是**计算并行、收尾顺序**的结构。
+<ParallelSumDemo slide />
 
 </Slide>
 
 <Slide>
 
-### 答案相同，运算方式不同
-::sub[看看每一步有几位在同时工作]
+### 同样的工作，不同的时间
 
-<SubtractionDemo slide a={361} b={192} />
-
-左边要等右边一位的借位定下来，才能开始下一位。  
-右边三位在一步之内做完，把收尾推到后面。
-
-</Slide>
-
-<Slide>
-
-### 那么哪一个更好
-
-| | 借位 | 允许负数 |
+| | 逐个相加 | 成对相加 |
 | --- | --- | --- |
-| 逐位计算 | 顺序 | **可以并行** |
-| 位之间的依赖 | 有 | 相减时无，收尾时有 |
-| 收尾 | 没有 | 进位传播 |
+| 加法次数 | 15 | 15 |
+| 步数 | 15 | **4** |
+| 每一步需要的人手 | 1 | 最多 8 |
 
-有能同时处理各位的硬件，就选右边。  
-一次处理一位，就选没有收尾的左边。
+**工作量相同，减少的是时间。**  
+能这样只有一个原因：各对之间不用互相等待。
 
-两者都给出正确答案。  
-**要在什么地方运行**才是决定因素。
+逐个相加要先有前一个和，才能加下一个。  
+**什么在等什么**决定了能不能并行。
 
 </Slide>
 

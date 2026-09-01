@@ -13,7 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import SearchDemo from '@components/SearchDemo.astro';
 import SearchTrace from '@components/SearchTrace.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
-import SubtractionDemo from '@components/SubtractionDemo.astro';
+import ParallelSumDemo from '@components/ParallelSumDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     예제마다 절차 → 코드 → 실행 → 실습 순서로 갑니다. 코드는 algorithm-code
@@ -142,63 +142,28 @@ flowchart LR
 
 <Slide>
 
-### 뺄셈 두 가지
+### 순서를 지켜야 하는 일, 아닌 일
+::sub[열여섯 개를 더합니다. 한 단계에 몇 번 더하는지 보세요]
 
-$$
-\begin{array}{r}
-\text{자리 내림} \\[4pt]
-361 \\
-\underline{-\;192} \\
-169
-\end{array}
-\qquad\qquad\qquad
-\begin{array}{r}
-\text{음수 허용} \\[4pt]
-361 \\
-\underline{-\;192} \\
-(2)\,(-3)\,(-1)
-\end{array}
-$$
-
-오른쪽은 아직 답이 아닙니다.  
-음수 자리를 없애려면 오른쪽부터 10을 빌려 올려야 합니다.
-
-$$
-(2)\,(-3)\,(-1) \;\longrightarrow\; (2)\,(-4)\,(9) \;\longrightarrow\; (1)\,(6)\,(9) = 169
-$$
-
-**이 마무리는 순차적입니다.** 오른쪽을 정리해야 왼쪽 값이 정해집니다.  
-즉 **계산은 병렬로, 정리는 순차로** 하는 구조입니다.
+<ParallelSumDemo slide />
 
 </Slide>
 
 <Slide>
 
-### 같은 답, 다른 연산 방식
-::sub[한 단계에 몇 자리가 동시에 일하는지 보세요]
+### 같은 일, 다른 시간
 
-<SubtractionDemo slide a={361} b={192} />
-
-왼쪽은 앞 자리의 빌림이 정해져야 다음 자리를 시작합니다.  
-오른쪽은 세 자리를 한 단계에 끝내고, 정리를 뒤로 미룹니다.
-
-</Slide>
-
-<Slide>
-
-### 그래서 무엇이 나은가
-
-| | 자리 내림 | 음수 허용 |
+| | 순차로 더하기 | 짝지어 더하기 |
 | --- | --- | --- |
-| 자리별 계산 | 순차적 | **병렬 가능** |
-| 자리 사이 의존 | 있음 | 뺄 때 없음, 정리할 때 있음 |
-| 마무리 | 없음 | 자리올림 전파 |
+| 덧셈 횟수 | 15 | 15 |
+| 단계 수 | 15 | **4** |
+| 한 단계에 필요한 일꾼 | 1 | 최대 8 |
 
-자리를 동시에 처리할 하드웨어가 있다면 오른쪽,  
-한 번에 하나씩 처리한다면 뒤처리가 없는 왼쪽입니다.
+**일의 양은 같습니다. 줄어든 것은 시간입니다.**  
+그럴 수 있는 이유는 하나입니다. 짝끼리 서로를 기다리지 않기 때문입니다.
 
-둘 다 맞는 답을 냅니다.  
-**어디서 돌릴 것인가**가 고릅니다.
+순차 쪽은 앞의 합이 나와야 다음을 더할 수 있습니다.  
+**무엇이 무엇을 기다리는가**가 병렬로 갈 수 있는지를 정합니다.
 
 </Slide>
 
