@@ -12,6 +12,7 @@ slides: ["topic-03-divide-conquer"]
 import MergeDemo from '@components/MergeDemo.astro';
 import CountingDemo from '@components/CountingDemo.astro';
 import MergeTrace from '@components/MergeTrace.astro';
+import ParallelMergeDemo from '@components/ParallelMergeDemo.astro';
 
 > Topic 02 ended at a wall: all four sorts are $$O(n^2)$$ in the worst
 > case. This topic climbs over it twice. Once by **splitting the
@@ -132,6 +133,23 @@ neighboring runs merge their way back up, and every green run is sorted.
 Dividing never moves an element, so the top half keeps the original
 order; all the rearranging happens in the bottom half. The analysis in a
 moment will count this figure's rows (levels).
+
+### The merges can run at the same time \{#parallel-merge}
+
+The tree carries one more gift. **Merges on the same level touch
+different ranges.** They do not overlap, so they can run at the same
+time — the same picture as Topic 01's parallel sum.
+
+<ParallelMergeDemo />
+
+Both lanes do the same amount of work: nine merges. One at a time takes
+9 steps; a level at a time takes **4 steps**, the number of levels.
+Divide and conquer does not just shrink the work — it shapes the pieces
+so they **can run simultaneously**.
+
+Not for free, though. The final merge handles the whole array by
+itself, so no matter how many cores you have, that step sets the floor
+of the wall-clock time.
 
 ### As a procedure \{#merge-pseudo}
 
@@ -463,6 +481,8 @@ up, and what do you get.**
 
 - **Divide and conquer**: divide, conquer, combine. Faster not because
   more people share the work but because **the work itself shrinks**.
+  And the pieces do not overlap, so they **can also run at the same
+  time**.
 - Easy splitting means hard combining, and vice versa. Merge sort is
   the free-split side.
 - **Merge sort**: cost $$n$$ per level, $$\log n$$ levels, so

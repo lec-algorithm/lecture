@@ -13,6 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import MergeDemo from '@components/MergeDemo.astro';
 import CountingDemo from '@components/CountingDemo.astro';
 import MergeTrace from '@components/MergeTrace.astro';
+import ParallelMergeDemo from '@components/ParallelMergeDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     예제마다 데모 → 절차 → 코드 → 분석 순서로 갑니다. 코드는 algorithm-code
@@ -245,6 +246,31 @@ temp로 열 번, 제자리로 열 번입니다.
 ::sub[분할·병합 트리 · 위가 나누기, 아래가 합치기, 가운데가 재귀의 바닥]
 
 <MergeTrace slide />
+
+</Slide>
+
+<Slide>
+
+#### 병합은 동시에 할 수 있다
+::sub[같은 레벨의 병합은 구간이 겹치지 않습니다 · 주제 01의 병렬 덧셈과 같은 그림]
+
+<ParallelMergeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 일은 같고, 단계가 줄어든다
+::sub[분할 정복의 두 번째 선물]
+
+- 병합은 아홉 번 그대로입니다.
+- 혼자면 **9단계**, 레벨마다 동시에 하면 **4단계**(레벨 수)입니다.
+- 나누면 일이 줄고(비교 22회), 나눈 조각은 **동시에 돌릴 수도** 있습니다.
+
+<br/>
+
+다만 마지막 병합은 혼자 원소 전체를 다룹니다.  
+코어가 아무리 많아도 이 단계가 벽시계 시간의 바닥을 정합니다.
 
 </Slide>
 
@@ -790,6 +816,7 @@ comparisons = 0, moves = 11
 
 1. **분할 정복은 일 자체를 줄입니다.**
    - 나누고, 풀고, 합칩니다. 혼자 해도 빨라집니다.
+   - 나눈 조각은 겹치지 않아 동시에 돌릴 수도 있습니다.
 2. **나누기와 결합은 시소입니다.**
    - 병합 정렬은 나누기가 공짜, 퀵 정렬은 결합이 공짜입니다.
 3. **병합 정렬: 레벨마다 n, 레벨 수 log n.**

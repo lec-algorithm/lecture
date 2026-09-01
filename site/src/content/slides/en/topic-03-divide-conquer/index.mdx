@@ -13,6 +13,7 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import MergeDemo from '@components/MergeDemo.astro';
 import CountingDemo from '@components/CountingDemo.astro';
 import MergeTrace from '@components/MergeTrace.astro';
+import ParallelMergeDemo from '@components/ParallelMergeDemo.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Each example goes demo → procedure → code → analysis. The code mirrors
@@ -245,6 +246,31 @@ Ten into temp, ten back in place.
 ::sub[The divide-and-merge tree · dividing above, merging below, the base in the middle]
 
 <MergeTrace slide />
+
+</Slide>
+
+<Slide>
+
+#### The merges can run at the same time
+::sub[Same-level merges touch disjoint ranges · the same picture as Topic 01's parallel sum]
+
+<ParallelMergeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Same work, fewer steps
+::sub[Divide and conquer's second gift]
+
+- Still nine merges.
+- Alone: **9 steps**. A level at a time: **4 steps**, the number of levels.
+- Splitting shrinks the work (22 comparisons) and shapes the pieces to **run simultaneously**.
+
+<br/>
+
+But the final merge handles the whole array by itself.  
+However many cores you have, that step sets the wall-clock floor.
 
 </Slide>
 
@@ -790,6 +816,7 @@ generality** to abandon comparison.
 
 1. **Divide and conquer shrinks the work itself.**
    - Divide, conquer, combine. Faster even alone.
+   - And the pieces do not overlap, so they can run at the same time.
 2. **Splitting and combining are a seesaw.**
    - Merge sort gets the split free; quicksort gets the combine free.
 3. **Merge sort: cost n per level, log n levels.**
