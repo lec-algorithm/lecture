@@ -1,0 +1,383 @@
+---
+// 성장 등급 일곱 개가 n이 두 배가 될 때 각각 어떻게 커지는지 보는 데모.
+//
+// 한 걸음 = n을 두 배로. 배가 실험을 그대로 조작으로 만든 것이다.
+// 등급마다 연산 수, 이번 걸음에 몇 배가 됐는지(배지), 그리고 1초에
+// 10^9번 연산한다고 칠 때의 시간을 보여준다. ×4, ×8이 낯익어질
+// 때쯤 2^n 줄이 제곱으로 뛰며 년 단위를 넘는다. 1초를 넘으면 호박색,
+// 1년을 넘으면 빨강으로 시간 칸이 물든다.
+//
+// 큰 수는 log10으로 들고 다닌다. 2^8192 같은 값은 double로 못 담지만
+// log10이면 2466일 뿐이다. 표식은 데모 관례대로 data-gd-*로 접두를 붙였다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `gd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    back: '뒤로',
+    step: 'n 두 배로',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    nChip: 'n = {n}',
+    colClass: '등급',
+    colOps: '연산 수',
+    colStep: '이번 걸음',
+    colTime: '10⁹회/초 기준 시간',
+    squared: '제곱',
+    idle: '한 걸음마다 n이 두 배가 됩니다. 각 등급이 몇 배가 되는지 보세요.',
+    note: 'n이 {p} → {n}. 2차는 ×4, 3차는 ×8, 지수는 자기 자신을 제곱합니다.',
+    yearUnit: '년',
+    dayUnit: '일',
+    hourUnit: '시간',
+    minUnit: '분',
+  },
+  en: {
+    back: 'Back',
+    step: 'Double n',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    nChip: 'n = {n}',
+    colClass: 'class',
+    colOps: 'operations',
+    colStep: 'this step',
+    colTime: 'time at 10⁹ ops/s',
+    squared: 'squared',
+    idle: 'Each step doubles n. Watch what each class does.',
+    note: 'n went {p} → {n}. Quadratic ×4, cubic ×8, exponential squares itself.',
+    yearUnit: 'y',
+    dayUnit: 'd',
+    hourUnit: 'h',
+    minUnit: 'min',
+  },
+  zh: {
+    back: '后退',
+    step: 'n 翻倍',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    nChip: 'n = {n}',
+    colClass: '等级',
+    colOps: '运算次数',
+    colStep: '这一步',
+    colTime: '按 10⁹ 次/秒的时间',
+    squared: '平方',
+    idle: '每走一步 n 翻一倍。看每个等级各变成几倍。',
+    note: 'n 从 {p} 到 {n}。二次 ×4，三次 ×8，指数把自己平方。',
+    yearUnit: '年',
+    dayUnit: '天',
+    hourUnit: '小时',
+    minUnit: '分',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 등급 정의는 서버에서 마크업으로 렌더한다. 값 계산은 스크립트가 한다. */
+const CLASSES = [
+  { key: 'c1', label: '1' },
+  { key: 'clog', label: 'log n' },
+  { key: 'cn', label: 'n' },
+  { key: 'cnlog', label: 'n log n' },
+  { key: 'cn2', label: 'n²' },
+  { key: 'cn3', label: 'n³' },
+  { key: 'c2n', label: '2ⁿ' },
+];
+---
+
+<div
+  class:list={['aas-growth-demo', slide && 'is-slide']}
+  id={id}
+  data-gd-strings={JSON.stringify(t)}
+>
+  <div class="gd-bar">
+    <span class="gd-head">
+      <span class="gd-nchip"><strong data-gd-n>8</strong></span>
+    </span>
+    <div class="gd-controls">
+      <button type="button" data-act="back" class="gd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="gd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="gd-btn gd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="gd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="gd-table">
+    <div class="gd-row gd-headrow">
+      <span>{t.colClass}</span>
+      <span>{t.colOps}</span>
+      <span>{t.colStep}</span>
+      <span>{t.colTime}</span>
+    </div>
+    {
+      CLASSES.map((c) => (
+        <div class="gd-row" data-gd-row={c.key}>
+          <span class="gd-label">{c.label}</span>
+          <span class="gd-ops" data-gd-ops />
+          <span class="gd-badge" data-gd-badge />
+          <span class="gd-time" data-gd-time />
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="gd-note" data-gd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.gdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    /* n = 8에서 시작해 8192까지 두 배씩. 값은 log10으로 들고 다닌다. */
+    const NS = [];
+    for (let n = 8; n <= 8192; n *= 2) NS.push(n);
+    const LOG2 = Math.log10(2);
+
+    /* 각 등급의 log10(연산 수) */
+    const logOps = (key, n) => {
+      const lg = Math.log2(n);
+      switch (key) {
+        case 'c1': return 0;
+        case 'clog': return Math.log10(lg);
+        case 'cn': return Math.log10(n);
+        case 'cnlog': return Math.log10(n * lg);
+        case 'cn2': return 2 * Math.log10(n);
+        case 'cn3': return 3 * Math.log10(n);
+        case 'c2n': return n * LOG2;
+      }
+    };
+
+    /* log10 값에서 표시용 문자열: 백만 미만은 정수, 그 위는 a.b×10^k */
+    const fmtOps = (lv) => {
+      if (lv < 6) {
+        const v = Math.round(10 ** lv);
+        return v.toLocaleString('en-US');
+      }
+      const k = Math.floor(lv);
+      const a = (10 ** (lv - k)).toFixed(1);
+      return `${a}×10^${k}`;
+    };
+
+    /* 10^9회/초 기준 시간. tier: 0 = 1초 미만, 1 = 1초 이상, 2 = 1년 이상 */
+    const YEAR = Math.log10(3.15e16); /* ns 단위의 1년 */
+    const fmtTime = (lv) => {
+      const ns = lv; /* 연산 1회 = 1ns라 log10(ns) = lv */
+      if (ns < 3) return { text: `${Math.round(10 ** ns)} ns`, tier: 0 };
+      if (ns < 6) return { text: `${(10 ** (ns - 3)).toFixed(1)} μs`, tier: 0 };
+      if (ns < 9) return { text: `${(10 ** (ns - 6)).toFixed(1)} ms`, tier: 0 };
+      if (ns < Math.log10(60e9)) return { text: `${(10 ** (ns - 9)).toFixed(1)} s`, tier: 1 };
+      if (ns < Math.log10(3.6e12)) return { text: `${(10 ** (ns - Math.log10(60e9))).toFixed(1)} ${S.minUnit}`, tier: 1 };
+      if (ns < Math.log10(8.64e13)) return { text: `${(10 ** (ns - Math.log10(3.6e12))).toFixed(1)} ${S.hourUnit}`, tier: 1 };
+      if (ns < YEAR) return { text: `${(10 ** (ns - Math.log10(8.64e13))).toFixed(1)} ${S.dayUnit}`, tier: 1 };
+      const ly = ns - YEAR;
+      if (ly < 6) return { text: `${(10 ** ly).toFixed(1)} ${S.yearUnit}`, tier: 2 };
+      return { text: `10^${Math.floor(ly)} ${S.yearUnit}`, tier: 2 };
+    };
+
+    /* 이번 걸음의 배율 배지 */
+    const badge = (key, idx) => {
+      if (idx === 0) return '';
+      const prev = logOps(key, NS[idx - 1]);
+      const cur = logOps(key, NS[idx]);
+      if (key === 'c1') return '×1';
+      if (key === 'clog') return '+1';
+      if (key === 'c2n') return S.squared;
+      const ratio = 10 ** (cur - prev);
+      const near = Math.abs(ratio - Math.round(ratio)) < 0.05;
+      return `×${ratio < 10 ? ratio.toFixed(near ? 0 : 1) : Math.round(ratio)}`;
+    };
+
+    const rows = [...root.querySelectorAll('[data-gd-row]')].map((el) => ({
+      key: el.dataset.gdRow,
+      ops: el.querySelector('[data-gd-ops]'),
+      badgeEl: el.querySelector('[data-gd-badge]'),
+      time: el.querySelector('[data-gd-time]'),
+    }));
+    const nEl = root.querySelector('[data-gd-n]');
+    const noteEl = root.querySelector('[data-gd-note]');
+
+    function render(idx) {
+      const n = NS[idx];
+      nEl.textContent = String(n);
+      for (const r of rows) {
+        const lv = logOps(r.key, n);
+        r.ops.textContent = fmtOps(lv);
+        r.badgeEl.textContent = badge(r.key, idx);
+        const tm = fmtTime(lv);
+        r.time.textContent = tm.text;
+        r.time.className = 'gd-time' + (tm.tier === 1 ? ' is-slow' : tm.tier === 2 ? ' is-never' : '');
+      }
+      noteEl.textContent =
+        idx === 0 ? S.idle : fill(S.note, { p: NS[idx - 1].toLocaleString('en-US'), n: n.toLocaleString('en-US') });
+    }
+
+    let at = 0;
+    let timer = null;
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      root.querySelector('[data-act="play"]').textContent = S.play;
+    }
+
+    function step() {
+      if (at >= NS.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= NS.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0);
+    });
+    root.querySelector('[data-act="play"]').addEventListener('click', (e) => {
+      if (timer) return stop();
+      if (at >= NS.length - 1) {
+        at = 0;
+        render(0);
+      }
+      e.currentTarget.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+
+    render(0);
+  })();
+</script>
+
+<!-- 행 내용은 스크립트가 채우지만 요소 자체는 서버가 만든다. 그래도
+     클래스 토글 대상이 섞여 있어 다른 데모들과 같이 is:global로 통일한다. -->
+<style is:global>
+  .aas-growth-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-growth-demo .gd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-growth-demo .gd-nchip {
+    font-size: 0.95em;
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+    border-radius: 0.5em;
+    padding: 0.1em 0.6em;
+  }
+  .aas-growth-demo .gd-nchip strong {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-growth-demo .gd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-growth-demo .gd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-growth-demo .gd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-growth-demo .gd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-growth-demo .gd-table {
+    display: grid;
+    gap: 0.3em;
+  }
+  .aas-growth-demo .gd-row {
+    display: grid;
+    grid-template-columns: 5.2em 1fr 4.6em 9em;
+    gap: 0.6em;
+    align-items: baseline;
+    padding: 0.22em 0.5em;
+    border-radius: 0.4em;
+  }
+  .aas-growth-demo .gd-row:nth-child(even) {
+    background: color-mix(in srgb, var(--aas-border) 30%, transparent);
+  }
+  .aas-growth-demo .gd-headrow {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-growth-demo .gd-label {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-growth-demo .gd-ops {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    text-align: right;
+  }
+  .aas-growth-demo .gd-badge {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    text-align: right;
+  }
+  .aas-growth-demo .gd-time {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    text-align: right;
+  }
+
+  /* 1초를 넘으면 호박색, 1년을 넘으면 빨강. */
+  .aas-growth-demo .gd-time.is-slow {
+    color: var(--aas-role-trace);
+    font-weight: 600;
+  }
+  .aas-growth-demo .gd-time.is-never {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+
+  .aas-growth-demo .gd-note {
+    margin: 0.7em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.6em;
+  }
+
+  /* 슬라이드용. 표가 넓어 3vh 수준으로 잡는다.
+     vh 단위인 이유는 SearchDemo 참고: 슬라이드 폭은 뷰포트 높이가 정한다. */
+  .aas-growth-demo.is-slide {
+    font-size: clamp(0.95rem, 3vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+</style>
