@@ -394,12 +394,37 @@ The demo's counters land on the same numbers.
 #### Why n log n
 ::sub[At every level, the merged elements add up to n]
 
-```plaintext
-level 0              [########  n  ########]      cost n
-level 1          [### n/2 ###]  [### n/2 ###]     cost n
-level 2        [ n/4 ] [ n/4 ]  [ n/4 ] [ n/4 ]   cost n
-  ⋮                       ⋮                        ⋮
-level log n    [1] [1] [1]  ⋯   [1] [1] [1]       (base)
+```mermaid
+graph TD
+  subgraph SG0 ["level 0 · cost n"]
+    A["n"]
+  end
+  subgraph SG1 ["level 1 · cost n"]
+    B1["n/2"]
+    B2["n/2"]
+  end
+  subgraph SG2 ["level 2 · cost n"]
+    C1["n/4"]
+    C2["n/4"]
+    C3["n/4"]
+    C4["n/4"]
+  end
+  subgraph SG3 ["level log n · base"]
+    D1["1"]
+    D2["1"]
+    D3["⋯"]
+    D4["1"]
+  end
+  A --> B1
+  A --> B2
+  B1 --> C1
+  B1 --> C2
+  B2 --> C3
+  B2 --> C4
+  C1 -.-> D1
+  C2 -.-> D2
+  C3 -.-> D3
+  C4 -.-> D4
 ```
 
 - Halving gives $$\log_2 n$$ levels.
@@ -502,14 +527,18 @@ Open a file and press the **▶ button** at the top right of the editor.
 ### The decision tree
 ::sub[Draw the comparisons as a tree · n = 3]
 
-```plaintext
-              a[0] < a[1] ?
-       yes ↙              ↘ no
-  a[1] < a[2] ?          a[0] < a[2] ?
-   ↙        ↘             ↙        ↘
-[0 1 2]  a[0] < a[2]?  [1 0 2]  a[1] < a[2]?
-          ↙    ↘                 ↙    ↘
-      [0 2 1] [2 0 1]        [1 2 0] [2 1 0]
+```mermaid
+graph TD
+  A{{"a[0] < a[1] ?"}} -->|yes| B{{"a[1] < a[2] ?"}}
+  A -->|no| C{{"a[0] < a[2] ?"}}
+  B -->|yes| L1(["0 1 2"])
+  B -->|no| D{{"a[0] < a[2] ?"}}
+  C -->|yes| L2(["1 0 2"])
+  C -->|no| E{{"a[1] < a[2] ?"}}
+  D -->|yes| L3(["0 2 1"])
+  D -->|no| L4(["2 0 1"])
+  E -->|yes| L5(["1 2 0"])
+  E -->|no| L6(["2 1 0"])
 ```
 
 - One comparison per node; branches are its outcomes.
