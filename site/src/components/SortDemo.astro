@@ -251,6 +251,10 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       let c = 0;
       let m = 0;
       const multi = gaps.length > 1;
+      /* 정렬된 앞부분: 0..i에서 구멍(null)을 뺀 칸. 밀려난 원소가 i 자리에
+         나가 있어도 앞부분의 일원이므로, 고정 범위가 아니라 배열 상태로 센다. */
+      const partOf = (i, g) =>
+        g === 1 ? range(i + 1).filter((x) => a[x] !== null) : [];
       for (const g of gaps) {
         if (multi) {
           steps.push({ a: snap(a), look: [], gap: g, c, m, note: fill(S.gapStart, { g }) });
@@ -263,7 +267,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           const group = gap ? i % g : -1;
           steps.push({
             a: snap(a), look: [i], key, gap, group, c, m,
-            part: g === 1 ? range(i) : [],
+            part: partOf(i, g),
             note: fill(S.pick, { i, k: key.v }),
           });
           let j = i - g;
@@ -272,7 +276,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
             if (a[j].v <= key.v) {
               steps.push({
                 a: snap(a), look: [j], key, gap, group, c, m,
-                part: g === 1 ? range(i) : [],
+                part: partOf(i, g),
                 note: fill(S.stopAt, { j, v: a[j].v, k: key.v }),
               });
               break;
@@ -282,7 +286,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
             m++;
             steps.push({
               a: snap(a), look: [j + g], key, gap, group, c, m,
-              part: g === 1 ? range(i) : [],
+              part: partOf(i, g),
               note: fill(g > 1 ? S.shiftG : S.shift, { j, v: a[j + g].v, k: key.v, g }),
             });
             j -= g;
@@ -291,7 +295,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           m++;
           steps.push({
             a: snap(a), look: [], placed: j + g, gap, group, c, m,
-            part: g === 1 ? range(i + 1) : [],
+            part: partOf(i, g),
             note: fill(S.place, { p: j + g, k: key.v }),
           });
         }
