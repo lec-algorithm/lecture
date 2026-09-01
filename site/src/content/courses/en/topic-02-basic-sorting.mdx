@@ -1,32 +1,585 @@
 ---
-title: "Topic 02. Elementary Sorting"
-description: "Selection, insertion, shell and bubble sort, and the comparisons and moves each costs"
+title: "Topic 02. Basic Sorting"
+description: "Selection, insertion, shell, and bubble sort measured in comparisons and moves, plus stability as a third axis"
 date: 2026-08-25
 category: sorting
 order: "9098"
 level: 1
 hours: "3:00"
+slides: ["topic-02-basic-sorting"]
 ---
 
-> Material is in preparation; this page fills in before the topic is taught.
+import SortDemo from '@components/SortDemo.astro';
 
-## What it covers
+> Topic 01 raised two questions: **what do you give up and what do you get**,
+> and **what happens when the input grows**. This topic applies them to
+> sorting. We run four sorts on the same input and measure each with two
+> numbers: **comparisons** and **moves**.
 
-- Selection sort: pick the smallest each round and move it to the front
-- Insertion sort: slot each element into the sorted prefix
-- How the two diverge in the best, average and worst cases
-- Shell sort and bubble sort
-- The two axes of sorting cost: comparisons and moves
+## A word about levels \{#levels}
 
-## Practice code
+Before we start, one note on where this course sits.
+High level and low level are **layers, not skill grades**. Both are needed,
+and they complement each other.
 
-Lands in the `src/topic-02-basic-sorting/` folder of the `algorithm-code` repository.
-Each example pairs one pseudocode file with a C and a Python implementation.
+Consider a train-ticket reservation server under load.
+
+- **The high-level answer**: more users, more servers.
+- **The low-level answer**: change the algorithm so requests can be handled
+  concurrently, and control the number of servers dynamically.
+
+There comes a moment when adding servers is not enough. What you need then
+is an understanding of the lower layer, and that layer is what this course
+is about. Sorting is its signature problem.
+
+## The sorting problem \{#problem}
+
+**Problem**: rearrange the elements of an array into ascending order.
+
+```plaintext
+input    6   8   5   9  10   1   7   2   4   3
+output   1   2   3   4   5   6   7   8   9  10
+```
+
+We use this one array throughout the topic, so the four sorts can be
+compared on exactly the same input.
+
+Topic 01 already answered why sorting comes first. [[binary-search|Binary
+search]] only works on a **sorted array**. The power to discard half comes
+from sorting. Sorting is the foundation other algorithms stand on.
+
+### What do we sort by \{#key}
+
+Real data is not a single number. If you sort a list of laptops, by what?
+
+```c
+struct laptop {
+    int id;
+    int ram;
+    int ssd;
+};
+```
+
+A list sorted by `id` and a list sorted by `ram` are different lists.
+The value a sort orders by is called the **key**. The examples in this
+topic use the simplest case, a single integer key. What happens when
+several elements share a key is its own question, covered under
+[stability](#stability).
+
+### What do we measure \{#measure}
+
+For searching, counting comparisons was enough. Sorting also **moves**
+elements, so we count two things.
+
+- **Comparisons**: how many times two elements were compared
+- **Moves**: how many times one element was written to a new place
+
+We fix one counting rule. **A swap is 3 moves**, because it writes three
+times through `temp`. Shifting, as insertion sort does, counts take-out,
+each shift, and put-in as 1 move apiece. Fixing the rule is what lets the
+four sorts share one table.
+
+```c
+int temp = a[i];    /* move 1 */
+a[i] = a[min];      /* move 2 */
+a[min] = temp;      /* move 3 */
+```
+
+## Example 1. Selection sort \{#selection}
+
+The idea fits in one line: **find the minimum of what remains and bring it
+to the front.** The front grows as settled territory while the rest is
+scanned for the next minimum.
+
+Run it first. Orange is the cell being compared, violet the current
+minimum candidate, green the settled cells.
+
+<SortDemo algo="selection" />
+
+The scan is long and the swap is short. Each pass makes many comparisons
+but at most one swap.
+
+### As a procedure \{#selection-pseudo}
+
+```plaintext
+ALGORITHM SelectionSort(A, n)
+    for i <- 0 to n-2 do
+        min <- i
+        for j <- i+1 to n-1 do
+            if A[j] < A[min] then
+                min <- j
+        if min != i then
+            swap A[i], A[min]
+```
+
+### As code \{#selection-code}
+
+```c
+void selectionSort(int a[], int n, int *comparisons, int *moves) {
+    for (int i = 0; i < n - 1; i++) {
+        int min = i;
+        for (int j = i + 1; j < n; j++) {
+            (*comparisons)++;
+            if (a[j] < a[min]) {
+                min = j;
+            }
+        }
+        if (min != i) {
+            int temp = a[i];
+            a[i] = a[min];
+            a[min] = temp;
+            *moves += 3;
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-02-basic-sorting/01_selection_sort
+make -f /work/Makefile selectionSort.out && ./selectionSort.out
+```
+
+- Result
+
+```console
+before: 6 8 5 9 10 1 7 2 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 45, moves = 15
+```
+
+The demo's counters land on the same numbers. The demo and the code count
+the same procedure by the same rule.
+
+### Analysis \{#selection-analysis}
+
+The comparison count does not depend on the input. The first pass makes
+$$n-1$$ comparisons, the next $$n-2$$, down to $$1$$.
+
+$$(n-1) + (n-2) + \cdots + 1 = \frac{n(n-1)}{2}$$
+
+For $$n = 10$$ that is $$45$$. **Even an already-sorted array costs 45
+comparisons**, because you only know where the minimum is after looking at
+everything.
+
+| | Comparisons | Moves |
+| --- | --- | --- |
+| Sample array | $$45$$ | $$15$$ |
+| Already sorted | $$45$$ | $$0$$ |
+| Reversed | $$45$$ | $$15$$ |
+
+Moves are at most one swap per pass, 3 apiece, so at most $$3(n-1)$$ in
+total. Selection sort **compares a lot but moves very little**, which
+becomes a real advantage when moving is expensive, as with large structs.
+
+## Example 2. Insertion sort \{#insertion}
+
+The idea is different: **keep the front sorted, and insert each new
+element into its place.** It is how card players slot a new card into
+their hand.
+
+The dashed-border empty cell is where the key was taken out. Elements
+bigger than the key shift over one slot; the key drops into where the
+shifting stops.
+
+<SortDemo algo="insertion" />
+
+The opposite of selection sort: it may stop comparing early, but it has to
+keep shifting elements.
+
+### As a procedure \{#insertion-pseudo}
+
+```plaintext
+ALGORITHM InsertionSort(A, n)
+    for i <- 1 to n-1 do
+        key <- A[i]
+        j <- i-1
+        while j >= 0 and A[j] > key do
+            A[j+1] <- A[j]
+            j <- j-1
+        A[j+1] <- key
+```
+
+### As code \{#insertion-code}
+
+```c
+void insertionSort(int a[], int n, int *comparisons, int *moves) {
+    for (int i = 1; i < n; i++) {
+        int key = a[i];
+        (*moves)++;
+        int j = i - 1;
+        while (j >= 0) {
+            (*comparisons)++;
+            if (a[j] <= key) {
+                break;
+            }
+            a[j + 1] = a[j];
+            (*moves)++;
+            j--;
+        }
+        a[j + 1] = key;
+        (*moves)++;
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-02-basic-sorting/02_insertion_sort
+make -f /work/Makefile insertionSort.out && ./insertionSort.out
+```
+
+- Result
+
+```console
+before: 6 8 5 9 10 1 7 2 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 36, moves = 47
+```
+
+### Analysis \{#insertion-analysis}
+
+Unlike selection sort, **the comparison count depends on the input.** On
+sorted input, each element is compared with its predecessor once and the
+scan stops immediately. On reversed input, every element shifts all the
+way to the front.
+
+| | Comparisons | Moves |
+| --- | --- | --- |
+| Sample array | $$36$$ | $$47$$ |
+| Already sorted | $$9$$ | $$18$$ |
+| Reversed | $$45$$ | $$63$$ |
+
+Watch the reversed input directly and the worst case explains itself:
+everything migrates to the front, one slot at a time.
+
+<SortDemo algo="insertion" values={[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]} />
+
+In general form:
+
+| | Comparisons | Time |
+| --- | --- | --- |
+| Best (sorted) | $$n-1$$ | $$O(n)$$ |
+| Average | $$\approx \dfrac{n^2}{4}$$ | $$O(n^2)$$ |
+| Worst (reversed) | $$\dfrac{n(n-1)}{2}$$ | $$O(n^2)$$ |
+
+### The two sorts side by side \{#sel-vs-ins}
+
+| | Best | Average | Worst | Character |
+| --- | --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | Constant regardless of input. Few moves |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | Faster the closer to sorted |
+
+The question that separates them is: **do you have to compare everything
+even when the input is already sorted?** Selection does; insertion does
+not. That is why insertion sort is a practical tool wherever nearly-sorted
+data keeps arriving, as in logs or live rankings.
+
+Both use $$O(1)$$ space. They work [[in-place|in place]], moving only
+within the given array.
+
+## Stability \{#stability}
+
+When several elements share a key, a new question appears: **does the
+original order survive the sort?** If it does, the sort is
+[[stable-sort|stable]]; if not, unstable.
+
+Sorting by height does not decide who comes first between Sena and Jihun,
+both 160cm. What we check is whether the sort preserves the fact that
+Sena came first in the original list.
+
+Selection sort first.
+
+<SortDemo
+  algo="selection"
+  values={[160, 160, 150, 170]}
+  labels={['Sena', 'Jihun', 'Yuri', 'Taemin']}
+/>
+
+The swap that brings 150 forward throws Sena **behind** Jihun. The result
+is sorted, but Sena and Jihun have traded places. **Selection sort is
+unstable.** Any sort that swaps distant elements can leap over an equal
+key sitting in between.
+
+Same input, insertion sort.
+
+<SortDemo
+  algo="insertion"
+  values={[160, 160, 150, 170]}
+  labels={['Sena', 'Jihun', 'Yuri', 'Taemin']}
+/>
+
+Jihun compares with Sena (160 ≤ 160) and stays behind her. Elements move
+one slot at a time and never leap over an equal key, so **insertion sort
+is stable.**
+
+Where stability actually matters is **sorting twice**. Sort a list by
+name, then re-sort by key: with a stable sort, ties stay in name order;
+with an unstable one, the order within ties can change on every run.
+
+## Example 3. Shell sort \{#shell}
+
+Insertion sort's weakness is that **elements move one slot at a time**. In
+the reversed demo above, `1` traveled nine slots in nine separate steps.
+
+Shell sort's answer: **insertion-sort far-apart elements first.** Use a
+large gap to move elements in strides, then shrink the gap and repeat. The
+final gap is 1, plain insertion sort, but by then the array is nearly
+sorted, which is exactly the input insertion sort is best at.
+
+With 10 elements the gap shrinks through 5, 2, 1. The undimmed cells are
+the gap group currently being sorted.
+
+<SortDemo algo="shell" />
+
+### As a procedure \{#shell-pseudo}
+
+```plaintext
+ALGORITHM ShellSort(A, n)
+    gap <- n / 2
+    while gap >= 1 do
+        for i <- gap to n-1 do
+            key <- A[i]
+            j <- i - gap
+            while j >= 0 and A[j] > key do
+                A[j+gap] <- A[j]
+                j <- j - gap
+            A[j+gap] <- key
+        gap <- gap / 2
+```
+
+It is the insertion sort procedure with `gap` where `1` used to be.
+
+### As code \{#shell-code}
+
+```c
+void shellSort(int a[], int n, int *comparisons, int *moves) {
+    for (int gap = n / 2; gap >= 1; gap /= 2) {
+        for (int i = gap; i < n; i++) {
+            int key = a[i];
+            (*moves)++;
+            int j = i - gap;
+            while (j >= 0) {
+                (*comparisons)++;
+                if (a[j] <= key) {
+                    break;
+                }
+                a[j + gap] = a[j];
+                (*moves)++;
+                j -= gap;
+            }
+            a[j + gap] = key;
+            (*moves)++;
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-02-basic-sorting/03_shell_sort
+make -f /work/Makefile shellSort.out && ./shellSort.out
+```
+
+- Result
+
+```console
+before: 6 8 5 9 10 1 7 2 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 29, moves = 57
+```
+
+### Analysis \{#shell-analysis}
+
+29 comparisons, the fewest of the four. Yet 57 moves, **more** than
+insertion sort's 47. Each gap round pays the take-out and put-in overhead
+again, so with 10 elements the investment does not pay off.
+
+The payoff appears as n grows. Here is `performance_comparison.py` from
+the practice code. Timings vary by machine.
+
+| n | Insertion sort | Shell sort | Difference |
+| --- | --- | --- | --- |
+| 20 | 0.000006s | 0.000010s | insertion wins |
+| 40 | 0.000017s | 0.000024s | insertion wins |
+| 1,000 | 0.014s | 0.0014s | **shell, 10x** |
+| 10,000 | 1.21s | 0.024s | **shell, 51x** |
+
+The time complexity **depends on the gap sequence.** Halving, as our code
+does, has an $$O(n^2)$$ worst case; the Knuth sequence
+($$1, 4, 13, 40, \ldots$$) improves it to $$O(n^{1.5})$$. Shell sort is
+also unusual in that its worst case is not the reversed input: the sample
+array took 29 comparisons while the reversed one takes only 27. The worst
+case comes from patterns that fight the gap sequence.
+
+The same procedure with a different gap sequence has a different
+complexity, and that is the reason to study shell sort: **a procedure's
+parameters are design decisions too.**
+
+## Example 4. Bubble sort \{#bubble}
+
+The most famous sort, and the least efficient: **compare neighbors and
+push the bigger one back.** After one pass, the largest element has
+arrived at the end.
+
+<SortDemo algo="bubble" />
+
+The name comes from large elements bubbling up to the end.
+
+### As a procedure \{#bubble-pseudo}
+
+```plaintext
+ALGORITHM BubbleSort(A, n)
+    for i <- 0 to n-2 do
+        for j <- 0 to n-2-i do
+            if A[j] > A[j+1] then
+                swap A[j], A[j+1]
+```
+
+### As code \{#bubble-code}
+
+```c
+void bubbleSort(int a[], int n, int *comparisons, int *moves) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - 1 - i; j++) {
+            (*comparisons)++;
+            if (a[j] > a[j + 1]) {
+                int temp = a[j];
+                a[j] = a[j + 1];
+                a[j + 1] = temp;
+                *moves += 3;
+            }
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-02-basic-sorting/04_bubble_sort
+make -f /work/Makefile bubbleSort.out && ./bubbleSort.out
+```
+
+- Result
+
+```console
+before: 6 8 5 9 10 1 7 2 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 45, moves = 87
+```
+
+### Analysis \{#bubble-analysis}
+
+The numbers state the verdict. **45 comparisons, the same as selection
+sort, but 87 moves, nearly six times selection sort's 15.** Neighbors-only
+swapping means elements travel one slot at a time, and every swap costs 3
+moves. On reversed input every comparison becomes a swap and moves climb
+to $$3 \cdot \dfrac{n(n-1)}{2} = 135$$.
+
+There is still a reason to learn it: the procedure is so simple that it
+is **a good place to practice improving one**. Add a flag that stops the
+sort when a pass makes no swaps. On already-sorted input, comparisons drop
+from 45 to 9 and the best case becomes $$O(n)$$. The practice code's
+**Try changing** section walks through this.
+
+## The four sorts side by side \{#comparison}
+
+| Sort | Best | Average | Worst | Space | Stability |
+| --- | --- | --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable |
+| Shell sort | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable |
+| Bubble sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable |
+
+The same table can be filled with numbers we measured ourselves, on the
+sample array `6 8 5 9 10 1 7 2 4 3`:
+
+| Sort | Comparisons | Moves | One line |
+| --- | --- | --- | --- |
+| Selection sort | 45 | 15 | Many comparisons, fewest moves |
+| Insertion sort | 36 | 47 | Fewer comparisons the more sorted |
+| Shell sort | 29 | 57 | Fewest comparisons. Pays off at large n |
+| Bubble sort | 45 | 87 | Saves neither |
+
+Shell sort's $$O(n^2)$$ worst case is for halving gaps; with the Knuth
+sequence it is $$O(n^{1.5})$$. Add stability to the picture and the
+table's conclusion is that **"fast" alone cannot choose a sort**. Each
+one gives up something different.
+
+## Faster sorts exist \{#faster}
+
+All four have an $$O(n^2)$$ worst case. Merge sort and quicksort, built in
+the next two topics, break that wall.
+
+| Sort | Best | Average | Worst |
+| --- | --- | --- | --- |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ |
+| Merge sort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ |
+| Quicksort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n^2)$$ |
+
+How big is the gap between $$O(n^2)$$ and $$O(n \log n)$$? Sedgewick's
+empirical analysis gives a feel. Time to sort one billion elements:
+
+| Computer | Insertion sort | Merge sort | Quicksort |
+| --- | --- | --- | --- |
+| Ordinary PC | **317 years** | 18 min | 12 min |
+| Supercomputer | 1 week | instant | instant |
+
+The same picture as Topic 01's Fibonacci: **a better computer does not
+break an algorithm's wall.** A supercomputer running insertion sort
+(1 week) loses to an ordinary PC running merge sort (18 minutes).
+
+To watch many sorts race on one screen, open
+[toptal.com/developers/sorting-algorithms](https://www.toptal.com/developers/sorting-algorithms).
+Eight sorts compete on random, nearly-sorted, reversed, and few-unique
+inputs.
+
+## What to keep \{#takeaway}
+
+- Sorting performance has **two axes: comparisons and moves**. A swap is
+  3 moves.
+- **Selection sort**: always $$\frac{n(n-1)}{2}$$ comparisons, regardless
+  of input. Fewest moves. Unstable.
+- **Insertion sort**: the closer to sorted, the faster. Best case
+  $$O(n)$$. Stable.
+- **Shell sort**: moves far elements first to erase insertion sort's
+  weakness. The gap sequence sets the complexity.
+- **Bubble sort**: selection sort's comparisons with the most moves. A
+  place to practice improvement.
+- A sort that preserves the order of equal keys is **stable**. The
+  difference shows when you sort twice.
+- All four are $$O(n^2)$$ in the worst case; the next topic's divide and
+  conquer breaks that wall.
+
+## Practice code \{#code}
+
+It lives in the
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main)
+repository under `src/topic-02-basic-sorting/`. Each example pairs one
+pseudocode file with C and Python implementations.
 
 ```plaintext
 src/topic-02-basic-sorting/
-├── 01_selection_sort/
-├── 02_insertion_sort/
-├── 03_shell_sort/
-└── 04_bubble_sort/
+├── 01_selection_sort/    # selection sort, 45 comparisons 15 moves
+├── 02_insertion_sort/    # insertion sort, 36 comparisons 47 moves
+├── 03_shell_sort/        # shell sort + benchmark script
+└── 04_bubble_sort/       # bubble sort, 45 comparisons 87 moves
 ```
+
+Open a file and press the **▶ button** at the top right of the editor to
+run it. See [Setting up the practice environment](/article/setup-guide/)
+for how to run things.
+
+**Try it yourself**
+
+- Feed all four sorts a sorted array and a reversed array, and build the
+  comparison/move table yourself. The numbers must match the analysis
+  tables above.
+- Add the flag to bubble sort and confirm sorted input takes 9
+  comparisons.
+- Switch shell sort's gaps to the Knuth sequence and measure the
+  difference with `performance_comparison.py`.

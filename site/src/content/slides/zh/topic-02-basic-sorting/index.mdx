@@ -1,0 +1,908 @@
+---
+title: "主题 02. 基础排序"
+description: "用比较次数和移动次数度量选择、插入、希尔、冒泡四种排序，并加入稳定性"
+presenter: 李泰奎
+date: "主题 02"
+order: 2
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import SortDemo from '@components/SortDemo.astro';
+
+{/* 幻灯片规则见 docs/writing-rules.md 的"슬라이드 규칙"。
+    每个例子按 演示 → 过程 → 代码 → 分析 的顺序。代码与 algorithm-code
+    仓库一致，那边改了这里也要跟着改。演示的计数器会落在代码打印的数字上。 */}
+
+<Slide class="cover">
+
+# 基础排序
+
+主题 02
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 关于"水平"这个词
+::sub[高水平和低水平是层的概念]
+
+- **不是好坏的等级。**
+  - 高层编程既不更难，也不更高贵。
+- **只是层不同。**
+  - 高层：声明"按下按钮就弹出窗口"。
+  - 低层：亲自指定画什么图形、涂什么颜色、怎样渐渐变大。
+- **两者都需要，互相补充。**
+
+</Slide>
+
+<Slide>
+
+#### 火车票预订服务器
+::sub[负载暴涨。哪一层来回答]
+
+- **高层的回答**
+  - 用户多了，就加服务器。
+- **低层的回答**
+  - 改造算法，让请求并发处理。
+  - 动态控制服务器数量。
+
+<br/>
+
+总有一个时刻，光加服务器已经不够了。  
+那时需要的，是对低层的理解。
+
+</Slide>
+
+<Slide class="center">
+
+### 这门课讲的就是那一层
+### 排序是那一层的**代表问题**
+
+</Slide>
+
+<Slide>
+
+## 排序这个问题
+::sub[把数组的元素重新排列成升序]
+
+```plaintext
+输入   6   8   5   9  10   1   7   2   4   3
+
+输出   1   2   3   4   5   6   7   8   9  10
+```
+
+- 整个主题都用这一个数组。
+- 主题 01 的二分查找只在**已排序的数组**上成立。
+  - 每次丢掉一半的能力，是排序给它的。
+- 排序是其他算法的地基。
+
+</Slide>
+
+<Slide>
+
+#### 按什么排序
+::sub[排序所依据的值就是键（key）]
+
+<div class="aas-split">
+<div>
+
+```c
+struct laptop {
+    int id;
+    int ram;
+    int ssd;
+};
+```
+
+</div>
+<div>
+
+- 按 `id` 排出的列表和按 `ram` 排出的列表是**不同的列表**。
+- 本主题用最简单的情形：键是一个整数。
+- 多个元素的键**相同**时会产生新问题。
+  - 稍后在稳定性一节讨论。
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 用什么度量
+::sub[查找只数比较。排序还要搬动元素]
+
+<div class="aas-split">
+<div>
+
+- **比较次数**
+  - 两个元素被比较的次数
+- **移动次数**
+  - 一个元素被写到新位置的次数
+
+</div>
+<div>
+
+- 一次交换（swap）算**移动 3 次**。
+
+```c
+int temp = a[i];    /* 移动 1 */
+a[i] = a[min];      /* 移动 2 */
+a[min] = temp;      /* 移动 3 */
+```
+
+</div>
+</div>
+
+<br/>
+
+规则固定了，四种排序才能放进同一张表。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 1. 选择排序
+::sub[在剩下的元素里找最小值，放到前面]
+
+</Slide>
+
+<Slide>
+
+### 选择排序
+::sub[橙色在比较，紫色是最小值候选，绿色已确定。请按**单步**]
+
+<SortDemo slide algo="selection" />
+
+</Slide>
+
+<Slide>
+
+#### 写成过程
+::sub[扫描很长，每轮交换最多一次]
+
+```plaintext
+ALGORITHM SelectionSort(A, n)
+    for i <- 0 to n-2 do
+        min <- i
+        for j <- i+1 to n-1 do
+            if A[j] < A[min] then
+                min <- j
+        if min != i then
+            swap A[i], A[min]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`01_selection_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `selectionSort.c`
+
+```c
+void selectionSort(int a[], int n,
+                   int *comparisons, int *moves) {
+    for (int i = 0; i < n - 1; i++) {
+        int min = i;
+        for (int j = i + 1; j < n; j++) {
+            (*comparisons)++;
+            if (a[j] < a[min]) {
+                min = j;
+            }
+        }
+        if (min != i) {
+            int temp = a[i];
+            a[i] = a[min];
+            a[min] = temp;
+            *moves += 3;
+        }
+    }
+}
+```
+
+</div>
+<div>
+
+- `selection_sort.py`
+
+```python
+def selection_sort(a):
+    comparisons = 0
+    moves = 0
+    n = len(a)
+    for i in range(n - 1):
+        min_index = i
+        for j in range(i + 1, n):
+            comparisons += 1
+            if a[j] < a[min_index]:
+                min_index = j
+        if min_index != i:
+            a[i], a[min_index] = \
+                a[min_index], a[i]
+            moves += 3
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 比较次数是定死的
+::sub[第一轮 n-1 次，下一轮 n-2 次，最后 1 次]
+
+$$(n-1) + (n-2) + \cdots + 1 = \frac{n(n-1)}{2}$$
+
+- $$n = 10$$ 时是 **45 次**。
+- 演示的计数器和代码的输出都落在 45 上。
+
+- 运行
+
+```console
+before: 6 8 5 9 10 1 7 2 4 3
+after : 1 2 3 4 5 6 7 8 9 10
+comparisons = 45, moves = 15
+```
+
+</Slide>
+
+<Slide>
+
+#### 换了输入，比较照旧
+::sub[最小值在哪里，只有全部看完才知道]
+
+| 输入 | 比较次数 | 移动次数 |
+| --- | --- | --- |
+| 示例数组 | $$45$$ | $$15$$ |
+| 已排序 | $$45$$ | $$0$$ |
+| 逆序 | $$45$$ | $$15$$ |
+
+<br/>
+
+- **就算已经排好序，也要比较 45 次。**
+- 移动每轮最多 3 次，总共最多 $$3(n-1)$$ 次。
+
+</Slide>
+
+<Slide class="center">
+
+### 比较多，移动最少
+### 元素是**大结构体**时就是优点
+
+</Slide>
+
+<Slide class="center">
+
+## 例 2. 插入排序
+::sub[保持前段有序，把新元素插到它的位置上]
+
+</Slide>
+
+<Slide>
+
+### 插入排序
+::sub[虚线空格是 key 被取出的位置。请按**单步**]
+
+<SortDemo slide algo="insertion" />
+
+</Slide>
+
+<Slide>
+
+#### 写成过程
+::sub[比 key 大的往后移，停下的地方放入 key]
+
+```plaintext
+ALGORITHM InsertionSort(A, n)
+    for i <- 1 to n-1 do
+        key <- A[i]
+        j <- i-1
+        while j >= 0 and A[j] > key do
+            A[j+1] <- A[j]
+            j <- j-1
+        A[j+1] <- key
+```
+
+和选择排序正相反。  
+比较可以提前停下，但元素得不停地移。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`02_insertion_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `insertionSort.c`
+
+```c
+void insertionSort(int a[], int n,
+                   int *comparisons, int *moves) {
+    for (int i = 1; i < n; i++) {
+        int key = a[i];
+        (*moves)++;
+        int j = i - 1;
+        while (j >= 0) {
+            (*comparisons)++;
+            if (a[j] <= key) {
+                break;
+            }
+            a[j + 1] = a[j];
+            (*moves)++;
+            j--;
+        }
+        a[j + 1] = key;
+        (*moves)++;
+    }
+}
+```
+
+</div>
+<div>
+
+- `insertion_sort.py`
+
+```python
+def insertion_sort(a):
+    comparisons = 0
+    moves = 0
+    for i in range(1, len(a)):
+        key = a[i]
+        moves += 1
+        j = i - 1
+        while j >= 0:
+            comparisons += 1
+            if a[j] <= key:
+                break
+            a[j + 1] = a[j]
+            moves += 1
+            j -= 1
+        a[j + 1] = key
+        moves += 1
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 最好情况：已排序的输入
+::sub[每个元素和前一个比一次就停]
+
+<SortDemo slide algo="insertion" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} />
+
+</Slide>
+
+<Slide>
+
+#### 最坏情况：逆序输入
+::sub[所有元素一路挪到最前面]
+
+<SortDemo slide algo="insertion" values={[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]} />
+
+</Slide>
+
+<Slide>
+
+#### 比较多少次
+::sub[和选择不同，随输入而变]
+
+| | 比较次数 | 时间 |
+| --- | --- | --- |
+| 最好（已排序） | $$n-1$$ | $$O(n)$$ |
+| 平均 | $$\approx \dfrac{n^2}{4}$$ | $$O(n^2)$$ |
+| 最坏（逆序） | $$\dfrac{n(n-1)}{2}$$ | $$O(n^2)$$ |
+
+<br/>
+
+示例数组上：比较 36 次，移动 47 次。
+
+</Slide>
+
+<Slide>
+
+#### 两种排序并排看
+::sub[分水岭：已经有序时还要全部比一遍吗]
+
+| | 最好 | 平均 | 最坏 | 特点 |
+| --- | --- | --- | --- | --- |
+| 选择排序 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | 与输入无关，恒定 |
+| 插入排序 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | 越接近有序越快 |
+
+<br/>
+
+- 选择必须，插入不必。
+- 接近有序的数据不断到来的地方，插入排序是实用工具。
+- 空间都是 $$O(1)$$，原地排序。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手
+::sub[例 1、2：选择和插入]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-02-basic-sorting/`  
+打开文件，按编辑器右上角的 **▶ 按钮**运行。
+
+1. **把数组改成 `1 2 … 10`。**
+   - 选择仍是 45 次，插入降到 9 次。
+2. **改成逆序 `10 9 … 1`。**
+   - 这回两个都是 45 次。
+   - 移动次数分开了：15 对 63。
+3. **用这两次结果自己填出分析表。**
+   - 表里的数字必须直接来自运行。
+
+</Slide>
+
+<Slide class="center">
+
+## 稳定性
+::sub[键相同的元素，先后顺序还在吗]
+
+</Slide>
+
+<Slide>
+
+### 选择排序会跳过去
+::sub[同为 160cm，善雅原本在前。排序之后呢]
+
+<SortDemo
+  slide
+  algo="selection"
+  values={[160, 160, 150, 170]}
+  labels={['善雅', '志勋', '有莉', '泰民']}
+/>
+
+</Slide>
+
+<Slide>
+
+### 插入排序保得住
+::sub[同样的输入。160 ≤ 160 就停下，不会跳过]
+
+<SortDemo
+  slide
+  algo="insertion"
+  values={[160, 160, 150, 170]}
+  labels={['善雅', '志勋', '有莉', '泰民']}
+/>
+
+</Slide>
+
+<Slide>
+
+#### 什么时候要紧
+::sub[排两次序时见分晓]
+
+- 先按名字排好的列表，再按键重排。
+- **稳定排序**
+  - 键相同的元素保持名字顺序。
+  - 每次运行结果都一样。
+- **不稳定排序**
+  - 键相同的元素每跑一次顺序都可能不同。
+
+<br/>
+
+交换相距很远的元素的排序，会跳过中间键相同的元素。  
+这就是选择排序不稳定的原因。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 3. 希尔排序
+::sub[先让相距很远的元素排好]
+
+</Slide>
+
+<Slide>
+
+#### 插入排序的弱点
+::sub[元素一次只能挪一格]
+
+- 逆序演示里，`1` 走了**九格路，用了九步**。
+- 要走得越远的元素，到得越慢。
+
+<br/>
+
+希尔排序的回答：
+
+- 把间隔（gap）取大，让元素**大步**移动。
+- 缩小 gap，反复做。
+- 最后一轮 gap 是 1，就是普通的插入排序。
+  - 那时数组已接近有序，恰是插入排序最擅长的输入。
+
+</Slide>
+
+<Slide>
+
+### 希尔排序
+::sub[gap 依次是 5、2、1。没变暗的格子是当前的 gap 组]
+
+<SortDemo slide algo="shell" />
+
+</Slide>
+
+<Slide>
+
+#### 写成过程
+::sub[插入排序里写 1 的地方换成了 gap]
+
+```plaintext
+ALGORITHM ShellSort(A, n)
+    gap <- n / 2
+    while gap >= 1 do
+        for i <- gap to n-1 do
+            key <- A[i]
+            j <- i - gap
+            while j >= 0 and A[j] > key do
+                A[j+gap] <- A[j]
+                j <- j - gap
+            A[j+gap] <- key
+        gap <- gap / 2
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`03_shell_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `shellSort.c`
+
+```c
+void shellSort(int a[], int n,
+               int *comparisons, int *moves) {
+    for (int gap = n / 2; gap >= 1; gap /= 2) {
+        for (int i = gap; i < n; i++) {
+            int key = a[i];
+            (*moves)++;
+            int j = i - gap;
+            while (j >= 0) {
+                (*comparisons)++;
+                if (a[j] <= key) {
+                    break;
+                }
+                a[j + gap] = a[j];
+                (*moves)++;
+                j -= gap;
+            }
+            a[j + gap] = key;
+            (*moves)++;
+        }
+    }
+}
+```
+
+</div>
+<div>
+
+- `shell_sort.py`
+
+```python
+def shell_sort(a):
+    comparisons = 0
+    moves = 0
+    n = len(a)
+    gap = n // 2
+    while gap >= 1:
+        for i in range(gap, n):
+            key = a[i]
+            moves += 1
+            j = i - gap
+            while j >= 0:
+                comparisons += 1
+                if a[j] <= key:
+                    break
+                a[j + gap] = a[j]
+                moves += 1
+                j -= gap
+            a[j + gap] = key
+            moves += 1
+        gap //= 2
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### n = 10 时没有回报
+::sub[比较最少，移动却比插入还多]
+
+| 排序 | 比较 | 移动 |
+| --- | --- | --- |
+| 插入排序 | $$36$$ | $$47$$ |
+| 希尔排序 | $$29$$ | $$57$$ |
+
+<br/>
+
+- 每一轮 gap 都要重付取出、放入的开销。
+- 10 个元素收不回本。
+- **回报出现在 n 变大的时候。**
+
+</Slide>
+
+<Slide>
+
+#### n 变大之后
+::sub[`performance_comparison.py` · 测量值因机器而异]
+
+| n | 插入排序 | 希尔排序 | 差距 |
+| --- | --- | --- | --- |
+| 20 | 0.000006 秒 | 0.000010 秒 | 插入更快 |
+| 40 | 0.000017 秒 | 0.000024 秒 | 插入更快 |
+| 1,000 | 0.014 秒 | 0.0014 秒 | **希尔快 10 倍** |
+| 10,000 | 1.21 秒 | 0.024 秒 | **希尔快 51 倍** |
+
+</Slide>
+
+<Slide>
+
+#### gap 序列决定复杂度
+::sub[同一个过程，不同参数，不同复杂度]
+
+- 折半（现在的代码）：最坏 $$O(n^2)$$
+- Knuth 序列 $$1, 4, 13, 40, \ldots$$：最坏 $$O(n^{1.5})$$
+
+<br/>
+
+- 希尔排序的最坏不是逆序输入。
+  - 示例数组 29 次，逆序反而只有 27 次。
+  - 制造最坏的是和 gap 序列合不来的特定模式。
+- **过程的参数也是设计的对象。**
+  - 这就是学希尔排序的理由。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 4. 冒泡排序
+::sub[比较相邻元素，把大的往后送]
+
+</Slide>
+
+<Slide>
+
+### 冒泡排序
+::sub[一轮结束，最大的元素到达末尾]
+
+<SortDemo slide algo="bubble" />
+
+</Slide>
+
+<Slide>
+
+#### 写成过程
+::sub[大元素像气泡一样浮到末尾]
+
+```plaintext
+ALGORITHM BubbleSort(A, n)
+    for i <- 0 to n-2 do
+        for j <- 0 to n-2-i do
+            if A[j] > A[j+1] then
+                swap A[j], A[j+1]
+```
+
+最有名，也最低效的排序。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`04_bubble_sort/`]
+
+<div class="aas-split">
+<div>
+
+- `bubbleSort.c`
+
+```c
+void bubbleSort(int a[], int n,
+                int *comparisons, int *moves) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - 1 - i; j++) {
+            (*comparisons)++;
+            if (a[j] > a[j + 1]) {
+                int temp = a[j];
+                a[j] = a[j + 1];
+                a[j + 1] = temp;
+                *moves += 3;
+            }
+        }
+    }
+}
+```
+
+</div>
+<div>
+
+- `bubble_sort.py`
+
+```python
+def bubble_sort(a):
+    comparisons = 0
+    moves = 0
+    n = len(a)
+    for i in range(n - 1):
+        for j in range(n - 1 - i):
+            comparisons += 1
+            if a[j] > a[j + 1]:
+                a[j], a[j + 1] = \
+                    a[j + 1], a[j]
+                moves += 3
+    return comparisons, moves
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 数字就是结论
+::sub[比较和选择一样，移动接近它的六倍]
+
+| 排序 | 比较 | 移动 |
+| --- | --- | --- |
+| 选择排序 | $$45$$ | $$15$$ |
+| 冒泡排序 | $$45$$ | $$87$$ |
+
+<br/>
+
+- 只和邻居交换，元素一次只能挪一格。
+- 每次交换要付移动 3 次。
+- 逆序输入时，每次比较都变成交换。
+  - 移动飙到 $$3 \cdot \dfrac{n(n-1)}{2} = 135$$ 次。
+
+</Slide>
+
+<Slide>
+
+#### 练习改进的地方
+::sub[过程简单，正好拿来改]
+
+- 某一轮一次交换都没有，说明已经有序。
+- **加一个立刻停下的 flag。**
+  - 已排序输入下，比较从 45 次降到 **9 次**。
+  - 最好情况从 $$O(n^2)$$ 变成 $$O(n)$$。
+
+<br/>
+
+实践代码的**改改看**会带着做。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手
+::sub[例 3、4：希尔和冒泡]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-02-basic-sorting/`  
+打开文件，按编辑器右上角的 **▶ 按钮**运行。
+
+1. **把希尔排序的 gap 换成 Knuth 序列。**
+   - 用 `performance_comparison.py` 和折半比时间。
+2. **给冒泡排序加上 flag。**
+   - 确认已排序输入只比较 9 次。
+3. **给四种排序喂同样的三种输入，填完整张表。**
+   - 示例数组、已排序、逆序。
+
+</Slide>
+
+<Slide>
+
+### 四种排序并排看
+::sub[光凭"快"挑不出排序]
+
+| 排序 | 最好 | 平均 | 最坏 | 空间 | 稳定性 |
+| --- | --- | --- | --- | --- | --- |
+| 选择排序 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 不稳定 |
+| 插入排序 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 稳定 |
+| 希尔排序 | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | 不稳定 |
+| 冒泡排序 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 稳定 |
+
+<br/>
+
+希尔的最坏 $$O(n^2)$$ 以折半 gap 为准，Knuth 序列则是 $$O(n^{1.5})$$。
+
+</Slide>
+
+<Slide>
+
+#### 用我们量出的数字
+::sub[在示例数组 `6 8 5 9 10 1 7 2 4 3` 上]
+
+| 排序 | 比较 | 移动 | 一句话 |
+| --- | --- | --- | --- |
+| 选择排序 | 45 | 15 | 比较多，移动最少 |
+| 插入排序 | 36 | 47 | 越接近有序，比较越少 |
+| 希尔排序 | 29 | 57 | 比较最少，回报在大 n |
+| 冒泡排序 | 45 | 87 | 哪边都省不下 |
+
+<br/>
+
+每种排序付出的东西都不一样。
+
+</Slide>
+
+<Slide>
+
+### 有更快的排序
+::sub[四种排序最坏都是 O(n²)。要翻过这堵墙]
+
+| 排序 | 最好 | 平均 | 最坏 |
+| --- | --- | --- | --- |
+| 插入排序 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ |
+| 归并排序 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ |
+| 快速排序 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n^2)$$ |
+
+<br/>
+
+接下来两个主题就造它们。
+
+</Slide>
+
+<Slide>
+
+#### 换计算机翻不过墙
+::sub[排序十亿个元素 · 塞奇威克（Sedgewick）的经验分析]
+
+| 计算机 | 插入排序 | 归并排序 | 快速排序 |
+| --- | --- | --- | --- |
+| 普通 PC | **317 年** | 18 分钟 | 12 分钟 |
+| 超级计算机 | 1 周 | 一瞬间 | 一瞬间 |
+
+<br/>
+
+- 超级计算机上的插入排序（1 周）输给普通 PC 上的归并排序（18 分钟）。
+- 和主题 01 的斐波那契是同一幅图。
+- 想看排序赛跑：[toptal.com/developers/sorting-algorithms](https://www.toptal.com/developers/sorting-algorithms)
+
+</Slide>
+
+<Slide>
+
+## 要带走的
+
+1. **排序的性能有两条轴。**
+   - 比较次数和移动次数。一次交换算移动 3 次。
+2. **每种排序付出的东西不一样。**
+   - 选择省移动，插入省比较。
+   - 冒泡哪边都省不下。
+3. **过程的参数也是设计的对象。**
+   - 希尔排序的 gap 序列决定复杂度。
+4. **保住相同键的先后顺序，就是稳定排序。**
+   - 排两次序时见分晓。
+5. **四种排序最坏都是 $$O(n^2)$$。**
+   - 下一个主题的分治会翻过这堵墙。
+
+</Slide>
