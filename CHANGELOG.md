@@ -3,6 +3,17 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.3.1] - 2026-09-02
+
+### Fixed
+
+- 슬라이드를 PDF로 출력하면 스크롤로 넘겨 보지 않은 슬라이드의 이미지가
+  빈 상자로 나오던 것. 이미지를 지연 로딩하다 보니 뷰어가 그 슬라이드까지
+  가본 적이 없으면 아직 불러오지 않은 상태였다. 데크 한 편이 담는 이미지가
+  몇 장 안 되므로 미리 다 불러오도록 바꿨다.
+- stack-site-builder를 1.25.5까지 올려 인쇄 충실도와 페이지 높이 계산을
+  바로잡았다.
+
 ## [1.3.0] - 2026-09-01
 
 ### Added
@@ -193,6 +204,7 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.3.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.1
 [1.3.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.0
 [1.2.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.2.1
 [1.2.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.2.0
