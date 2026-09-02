@@ -3,6 +3,13 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.3.2] - 2026-09-02
+
+### Changed
+
+- stack-site-builder를 1.26.0으로 올려 PDF 출력에 페이지 바닥글이 붙게
+  했다.
+
 ## [1.3.1] - 2026-09-02
 
 ### Fixed
@@ -204,6 +211,7 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.3.2]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.2
 [1.3.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.1
 [1.3.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.0
 [1.2.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.2.1
