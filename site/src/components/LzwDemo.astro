@@ -1,0 +1,805 @@
+---
+// LZW 압축의 인코딩과 디코딩을 한 걸음씩 돌려 보는 데모.
+//
+// mode="encode"는 입력 문자열을 읽는다. 지금까지 이어 온 문자열 P(파랑)에
+// 다음 문자 C(주황)를 붙여 표에 있으면 더 길게 잇고, 없으면 P의 코드를
+// 내보내고 P+C를 새 코드로 표에 올린다(초록).
+// mode="decode"는 코드만 받아 원문을 되찾는다. 표는 받지 않는다. 코드를
+// 읽으며 인코더와 똑같은 표를 한 걸음 늦게 다시 만든다. 그래서 인코더가
+// 막 만든 코드가 곧바로 오면 아직 표에 없고, 그 경우를 따로 처리한다.
+//
+// 표와 출력은 algorithm-code의 실행 결과(lzw.c · lzw.py)와 같다.
+//
+// 걸음 사이는 애니메이션으로 잇는다. P 상자가 늘어나며 옮겨 가고, 화살표가
+// C 아래로 미끄러지고, 내보낸 코드가 입력에서 출력 줄로 날아가고, 표의 새
+// 행이 미끄러져 들어온다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 인코딩할 문자열. decode 모드도 이 문자열을 인코딩한 코드를 받는다. */
+  text?: string;
+  /** 인코딩(encode) 또는 디코딩(decode) */
+  mode?: 'encode' | 'decode';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { text = 'BABAABAAA', mode = 'encode', slide = false } = Astro.props;
+const id = `lz-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    encode: 'LZW 인코딩',
+    decode: 'LZW 디코딩',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    inText: '입력',
+    inCodes: '받은 코드',
+    output: '출력',
+    table: '문자열 표',
+    codeword: '코드',
+    string: '문자열',
+    ascii: '한 글자 (ASCII)',
+    encIdle: '표는 한 글자 256개로 시작합니다. P에 첫 문자를 담습니다.',
+    encStart: 'P ← 첫 문자 {p}',
+    encHit: 'P+C = {pc}는 표에 있습니다. 더 길게 이어 갑니다. P ← {pc}',
+    encMiss: 'P+C = {pc}는 표에 없습니다. 코드 출력: {code} (P = {p}). 표에 추가: {next} = {pc}. P ← {c}',
+    encEnd: '입력 끝. 남은 P의 코드 출력: {code} (P = {p})',
+    encDone: '{n}글자가 코드 {m}개가 되었습니다. 새로 생긴 코드: {first}–{last}',
+    decIdle: '코드만 받았습니다. 표는 받지 않았습니다. 한 글자 256개로 표를 시작합니다.',
+    decStart: 'OLD ← 첫 코드 {old}. 번역 {s}를 내보내고 C ← {c}',
+    decHit: 'NEW = {code}: 표에 있습니다. S ← {s}. S를 내보내고 C ← {c}. 표에 추가: {next} = {entry} (OLD의 번역 + C)',
+    decMiss: 'NEW = {code}: 아직 표에 없습니다({last}까지). 인코더가 방금 만든 코드라 S ← OLD의 번역 + C = {s}. C ← {c}. 표에 추가: {next} = {entry}',
+    decDone: '원문이 돌아왔습니다: {text}. 표도 인코더와 같은 순서로 다시 만들어졌습니다.',
+  },
+  en: {
+    encode: 'LZW encoding',
+    decode: 'LZW decoding',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    inText: 'input',
+    inCodes: 'received codes',
+    output: 'output',
+    table: 'String table',
+    codeword: 'Code',
+    string: 'String',
+    ascii: 'single char (ASCII)',
+    encIdle: 'The table starts with the 256 single characters. P holds the first character.',
+    encStart: 'P ← first character {p}',
+    encHit: 'P+C = {pc} is in the table. Keep extending. P ← {pc}',
+    encMiss: 'P+C = {pc} is not in the table. Output the code of P({p}), {code}, and add {next} = {pc}. P ← {c}',
+    encEnd: 'End of input. Output the code of the remaining P({p}), {code}.',
+    encDone: '{n} characters became {m} codes. Codes {first}–{last} are new in the table.',
+    decIdle: 'Only the codes arrived, not the table. Start the table with the 256 single characters.',
+    decStart: 'OLD ← first code {old}. Output its string {s}, C ← {c}',
+    decHit: 'NEW = {code} is in the table. S ← {s}. Output S, C ← {c}, add OLD’s string + C = {entry} as {next}.',
+    decMiss: 'NEW = {code} is not in the table yet (only up to {last}). The encoder just made it, so S ← OLD’s string + C = {s}. C ← {c}, add {entry} as {next}.',
+    decDone: 'The original {text} is back, and the table was rebuilt in the encoder’s order.',
+  },
+  zh: {
+    encode: 'LZW 编码',
+    decode: 'LZW 解码',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    inText: '输入',
+    inCodes: '收到的编码',
+    output: '输出',
+    table: '字符串表',
+    codeword: '编码',
+    string: '字符串',
+    ascii: '单个字符 (ASCII)',
+    encIdle: '表从 256 个单字符开始。P 先装入第一个字符。',
+    encStart: 'P ← 第一个字符 {p}',
+    encHit: 'P+C = {pc} 在表中。继续延长。P ← {pc}',
+    encMiss: 'P+C = {pc} 不在表中。输出 P({p}) 的编码 {code}，把 {next} = {pc} 加入表。P ← {c}',
+    encEnd: '输入结束。输出剩下的 P({p}) 的编码 {code}。',
+    encDone: '{n} 个字符变成了 {m} 个编码。表中新增了编码 {first}–{last}。',
+    decIdle: '只收到了编码，没有收到表。先用 256 个单字符建表。',
+    decStart: 'OLD ← 第一个编码 {old}。输出它的字符串 {s}，C ← {c}',
+    decHit: 'NEW = {code} 在表中。S ← {s}。输出 S，C ← {c}，把 OLD 的字符串 + C = {entry} 作为 {next} 加入表。',
+    decMiss: 'NEW = {code} 还不在表中（只到 {last}）。这是编码器刚生成的编码，所以 S ← OLD 的字符串 + C = {s}。C ← {c}，把 {entry} 作为 {next} 加入表。',
+    decDone: '原文 {text} 回来了。表也按编码器的顺序重建了。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-lzw-demo', slide && 'is-slide']}
+  id={id}
+  data-lz-text={text}
+  data-lz-mode={mode}
+  data-lz-strings={JSON.stringify(t)}
+>
+  <div class="lz-bar">
+    <span class="lz-head">
+      <strong>{t[mode]}</strong>
+      <span class="lz-chip is-p">{mode === 'encode' ? 'P' : 'OLD'} = <strong data-lz-a></strong></span>
+      <span class="lz-chip is-c">{mode === 'encode' ? 'C' : 'NEW'} = <strong data-lz-b></strong></span>
+      {mode === 'decode' && (
+        <>
+          <span class="lz-chip is-s">S = <strong data-lz-s></strong></span>
+          <span class="lz-chip is-cc">C = <strong data-lz-c></strong></span>
+        </>
+      )}
+    </span>
+    <div class="lz-controls">
+      <button type="button" data-act="back" class="lz-btn">{t.back}</button>
+      <button type="button" data-act="step" class="lz-btn">{t.step}</button>
+      <button type="button" data-act="play" class="lz-btn lz-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="lz-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="lz-body">
+    <div class="lz-left">
+      <div class="lz-label">{mode === 'encode' ? t.inText : t.inCodes}</div>
+      <div class="lz-cells" data-lz-input></div>
+      <div class="lz-label">{t.output}</div>
+      <div class="lz-cells lz-out" data-lz-output></div>
+    </div>
+    <table class="lz-table">
+      <caption>{t.table}</caption>
+      <thead>
+        <tr><th>{t.codeword}</th><th>{t.string}</th></tr>
+      </thead>
+      <tbody data-lz-rows>
+        <tr class="lz-ascii"><td>0–255</td><td>{t.ascii}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="lz-note" data-lz-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const text = root.dataset.lzText;
+    const mode = root.dataset.lzMode;
+    const S = JSON.parse(root.dataset.lzStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+
+    /* 인코더. 데모가 쓰는 코드 목록도 여기서 나온다. 절차는 lzw.pseudo와 같다. */
+    function planEncode() {
+      const table = new Map();
+      for (let c = 0; c < 256; c++) table.set(String.fromCharCode(c), c);
+      const steps = [];
+      const out = [];
+      const added = [];
+      let p = text[0];
+      let pStart = 0;
+      const push = (extra) =>
+        steps.push({ out: out.slice(), added: added.slice(), a: p, ...extra });
+      push({ span: [0, 0], cur: null, note: fill(S.encStart, { p }) });
+      for (let i = 1; i < text.length; i++) {
+        const c = text[i];
+        const pc = p + c;
+        if (table.has(pc)) {
+          p = pc;
+          push({ span: [pStart, i], cur: null, b: c, note: fill(S.encHit, { pc }) });
+        } else {
+          const code = table.get(p);
+          out.push({ code, str: p });
+          const next = table.size;
+          table.set(pc, next);
+          added.push({ code: next, str: pc });
+          const prevP = p;
+          push({
+            span: [pStart, i - 1], cur: i, b: c, a: prevP, freshOut: true, freshRow: true,
+            note: fill(S.encMiss, { pc, p: prevP, code, next, c }),
+          });
+          p = c;
+          pStart = i;
+        }
+      }
+      out.push({ code: table.get(p), str: p });
+      push({ span: [pStart, text.length - 1], cur: null, freshOut: true, note: fill(S.encEnd, { p, code: table.get(p) }) });
+      const first = 256;
+      const last = 256 + added.length - 1;
+      push({
+        span: null, cur: null, done: true,
+        note: fill(S.encDone, { n: text.length, m: out.length, first, last }),
+      });
+      return { steps, codes: out.map((o) => o.code) };
+    }
+
+    /* 디코더. 인코더가 낸 코드만 받는다. 절차는 lzw.pseudo와 같다. */
+    function planDecode(codes) {
+      const table = new Map();
+      for (let c = 0; c < 256; c++) table.set(c, String.fromCharCode(c));
+      const steps = [];
+      const out = [];
+      const added = [];
+      let old = codes[0];
+      let c = table.get(old)[0];
+      out.push({ str: table.get(old) });
+      steps.push({
+        out: out.slice(), added: [], at: 0, a: `${old}`, b: '', s: table.get(old), c, freshOut: true,
+        note: fill(S.decStart, { old, s: table.get(old), c }),
+      });
+      for (let i = 1; i < codes.length; i++) {
+        const code = codes[i];
+        const known = table.has(code);
+        const last = table.size - 1;
+        const s = known ? table.get(code) : table.get(old) + c;
+        out.push({ str: s });
+        c = s[0];
+        const entry = table.get(old) + c;
+        const next = table.size;
+        table.set(next, entry);
+        added.push({ code: next, str: entry });
+        steps.push({
+          out: out.slice(), added: added.slice(), at: i, a: `${old}`, b: `${code}`, s, c,
+          freshOut: true, freshRow: true, miss: !known,
+          note: fill(known ? S.decHit : S.decMiss, { code, s, c, entry, next, last }),
+        });
+        old = code;
+      }
+      steps.push({
+        out: out.slice(), added: added.slice(), at: null, a: '', b: '', s: '', c: '', done: true,
+        note: fill(S.decDone, { text: out.map((o) => o.str).join('') }),
+      });
+      return steps;
+    }
+
+    const enc = planEncode();
+    const steps = mode === 'encode' ? enc.steps : planDecode(enc.codes);
+    const idle = mode === 'encode' ? S.encIdle : S.decIdle;
+
+    /* 입력 칸은 한 번만 만든다. */
+    const inputWrap = root.querySelector('[data-lz-input]');
+    const inputs = (mode === 'encode' ? [...text] : enc.codes.map(String)).map((v, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'lz-cell';
+      cell.innerHTML = `<span class="lz-val"></span><span class="lz-idx">${i}</span>`;
+      cell.querySelector('.lz-val').textContent = v;
+      inputWrap.appendChild(cell);
+      return cell;
+    });
+    const outWrap = root.querySelector('[data-lz-output]');
+    const rows = root.querySelector('[data-lz-rows]');
+    const note = root.querySelector('[data-lz-note]');
+    const chipA = root.querySelector('[data-lz-a]');
+    const chipB = root.querySelector('[data-lz-b]');
+    const chipS = root.querySelector('[data-lz-s]');
+    const chipC = root.querySelector('[data-lz-c]');
+
+    /* 움직임을 맡는 요소 둘. P(디코딩에서는 OLD)를 감싸는 상자가 늘어나고 옮겨 가며,
+       화살표가 C(디코딩에서는 NEW) 아래로 미끄러진다. 칸 색만 바뀌면 무엇이
+       어디로 갔는지 놓치기 쉬워서, 자리 이동을 눈으로 따라가게 한다. */
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pbox = document.createElement('div');
+    pbox.className = 'lz-pbox';
+    const arrow = document.createElement('div');
+    arrow.className = 'lz-arrow';
+    arrow.textContent = '▲';
+    inputWrap.append(pbox, arrow);
+
+    function boxFor(step) {
+      if (!step || step.done) return null;
+      if (mode === 'encode') return step.span;
+      return step.at === null ? null : [Math.max(0, step.at - 1), Math.max(0, step.at - 1)];
+    }
+    function arrowFor(step) {
+      if (!step || step.done) return null;
+      if (mode === 'encode') {
+        if (step.cur !== null && step.cur !== undefined) return step.cur;
+        return step.b ? step.span[1] : null; /* 표에 있어 P가 늘어난 걸음은 방금 읽은 C가 P의 끝 */
+      }
+      return step.at > 0 ? step.at : null;
+    }
+
+    function placeOverlay(step, animate) {
+      const on = animate && !reduceMotion;
+      pbox.classList.toggle('is-still', !on);
+      arrow.classList.toggle('is-still', !on);
+      const span = boxFor(step);
+      if (span) {
+        const a = inputs[span[0]];
+        const b = inputs[span[1]];
+        pbox.style.left = `${a.offsetLeft - 3}px`;
+        pbox.style.top = `${a.offsetTop - 3}px`;
+        pbox.style.width = `${b.offsetLeft + b.offsetWidth - a.offsetLeft + 6}px`;
+        pbox.style.height = `${a.offsetHeight + 6}px`;
+        pbox.classList.add('is-on');
+      } else {
+        pbox.classList.remove('is-on');
+      }
+      const k = arrowFor(step);
+      if (k !== null && k !== undefined) {
+        const c = inputs[k];
+        arrow.style.left = `${c.offsetLeft + c.offsetWidth / 2}px`;
+        arrow.style.top = `${c.offsetTop + c.offsetHeight + 2}px`;
+        arrow.classList.toggle('is-miss', !!step.miss);
+        arrow.classList.add('is-on');
+      } else {
+        arrow.classList.remove('is-on');
+      }
+    }
+
+    function outCell(o, fresh) {
+      const cell = document.createElement('div');
+      cell.className = 'lz-cell lz-out-cell';
+      if (fresh) cell.classList.add('is-fresh');
+      const val = document.createElement('span');
+      val.className = 'lz-val';
+      val.textContent = mode === 'encode' ? String(o.code) : o.str;
+      cell.appendChild(val);
+      if (mode === 'encode') {
+        const sub = document.createElement('span');
+        sub.className = 'lz-idx';
+        sub.textContent = o.str;
+        cell.appendChild(sub);
+      }
+      return cell;
+    }
+
+    function rowEl(r, fresh) {
+      const tr = document.createElement('tr');
+      tr.className = 'lz-row';
+      if (fresh) tr.classList.add('is-fresh');
+      const a = document.createElement('td');
+      a.textContent = String(r.code);
+      const b = document.createElement('td');
+      b.textContent = r.str;
+      tr.append(a, b);
+      return tr;
+    }
+
+    /* 내보낸 코드가 입력에서 출력 줄로 날아가는 그림자. 끝나면 지운다. */
+    function spanRect(i, j) {
+      const a = inputs[i].getBoundingClientRect();
+      const b = inputs[j].getBoundingClientRect();
+      return { left: a.left, top: a.top, width: b.right - a.left, height: a.height };
+    }
+
+    function fly(a, toEl, label) {
+      if (reduceMotion || !toEl.animate) return;
+      const base = root.getBoundingClientRect();
+      const b = toEl.getBoundingClientRect();
+      const ghost = document.createElement('div');
+      ghost.className = 'lz-ghost';
+      ghost.textContent = label;
+      ghost.style.left = `${b.left - base.left}px`;
+      ghost.style.top = `${b.top - base.top}px`;
+      ghost.style.width = `${b.width}px`;
+      ghost.style.height = `${b.height}px`;
+      root.appendChild(ghost);
+      const dx = a.left + a.width / 2 - (b.left + b.width / 2);
+      const dy = a.top + a.height / 2 - (b.top + b.height / 2);
+      toEl.style.visibility = 'hidden';
+      const anim = ghost.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px) scale(0.9)`, opacity: 0.6 },
+          { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        ],
+        { duration: 600, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' },
+      );
+      /* 끝 이벤트는 탭이 가려져 있으면 늦게 오므로 시간으로도 한 번 더 정리한다. */
+      const done = () => {
+        ghost.remove();
+        toEl.style.visibility = '';
+      };
+      anim.onfinish = done;
+      anim.oncancel = done;
+      setTimeout(done, 650);
+    }
+
+    let shownStep = -1;
+
+    function render(s, animate) {
+      const step = s >= 0 ? steps[s] : null;
+      const forward = animate && s === shownStep + 1;
+      shownStep = s;
+
+      inputs.forEach((cell, i) => {
+        cell.className = 'lz-cell';
+        if (!step) return;
+        if (mode === 'encode') {
+          if (step.done) cell.classList.add('is-done');
+          else if (step.span && i < step.span[0]) cell.classList.add('is-done');
+          if (step.span && i >= step.span[0] && i <= step.span[1]) cell.classList.add('is-p');
+          if (step.cur === i) cell.classList.add('is-c');
+        } else {
+          if (step.done || (step.at !== null && i < step.at)) cell.classList.add('is-done');
+          if (step.at === i) cell.classList.add(step.miss ? 'is-miss' : 'is-c');
+        }
+      });
+      /* 이전 걸음의 비행이 끝나기 전에 넘어가면 그림자를 치우고 숨긴 칸을 되살린다. */
+      root.querySelectorAll('.lz-ghost').forEach((g) => g.remove());
+      [...outWrap.children].forEach((c) => (c.style.visibility = ''));
+      placeOverlay(step, animate);
+
+      /* 출력과 표는 앞으로 한 걸음일 때만 새 것 하나를 덧붙이며 움직인다.
+         뒤로 가거나 처음으로 가면 조용히 다시 그린다. */
+      const out = step ? step.out : [];
+      const added = step ? step.added : [];
+      const outCells = outWrap.children;
+      const rowEls = rows.querySelectorAll('tr.lz-row');
+      const growOut = forward && out.length === outCells.length + 1;
+      const growRow = forward && added.length === rowEls.length + 1;
+
+      if (growOut) {
+        [...outCells].forEach((c) => c.classList.remove('is-fresh'));
+        const o = out[out.length - 1];
+        const cell = outCell(o, true);
+        outWrap.appendChild(cell);
+        /* 인코딩은 내보낸 P의 칸들에서, 디코딩은 방금 읽은 NEW 칸에서 출발한다. */
+        const from = mode === 'encode' ? spanRect(step.span[0], step.span[1]) : spanRect(step.at, step.at);
+        fly(from, cell, mode === 'encode' ? String(o.code) : o.str);
+      } else {
+        outWrap.innerHTML = '';
+        out.forEach((o, i) => outWrap.appendChild(outCell(o, !!(step && step.freshOut && i === out.length - 1))));
+      }
+
+      if (growRow) {
+        rowEls.forEach((r) => r.classList.remove('is-fresh'));
+        const tr = rowEl(added[added.length - 1], true);
+        if (!reduceMotion) tr.classList.add('is-enter');
+        rows.appendChild(tr);
+      } else {
+        rowEls.forEach((row) => row.remove());
+        added.forEach((r, i) => rows.appendChild(rowEl(r, !!(step && step.freshRow && i === added.length - 1))));
+      }
+
+      chipA.textContent = step && step.a !== undefined ? step.a : '';
+      chipB.textContent = step && step.b !== undefined ? step.b : '';
+      if (chipS) chipS.textContent = step ? step.s : '';
+      if (chipC) chipC.textContent = step ? step.c : '';
+      note.textContent = step ? step.note : idle;
+    }
+
+    window.addEventListener('resize', () => placeOverlay(shownStep >= 0 ? steps[shownStep] : null, false));
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at, true);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at, true);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1, true);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1, true);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1400);
+    });
+
+    render(-1, false);
+  })();
+</script>
+
+<!-- 칸과 표의 행은 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이
+     붙지 않는다. 그래서 is:global로 두고, 선택자를 .aas-lzw-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-lzw-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lzw-demo .lz-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-lzw-demo .lz-head {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5em;
+    font-size: 0.95em;
+  }
+  .aas-lzw-demo .lz-chip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+    min-width: 4.5em;
+  }
+  .aas-lzw-demo .lz-chip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-lzw-demo .lz-chip.is-p {
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-lzw-demo .lz-chip.is-c {
+    border: 1px solid color-mix(in srgb, var(--aas-role-focus) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, transparent);
+  }
+  .aas-lzw-demo .lz-chip.is-s {
+    border: 1px solid color-mix(in srgb, var(--aas-role-eval) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+  .aas-lzw-demo .lz-chip.is-cc {
+    border: 1px solid color-mix(in srgb, var(--aas-role-tool) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-tool) 14%, transparent);
+  }
+  .aas-lzw-demo .lz-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-lzw-demo .lz-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lzw-demo .lz-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lzw-demo .lz-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-lzw-demo .lz-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.5em;
+    align-items: flex-start;
+  }
+  .aas-lzw-demo .lz-left {
+    flex: 1 1 18em;
+    min-width: 0;
+  }
+  .aas-lzw-demo .lz-label {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    margin: 0.2em 0 0.3em;
+  }
+  .aas-lzw-demo .lz-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    min-height: 2.6em;
+    margin-bottom: 0.6em;
+  }
+  .aas-lzw-demo .lz-cell {
+    flex: 0 0 auto;
+    min-width: 2.2em;
+    padding: 0.3em 0.35em;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.18s,
+      border-color 0.18s,
+      opacity 0.18s;
+  }
+  .aas-lzw-demo .lz-val {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.3;
+    min-height: 1.3em;
+  }
+  .aas-lzw-demo .lz-idx {
+    display: block;
+    font-size: 0.6em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* P(지금 이어 온 문자열)는 파랑, C(다음 문자 또는 NEW)는 주황,
+     이미 처리한 칸은 흐리게, 방금 나온 출력과 표의 새 행은 초록.
+     디코더가 표에 없는 코드를 만나면 빨강으로 표시한다. */
+  .aas-lzw-demo .lz-cell.is-done {
+    opacity: 0.45;
+  }
+  .aas-lzw-demo .lz-cell.is-p {
+    opacity: 1;
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 16%, transparent);
+  }
+  .aas-lzw-demo .lz-cell.is-c {
+    opacity: 1;
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-lzw-demo .lz-cell.is-miss {
+    opacity: 1;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 20%, transparent);
+    font-weight: 700;
+  }
+  .aas-lzw-demo .lz-cell.is-fresh {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, transparent);
+    font-weight: 700;
+  }
+
+  .aas-lzw-demo .lz-table {
+    flex: 0 0 auto;
+    /* 슬라이드 테마는 표를 100% 폭으로 늘린다. 입력 칸 옆에 붙도록 되돌린다. */
+    width: auto !important;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .aas-lzw-demo .lz-table caption {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    text-align: left;
+    margin-bottom: 0.3em;
+  }
+  .aas-lzw-demo .lz-table th,
+  .aas-lzw-demo .lz-table td {
+    padding: 0.15em 0.8em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lzw-demo .lz-table th {
+    color: var(--aas-muted);
+    font-weight: 600;
+    font-family: inherit;
+  }
+  .aas-lzw-demo .lz-table .lz-ascii td {
+    color: var(--aas-muted);
+    font-family: inherit;
+  }
+  .aas-lzw-demo .lz-table tr.is-fresh td {
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, transparent);
+    font-weight: 700;
+  }
+
+  /* 움직이는 표식. P 상자는 늘어나며 옮겨 가고, 화살표는 C 아래로 미끄러진다. */
+  .aas-lzw-demo {
+    position: relative;
+  }
+  .aas-lzw-demo [data-lz-input] {
+    position: relative;
+    padding-bottom: 1.1em;
+  }
+  .aas-lzw-demo .lz-pbox {
+    position: absolute;
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.5em;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+      left 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+      top 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+      width 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.3s;
+  }
+  .aas-lzw-demo .lz-arrow {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 0.7em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+    pointer-events: none;
+    opacity: 0;
+    transition:
+      left 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+      top 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.3s,
+      color 0.3s;
+  }
+  .aas-lzw-demo .lz-arrow.is-miss {
+    color: var(--aas-role-guard);
+  }
+  .aas-lzw-demo .lz-pbox.is-on,
+  .aas-lzw-demo .lz-arrow.is-on {
+    opacity: 1;
+  }
+  .aas-lzw-demo .lz-pbox.is-still,
+  .aas-lzw-demo .lz-arrow.is-still {
+    transition: none;
+  }
+  .aas-lzw-demo .lz-ghost {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border: 1px solid var(--aas-role-eval);
+    border-radius: 0.35em;
+    background: color-mix(in srgb, var(--aas-role-eval) 30%, var(--aas-bg));
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .aas-lzw-demo .lz-table tr.is-enter {
+    animation: lz-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes lz-row-in {
+    from {
+      opacity: 0;
+      transform: translateX(-0.8em);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .aas-lzw-demo .lz-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-lzw-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-lzw-demo.is-slide .lz-body {
+    flex-wrap: nowrap;
+  }
+  .aas-lzw-demo.is-slide .lz-table {
+    font-size: 0.7em;
+  }
+  .aas-lzw-demo.is-slide .lz-note {
+    min-height: 2.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-lzw-demo .lz-cell,
+    .aas-lzw-demo .lz-pbox,
+    .aas-lzw-demo .lz-arrow {
+      transition: none;
+    }
+    .aas-lzw-demo .lz-table tr.is-enter {
+      animation: none;
+    }
+  }
+</style>
