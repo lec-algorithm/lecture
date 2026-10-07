@@ -12,6 +12,9 @@ slides: ["topic-06-greedy"]
 import HuffmanDemo from '@components/HuffmanDemo.astro';
 import LzwDemo from '@components/LzwDemo.astro';
 import TreeFigure from '@components/TreeFigure.astro';
+import CoinDemo from '@components/CoinDemo.astro';
+import ActivityDemo from '@components/ActivityDemo.astro';
+import KnapsackDemo from '@components/KnapsackDemo.astro';
 
 > 主题 03 和 04 是拆分问题的策略（分治），主题 05 是衡量其代价的语言。
 > 本主题是第二种策略。  
@@ -52,7 +55,10 @@ $$
 - **贪心策略**：从不超过剩余金额的**最大硬币开始**付。
 
 1260 韩元：500 韩元 2 枚（剩 260）、100 韩元 2 枚（剩 60）、50 韩元 1 枚
-（剩 10）、10 韩元 1 枚。共 **6 枚**，这就是最优。
+（剩 10）、10 韩元 1 枚。共 **6 枚**，这就是最优。一步一步付付看。正在看的
+面额有橙色边框，付出的硬币会飞到下方的格子里。
+
+<CoinDemo />
 
 - 伪代码
 
@@ -83,6 +89,9 @@ int coinChange(const int coins[], int m, int amount, int used[]) {
 ### 如果有 40 韩元的硬币 \{#coin-counter}
 
 同一段代码，只换硬币面值。在一个有 50、40、10 韩元硬币的国家，找 80 韩元。
+演示在最后会把贪心的答案和真正的最小值放在一起。
+
+<CoinDemo coins={[50, 40, 10]} amount={80} />
 
 - 运行
 
@@ -119,8 +128,12 @@ greedy: 50x1 10x3 -> 4 coins
 - **输入**：每个会议的（开始时刻, 结束时刻）
 - **贪心策略**：从**最早结束的会议开始**选。
 
-把六个会议按结束时刻排好，从前往后只挑与前一个会议不重叠的。下方的轴是
-时刻。
+把六个会议按结束时刻排好，从前往后只挑与前一个会议不重叠的。第一步里各条
+横条按结束时刻换位排队，橙色虚线跟着"目前选中的会议结束的时刻"向右移动。
+
+<ActivityDemo />
+
+把选中的结果汇总到一条时间轴上就是这样。下方的轴是时刻。
 
 ```mermaid
 %%{init: {"gantt": {"useWidth": 900, "barHeight": 26, "barGap": 8, "fontSize": 14, "sectionFontSize": 14, "leftPadding": 90}, "themeVariables": {"activeTaskBkgColor": "#22c55e", "activeTaskBorderColor": "#16a34a", "doneTaskBkgColor": "#d4d4d8", "doneTaskBorderColor": "#a1a1aa", "taskTextDarkColor": "#111827", "taskTextColor": "#111827"}}}%%
@@ -194,7 +207,9 @@ count = 4
 | 3 | 30 | 120 | 4 |
 
 容量为 15 时，把物品 1 整个装进去（重量 10，价值 60），剩下的 5 装物品 2
-的四分之一（价值 25）。合计 **85**。
+的四分之一（价值 25）。合计 **85**。卡片先按单位重量价值排好队，然后背包横条按物品的颜色装满。
+
+<KnapsackDemo />
 
 ```plaintext
 ALGORITHM FractionalKnapsack(items, n, capacity)
@@ -239,7 +254,12 @@ capacity = 50
 
 ### 如果不能分割 \{#zero-one}
 
-最后一行很重要。这是按同样的顺序装、但改成**不能分割**后的结果。容量 50，
+最后一行很重要。这是按同样的顺序装、但改成**不能分割**后的结果。用演示跑一遍，
+就能看到留下的空位。
+
+<KnapsackDemo capacity={50} whole />
+
+容量 50，
 装下物品 1 和 2 后剩 20，物品 3（重量 30）放不进去，于是停在 160。可是装
 物品 2 和 3 能得到 **220**。
 
