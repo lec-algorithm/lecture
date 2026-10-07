@@ -7,6 +7,10 @@
 // 트리 하나가 남으면 루트에서 잎까지의 경로(왼쪽 0, 오른쪽 1)가 코드가 되고,
 // 아래 표에 코드와 비트 수가 채워진다.
 //
+// 단계 사이는 애니메이션으로 잇는다. 노드는 한 번 만든 요소를 계속 쓰면서
+// 지금 자리에서 새 자리로 미끄러져 가고, 방금 합친 부모는 떠오르며 가지를
+// 내린다. 순서가 바뀌어 옆으로 비켜 가는 트리도 그 길이 보인다.
+//
 // 가중치가 같을 때의 순서는 algorithm-code의 구현과 같다. 트리 안의 가장
 // 작은 문자(코드값 순)가 앞서고, 먼저 꺼낸 쪽이 왼쪽(0)이다. 그래서 데모가
 // 만드는 코드와 비트 수가 실습 코드의 출력과 같다.
@@ -237,7 +241,7 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
     const W = leafCount * UNIT + (leafCount - 1) * GAP;
     const H = maxDepth * LEVEL + 2 * R + 46;
     const svg = root.querySelector('[data-hd-svg]');
-    svg.setAttribute('viewBox', `${-PAD} ${-R - 8} ${W + 2 * PAD} ${H + 8}`);
+    svg.setAttribute('viewBox', `${-PAD} ${-R - 20} ${W + 2 * PAD} ${H + 20}`);
     const NS = 'http://www.w3.org/2000/svg';
 
     function el(name, attrs, textContent) {
@@ -260,10 +264,77 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
       return { x, next: right.next };
     }
 
-    function render(s) {
-      const step = steps[s];
-      while (svg.firstChild) svg.removeChild(svg.firstChild);
+    /* 노드와 가지는 한 번 만든 요소를 계속 쓴다. 단계가 바뀌면 지금 자리에서
+       새 자리로 미끄러져 가므로, 어떤 트리가 어디로 가서 무엇과 합쳐졌는지가
+       눈에 남는다. 위치는 매 프레임 직접 계산한다(SVG 속성은 CSS 전환이 안 된다). */
+    const DURATION = 650;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const y = (d) => d * LEVEL;
+    const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+    const edgeLayer = el('g', { class: 'hd-edges' });
+    const nodeLayer = el('g', { class: 'hd-nodes' });
+    svg.appendChild(edgeLayer);
+    svg.appendChild(nodeLayer);
+    const nodeEls = new Map(); /* 노드 id → <g> */
+    const edgeEls = new Map(); /* 자식 노드 id → { g, line, bit } */
+    const shownPos = new Map(); /* 노드 id → 지금 화면에 그려진 자리 */
+    let frame = null;
 
+    function nodeEl(node, animate) {
+      let g = nodeEls.get(node.id);
+      if (g) return g;
+      g = el('g', { class: 'hd-node' });
+      g.appendChild(el('circle', { cx: 0, cy: 0, r: R }));
+      if (node.sym !== null) {
+        g.appendChild(el('text', { x: 0, y: 0, class: 'hd-label' }, shown(node.sym)));
+        g.appendChild(el('text', { x: 0, y: R + 13, class: 'hd-weight' }, String(node.w)));
+        g.appendChild(el('text', { x: 0, y: R + 29, class: 'hd-code-label' }, codes[node.sym]));
+      } else {
+        g.appendChild(el('text', { x: 0, y: 0, class: 'hd-label' }, String(node.w)));
+      }
+      if (animate) g.classList.add('is-gone'); /* 처음 나타날 때는 흐린 데서 떠오른다 */
+      nodeLayer.appendChild(g);
+      nodeEls.set(node.id, g);
+      return g;
+    }
+
+    function edgeEl(childId, bit, animate) {
+      let e = edgeEls.get(childId);
+      if (e) return e;
+      const g = el('g', { class: 'hd-edge-g' });
+      const line = el('line', { class: 'hd-edge' });
+      const label = el('text', { class: 'hd-bit' }, bit);
+      g.appendChild(line);
+      g.appendChild(label);
+      if (animate) g.classList.add('is-gone');
+      edgeLayer.appendChild(g);
+      e = { g, line, label, bit };
+      edgeEls.set(childId, e);
+      return e;
+    }
+
+    function draw(posOf, links) {
+      for (const [id, p] of posOf) {
+        nodeEls.get(id).setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);
+      }
+      for (const { parent, child } of links) {
+        const a = posOf.get(parent);
+        const b = posOf.get(child);
+        const e = edgeEls.get(child);
+        e.line.setAttribute('x1', a.x.toFixed(2));
+        e.line.setAttribute('y1', a.y.toFixed(2));
+        e.line.setAttribute('x2', b.x.toFixed(2));
+        e.line.setAttribute('y2', b.y.toFixed(2));
+        e.label.setAttribute('x', ((a.x + b.x) / 2 + (e.bit === '0' ? -9 : 9)).toFixed(2));
+        e.label.setAttribute('y', ((a.y + b.y) / 2 - 2).toFixed(2));
+      }
+    }
+
+    function render(s, animate) {
+      const step = steps[s];
+      const move = animate && !reduceMotion;
+
+      /* 이번 단계의 목표 자리. 고른 두 그루는 살짝 들어 올려 눈에 띄게 한다. */
       const placed = [];
       const leaves = step.forest.reduce((acc, tree) => acc + countLeaves(tree), 0);
       const width = leaves * UNIT + (step.forest.length - 1) * GAP;
@@ -274,55 +345,85 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
         x = layout(tree, x, 0, placed).next + GAP;
         for (let i = start; i < placed.length; i++) owner.set(placed[i].node.id, tree.id);
       }
+      const target = new Map();
+      const links = [];
+      for (const p of placed) {
+        const lift = step.hot.includes(owner.get(p.node.id)) ? -12 : 0;
+        target.set(p.node.id, { x: p.x, y: y(p.d) + lift });
+        if (p.node.sym === null) {
+          links.push({ parent: p.node.id, child: p.node.l.id, bit: '0' });
+          links.push({ parent: p.node.id, child: p.node.r.id, bit: '1' });
+        }
+      }
 
-      const edges = el('g', { class: 'hd-edges' });
-      const nodes = el('g', { class: 'hd-nodes' });
-      const y = (d) => d * LEVEL;
+      /* 요소를 맞추고 클래스를 정한다. 이번 단계에 없는 것은 흐려져 사라진다. */
+      const fresh = [];
       for (const p of placed) {
-        if (p.node.sym !== null) continue;
-        for (const [cx, bit] of [[p.lx, '0'], [p.rx, '1']]) {
-          edges.appendChild(el('line', { x1: p.x, y1: y(p.d), x2: cx, y2: y(p.d + 1), class: 'hd-edge' }));
-          const mx = (p.x + cx) / 2 + (bit === '0' ? -9 : 9);
-          edges.appendChild(el('text', { x: mx, y: y(p.d) + LEVEL / 2 - 2, class: 'hd-bit' }, bit));
-        }
-      }
-      for (const p of placed) {
+        const isNew = !nodeEls.has(p.node.id);
+        const g = nodeEl(p.node, move);
+        if (isNew && move) fresh.push(g);
         const tree = owner.get(p.node.id);
-        let cls = p.node.sym !== null ? 'hd-node is-leaf' : 'hd-node';
-        if (step.hot.includes(tree)) cls += ' is-hot';
-        if (step.fresh === tree) cls += ' is-fresh';
-        const g = el('g', { class: cls });
-        g.appendChild(el('circle', { cx: p.x, cy: y(p.d), r: R }));
-        if (p.node.sym !== null) {
-          g.appendChild(el('text', { x: p.x, y: y(p.d), class: 'hd-label' }, shown(p.node.sym)));
-          g.appendChild(el('text', { x: p.x, y: y(p.d) + R + 13, class: 'hd-weight' }, String(p.node.w)));
-          if (step.done) {
-            g.appendChild(el('text', { x: p.x, y: y(p.d) + R + 29, class: 'hd-code-label' }, codes[p.node.sym]));
-          }
-        } else {
-          g.appendChild(el('text', { x: p.x, y: y(p.d), class: 'hd-label' }, String(p.node.w)));
-        }
-        nodes.appendChild(g);
+        g.classList.toggle('is-leaf', p.node.sym !== null);
+        g.classList.toggle('is-hot', step.hot.includes(tree));
+        g.classList.toggle('is-fresh', step.fresh === tree);
+        if (!isNew || !move) g.classList.remove('is-gone');
       }
-      svg.appendChild(edges);
-      svg.appendChild(nodes);
+      for (const [nid, g] of nodeEls) if (!target.has(nid)) g.classList.add('is-gone');
+      const linked = new Set(links.map((l) => l.child));
+      for (const l of links) {
+        const isNew = !edgeEls.has(l.child);
+        const e = edgeEl(l.child, l.bit, move);
+        if (isNew && move) fresh.push(e.g);
+        else e.g.classList.remove('is-gone');
+      }
+      for (const [cid, e] of edgeEls) if (!linked.has(cid)) e.g.classList.add('is-gone');
+      svg.classList.toggle('is-done', !!step.done);
+
+      /* 출발점: 지금 그려진 자리. 처음 보는 노드(방금 합친 부모)는 제자리에서 떠오른다. */
+      const from = new Map();
+      for (const [nid, p] of target) from.set(nid, shownPos.get(nid) ?? p);
+
+      if (frame) cancelAnimationFrame(frame);
+      frame = null;
+      if (!move) {
+        for (const [nid, p] of target) shownPos.set(nid, p);
+        draw(target, links);
+      } else {
+        draw(from, links);
+        requestAnimationFrame(() => fresh.forEach((g) => g.classList.remove('is-gone')));
+        const t0 = performance.now();
+        const tick = (now) => {
+          const u = ease(Math.min(1, (now - t0) / DURATION));
+          const cur = new Map();
+          for (const [nid, p] of target) {
+            const a = from.get(nid);
+            const q = { x: a.x + (p.x - a.x) * u, y: a.y + (p.y - a.y) * u };
+            cur.set(nid, q);
+            shownPos.set(nid, q);
+          }
+          draw(cur, links);
+          frame = u < 1 ? requestAnimationFrame(tick) : null;
+        };
+        frame = requestAnimationFrame(tick);
+      }
 
       let total = 0;
       for (const sym of Object.keys(freq)) {
         const row = root.querySelector(`[data-hd-row="${CSS.escape(sym)}"]`);
         const bits = freq[sym] * codes[sym].length;
         total += bits;
-        row.querySelector('[data-hd-code]').textContent = step.done ? codes[sym] : '';
-        row.querySelector('[data-hd-bits]').textContent = step.done ? String(bits) : '';
+        row.querySelector('[data-hd-code]').textContent = codes[sym];
+        row.querySelector('[data-hd-bits]').textContent = String(bits);
       }
-      root.querySelector('[data-hd-total]').textContent = step.done ? String(total) : '';
+      root.querySelector('[data-hd-total]').textContent = String(total);
 
       const kinds = Object.keys(freq).length;
       const k = Math.max(1, Math.ceil(Math.log2(kinds)));
       const count = Object.values(freq).reduce((a, b) => a + b, 0);
       let summary = fill(S.summary, { h: total, k, f: k * count });
       if (text) summary += fill(S.ascii, { a: 8 * [...text].length });
-      root.querySelector('[data-hd-summary]').textContent = step.done ? summary : '';
+      root.querySelector('[data-hd-summary]').textContent = summary;
+      root.classList.toggle('is-done', !!step.done);
 
       root.querySelector('[data-hd-note]').textContent = step.note;
       root.querySelector('[data-hd-merges]').textContent = String(step.merges);
@@ -345,14 +446,14 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
     function step() {
       if (at >= steps.length - 1) return stop();
       at += 1;
-      render(at);
+      render(at, true);
       if (at >= steps.length - 1) stop();
     }
 
     root.querySelector('[data-act="back"]').addEventListener('click', () => {
       stop();
       if (at > 0) at -= 1;
-      render(at);
+      render(at, true);
     });
     root.querySelector('[data-act="step"]').addEventListener('click', () => {
       stop();
@@ -361,19 +462,19 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
     root.querySelector('[data-act="reset"]').addEventListener('click', () => {
       stop();
       at = 0;
-      render(0);
+      render(0, true);
     });
     playBtn.addEventListener('click', () => {
       if (timer) return stop();
       if (at >= steps.length - 1) {
         at = 0;
-        render(0);
+        render(0, true);
       }
       playBtn.textContent = S.stop;
-      timer = setInterval(step, 900);
+      timer = setInterval(step, 1300);
     });
 
-    render(0);
+    render(0, false);
   })();
 </script>
 
@@ -495,6 +596,36 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
     fill: var(--aas-role-eval);
     text-anchor: middle;
     font-family: var(--aas-mono, monospace);
+    opacity: 0;
+    transition: opacity 0.45s;
+  }
+  .aas-huffman-demo .hd-forest.is-done .hd-code-label {
+    opacity: 1;
+  }
+
+  /* 나타나고 사라지는 노드·가지는 흐려지며 움직인다. 자리 이동은 스크립트가 맡는다. */
+  .aas-huffman-demo .hd-node,
+  .aas-huffman-demo .hd-edge-g {
+    transition: opacity 0.4s;
+  }
+  .aas-huffman-demo .hd-node.is-gone,
+  .aas-huffman-demo .hd-edge-g.is-gone {
+    opacity: 0;
+  }
+
+  /* 코드표와 합계는 트리가 완성되면 스며들듯 채워진다. */
+  .aas-huffman-demo .hd-code,
+  .aas-huffman-demo [data-hd-bits],
+  .aas-huffman-demo [data-hd-total],
+  .aas-huffman-demo .hd-summary {
+    opacity: 0;
+    transition: opacity 0.45s;
+  }
+  .aas-huffman-demo.is-done .hd-code,
+  .aas-huffman-demo.is-done [data-hd-bits],
+  .aas-huffman-demo.is-done [data-hd-total],
+  .aas-huffman-demo.is-done .hd-summary {
+    opacity: 1;
   }
 
   /* 고른 두 트리는 주황, 방금 합친 트리는 초록. 잎은 색을 채우고 안쪽 노드는 테두리만. */
@@ -596,7 +727,14 @@ const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .aas-huffman-demo .hd-node circle {
+    .aas-huffman-demo .hd-node circle,
+    .aas-huffman-demo .hd-node,
+    .aas-huffman-demo .hd-edge-g,
+    .aas-huffman-demo .hd-code-label,
+    .aas-huffman-demo .hd-code,
+    .aas-huffman-demo [data-hd-bits],
+    .aas-huffman-demo [data-hd-total],
+    .aas-huffman-demo .hd-summary {
       transition: none;
     }
   }
