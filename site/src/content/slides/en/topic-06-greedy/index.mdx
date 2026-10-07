@@ -156,7 +156,12 @@ The procedure is the same, yet optimality broke.
 - 500 is a multiple of 100, 100 of 50, and 50 of 10.
 - **One large coin exactly replaces several small ones.**
   - Paying with the large one first never costs anything.
-- 40 does not divide 50, so that relationship breaks.
+- 50 is not a multiple of 40, so that relationship breaks.
+
+<br/>
+
+The multiple-of relationship is only a **sufficient condition**.  
+US coins (25, 10, 5, 1 cent) break that relationship, yet greedy is still optimal.
 
 </Slide>
 
@@ -167,23 +172,28 @@ The procedure is the same, yet optimality broke.
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
 #### One room, as many meetings as possible
 ::sub[Greedy strategy: the meeting that ends earliest first]
 
-```plaintext
-t         1   2   3   4   5   6   7   8   9
-(1, 3)    ├───────┤                             pick
-(2, 5)        ├───────────┤                     ✗
-(4, 6)                ├───────┤                 pick
-(6, 7)                        ├───┤             pick
-(5, 8)                    ├───────────┤         ✗
-(8, 9)                                ├───┤     pick
+```mermaid
+%%{init: {"gantt": {"useWidth": 1100, "barHeight": 44, "barGap": 12, "fontSize": 22, "sectionFontSize": 22, "leftPadding": 150, "gridLineStartPadding": 40}, "themeVariables": {"activeTaskBkgColor": "#22c55e", "activeTaskBorderColor": "#16a34a", "doneTaskBkgColor": "#d4d4d8", "doneTaskBorderColor": "#a1a1aa", "taskTextDarkColor": "#111827", "taskTextColor": "#111827"}}}%%
+gantt
+  dateFormat x
+  axisFormat %s
+  tickInterval 1second
+  section by end time
+  (1, 3) picked : active, t1, 1000, 3000
+  (2, 5) overlaps : done, t2, 2000, 5000
+  (4, 6) picked : active, t3, 4000, 6000
+  (6, 7) picked : active, t4, 6000, 7000
+  (5, 8) overlaps : done, t5, 5000, 8000
+  (8, 9) picked : active, t6, 8000, 9000
 ```
 
 Line them up by end time and pick only those that do not overlap the previous pick.  
-Like (6, 7) after (4, 6), starting exactly when the previous one ends is not an overlap.
+As with (6, 7) after (4, 6), starting exactly when the previous one ends is no overlap.
 
 </Slide>
 
@@ -300,7 +310,7 @@ capacity = 50
 
 <br/>
 
-When items can be split, the knapsack ends up full, so "richest first" is optimal.  
+When items can be split, you fill it with no gap left, so "richest first" is optimal.  
 When they cannot, the gap a rich item leaves behind becomes a loss.  
 Dynamic programming solves this problem in Topic 14.
 
@@ -617,7 +627,7 @@ Plausible, but not the best. A split decided at the top cannot know what it caus
 <Slide>
 
 #### Huffman's idea
-::sub[1952: he turned the direction around]
+::sub[1951, an MIT graduate student; the course professor was that very Fano]
 
 The rarest characters end up deepest, with the longest codes, anyway.  
 So **tie the two rarest characters together as siblings first**.
@@ -711,7 +721,7 @@ decoded = ABRACADABRA!
   - Greedy choice property: some optimal tree has the two rarest characters as siblings.
   - Optimal substructure: after tying them, the same problem with one fewer character remains.
 - **Time**: $$k - 1$$ merges
-  - Scanning every time gives $$O(k^2)$$; a priority queue (heap) gives $$O(k \log k)$$.
+  - Scanning every time gives $$O(k^2)$$; a priority queue (heap, Topic 12) gives $$O(k \log k)$$.
   - Counting frequencies and encoding are $$O(n)$$.
 - **The tree must be sent too.** In short texts, that overhead eats up the gain.
 
@@ -731,7 +741,8 @@ decoded = ABRACADABRA!
 
 - The table starts with the 256 single ASCII characters (codes 0\~255).
 - Every new string it reads gets a new code: 256, 257, ….
-- All codes have the same length: 9 bits in this example, usually 12 bits.
+- All codes have the same length. In this example, 9 bits are enough.
+  - Real implementations widen the codes past 9 bits, to 12 or more, as the table grows.
 
 <br/>
 
@@ -833,9 +844,9 @@ bits: ascii 9 x 8 = 72, lzw 6 x 9 = 54
   - Huffman: **fixed-length symbols** to **variable-length codes**
   - LZW: **variable-length strings** to **fixed-length codes**
 - **Lossy compression**: JPEG, MPEG, MP3
-  - Relatives of the Fourier transform (discrete cosine transform), wavelets
+  - A relative of the Fourier transform (the discrete cosine transform), wavelets
 - **The limit**: Shannon entropy
-  - No clever algorithm can go below it.
+  - No clever algorithm can go below it on average.
 
 </Slide>
 

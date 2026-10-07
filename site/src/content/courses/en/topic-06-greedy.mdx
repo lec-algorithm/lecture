@@ -114,8 +114,14 @@ the coin set did, and optimality broke.
 
 It is no accident that greedy works for our coins. 500 is a multiple of
 100, 100 of 50, and 50 of 10. **One large coin exactly replaces several
-small ones**, so paying with the large one first never costs anything. 40
-does not divide 50, and that relationship breaks.
+small ones**, so paying with the large one first never costs anything. 50
+is not a multiple of 40, so that relationship breaks, and the gap leaves
+room for amounts where greedy is not optimal.
+
+Still, the multiple-of relationship is only a **sufficient condition** for
+greedy to work. US coins (25, 10, 5, and 1 cent) are always greedy-optimal
+even though 25 is not a multiple of 10. Whether greedy works for a given
+coin system can only be settled by checking amount by amount.
 
 ## Example 2. Activity selection \{#activity-selection}
 
@@ -125,16 +131,21 @@ does not divide 50, and that relationship breaks.
 - **Greedy strategy**: pick **the meeting that ends earliest** first.
 
 Line up six meetings by end time, and from the front pick only those that
-do not overlap the previous pick. The top row, `t`, is the time.
+do not overlap the previous pick. The axis below is time.
 
-```plaintext
-t         1   2   3   4   5   6   7   8   9
-(1, 3)    ├───────┤                             pick
-(2, 5)        ├───────────┤                     ✗
-(4, 6)                ├───────┤                 pick
-(6, 7)                        ├───┤             pick
-(5, 8)                    ├───────────┤         ✗
-(8, 9)                                ├───┤     pick
+```mermaid
+%%{init: {"gantt": {"useWidth": 900, "barHeight": 26, "barGap": 8, "fontSize": 14, "sectionFontSize": 14, "leftPadding": 90}, "themeVariables": {"activeTaskBkgColor": "#22c55e", "activeTaskBorderColor": "#16a34a", "doneTaskBkgColor": "#d4d4d8", "doneTaskBorderColor": "#a1a1aa", "taskTextDarkColor": "#111827", "taskTextColor": "#111827"}}}%%
+gantt
+  dateFormat x
+  axisFormat %s
+  tickInterval 1second
+  section by end time
+  (1, 3) picked : active, t1, 1000, 3000
+  (2, 5) overlaps : done, t2, 2000, 5000
+  (4, 6) picked : active, t3, 4000, 6000
+  (6, 7) picked : active, t4, 6000, 7000
+  (5, 8) overlaps : done, t5, 5000, 8000
+  (8, 9) picked : active, t6, 8000, 9000
 ```
 
 Notice that (6, 7) was picked right after (4, 6). A meeting that starts
@@ -249,8 +260,8 @@ splitting**. With capacity 50, after items 1 and 2 the remaining 20 cannot
 hold item 3 (weight 30), so it stops at 160. Yet packing items 2 and 3
 gives **220**.
 
-When items can be split, the knapsack always ends up full, so "richest
-first" is optimal. When they cannot, the gap a rich item leaves behind
+When items can be split, you can fill the knapsack with no gap left, so
+"richest first" is optimal. When they cannot, the gap a rich item leaves behind
 becomes a loss. This problem (the 0/1 knapsack) is solved by
 [[dynamic-programming|dynamic programming]] in Topic 14.
 
@@ -514,8 +525,12 @@ greedy we saw in the longest path.
 
 ## Example 4. Huffman codes \{#huffman}
 
-In 1952, a graduate student named David Huffman turned the direction
-around: build **from the bottom up**. The rarest characters have to end up
+In 1951, David Huffman, then a graduate student at MIT, turned the
+direction around. Choosing a term paper over the final exam, he was
+searching for an optimal code when he arrived at this method, and he
+published it the following year. The professor of that course was none
+other than Robert Fano, the Fano of Shannon-Fano. The idea is to build
+**from the bottom up**. The rarest characters have to end up
 deepest, with the longest codes, anyway. So **tie the two rarest characters
 together as siblings first**.
 
@@ -642,7 +657,7 @@ bits: huffman 28, fixed 3-bit 36, ascii 96
 decoded = ABRACADABRA!
 ```
 
-The demo's five merges and its code table come out exactly. Side by side,
+The output matches the demo's five merges and code table exactly. Side by side,
 here are the bits needed to write the same 12 characters.
 
 | Method | Bits |
@@ -667,7 +682,8 @@ tree from the frequencies, is the shortest.
   Scanning the forest every time, as the practice code does, gives
   $$O(k^2)$$. Handing the take-the-smallest job to a
   [[priority-queue|priority queue]], that is, a binary heap, makes each
-  take and put $$O(\log k)$$, for $$O(k \log k)$$. Counting the
+  take and put $$O(\log k)$$, for $$O(k \log k)$$. Heaps are covered in
+  Topic 12. Counting the
   frequencies and encoding are $$O(n)$$ in the number of characters $$n$$.
 - **What has to travel along**: the decoder cannot read anything without
   the tree. So real compressed files carry the tree (or the frequency
@@ -682,7 +698,9 @@ units larger than characters: English `the`, `tion`, `ing`, and so on.
 - The table starts with the 256 single ASCII characters (codes 0\~255).
 - Every time it reads a string it has not seen before, it adds it to the
   table with a new code: 256, 257, ….
-- All codes have the same length (9 bits in this example, usually 12 bits).
+- All codes have the same length. In this example 9 bits are enough. Real
+  implementations widen the codes from 9 bits to 12 or more as the table
+  grows. GIF and Unix `compress` do exactly that.
 
 ### Encoding \{#lzw-encode}
 
@@ -813,7 +831,7 @@ table**.
   transform, a relative of the Fourier transform from Topic 05, and
   wavelets.
 - **The limit**: how far lossless compression can go is set by the data's
-  **Shannon entropy**. No clever algorithm can go below it.
+  **Shannon entropy**. No clever algorithm can go below it on average.
 
 ## What to keep \{#takeaway}
 
