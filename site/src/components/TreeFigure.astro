@@ -1,0 +1,184 @@
+---
+// 작은 이진 트리 그림. 스크립트 없이 서버에서 SVG로 다 그린다.
+//
+// 코드 트리(왼쪽 가지 0, 오른쪽 가지 1)와 경로 비교(그리디가 고른 길과
+// 정답 길)처럼 노드 몇 개짜리 그림에 쓴다. mermaid는 작은 그림을 원래
+// 크기로만 그려 슬라이드에서 너무 작아지는데, 이 그림은 viewBox로 그려
+// 칸 폭에 맞춰 커진다.
+//
+// 배치는 중위 순서다. 노드마다 중위 순서의 번호가 x가 되고 깊이가 y가 된다.
+// 자식이 하나뿐이어도 왼쪽·오른쪽이 그대로 드러난다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+export interface TreeNode {
+  /** 노드 안에 쓸 글자. 비우면 빈 원(코드 트리의 안쪽 노드) */
+  v?: string;
+  l?: TreeNode;
+  r?: TreeNode;
+  /** 문자가 붙은 노드처럼 채워서 그린다. */
+  filled?: boolean;
+  /** 강조 색. 노드와, 부모에서 이 노드로 오는 가지에 함께 칠한다. */
+  tone?: 'focus' | 'eval';
+  /** 노드 아래에 작게 쓸 글자 (코드워드 등) */
+  note?: string;
+}
+
+interface Props {
+  tree: TreeNode;
+  /** 가지에 0(왼쪽)과 1(오른쪽)을 쓴다. */
+  bits?: boolean;
+  /** 그림 아래 설명 (스크린 리더용 이름도 된다) */
+  caption?: string;
+  /** 슬라이드용: 칸 높이에 맞춰 크게 */
+  slide?: boolean;
+}
+const { tree, bits = false, caption, slide = false } = Astro.props;
+void defaultLang;
+
+type Placed = { node: TreeNode; x: number; d: number; parent?: Placed; side?: 'l' | 'r' };
+const placed: Placed[] = [];
+let order = 0;
+function walk(node: TreeNode, d: number, parent?: Placed, side?: 'l' | 'r'): void {
+  const me: Placed = { node, x: 0, d, parent, side };
+  if (node.l) walk(node.l, d + 1, me, 'l');
+  me.x = order++;
+  placed.push(me);
+  if (node.r) walk(node.r, d + 1, me, 'r');
+}
+walk(tree, 0);
+
+const UNIT = 56;
+const LEVEL = 70;
+const R = 20;
+const PAD = 30;
+const maxD = Math.max(...placed.map((p) => p.d));
+const hasNotes = placed.some((p) => p.node.note);
+const W = (order - 1) * UNIT + 2 * PAD;
+const H = maxD * LEVEL + 2 * R + (hasNotes ? 30 : 8) + 10;
+const X = (p: Placed) => PAD + p.x * UNIT;
+const Y = (p: Placed) => R + 6 + p.d * LEVEL;
+const edges = placed.filter((p) => p.parent);
+---
+
+<figure class:list={['aas-tree-figure', slide && 'is-slide']}>
+  <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={caption ?? ''}>
+    {edges.map((p) => (
+      <g class:list={['tf-edge', p.node.tone && `is-${p.node.tone}`]}>
+        <line x1={X(p.parent!)} y1={Y(p.parent!)} x2={X(p)} y2={Y(p)} />
+        {bits && (
+          <text
+            class="tf-bit"
+            x={(X(p.parent!) + X(p)) / 2 + (p.side === 'l' ? -10 : 10)}
+            y={(Y(p.parent!) + Y(p)) / 2 - 2}
+          >
+            {p.side === 'l' ? '0' : '1'}
+          </text>
+        )}
+      </g>
+    ))}
+    {placed.map((p) => (
+      <g class:list={['tf-node', p.node.filled && 'is-filled', p.node.tone && `is-${p.node.tone}`]}>
+        <circle cx={X(p)} cy={Y(p)} r={R} />
+        {p.node.v && (
+          <text class="tf-label" x={X(p)} y={Y(p)}>
+            {p.node.v}
+          </text>
+        )}
+        {p.node.note && (
+          <text class="tf-note" x={X(p)} y={Y(p) + R + 18}>
+            {p.node.note}
+          </text>
+        )}
+      </g>
+    ))}
+  </svg>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .aas-tree-figure {
+    margin: 1.5rem auto;
+    text-align: center;
+  }
+  .aas-tree-figure svg {
+    display: block;
+    margin-inline: auto;
+    width: 100%;
+    max-width: 22rem;
+    height: auto;
+  }
+  .aas-tree-figure figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .tf-edge line {
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+  }
+  .tf-bit {
+    font-size: 13px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .tf-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+  }
+  .tf-node.is-filled circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+  }
+  .tf-label {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .tf-node.is-filled .tf-label {
+    fill: var(--aas-bg);
+  }
+  .tf-note {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 강조: 주황은 그리디가 고른 길, 초록은 정답 길 (다른 데모와 같은 색 약속) */
+  .tf-node.is-focus circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .tf-node.is-eval circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .tf-node.is-focus .tf-label,
+  .tf-node.is-eval .tf-label {
+    fill: #fff;
+  }
+  .tf-edge.is-focus line {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .tf-edge.is-eval line {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+
+  /* 슬라이드: 칸 높이에 맞춰 키운다. vh인 이유는 SearchDemo 참고 */
+  .aas-tree-figure.is-slide {
+    margin: 0.5rem auto;
+  }
+  .aas-tree-figure.is-slide svg {
+    max-width: none;
+    width: auto;
+    height: 50vh;
+  }
+</style>
