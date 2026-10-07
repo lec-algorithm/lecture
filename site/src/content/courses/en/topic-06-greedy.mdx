@@ -12,6 +12,9 @@ slides: ["topic-06-greedy"]
 import HuffmanDemo from '@components/HuffmanDemo.astro';
 import LzwDemo from '@components/LzwDemo.astro';
 import TreeFigure from '@components/TreeFigure.astro';
+import CoinDemo from '@components/CoinDemo.astro';
+import ActivityDemo from '@components/ActivityDemo.astro';
+import KnapsackDemo from '@components/KnapsackDemo.astro';
 
 > Topics 03 and 04 were a strategy for splitting problems (divide and
 > conquer), and Topic 05 was the language for measuring their cost. This
@@ -58,7 +61,11 @@ is simply correct. This topic's question is **whether that is always so**.
   exceed the remaining amount.
 
 For 1260 won: two 500s (260 left), two 100s (60 left), one 50 (10 left),
-one 10. **6 coins**, and that is optimal.
+one 10. **6 coins**, and that is optimal. Pay them one step at a time. The
+unit being looked at has an orange outline, and each coin paid flies down
+into the tray.
+
+<CoinDemo />
 
 - Pseudocode
 
@@ -89,7 +96,10 @@ int coinChange(const int coins[], int m, int amount, int used[]) {
 ### What if there were a 40-won coin \{#coin-counter}
 
 Feed the same code a different set of coins. In a country with 50, 40, and
-10 won coins, make change for 80 won.
+10 won coins, make change for 80 won. At the end, the demo sets greedy's
+answer beside the true minimum.
+
+<CoinDemo coins={[50, 40, 10]} amount={80} />
 
 - Run
 
@@ -131,7 +141,13 @@ coin system can only be settled by checking amount by amount.
 - **Greedy strategy**: pick **the meeting that ends earliest** first.
 
 Line up six meetings by end time, and from the front pick only those that
-do not overlap the previous pick. The axis below is time.
+do not overlap the previous pick. In the first step the bars swap places
+into end-time order, and the orange dashed line follows "the time the meetings
+picked so far end" to the right.
+
+<ActivityDemo />
+
+Gathering the picks on a single time axis gives this. The axis below is time.
 
 ```mermaid
 %%{init: {"gantt": {"useWidth": 900, "barHeight": 26, "barGap": 8, "fontSize": 14, "sectionFontSize": 14, "leftPadding": 90}, "themeVariables": {"activeTaskBkgColor": "#22c55e", "activeTaskBorderColor": "#16a34a", "doneTaskBkgColor": "#d4d4d8", "doneTaskBorderColor": "#a1a1aa", "taskTextDarkColor": "#111827", "taskTextColor": "#111827"}}}%%
@@ -210,7 +226,10 @@ the fractional knapsack problem.
 | 3 | 30 | 120 | 4 |
 
 With capacity 15, take all of item 1 (weight 10, value 60), then a quarter
-of item 2 to fill the remaining 5 (value 25). Total **85**.
+of item 2 to fill the remaining 5 (value 25). Total **85**. The cards line up by value per unit weight, then the
+knapsack bar fills in each item's colour.
+
+<KnapsackDemo />
 
 ```plaintext
 ALGORITHM FractionalKnapsack(items, n, capacity)
@@ -256,7 +275,11 @@ capacity = 50
 ### If items cannot be split \{#zero-one}
 
 The last line matters. It packs in the same order but **without
-splitting**. With capacity 50, after items 1 and 2 the remaining 20 cannot
+splitting**. Running it as a demo shows the gap that is left.
+
+<KnapsackDemo capacity={50} whole />
+
+With capacity 50, after items 1 and 2 the remaining 20 cannot
 hold item 3 (weight 30), so it stops at 160. Yet packing items 2 and 3
 gives **220**.
 

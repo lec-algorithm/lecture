@@ -1,0 +1,548 @@
+---
+// 동전 거스름돈을 그리디로 한 걸음씩 내 보는 데모.
+//
+// 단위 줄에서 지금 보는 동전(주황)이 남은 금액 이하이면 한 개를 내고, 그
+// 동전이 "낸 동전" 칸으로 날아간다. 남은 금액은 숫자가 줄어드는 모습으로
+// 보인다. 더 낼 수 없으면 다음(더 작은) 단위로 넘어간다. 끝나면 실제 최솟값
+// (모든 경우를 따지는 계산)과 나란히 놓아, 그리디가 최적인지 보여 준다.
+//
+// 절차와 결과는 algorithm-code의 coinChange.c · coin_change.py와 같다.
+// {500, 100, 50, 10}에 1260이면 6개, {50, 40, 10}에 80이면 4개(최적은 2개)다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 동전 단위. 큰 것부터 */
+  coins?: number[];
+  /** 만들 금액 */
+  amount?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { coins = [500, 100, 50, 10], amount = 1260, slide = false } = Astro.props;
+const id = `cd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '동전 거스름돈',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    money: '{v}원',
+    left: '남은 금액',
+    coins: '동전 단위',
+    tray: '낸 동전',
+    countPre: '동전 ',
+    countPost: '개',
+    idle: '{a}을 만듭니다. 남은 금액 이하의 가장 큰 동전부터 냅니다.',
+    take: '{c} ≤ 남은 {r} → {c} 하나를 냅니다. 남은 금액 {n}',
+    skip: '{c} > 남은 {r} → 더 낼 수 없습니다. 다음 단위로 넘어갑니다.',
+    doneOpt: '끝. 그리디 {g}개, 그리고 이것이 최적입니다.',
+    doneWorse: '끝. 그리디 {g}개. 그런데 최적은 {o}개({combo})입니다. 큰 것부터 낸 선택이 최적을 놓쳤습니다.',
+    stuck: '끝. 남은 {r}은 어떤 동전으로도 만들 수 없습니다.',
+  },
+  en: {
+    title: 'Coin change',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    money: '{v} won',
+    left: 'left',
+    coins: 'coin units',
+    tray: 'coins paid',
+    countPre: '',
+    countPost: ' coins',
+    idle: 'Make {a}. Pay the largest coin that fits the amount left.',
+    take: '{c} ≤ {r} left → pay one {c}. {n} left',
+    skip: '{c} > {r} left → cannot pay it. Move to the next unit.',
+    doneOpt: 'Done. Greedy used {g} coins, and that is optimal.',
+    doneWorse: 'Done. Greedy used {g} coins, but the optimum is {o} ({combo}). Paying the largest first missed it.',
+    stuck: 'Done. The remaining {r} cannot be made with these coins.',
+  },
+  zh: {
+    title: '找零钱',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    money: '{v} 韩元',
+    left: '剩余金额',
+    coins: '硬币面额',
+    tray: '已付硬币',
+    countPre: '硬币 ',
+    countPost: ' 枚',
+    idle: '凑出 {a}。从不超过剩余金额的最大硬币开始付。',
+    take: '{c} ≤ 剩余 {r} → 付一枚 {c}。剩余 {n}',
+    skip: '{c} > 剩余 {r} → 付不了。换下一个面额。',
+    doneOpt: '结束。贪心用了 {g} 枚，这就是最优。',
+    doneWorse: '结束。贪心用了 {g} 枚，但最优是 {o} 枚（{combo}）。先付大的这一选择错过了最优。',
+    stuck: '结束。剩下的 {r} 用这些硬币凑不出来。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const money = (v: number) => t.money.replace('{v}', String(v));
+---
+
+<div
+  class:list={['aas-coin-demo', slide && 'is-slide']}
+  id={id}
+  data-cd-coins={JSON.stringify(coins)}
+  data-cd-amount={amount}
+  data-cd-strings={JSON.stringify(t)}
+>
+  <div class="cd-bar">
+    <span class="cd-head">
+      <strong>{t.title}</strong>
+      <span class="cd-left">
+        {t.left} <strong data-cd-left>{money(amount)}</strong>
+      </span>
+    </span>
+    <div class="cd-controls">
+      <button type="button" data-act="back" class="cd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="cd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="cd-btn cd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="cd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cd-label">{t.coins}</div>
+  <div class="cd-units">
+    {coins.map((c, i) => (
+      <div class="cd-unit" data-cd-unit={i}>
+        <span class:list={['cd-coin', `cd-size-${Math.min(i, 3)}`]}>{c}</span>
+        <span class="cd-times">×<strong data-cd-times>0</strong></span>
+      </div>
+    ))}
+  </div>
+
+  <div class="cd-label">{t.tray}</div>
+  <div class="cd-tray" data-cd-tray></div>
+
+  <div class="cd-foot">
+    <p class="cd-note" data-cd-note></p>
+    <span class="cd-count">
+      {t.countPre}<strong data-cd-count>0</strong>{t.countPost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const coins = JSON.parse(root.dataset.cdCoins);
+    const amount = Number(root.dataset.cdAmount);
+    const S = JSON.parse(root.dataset.cdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const money = (v) => fill(S.money, { v });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* 실제 최솟값: 금액마다 가장 적은 개수를 표로 채운다(주제 14의 동적 계획법).
+       그리디의 답과 나란히 놓기 위한 것이다. */
+    function optimum() {
+      const best = new Array(amount + 1).fill(Infinity);
+      const pick = new Array(amount + 1).fill(-1);
+      best[0] = 0;
+      for (let a = 1; a <= amount; a++) {
+        coins.forEach((c, i) => {
+          if (c <= a && best[a - c] + 1 < best[a]) {
+            best[a] = best[a - c] + 1;
+            pick[a] = i;
+          }
+        });
+      }
+      if (!Number.isFinite(best[amount])) return null;
+      const used = coins.map(() => 0);
+      for (let a = amount; a > 0; a -= coins[pick[a]]) used[pick[a]]++;
+      const combo = coins
+        .map((c, i) => (used[i] ? `${c}×${used[i]}` : ''))
+        .filter(Boolean)
+        .join(' + ');
+      return { count: best[amount], combo };
+    }
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 coinChange.pseudo와 같다. */
+    function plan() {
+      const steps = [];
+      const used = coins.map(() => 0);
+      const tray = [];
+      let rem = amount;
+      const push = (extra) => steps.push({ rem, used: used.slice(), tray: tray.slice(), ...extra });
+      for (let i = 0; i < coins.length && rem > 0; i++) {
+        const c = coins[i];
+        while (rem >= c) {
+          const r = rem;
+          rem -= c;
+          used[i]++;
+          tray.push(i);
+          push({ at: i, took: true, note: fill(S.take, { c: money(c), r: money(r), n: money(rem) }) });
+        }
+        if (rem > 0 && i < coins.length - 1) {
+          push({ at: i, took: false, passed: i, note: fill(S.skip, { c: money(c), r: money(rem) }) });
+        }
+      }
+      const g = tray.length;
+      const opt = optimum();
+      let note;
+      if (rem > 0) note = fill(S.stuck, { r: money(rem) });
+      else if (opt && opt.count < g) note = fill(S.doneWorse, { g, o: opt.count, combo: opt.combo });
+      else note = fill(S.doneOpt, { g });
+      push({ at: null, done: true, note });
+      return steps;
+    }
+
+    const steps = plan();
+    const units = [...root.querySelectorAll('[data-cd-unit]')];
+    const times = units.map((u) => u.querySelector('[data-cd-times]'));
+    const tray = root.querySelector('[data-cd-tray]');
+    const leftEl = root.querySelector('[data-cd-left]');
+    const countEl = root.querySelector('[data-cd-count]');
+    const note = root.querySelector('[data-cd-note]');
+
+    /* 남은 금액은 숫자가 줄어드는 모습으로 보인다. */
+    let shownLeft = amount;
+    let leftFrame = null;
+    function tweenLeft(to, animate) {
+      if (leftFrame) cancelAnimationFrame(leftFrame);
+      if (!animate || reduceMotion || to === shownLeft) {
+        shownLeft = to;
+        leftEl.textContent = money(to);
+        return;
+      }
+      const from = shownLeft;
+      const t0 = performance.now();
+      const tick = (now) => {
+        const u = Math.min(1, (now - t0) / 450);
+        shownLeft = Math.round(from + (to - from) * (1 - Math.pow(1 - u, 3)));
+        leftEl.textContent = money(shownLeft);
+        leftFrame = u < 1 ? requestAnimationFrame(tick) : null;
+      };
+      leftFrame = requestAnimationFrame(tick);
+    }
+
+    function coinEl(i) {
+      const el = document.createElement('span');
+      el.className = `cd-coin cd-size-${Math.min(i, 3)}`;
+      el.textContent = String(coins[i]);
+      return el;
+    }
+
+    /* 낸 동전이 단위 줄에서 "낸 동전" 칸으로 날아간다. 끝 이벤트가 늦게 와도
+       시간으로 한 번 더 정리한다. */
+    function fly(fromEl, toEl) {
+      if (reduceMotion || !toEl.animate) return;
+      const base = root.getBoundingClientRect();
+      const a = fromEl.getBoundingClientRect();
+      const b = toEl.getBoundingClientRect();
+      const ghost = toEl.cloneNode(true);
+      ghost.classList.add('cd-ghost');
+      ghost.style.left = `${b.left - base.left}px`;
+      ghost.style.top = `${b.top - base.top}px`;
+      root.appendChild(ghost);
+      toEl.style.visibility = 'hidden';
+      const anim = ghost.animate(
+        [
+          { transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)` },
+          { transform: 'translate(0, 0)' },
+        ],
+        { duration: 550, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' },
+      );
+      const done = () => {
+        ghost.remove();
+        toEl.style.visibility = '';
+      };
+      anim.onfinish = done;
+      anim.oncancel = done;
+      setTimeout(done, 600);
+    }
+
+    let shown = -1;
+
+    function render(s, animate) {
+      const step = s >= 0 ? steps[s] : null;
+      const forward = animate && s === shown + 1;
+      shown = s;
+      root.querySelectorAll('.cd-ghost').forEach((g) => g.remove());
+
+      const used = step ? step.used : coins.map(() => 0);
+      units.forEach((u, i) => {
+        u.classList.toggle('is-now', !!step && step.at === i);
+        /* 이미 지나간 단위와, 끝난 뒤 하나도 안 쓴 단위는 흐리게 */
+        const passed = step && (step.done ? used[i] === 0 : step.at !== null && i < step.at);
+        u.classList.toggle('is-passed', !!passed);
+        u.classList.toggle('is-skip', !!step && step.passed === i);
+        times[i].textContent = String(used[i]);
+      });
+
+      const want = step ? step.tray : [];
+      const have = tray.children;
+      if (forward && step.took && want.length === have.length + 1) {
+        [...have].forEach((c) => {
+          c.style.visibility = '';
+          c.classList.remove('is-fresh');
+        });
+        const el = coinEl(want[want.length - 1]);
+        el.classList.add('is-fresh');
+        tray.appendChild(el);
+        fly(units[step.at].querySelector('.cd-coin'), el);
+      } else {
+        tray.innerHTML = '';
+        want.forEach((i) => tray.appendChild(coinEl(i)));
+      }
+
+      tweenLeft(step ? step.rem : amount, animate);
+      countEl.textContent = String(want.length);
+      note.textContent = step ? step.note : fill(S.idle, { a: money(amount) });
+      root.classList.toggle('is-done', !!(step && step.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at, true);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at, true);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1, true);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1, true);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+
+    render(-1, false);
+  })();
+</script>
+
+<!-- 낸 동전과 그림자는 스크립트가 만들기 때문에 Astro의 scoped 스타일 속성이
+     붙지 않는다. 그래서 is:global로 두고, 선택자를 .aas-coin-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-coin-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    position: relative;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-coin-demo .cd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-coin-demo .cd-head {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.7em;
+    font-size: 0.95em;
+  }
+  .aas-coin-demo .cd-left {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border-radius: 0.5em;
+    padding: 0.1em 0.6em;
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-coin-demo .cd-left strong {
+    display: inline-block;
+    min-width: 4.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.15em;
+    color: var(--aas-text);
+  }
+  .aas-coin-demo .cd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-coin-demo .cd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-coin-demo .cd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-coin-demo .cd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-coin-demo .cd-label {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    margin: 0.4em 0 0.3em;
+  }
+  .aas-coin-demo .cd-units {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: flex-end;
+  }
+  .aas-coin-demo .cd-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2em;
+    padding: 0.35em 0.5em;
+    border: 2px solid transparent;
+    border-radius: 0.7em;
+    transition:
+      border-color 0.25s,
+      opacity 0.25s,
+      background-color 0.25s;
+  }
+  .aas-coin-demo .cd-unit.is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 10%, transparent);
+  }
+  .aas-coin-demo .cd-unit.is-skip {
+    border-style: dashed;
+  }
+  .aas-coin-demo .cd-unit.is-passed {
+    opacity: 0.4;
+  }
+  .aas-coin-demo .cd-times {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-demo .cd-times strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+
+  /* 동전. 큰 단위일수록 조금 크게 그린다. */
+  .aas-coin-demo .cd-coin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6em;
+    height: 2.6em;
+    border-radius: 50%;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    font-weight: 700;
+    color: #3b2a00;
+    background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 70%, #b45309);
+    box-shadow: inset 0 0 0 2px rgba(180, 83, 9, 0.55);
+  }
+  .aas-coin-demo .cd-coin.cd-size-0 {
+    width: 3em;
+    height: 3em;
+  }
+  .aas-coin-demo .cd-coin.cd-size-2,
+  .aas-coin-demo .cd-coin.cd-size-3 {
+    color: #1f2937;
+    background: radial-gradient(circle at 35% 30%, #f3f4f6, #9ca3af 70%, #4b5563);
+    box-shadow: inset 0 0 0 2px rgba(75, 85, 99, 0.55);
+  }
+  .aas-coin-demo .cd-coin.cd-size-3 {
+    width: 2.3em;
+    height: 2.3em;
+  }
+
+  .aas-coin-demo .cd-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+    min-height: 3.4em;
+    padding: 0.4em 0.6em;
+    border: 1px dashed var(--aas-border);
+    border-radius: 0.7em;
+    background: var(--aas-bg);
+  }
+  .aas-coin-demo .cd-tray .cd-coin.is-fresh {
+    outline: 2px solid var(--aas-role-eval);
+    outline-offset: 2px;
+  }
+  .aas-coin-demo .cd-ghost {
+    position: absolute;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .aas-coin-demo .cd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-coin-demo .cd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-coin-demo.is-done .cd-note {
+    color: var(--aas-text);
+  }
+  .aas-coin-demo .cd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-coin-demo .cd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-coin-demo.is-slide {
+    font-size: clamp(1rem, 3.4vh, 2.2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-coin-demo.is-slide .cd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-coin-demo .cd-unit {
+      transition: none;
+    }
+  }
+</style>
