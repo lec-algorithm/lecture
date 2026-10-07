@@ -1,0 +1,594 @@
+---
+// 허프만 코드를 한 걸음씩 만들어 보는 데모.
+//
+// 문자마다 잎 하나짜리 트리에서 시작해, 가장 가벼운 두 트리를 골라(주황)
+// 하나로 합친다(초록). 숲은 늘 "다음에 꺼낼 순서"로 줄 서 있으므로, 맨 왼쪽
+// 두 그루가 언제나 다음에 합쳐질 트리다. 우선순위 큐를 눈으로 보는 셈이다.
+// 트리 하나가 남으면 루트에서 잎까지의 경로(왼쪽 0, 오른쪽 1)가 코드가 되고,
+// 아래 표에 코드와 비트 수가 채워진다.
+//
+// 가중치가 같을 때의 순서는 algorithm-code의 구현과 같다. 트리 안의 가장
+// 작은 문자(코드값 순)가 앞서고, 먼저 꺼낸 쪽이 왼쪽(0)이다. 그래서 데모가
+// 만드는 코드와 비트 수가 실습 코드의 출력과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 이 문자열의 빈도로 만든다. 기본은 실습 코드와 같은 ABRACADABRA! */
+  text?: string;
+  /** 빈도를 직접 준다. 주면 text는 쓰지 않는다. */
+  freq?: Record<string, number>;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { text = 'ABRACADABRA!', freq, slide = false } = Astro.props;
+const id = `hd-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 빈도는 서버에서 센다. 표의 행은 문자 순서(코드값 순)다. */
+const counts: Record<string, number> = {};
+if (freq) {
+  Object.assign(counts, freq);
+} else {
+  for (const ch of text) counts[ch] = (counts[ch] ?? 0) + 1;
+}
+const symbols = Object.keys(counts).sort();
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '허프만 코드',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    input: '입력',
+    sym: '문자',
+    freq: '빈도',
+    code: '코드',
+    bits: '비트',
+    total: '합계',
+    mergePre: '합치기 ',
+    mergePost: '',
+    idle: '문자마다 잎 하나에서 시작합니다. 가장 가벼운 두 트리를 합치기를 되풀이합니다.',
+    pick: '가장 가벼운 두 트리: {x}({wx})와 {y}({wy}). 먼저 꺼낸 {x}가 왼쪽(0)으로 갑니다.',
+    tie: ' 가중치가 같으면 트리 안의 가장 작은 문자가 먼저입니다.',
+    merge: '합쳐서 {z}({w}). 트리가 {n}그루 남았습니다.',
+    done: '트리 한 그루가 남았습니다. 루트에서 잎까지의 경로가 코드입니다. 왼쪽 0, 오른쪽 1.',
+    summary: '허프만 {h}비트 · 고정 길이({k}비트) {f}비트',
+    ascii: ' · ASCII {a}비트',
+  },
+  en: {
+    title: 'Huffman code',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    input: 'input',
+    sym: 'Symbol',
+    freq: 'Freq',
+    code: 'Code',
+    bits: 'Bits',
+    total: 'Total',
+    mergePre: 'merges ',
+    mergePost: '',
+    idle: 'Each symbol starts as a one-leaf tree. Keep merging the two lightest trees.',
+    pick: 'The two lightest trees: {x}({wx}) and {y}({wy}). {x} came out first, so it goes left (0).',
+    tie: ' On equal weights, the tree holding the smaller symbol goes first.',
+    merge: 'Merged into {z}({w}). {n} trees left.',
+    done: 'One tree is left. The path from the root to each leaf is its code: left 0, right 1.',
+    summary: 'Huffman {h} bits · fixed length ({k} bits) {f} bits',
+    ascii: ' · ASCII {a} bits',
+  },
+  zh: {
+    title: '霍夫曼编码',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    input: '输入',
+    sym: '字符',
+    freq: '频次',
+    code: '编码',
+    bits: '位数',
+    total: '合计',
+    mergePre: '合并 ',
+    mergePost: ' 次',
+    idle: '每个字符先是一棵只有一片叶子的树。反复合并最轻的两棵树。',
+    pick: '最轻的两棵树：{x}({wx}) 和 {y}({wy})。先取出的 {x} 放左边 (0)。',
+    tie: '权重相同时，树中最小字符靠前的先取。',
+    merge: '合并成 {z}({w})。还剩 {n} 棵树。',
+    done: '只剩一棵树了。从根到每片叶子的路径就是编码：左 0，右 1。',
+    summary: '霍夫曼 {h} 位 · 定长 ({k} 位) {f} 位',
+    ascii: ' · ASCII {a} 位',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const shown = (ch: string) => (ch === ' ' ? '␣' : ch);
+---
+
+<div
+  class:list={['aas-huffman-demo', slide && 'is-slide']}
+  id={id}
+  data-hd-freq={JSON.stringify(counts)}
+  data-hd-text={freq ? '' : text}
+  data-hd-strings={JSON.stringify(t)}
+>
+  <div class="hd-bar">
+    <span class="hd-head">
+      <strong>{t.title}</strong>
+      {!freq && <span class="hd-chip">{t.input} = <strong>{text}</strong></span>}
+    </span>
+    <div class="hd-controls">
+      <button type="button" data-act="back" class="hd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="hd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="hd-btn hd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="hd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="hd-body">
+    <svg class="hd-forest" data-hd-svg role="img" aria-label={t.title}></svg>
+
+    <table class="hd-table">
+      <thead>
+        <tr>
+          <th>{t.sym}</th>
+          <th>{t.freq}</th>
+          <th>{t.code}</th>
+          <th>{t.bits}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {symbols.map((s) => (
+          <tr data-hd-row={s}>
+            <td class="hd-sym">{shown(s)}</td>
+            <td>{counts[s]}</td>
+            <td class="hd-code" data-hd-code></td>
+            <td data-hd-bits></td>
+          </tr>
+        ))}
+        <tr class="hd-sum">
+          <td>{t.total}</td>
+          <td>{symbols.reduce((acc, s) => acc + counts[s], 0)}</td>
+          <td></td>
+          <td data-hd-total></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="hd-foot">
+    <p class="hd-note" data-hd-note></p>
+    <span class="hd-count">
+      {t.mergePre}<strong data-hd-merges>0</strong> / {symbols.length - 1}{t.mergePost}
+    </span>
+  </div>
+  <p class="hd-summary" data-hd-summary></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const freq = JSON.parse(root.dataset.hdFreq);
+    const text = root.dataset.hdText;
+    const S = JSON.parse(root.dataset.hdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const shown = (ch) => (ch === ' ' ? '␣' : ch);
+
+    /* 꺼내는 순서: 가중치, 같으면 트리 안의 가장 작은 문자. algorithm-code와 같다. */
+    const before = (a, b) => (a.w !== b.w ? a.w - b.w : a.min < b.min ? -1 : a.min > b.min ? 1 : 0);
+    const label = (node) => (node.sym !== null ? shown(node.sym) : label(node.l) + label(node.r));
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 단계마다 숲(정렬된 트리 목록)을 담는다. */
+    function plan() {
+      let nextId = 0;
+      let forest = Object.keys(freq)
+        .sort()
+        .map((sym) => ({ id: nextId++, w: freq[sym], min: sym, sym, l: null, r: null }));
+      forest.sort(before);
+      const steps = [{ forest: forest.slice(), hot: [], fresh: null, merges: 0, note: S.idle }];
+      let merges = 0;
+      while (forest.length > 1) {
+        const [x, y, z3] = forest;
+        const tie = (z3 && z3.w === y.w) || x.w === y.w;
+        steps.push({
+          forest: forest.slice(), hot: [x.id, y.id], fresh: null, merges,
+          note: fill(S.pick, { x: label(x), wx: x.w, y: label(y), wy: y.w }) + (tie ? S.tie : ''),
+        });
+        const z = { id: nextId++, w: x.w + y.w, min: x.min < y.min ? x.min : y.min, sym: null, l: x, r: y };
+        forest = [z, ...forest.slice(2)].sort(before);
+        merges += 1;
+        steps.push({
+          forest: forest.slice(), hot: [], fresh: z.id, merges,
+          note: fill(S.merge, { z: label(z), w: z.w, n: forest.length }),
+        });
+      }
+      steps.push({ forest, hot: [], fresh: null, merges, note: S.done, done: true });
+      return steps;
+    }
+
+    const steps = plan();
+    const finalTree = steps[steps.length - 1].forest[0];
+
+    const codes = {};
+    (function walk(node, path) {
+      if (node.sym !== null) {
+        codes[node.sym] = path || '0';
+        return;
+      }
+      walk(node.l, path + '0');
+      walk(node.r, path + '1');
+    })(finalTree, '');
+
+    const depth = (node) => (node.sym !== null ? 0 : 1 + Math.max(depth(node.l), depth(node.r)));
+    const maxDepth = depth(finalTree);
+    const leafCount = Object.keys(freq).length;
+
+    /* 그림 치수 (viewBox 단위). 잎은 한 칸씩, 트리 사이는 반 칸 띄운다. */
+    const UNIT = 48;
+    const GAP = 24;
+    const LEVEL = 58;
+    const R = 16;
+    const PAD = 22;
+    const W = leafCount * UNIT + (leafCount - 1) * GAP;
+    const H = maxDepth * LEVEL + 2 * R + 46;
+    const svg = root.querySelector('[data-hd-svg]');
+    svg.setAttribute('viewBox', `${-PAD} ${-R - 8} ${W + 2 * PAD} ${H + 8}`);
+    const NS = 'http://www.w3.org/2000/svg';
+
+    function el(name, attrs, textContent) {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (textContent !== undefined) node.textContent = textContent;
+      return node;
+    }
+
+    /* 트리 하나를 x0부터 배치한다. 잎은 중위 순서로 한 칸씩, 부모는 두 자식의 가운데. */
+    function layout(node, x0, d, out) {
+      if (node.sym !== null) {
+        out.push({ node, x: x0 + UNIT / 2, d });
+        return { x: x0 + UNIT / 2, next: x0 + UNIT };
+      }
+      const left = layout(node.l, x0, d + 1, out);
+      const right = layout(node.r, left.next, d + 1, out);
+      const x = (left.x + right.x) / 2;
+      out.push({ node, x, d, lx: left.x, rx: right.x });
+      return { x, next: right.next };
+    }
+
+    function render(s) {
+      const step = steps[s];
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      const placed = [];
+      const leaves = step.forest.reduce((acc, tree) => acc + countLeaves(tree), 0);
+      const width = leaves * UNIT + (step.forest.length - 1) * GAP;
+      let x = (W - width) / 2;
+      const owner = new Map();
+      for (const tree of step.forest) {
+        const start = placed.length;
+        x = layout(tree, x, 0, placed).next + GAP;
+        for (let i = start; i < placed.length; i++) owner.set(placed[i].node.id, tree.id);
+      }
+
+      const edges = el('g', { class: 'hd-edges' });
+      const nodes = el('g', { class: 'hd-nodes' });
+      const y = (d) => d * LEVEL;
+      for (const p of placed) {
+        if (p.node.sym !== null) continue;
+        for (const [cx, bit] of [[p.lx, '0'], [p.rx, '1']]) {
+          edges.appendChild(el('line', { x1: p.x, y1: y(p.d), x2: cx, y2: y(p.d + 1), class: 'hd-edge' }));
+          const mx = (p.x + cx) / 2 + (bit === '0' ? -9 : 9);
+          edges.appendChild(el('text', { x: mx, y: y(p.d) + LEVEL / 2 - 2, class: 'hd-bit' }, bit));
+        }
+      }
+      for (const p of placed) {
+        const tree = owner.get(p.node.id);
+        let cls = p.node.sym !== null ? 'hd-node is-leaf' : 'hd-node';
+        if (step.hot.includes(tree)) cls += ' is-hot';
+        if (step.fresh === tree) cls += ' is-fresh';
+        const g = el('g', { class: cls });
+        g.appendChild(el('circle', { cx: p.x, cy: y(p.d), r: R }));
+        if (p.node.sym !== null) {
+          g.appendChild(el('text', { x: p.x, y: y(p.d), class: 'hd-label' }, shown(p.node.sym)));
+          g.appendChild(el('text', { x: p.x, y: y(p.d) + R + 13, class: 'hd-weight' }, String(p.node.w)));
+          if (step.done) {
+            g.appendChild(el('text', { x: p.x, y: y(p.d) + R + 29, class: 'hd-code-label' }, codes[p.node.sym]));
+          }
+        } else {
+          g.appendChild(el('text', { x: p.x, y: y(p.d), class: 'hd-label' }, String(p.node.w)));
+        }
+        nodes.appendChild(g);
+      }
+      svg.appendChild(edges);
+      svg.appendChild(nodes);
+
+      let total = 0;
+      for (const sym of Object.keys(freq)) {
+        const row = root.querySelector(`[data-hd-row="${CSS.escape(sym)}"]`);
+        const bits = freq[sym] * codes[sym].length;
+        total += bits;
+        row.querySelector('[data-hd-code]').textContent = step.done ? codes[sym] : '';
+        row.querySelector('[data-hd-bits]').textContent = step.done ? String(bits) : '';
+      }
+      root.querySelector('[data-hd-total]').textContent = step.done ? String(total) : '';
+
+      const kinds = Object.keys(freq).length;
+      const k = Math.max(1, Math.ceil(Math.log2(kinds)));
+      const count = Object.values(freq).reduce((a, b) => a + b, 0);
+      let summary = fill(S.summary, { h: total, k, f: k * count });
+      if (text) summary += fill(S.ascii, { a: 8 * [...text].length });
+      root.querySelector('[data-hd-summary]').textContent = step.done ? summary : '';
+
+      root.querySelector('[data-hd-note]').textContent = step.note;
+      root.querySelector('[data-hd-merges]').textContent = String(step.merges);
+    }
+
+    function countLeaves(node) {
+      return node.sym !== null ? 1 : countLeaves(node.l) + countLeaves(node.r);
+    }
+
+    let at = 0;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render(0);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    render(0);
+  })();
+</script>
+
+<!-- 그림과 표의 칸은 스크립트가 만들거나 채우므로 Astro의 scoped 스타일 속성이
+     붙지 않는다. 그래서 is:global로 두고, 선택자를 .aas-huffman-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-huffman-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-huffman-demo .hd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-huffman-demo .hd-head {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.7em;
+    font-size: 0.95em;
+  }
+  .aas-huffman-demo .hd-chip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-huffman-demo .hd-chip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-huffman-demo .hd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-huffman-demo .hd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-huffman-demo .hd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-huffman-demo .hd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 그림이 왼쪽, 표가 오른쪽. 좁으면 위아래로. */
+  .aas-huffman-demo .hd-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    align-items: flex-start;
+  }
+  .aas-huffman-demo .hd-forest {
+    flex: 1 1 22em;
+    min-width: 0;
+    width: 100%;
+    max-height: 22em;
+  }
+  .aas-huffman-demo .hd-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+  }
+  .aas-huffman-demo .hd-bit {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-huffman-demo .hd-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-border);
+    stroke-width: 1.5;
+    transition:
+      fill 0.18s,
+      stroke 0.18s;
+  }
+  .aas-huffman-demo .hd-node.is-leaf circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+  }
+  .aas-huffman-demo .hd-label {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-huffman-demo .hd-node.is-leaf .hd-label {
+    fill: var(--aas-bg);
+  }
+  .aas-huffman-demo .hd-weight {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-huffman-demo .hd-code-label {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--aas-role-eval);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 고른 두 트리는 주황, 방금 합친 트리는 초록. 잎은 색을 채우고 안쪽 노드는 테두리만. */
+  .aas-huffman-demo .hd-node.is-hot circle {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+    fill: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+  }
+  .aas-huffman-demo .hd-node.is-leaf.is-hot circle {
+    fill: var(--aas-role-focus);
+  }
+  .aas-huffman-demo .hd-node.is-fresh circle {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+    fill: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+  }
+  .aas-huffman-demo .hd-node.is-leaf.is-fresh circle {
+    fill: var(--aas-role-eval);
+  }
+
+  .aas-huffman-demo .hd-table {
+    flex: 0 0 auto;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .aas-huffman-demo .hd-table th,
+  .aas-huffman-demo .hd-table td {
+    padding: 0.2em 0.7em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+  }
+  .aas-huffman-demo .hd-table th {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-huffman-demo .hd-sym,
+  .aas-huffman-demo .hd-code {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-huffman-demo .hd-code {
+    color: var(--aas-role-eval);
+    min-width: 3.5em;
+  }
+  .aas-huffman-demo .hd-sum td {
+    border-bottom: none;
+    font-weight: 700;
+  }
+
+  .aas-huffman-demo .hd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-huffman-demo .hd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-huffman-demo .hd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-huffman-demo .hd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-huffman-demo .hd-summary {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    font-weight: 700;
+    min-height: 1.3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-huffman-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-huffman-demo.is-slide .hd-forest {
+    max-height: 50vh;
+  }
+  .aas-huffman-demo.is-slide .hd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-huffman-demo .hd-node circle {
+      transition: none;
+    }
+  }
+</style>
