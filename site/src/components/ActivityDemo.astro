@@ -1,0 +1,465 @@
+---
+// 활동 선택을 그리디로 한 걸음씩 해 보는 데모.
+//
+// 회의마다 시간 축 위의 막대 하나다. 첫 걸음에서 막대들이 끝 시각 순으로
+// 자리를 바꿔 줄 선다. 그다음 위에서부터 하나씩 보며(주황 테두리), 시작이
+// "지금까지 고른 회의가 끝난 시각"(세로선) 이후면 고르고(초록) 세로선을 그
+// 회의의 끝으로 옮긴다. 아니면 겹치므로 버린다(회색).
+//
+// 절차와 결과는 algorithm-code의 activitySelection.c · activity_selection.py와
+// 같다. 기본 입력이면 (1,3) (4,6) (6,7) (8,9), 4개를 고른다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 회의 목록. 각각 [시작, 끝]. 기본은 실습 코드의 입력 순서 그대로 */
+  activities?: [number, number][];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  activities = [
+    [5, 8],
+    [1, 3],
+    [8, 9],
+    [2, 5],
+    [6, 7],
+    [4, 6],
+  ],
+  slide = false,
+} = Astro.props;
+const id = `ad-${Math.random().toString(36).slice(2, 9)}`;
+const maxT = Math.max(...activities.map((a) => a[1])) + 1;
+const ticks = Array.from({ length: maxT + 1 }, (_, i) => i);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '활동 선택',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    lastEnd: '마지막 끝',
+    countPre: '고름 ',
+    countPost: '개',
+    idle: '입력 순서 그대로입니다. 먼저 끝 시각으로 정렬합니다.',
+    sorted: '끝 시각 순으로 줄 섰습니다. 이제 위에서부터 하나씩 봅니다.',
+    first: '{a}: 가장 일찍 끝나는 회의라 고릅니다. 이제 {e} 전에는 시작할 수 없습니다.',
+    pick: '{a}: 시작 {s} ≥ 마지막 끝 {l} → 고릅니다. 마지막 끝 ← {e}',
+    skip: '{a}: 시작 {s} < 마지막 끝 {l} → 겹치므로 버립니다.',
+    done: '끝. {n}개를 골랐습니다: {list}',
+  },
+  en: {
+    title: 'Activity selection',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    lastEnd: 'last end',
+    countPre: 'picked ',
+    countPost: '',
+    idle: 'This is the input order. First sort by end time.',
+    sorted: 'Lined up by end time. Now look at them from the top, one by one.',
+    first: '{a}: it ends earliest, so pick it. Nothing can start before {e} now.',
+    pick: '{a}: start {s} ≥ last end {l} → pick. Move the last end to {e}.',
+    skip: '{a}: start {s} < last end {l} → overlaps, drop it.',
+    done: 'Done. Picked {n}: {list}',
+  },
+  zh: {
+    title: '活动选择',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    lastEnd: '最后结束',
+    countPre: '选中 ',
+    countPost: ' 个',
+    idle: '这是输入顺序。先按结束时间排序。',
+    sorted: '已按结束时间排好。现在从上往下逐个看。',
+    first: '{a}：结束得最早，选中。此后不能在 {e} 之前开始。',
+    pick: '{a}：开始 {s} ≥ 最后结束 {l} → 选中。把最后结束移到 {e}。',
+    skip: '{a}：开始 {s} < 最后结束 {l} → 重叠，丢弃。',
+    done: '结束。选中了 {n} 个：{list}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const pct = (v: number) => `${(v / maxT) * 100}%`;
+---
+
+<div
+  class:list={['aas-activity-demo', slide && 'is-slide']}
+  id={id}
+  data-ad-activities={JSON.stringify(activities)}
+  data-ad-strings={JSON.stringify(t)}
+  style={`--ad-n: ${activities.length}`}
+>
+  <div class="ad-bar">
+    <span class="ad-head"><strong>{t.title}</strong></span>
+    <div class="ad-controls">
+      <button type="button" data-act="back" class="ad-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ad-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ad-btn ad-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ad-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ad-chart">
+    <div class="ad-rows">
+      {activities.map(([s, e], i) => (
+        <div class="ad-row" data-ad-row={i} style={`--ad-slot: ${i}`}>
+          <span class="ad-name">({s}, {e})</span>
+          <span class="ad-track">
+            <span class="ad-span" style={`left: ${pct(s)}; width: ${pct(e - s)}`}></span>
+          </span>
+        </div>
+      ))}
+      <div class="ad-overlay">
+        <span class="ad-marker" data-ad-marker>
+          <span class="ad-marker-label">{t.lastEnd} <strong data-ad-last></strong></span>
+        </span>
+      </div>
+    </div>
+    <div class="ad-axis">
+      <span class="ad-name"></span>
+      <span class="ad-track">
+        {ticks.map((k) => (
+          <span class="ad-tick" style={`left: ${pct(k)}`}>{k}</span>
+        ))}
+      </span>
+    </div>
+  </div>
+
+  <div class="ad-foot">
+    <p class="ad-note" data-ad-note></p>
+    <span class="ad-count">
+      {t.countPre}<strong data-ad-count>0</strong>{t.countPost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id, maxT }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const acts = JSON.parse(root.dataset.adActivities);
+    const S = JSON.parse(root.dataset.adStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const name = (i) => `(${acts[i][0]}, ${acts[i][1]})`;
+    const n = acts.length;
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 activitySelection.pseudo와 같다.
+       정렬 키는 끝 시각, 같으면 시작 시각이다(실습 코드와 같다). */
+    function plan() {
+      const order = acts
+        .map((_, i) => i)
+        .sort((a, b) => acts[a][1] - acts[b][1] || acts[a][0] - acts[b][0]);
+      const sortedSlot = new Array(n);
+      order.forEach((orig, slot) => (sortedSlot[orig] = slot));
+      const inputSlot = acts.map((_, i) => i);
+      const status = new Array(n).fill(null);
+      const steps = [];
+      const push = (extra) => steps.push({ slot: sortedSlot, status: status.slice(), ...extra });
+
+      steps.push({ slot: sortedSlot, status: status.slice(), cur: null, last: null, note: S.sorted });
+      const first = order[0];
+      status[first] = 'pick';
+      let last = acts[first][1];
+      push({ cur: first, last, note: fill(S.first, { a: name(first), e: last }) });
+      for (let k = 1; k < n; k++) {
+        const i = order[k];
+        const [s, e] = acts[i];
+        if (s >= last) {
+          const l = last;
+          status[i] = 'pick';
+          last = e;
+          push({ cur: i, last, note: fill(S.pick, { a: name(i), s, l, e }) });
+        } else {
+          status[i] = 'skip';
+          push({ cur: i, last, note: fill(S.skip, { a: name(i), s, l: last }) });
+        }
+      }
+      const picked = order.filter((i) => status[i] === 'pick');
+      push({
+        cur: null, last, done: true,
+        note: fill(S.done, { n: picked.length, list: picked.map(name).join(' ') }),
+      });
+      return { steps, inputSlot };
+    }
+
+    const { steps, inputSlot } = plan();
+    const rows = [...root.querySelectorAll('[data-ad-row]')];
+    const marker = root.querySelector('[data-ad-marker]');
+    const lastEl = root.querySelector('[data-ad-last]');
+    const countEl = root.querySelector('[data-ad-count]');
+    const note = root.querySelector('[data-ad-note]');
+
+    /* 줄 바꾸기와 세로선 이동은 CSS 전환이 맡는다(top과 left). */
+    function render(s) {
+      const step = s >= 0 ? steps[s] : null;
+      const slot = step ? step.slot : inputSlot;
+      rows.forEach((row, i) => {
+        row.style.setProperty('--ad-slot', String(slot[i]));
+        const st = step ? step.status[i] : null;
+        row.classList.toggle('is-pick', st === 'pick');
+        row.classList.toggle('is-skip', st === 'skip');
+        row.classList.toggle('is-now', !!step && step.cur === i);
+      });
+      if (step && step.last !== null) {
+        marker.style.left = `${(step.last / maxT) * 100}%`;
+        lastEl.textContent = String(step.last);
+        marker.classList.add('is-on');
+      } else {
+        marker.classList.remove('is-on');
+      }
+      countEl.textContent = String(step ? step.status.filter((x) => x === 'pick').length : 0);
+      note.textContent = step ? step.note : S.idle;
+      root.classList.toggle('is-done', !!(step && step.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-activity-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --ad-row: 2.3em;
+    --ad-label: 4.6em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-activity-demo .ad-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-activity-demo .ad-head {
+    font-size: 0.95em;
+  }
+  .aas-activity-demo .ad-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-activity-demo .ad-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-activity-demo .ad-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-activity-demo .ad-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 줄은 절대 위치이고 top을 슬롯 번호로 정한다. 정렬하면 슬롯만 바뀌고
+     top 전환이 줄을 미끄러지게 한다. */
+  .aas-activity-demo .ad-rows {
+    position: relative;
+    height: calc(var(--ad-n) * var(--ad-row));
+  }
+  .aas-activity-demo .ad-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--ad-slot) * var(--ad-row));
+    height: var(--ad-row);
+    display: flex;
+    align-items: center;
+    transition: top 0.55s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  .aas-activity-demo .ad-name {
+    flex: 0 0 var(--ad-label);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-activity-demo .ad-track {
+    position: relative;
+    flex: 1 1 auto;
+    height: 100%;
+    margin-right: 0.8em;
+  }
+  .aas-activity-demo .ad-span {
+    position: absolute;
+    top: 22%;
+    bottom: 22%;
+    border-radius: 0.35em;
+    border: 1.5px solid var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+    transition:
+      background-color 0.3s,
+      border-color 0.3s,
+      opacity 0.3s;
+  }
+  .aas-activity-demo .ad-row.is-now .ad-span {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-activity-demo .ad-row.is-pick .ad-span {
+    border-color: var(--aas-role-eval);
+    background: var(--aas-role-eval);
+  }
+  .aas-activity-demo .ad-row.is-pick .ad-name {
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-activity-demo .ad-row.is-skip .ad-span {
+    border-color: var(--aas-border);
+    background: color-mix(in srgb, var(--aas-muted) 25%, var(--aas-bg));
+    opacity: 0.6;
+  }
+  .aas-activity-demo .ad-row.is-skip .ad-name {
+    text-decoration: line-through;
+  }
+
+  /* 세로선: 지금까지 고른 회의가 끝난 시각. left 전환으로 미끄러진다. */
+  .aas-activity-demo .ad-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--ad-label);
+    right: 0.8em;
+    pointer-events: none;
+  }
+  .aas-activity-demo .ad-marker {
+    position: absolute;
+    top: -0.4em;
+    bottom: -0.2em;
+    left: 0;
+    width: 0;
+    border-left: 2px dashed var(--aas-role-focus);
+    opacity: 0;
+    transition:
+      left 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.3s;
+  }
+  .aas-activity-demo .ad-marker.is-on {
+    opacity: 1;
+  }
+  .aas-activity-demo .ad-marker-label {
+    position: absolute;
+    top: -1.2em;
+    left: 0.3em;
+    white-space: nowrap;
+    font-size: 0.7em;
+    color: var(--aas-role-focus);
+  }
+
+  .aas-activity-demo .ad-axis {
+    display: flex;
+    height: 1.4em;
+    margin-top: 0.2em;
+  }
+  .aas-activity-demo .ad-tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 0.7em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-activity-demo .ad-chart {
+    padding-top: 1em;
+  }
+
+  .aas-activity-demo .ad-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-activity-demo .ad-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-activity-demo.is-done .ad-note {
+    color: var(--aas-text);
+  }
+  .aas-activity-demo .ad-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-activity-demo .ad-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-activity-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-activity-demo.is-slide .ad-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-activity-demo .ad-row,
+    .aas-activity-demo .ad-span,
+    .aas-activity-demo .ad-marker {
+      transition: none;
+    }
+  }
+</style>

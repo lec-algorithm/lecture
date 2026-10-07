@@ -1,0 +1,605 @@
+---
+// 분할 배낭을 그리디로 한 걸음씩 채워 보는 데모.
+//
+// 첫 걸음에서 물건 카드가 단위 무게당 가치 순으로 자리를 바꿔 줄 선다.
+// 그다음 위에서부터 하나씩 배낭 막대에 담는다. 통째로 들어가면 통째로,
+// 안 들어가면 남은 만큼만 쪼개서 담고, 막대가 물건 색으로 차오른다.
+// whole을 주면 쪼갤 수 없는 경우(0/1 배낭에 같은 순서를 쓴 경우)가 되어,
+// 안 들어가는 물건은 건너뛰고 끝에 빈자리와 실제 최댓값을 함께 보여 준다.
+//
+// 절차와 결과는 algorithm-code의 fractionalKnapsack.c · fractional_knapsack.py와
+// 같다. 용량 15면 85.00, 50이면 240.00, 쪼갤 수 없으면 50에서 160(최적 220)이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 물건 목록. 각각 [무게, 가치]. 기본은 실습 코드의 입력 순서 그대로 */
+  items?: [number, number][];
+  /** 배낭 용량 */
+  capacity?: number;
+  /** 쪼갤 수 없게 한다(0/1 배낭에 그리디를 쓴 경우). */
+  whole?: boolean;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  items = [
+    [20, 100],
+    [30, 120],
+    [10, 60],
+  ],
+  capacity = 15,
+  whole = false,
+  slide = false,
+} = Astro.props;
+const id = `kd-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 물건 번호는 단위 무게당 가치 순위다. 교안의 표와 같은 번호가 된다. */
+const rank = items
+  .map((_, i) => i)
+  .sort((a, b) => items[b][1] * items[a][0] - items[a][1] * items[b][0]);
+const label = new Array(items.length);
+rank.forEach((orig, r) => (label[orig] = r + 1));
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '분할 배낭',
+    titleWhole: '쪼갤 수 없는 배낭',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    item: '물건 {k}',
+    bag: '배낭 (용량 {c})',
+    weight: '무게',
+    value: '가치',
+    whole1: '통째로',
+    noFit: '안 들어감',
+    unseen: '안 봄',
+    idle: '물건마다 단위 무게당 가치(v/w)를 봅니다. 먼저 그 순서로 줄 세웁니다.',
+    sorted: '단위 무게당 가치가 높은 순으로 줄 섰습니다. 위에서부터 담습니다.',
+    takeAll: '물건 {k}: 무게 {w} ≤ 남은 {r} → 통째로 담습니다. 가치 +{v}',
+    takePart: '물건 {k}: 무게 {w} > 남은 {r} → {r}만큼, 곧 {f}만 쪼개 담습니다. 가치 +{v}',
+    skipWhole: '물건 {k}: 무게 {w} > 남은 {r} → 쪼갤 수 없으니 담지 못합니다.',
+    full: '배낭이 꽉 찼습니다. 나머지는 볼 필요가 없습니다.',
+    done: '끝. 가치 합계 {t}. 쪼갤 수 있으니 남는 자리가 없습니다.',
+    doneWholeOpt: '끝. 가치 합계 {t}. 이것이 최적입니다.',
+    doneWholeWorse: '끝. 가치 합계 {t}, 빈자리 {g}. 그런데 최적은 {o}({combo})입니다. 같은 순서가 최적을 놓쳤습니다.',
+  },
+  en: {
+    title: 'Fractional knapsack',
+    titleWhole: 'Knapsack without splitting',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    item: 'item {k}',
+    bag: 'knapsack (capacity {c})',
+    weight: 'weight',
+    value: 'value',
+    whole1: 'whole',
+    noFit: 'does not fit',
+    unseen: 'not checked',
+    idle: 'Look at each item’s value per unit weight (v/w). First line them up in that order.',
+    sorted: 'Lined up by value per unit weight, highest first. Fill from the top.',
+    takeAll: 'item {k}: weight {w} ≤ {r} left → take it whole. value +{v}',
+    takePart: 'item {k}: weight {w} > {r} left → take only {r}, that is {f} of it. value +{v}',
+    skipWhole: 'item {k}: weight {w} > {r} left → it cannot be split, so it does not go in.',
+    full: 'The knapsack is full. No need to look at the rest.',
+    done: 'Done. Total value {t}. Splitting leaves no gap.',
+    doneWholeOpt: 'Done. Total value {t}, and that is optimal.',
+    doneWholeWorse: 'Done. Total value {t}, with {g} left empty. But the optimum is {o} ({combo}). The same order missed it.',
+  },
+  zh: {
+    title: '分数背包',
+    titleWhole: '不可分割的背包',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    item: '物品 {k}',
+    bag: '背包（容量 {c}）',
+    weight: '重量',
+    value: '价值',
+    whole1: '整件',
+    noFit: '放不下',
+    unseen: '未看',
+    idle: '看每件物品的单位重量价值 (v/w)。先按它排好队。',
+    sorted: '已按单位重量价值从高到低排好。从上往下装。',
+    takeAll: '物品 {k}：重量 {w} ≤ 剩余 {r} → 整件装入。价值 +{v}',
+    takePart: '物品 {k}：重量 {w} > 剩余 {r} → 只装 {r}，即 {f}。价值 +{v}',
+    skipWhole: '物品 {k}：重量 {w} > 剩余 {r} → 不能分割，装不进去。',
+    full: '背包满了。剩下的不用再看。',
+    done: '结束。价值合计 {t}。可以分割，所以不留空隙。',
+    doneWholeOpt: '结束。价值合计 {t}，这就是最优。',
+    doneWholeWorse: '结束。价值合计 {t}，空着 {g}。但最优是 {o}（{combo}）。同样的顺序错过了最优。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const fillSrv = (tpl: string, vars: Record<string, string | number>) =>
+  tpl.replace(/\{(\w+)\}/g, (_, key) => String(vars[key]));
+---
+
+<div
+  class:list={['aas-knapsack-demo', slide && 'is-slide', whole && 'is-whole']}
+  id={id}
+  data-kd-items={JSON.stringify(items)}
+  data-kd-capacity={capacity}
+  data-kd-whole={whole ? '1' : ''}
+  data-kd-labels={JSON.stringify(label)}
+  data-kd-strings={JSON.stringify(t)}
+  style={`--kd-n: ${items.length}`}
+>
+  <div class="kd-bar">
+    <span class="kd-head"><strong>{whole ? t.titleWhole : t.title}</strong></span>
+    <div class="kd-controls">
+      <button type="button" data-act="back" class="kd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="kd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="kd-btn kd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="kd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="kd-items">
+    {items.map(([w, v], i) => (
+      <div class:list={['kd-item', `kd-c${label[i]}`]} data-kd-item={i} style={`--kd-slot: ${i}`}>
+        <span class="kd-swatch"></span>
+        <span class="kd-name">{fillSrv(t.item, { k: label[i] })}</span>
+        <span class="kd-facts">
+          w <strong>{w}</strong> · v <strong>{v}</strong> · v/w <strong>{(v / w).toFixed(1)}</strong>
+        </span>
+        <span class="kd-badge" data-kd-badge></span>
+      </div>
+    ))}
+  </div>
+
+  <div class="kd-baglabel">
+    <span>{fillSrv(t.bag, { c: capacity })}</span>
+    <span class="kd-totals">
+      {t.weight} <strong data-kd-used>0</strong>/{capacity} · {t.value} <strong data-kd-value>0</strong>
+    </span>
+  </div>
+  <div class="kd-bag" data-kd-bag>
+    {items.map((_, i) => (
+      <span class:list={['kd-seg', `kd-c${label[i]}`]} data-kd-seg={i}>
+        <span class="kd-seglabel" data-kd-seglabel></span>
+      </span>
+    ))}
+    <span class="kd-gap" data-kd-gap></span>
+  </div>
+
+  <p class="kd-note" data-kd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const items = JSON.parse(root.dataset.kdItems);
+    const C = Number(root.dataset.kdCapacity);
+    const whole = root.dataset.kdWhole === '1';
+    const labels = JSON.parse(root.dataset.kdLabels);
+    const S = JSON.parse(root.dataset.kdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = items.length;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    /* 실습 코드처럼 쪼갤 수 있으면 소수 둘째 자리, 쪼갤 수 없으면 정수로 적는다. */
+    const fmt = (x) => (whole ? String(Math.round(x)) : x.toFixed(2));
+
+    /* 쪼갤 수 없을 때의 실제 최댓값(주제 14의 동적 계획법). 그리디와 나란히 놓는다. */
+    function optimumWhole() {
+      const best = new Array(C + 1).fill(0);
+      const keep = items.map(() => new Array(C + 1).fill(false));
+      items.forEach(([w, v], i) => {
+        for (let c = C; c >= w; c--) {
+          if (best[c - w] + v > best[c]) {
+            best[c] = best[c - w] + v;
+            keep[i][c] = true;
+          }
+        }
+      });
+      const chosen = [];
+      let c = C;
+      for (let i = n - 1; i >= 0; i--) {
+        if (keep[i][c]) {
+          chosen.push(i);
+          c -= items[i][0];
+        }
+      }
+      return { value: best[C], chosen };
+    }
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 fractionalKnapsack.pseudo와 같다. */
+    function plan() {
+      const order = items
+        .map((_, i) => i)
+        .sort((a, b) => items[b][1] * items[a][0] - items[a][1] * items[b][0]);
+      const sortedSlot = new Array(n);
+      order.forEach((orig, slot) => (sortedSlot[orig] = slot));
+      const taken = new Array(n).fill(null); /* null: 아직, 숫자: 담은 비율, -1: 안 들어감 */
+      let cap = C;
+      let value = 0;
+      const steps = [];
+      const push = (extra) =>
+        steps.push({ slot: sortedSlot, taken: taken.slice(), used: C - cap, value, ...extra });
+
+      push({ cur: null, note: S.sorted });
+      for (const i of order) {
+        const [w, v] = items[i];
+        const k = labels[i];
+        if (cap === 0) {
+          if (!whole) {
+            push({ cur: null, note: S.full });
+            break;
+          }
+        }
+        if (w <= cap) {
+          const r = cap;
+          taken[i] = 1;
+          value += v;
+          cap -= w;
+          push({ cur: i, fresh: i, note: fill(S.takeAll, { k, w, r, v: fmt(v) }) });
+        } else if (whole) {
+          taken[i] = -1;
+          push({ cur: i, note: fill(S.skipWhole, { k, w, r: cap }) });
+        } else {
+          const r = cap;
+          const f = cap / w;
+          taken[i] = f;
+          value += v * f;
+          cap = 0;
+          push({ cur: i, fresh: i, note: fill(S.takePart, { k, w, r, f: f.toFixed(2), v: fmt(v * f) }) });
+        }
+      }
+      let note;
+      if (!whole) {
+        note = fill(S.done, { t: fmt(value) });
+      } else {
+        const opt = optimumWhole();
+        if (opt.value > value) {
+          const combo = opt.chosen
+            .map((i) => labels[i])
+            .sort((a, b) => a - b)
+            .map((k) => fill(S.item, { k }))
+            .join(' + ');
+          note = fill(S.doneWholeWorse, { t: fmt(value), g: cap, o: opt.value, combo });
+        } else {
+          note = fill(S.doneWholeOpt, { t: fmt(value) });
+        }
+      }
+      push({ cur: null, done: true, note });
+      return steps;
+    }
+
+    const steps = plan();
+    const inputSlot = items.map((_, i) => i);
+    const rows = [...root.querySelectorAll('[data-kd-item]')];
+    const badges = rows.map((r) => r.querySelector('[data-kd-badge]'));
+    const segs = [...root.querySelectorAll('[data-kd-seg]')];
+    const gap = root.querySelector('[data-kd-gap]');
+    const usedEl = root.querySelector('[data-kd-used]');
+    const valueEl = root.querySelector('[data-kd-value]');
+    const note = root.querySelector('[data-kd-note]');
+
+    /* 담은 무게와 가치는 숫자가 올라가는 모습으로 보인다. */
+    let shownUsed = 0;
+    let shownValue = 0;
+    let frame = null;
+    function tweenTotals(used, value, animate) {
+      if (frame) cancelAnimationFrame(frame);
+      const fmtUsed = (x) => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+      if (!animate || reduceMotion) {
+        shownUsed = used;
+        shownValue = value;
+        usedEl.textContent = fmtUsed(used);
+        valueEl.textContent = fmt(value);
+        return;
+      }
+      const u0 = shownUsed;
+      const v0 = shownValue;
+      const t0 = performance.now();
+      const tick = (now) => {
+        const u = Math.min(1, (now - t0) / 500);
+        const e = 1 - Math.pow(1 - u, 3);
+        shownUsed = u < 1 ? u0 + (used - u0) * e : used;
+        shownValue = u < 1 ? v0 + (value - v0) * e : value;
+        usedEl.textContent = u < 1 ? String(Math.round(shownUsed)) : fmtUsed(used);
+        valueEl.textContent = u < 1 ? String(Math.round(shownValue)) : fmt(value);
+        frame = u < 1 ? requestAnimationFrame(tick) : null;
+      };
+      frame = requestAnimationFrame(tick);
+    }
+
+    /* 줄 바꾸기와 배낭 막대 채우기는 CSS 전환이 맡는다(top과 width). */
+    function render(s, animate) {
+      const step = s >= 0 ? steps[s] : null;
+      const slot = step ? step.slot : inputSlot;
+      root.classList.toggle('is-still', !animate || reduceMotion);
+
+      rows.forEach((row, i) => {
+        row.style.setProperty('--kd-slot', String(slot[i]));
+        const tk = step ? step.taken[i] : null;
+        row.classList.toggle('is-now', !!step && step.cur === i);
+        row.classList.toggle('is-in', tk !== null && tk > 0);
+        row.classList.toggle('is-out', tk === -1);
+        row.classList.toggle('is-unseen', !!step && step.done && tk === null);
+        badges[i].textContent =
+          tk === null ? (step && step.done ? S.unseen : '')
+          : tk === -1 ? S.noFit
+          : tk === 1 ? `${S.whole1} ×1.00`
+          : `×${tk.toFixed(2)}`;
+      });
+
+      /* 배낭 막대: 정렬된 순서대로 이어 붙인다. order 속성으로 순서를 맞춘다. */
+      segs.forEach((seg, i) => {
+        const tk = step ? step.taken[i] : null;
+        const w = tk !== null && tk > 0 ? items[i][0] * tk : 0;
+        seg.style.order = String(slot[i]);
+        seg.style.width = `${(w / C) * 100}%`;
+        seg.classList.toggle('is-on', w > 0);
+        seg.querySelector('[data-kd-seglabel]').textContent =
+          w > 0 ? `${labels[i]}${tk === 1 ? '' : ` ×${tk.toFixed(2)}`}` : '';
+      });
+      gap.classList.toggle('is-shown', !!(step && step.done && whole && step.used < C));
+
+      tweenTotals(step ? step.used : 0, step ? step.value : 0, animate);
+      note.textContent = step ? step.note : S.idle;
+      root.classList.toggle('is-done', !!(step && step.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at, true);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at, true);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1, true);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1, true);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1200);
+    });
+
+    render(-1, false);
+  })();
+</script>
+
+<style is:global>
+  .aas-knapsack-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --kd-row: 2.3em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  /* 물건 색: 1 파랑, 2 청록, 3 호박, 4 이후 빨강 */
+  .aas-knapsack-demo .kd-c1 {
+    --kd-color: var(--aas-role-model);
+  }
+  .aas-knapsack-demo .kd-c2 {
+    --kd-color: var(--aas-role-source);
+  }
+  .aas-knapsack-demo .kd-c3 {
+    --kd-color: var(--aas-role-trace);
+  }
+  .aas-knapsack-demo [class*='kd-c']:not(.kd-c1):not(.kd-c2):not(.kd-c3) {
+    --kd-color: var(--aas-role-guard);
+  }
+
+  .aas-knapsack-demo .kd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-knapsack-demo .kd-head {
+    font-size: 0.95em;
+  }
+  .aas-knapsack-demo .kd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-knapsack-demo .kd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-knapsack-demo .kd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-knapsack-demo .kd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 물건 카드. 절대 위치에 top을 슬롯 번호로 정해, 정렬하면 미끄러진다. */
+  .aas-knapsack-demo .kd-items {
+    position: relative;
+    height: calc(var(--kd-n) * var(--kd-row));
+  }
+  .aas-knapsack-demo .kd-item {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--kd-slot) * var(--kd-row));
+    height: calc(var(--kd-row) - 0.3em);
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+    padding: 0 0.7em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    transition:
+      top 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      border-color 0.3s,
+      opacity 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-knapsack-demo .kd-swatch {
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 0.2em;
+    background: var(--kd-color);
+  }
+  .aas-knapsack-demo .kd-name {
+    font-size: 0.85em;
+    font-weight: 700;
+    min-width: 4em;
+  }
+  .aas-knapsack-demo .kd-facts {
+    flex: 1 1 auto;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-knapsack-demo .kd-facts strong {
+    color: var(--aas-text);
+  }
+  .aas-knapsack-demo .kd-badge {
+    font-size: 0.75em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-knapsack-demo .kd-item.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-knapsack-demo .kd-item.is-in {
+    border-color: var(--kd-color);
+  }
+  .aas-knapsack-demo .kd-item.is-in .kd-badge {
+    color: var(--kd-color);
+  }
+  .aas-knapsack-demo .kd-item.is-out,
+  .aas-knapsack-demo .kd-item.is-unseen {
+    opacity: 0.5;
+  }
+  .aas-knapsack-demo .kd-item.is-out .kd-badge {
+    color: var(--aas-role-guard);
+  }
+
+  /* 배낭 막대. 칸마다 width 전환으로 차오른다. */
+  .aas-knapsack-demo .kd-baglabel {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.3em 1em;
+    margin: 0.8em 0 0.3em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-knapsack-demo .kd-totals strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-knapsack-demo .kd-bag {
+    display: flex;
+    height: 2.4em;
+    border: 2px solid var(--aas-text);
+    border-radius: 0.5em;
+    overflow: hidden;
+    background: var(--aas-bg);
+  }
+  .aas-knapsack-demo .kd-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    background: var(--kd-color);
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    transition: width 0.55s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  .aas-knapsack-demo .kd-seg.is-on + .kd-seg.is-on {
+    border-left: 2px solid var(--aas-bg);
+  }
+  .aas-knapsack-demo .kd-gap {
+    order: 999;
+    flex: 1 1 auto;
+    transition: background-color 0.4s;
+  }
+  .aas-knapsack-demo .kd-gap.is-shown {
+    background: repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--aas-role-guard) 30%, transparent) 0 0.35em,
+      transparent 0.35em 0.7em
+    );
+  }
+  .aas-knapsack-demo.is-still .kd-item,
+  .aas-knapsack-demo.is-still .kd-seg {
+    transition: none;
+  }
+
+  .aas-knapsack-demo .kd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-knapsack-demo.is-done .kd-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-knapsack-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-knapsack-demo.is-slide .kd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-knapsack-demo .kd-item,
+    .aas-knapsack-demo .kd-seg,
+    .aas-knapsack-demo .kd-gap {
+      transition: none;
+    }
+  }
+</style>
