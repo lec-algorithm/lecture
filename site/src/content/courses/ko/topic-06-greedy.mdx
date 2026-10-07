@@ -6,10 +6,12 @@ category: strategies
 order: "9094"
 level: 3
 hours: "4:00"
+slides: ["topic-06-greedy"]
 ---
 
 import HuffmanDemo from '@components/HuffmanDemo.astro';
 import LzwDemo from '@components/LzwDemo.astro';
+import TreeFigure from '@components/TreeFigure.astro';
 
 > 주제 03과 04는 문제를 쪼개는 전략(분할 정복)이었고, 주제 05는 그
 > 비용을 재는 언어였습니다. 이번 주제는 두 번째 전략입니다.  
@@ -279,14 +281,9 @@ $$
 이번에는 그리디가 틀리는 경우입니다. 루트에서 출발해 잎까지 내려가며 지나는
 수의 합을 가장 크게 만들려고 합니다.
 
-```mermaid
-graph TD
-  R((20)) --> A((2))
-  R --> B((3))
-  A --> C((7))
-  A --> D((10))
-  B --> E((1))
-```
+<TreeFigure tree={{ v: "20", l: { v: "2", l: { v: "7" }, r: { v: "10" } }, r: { v: "3", r: { v: "1" } } }} />
+
+<TreeFigure tree={{ v: "20", tone: "eval", l: { v: "2", tone: "eval", l: { v: "7" }, r: { v: "10", tone: "eval" } }, r: { v: "3", tone: "focus", r: { v: "1", tone: "focus" } } }} caption="주황: 그리디가 고른 길 (24) · 초록: 정답 (32)" />
 
 그리디는 갈림길마다 큰 쪽을 고릅니다. 20에서 3(2보다 크니까), 3에서 1.
 합은 **24**입니다. 그런데 정답은 20에서 2, 2에서 10으로 가는 **32**입니다.
@@ -442,25 +439,11 @@ $$0.6 \times 1 + 0.25 \times 2 + 0.1 \times 3 + 0.05 \times 3 = 1.55$$입니다.
 
 - 접두사가 있는 코드 (`A=0, B=01, C=10, D=1`)
 
-```mermaid
-graph TD
-  R(( )) -->|0| A((A))
-  R -->|1| D((D))
-  A -->|1| B((B))
-  D -->|0| C((C))
-```
+<TreeFigure bits tree={{ l: { v: "A", filled: true, note: "0", r: { v: "B", filled: true, note: "01" } }, r: { v: "D", filled: true, note: "1", l: { v: "C", filled: true, note: "10" } } }} />
 
 - 접두사 없는 코드 (`A=0, B=10, C=110, D=111`)
 
-```mermaid
-graph TD
-  R(( )) -->|0| A((A))
-  R -->|1| N1(( ))
-  N1 -->|0| B((B))
-  N1 -->|1| N2(( ))
-  N2 -->|0| C((C))
-  N2 -->|1| D((D))
-```
+<TreeFigure bits tree={{ l: { v: "A", filled: true, note: "0" }, r: { l: { v: "B", filled: true, note: "10" }, r: { l: { v: "C", filled: true, note: "110" }, r: { v: "D", filled: true, note: "111" } } } }} />
 
 왼쪽 트리에서는 A가 B의 조상입니다. 그래서 A의 코드 `0`이 B의 코드 `01`의
 접두사가 됩니다. 오른쪽 트리는 **문자가 모두 잎에** 있습니다.
