@@ -143,6 +143,22 @@ export const glossary = {
       zh: '每一步都选当下看起来最好的选项且不回溯。只有当问题满足特定性质时才能保证全局最优。',
     },
   },
+  'prefix-free-code': {
+    label: { ko: '접두사 없는 코드', en: 'Prefix-free code', zh: '无前缀码' },
+    def: {
+      ko: '어떤 코드워드도 다른 코드워드의 앞부분이 되지 않는 코드. 구분자 없이 이어 붙여도 끊을 자리가 하나로 정해진다. 코드 트리에서는 문자가 잎에만 있다는 뜻이다.',
+      en: 'A code in which no codeword is the beginning of another. Codewords can be concatenated with no separator and still split in exactly one way. In a code tree, it means every symbol sits at a leaf.',
+      zh: '任何码字都不是另一个码字开头部分的编码。不加分隔符直接拼接，也只有一种切分方式。在编码树中，意味着所有字符都在叶子上。',
+    },
+  },
+  'huffman-code': {
+    label: { ko: '허프만 코드', en: 'Huffman code', zh: '霍夫曼编码' },
+    def: {
+      ko: '가장 드문 두 트리를 합치기를 되풀이해 만드는 접두사 없는 코드. 흔한 문자는 짧은 코드, 드문 문자는 긴 코드를 받고, 문자 단위 코드 중 평균 길이가 가장 짧다.',
+      en: 'A prefix-free code built by repeatedly merging the two least frequent trees. Common symbols get short codes and rare ones long codes, giving the shortest average length of any symbol-by-symbol code.',
+      zh: '反复合并频次最低的两棵树而得到的无前缀码。常见字符得到短码，罕见字符得到长码，在逐字符编码中平均码长最短。',
+    },
+  },
   'dynamic-programming': {
     label: { ko: '동적 계획법', en: 'Dynamic programming', zh: '动态规划' },
     def: {
