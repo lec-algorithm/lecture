@@ -12,6 +12,10 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import RegexMatchDemo from '@components/RegexMatchDemo.astro';
 import FsaDemo from '@components/FsaDemo.astro';
 import NfaDemo from '@components/NfaDemo.astro';
+import LanguageDemo from '@components/LanguageDemo.astro';
+import RegexPlayDemo from '@components/RegexPlayDemo.astro';
+import BlowupDemo from '@components/BlowupDemo.astro';
+import ParenDemo from '@components/ParenDemo.astro';
 
 {/* Slides follow the "Slide rules" in docs/writing-rules.md.
     Numbers match the output of the practice code (topic-13-regex). */}
@@ -126,6 +130,24 @@ By the end of this topic we reach a method that keeps this promise.
 
 <Slide>
 
+### Try it: unfolding a closure
+::sub[Raise the number of unfoldings with the slider · cells in one color are one unfolding]
+
+<LanguageDemo regexes={['AB*', 'A*B', '(AB)*']} tests={{ 'AB*': ['ABAB', 'B'], 'A*B': ['AABB', 'BA'], '(AB)*': ['ABA', 'BA'] }} slide />
+
+</Slide>
+
+<Slide>
+
+### Try it: parentheses
+::sub[Switch tabs · without parentheses, concatenation binds before or]
+
+<LanguageDemo regexes={['C(AC|B)D', 'CAC|BD', '(A|C)((B|C)D)', 'A(B|C)*D']} tests={{ 'C(AC|B)D': ['CD', 'CACBD'], 'CAC|BD': ['CACD', 'CBD'], '(A|C)((B|C)D)': ['ABCD'], 'A(B|C)*D': ['ABAD'] }} k={1} slide />
+
+</Slide>
+
+<Slide>
+
 #### Parentheses
 ::sub[Parentheses · the default precedence is closure, then concatenation, then or]
 
@@ -232,6 +254,15 @@ Search tools such as `grep` ask this question for every line.
 
 <Slide>
 
+### Try it: regex playground
+::sub[Edit the regex and the text · a green dot marks where a match ends, the number under a cell is the size of the state set]
+
+<RegexPlayDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Validation: phone numbers
 ::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
 
@@ -295,6 +326,15 @@ In practice it is widened, as in `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
 
 <Slide>
 
+### Try it: multiples of 3
+::sub[0 to 15 in binary fed to `(0|1(01*0)*1)*` · green means it belongs]
+
+<RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary slide />
+
+</Slide>
+
+<Slide>
+
 #### What is possible
 ::sub[`(0|1(01*0)*1)*` describes the multiples of 3 in binary]
 
@@ -324,6 +364,15 @@ We actually run this regex as an NFA in Example 3.
 
 Both require **counting without bound**.  
 A regex runs on a machine with finitely many states, so it can only count so far.
+
+</Slide>
+
+<Slide>
+
+### Try it: counting parentheses with k states
+::sub[The machine counts depth only with its states · once more than k `(` come in, the stack and the machine disagree]
+
+<ParenDemo slide />
 
 </Slide>
 
@@ -448,6 +497,15 @@ tests
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### Try it: the backtracking trap
+::sub[Pattern `a*a*…a*b` (`a*` n times), text of n as · raise n with the slider]
+
+<BlowupDemo slide />
 
 </Slide>
 
@@ -699,6 +757,15 @@ Matching parentheses are found with a stack.
 
 </Slide>
 
+<Slide>
+
+### Step by step: building the NFA
+::sub[Orange is the character being read, a blue rim marks a state on the stack · faint transitions are not added yet]
+
+<NfaDemo regex="(A*B|AC)D" mode="build" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Procedure: building the graph
@@ -824,6 +891,15 @@ The start set already holds 16 because the empty string is 0, a multiple of 3.
   - A set holds at most $$M+1$$ states.
   - With adjacency lists, the DFS of an ε-closure sees each state and transition once.
   - $$O(M)$$ per character, $$O(MN)$$ in the worst case overall
+
+</Slide>
+
+<Slide>
+
+### Try it: backtracking and the NFA
+::sub[The same input two ways · switch between the log and linear scales]
+
+<BlowupDemo compare n={10} slide />
 
 </Slide>
 
