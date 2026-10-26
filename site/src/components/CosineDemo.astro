@@ -1,0 +1,516 @@
+---
+// 코사인 유사도를 각도로 보여 주는 데모. 두 벡터의 끝점을 끌어 옮긴다.
+//
+// 평점 두 칸짜리 벡터 두 개를 원점에서 화살표로 긋고, 사이의 각도를 호로
+// 표시한다. 끝점은 0부터 5까지의 정수 칸에 붙는다(평점은 정수, 0은 안 본 칸).
+// 끝점이 아닌 곳을 누르면 가까운 쪽 끝점이 그리로 옮겨 간다. 화살표 키로도
+// 옮길 수 있다. 오른쪽에 내적, 길이, 각도, 코사인을 계산해 적는다.
+//
+// 기본값은 교안의 작은 예에 나오는 사용자 A (5, 3)와 B (4, 0)이다. 두 사용자
+// 모두 아이템 3·4를 보지 않았으므로, 네 칸 벡터의 코사인 0.857이 이 평면에서
+// 그대로 나온다. 계산은 algorithm-code의 cosineSimilarity와 같고, 0벡터면 0이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 첫 벡터 [x, y] */
+  a?: [number, number];
+  /** 둘째 벡터 [x, y] */
+  b?: [number, number];
+  /** 벡터 이름 */
+  names?: [string, string];
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { a = [5, 3], b = [4, 0], names = ['A', 'B'], slide = false } = Astro.props;
+const id = `cs-${Math.random().toString(36).slice(2, 9)}`;
+const MAX = 5;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '두 평점 벡터의 코사인',
+    x: '아이템 1 평점',
+    y: '아이템 2 평점',
+    reset: '처음으로',
+    same: '같은 방향',
+    right: '직각',
+    dot: '내적',
+    len: '길이',
+    angle: '각도',
+    drag: '{n}의 끝점. 끌거나 화살표 키로 옮깁니다.',
+    base: '두 벡터 사이의 각도는 {deg}°, 코사인은 {c}입니다.',
+    hint: '끝점을 끌어 보세요. 방향은 두고 길이만 바꾸면 코사인은 그대로입니다.',
+    sameNote: '방향이 같습니다. 길이가 달라도 코사인은 1입니다.',
+    rightNote: '함께 평가한 아이템이 없어 내적이 0입니다. 평점은 0 이상이라 이보다 더 벌어질 수 없습니다.',
+    zeroNote: '{n}: 0벡터라 방향이 없습니다. 실습 코드처럼 코사인을 0으로 둡니다.',
+  },
+  en: {
+    title: 'Cosine of two rating vectors',
+    x: 'rating of item 1',
+    y: 'rating of item 2',
+    reset: 'Reset',
+    same: 'Same direction',
+    right: 'Right angle',
+    dot: 'dot',
+    len: 'length',
+    angle: 'angle',
+    drag: 'Tip of {n}. Drag it or use the arrow keys.',
+    base: 'The angle between the vectors is {deg}°, and the cosine is {c}.',
+    hint: 'Drag a tip. Change only the length, keeping the direction, and the cosine stays the same.',
+    sameNote: 'They point the same way. The cosine is 1 even though the lengths differ.',
+    rightNote: 'No item is rated by both, so the dot product is 0. Ratings are never negative, so the vectors cannot spread any wider.',
+    zeroNote: '{n} is the zero vector and has no direction. As in the practice code, the cosine is taken as 0.',
+  },
+  zh: {
+    title: '两个评分向量的余弦',
+    x: '物品 1 的评分',
+    y: '物品 2 的评分',
+    reset: '重置',
+    same: '同方向',
+    right: '直角',
+    dot: '内积',
+    len: '长度',
+    angle: '夹角',
+    drag: '{n} 的端点。可拖动，也可用方向键移动。',
+    base: '两个向量的夹角是 {deg}°，余弦是 {c}。',
+    hint: '拖动端点试试。方向不变、只改长度，余弦不变。',
+    sameNote: '方向相同。长度不同，余弦也是 1。',
+    rightNote: '没有两人都评过的物品，内积为 0。评分不会是负数，所以不可能张得更开。',
+    zeroNote: '{n} 是零向量，没有方向。与练习代码一样，余弦取 0。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 좌표계. 한 칸(평점 1)이 U 픽셀 */
+const U = 52;
+const PADL = 52;
+const PADB = 48;
+const PADT = 30;
+const PADR = 100;
+const W = PADL + MAX * U + PADR;
+const H = PADT + MAX * U + PADB;
+const X = (v: number) => PADL + v * U;
+const Y = (v: number) => H - PADB - v * U;
+const ticks = Array.from({ length: MAX + 1 }, (_, i) => i);
+const geo = { U, PADL, PADB, W, H, MAX };
+---
+
+<div
+  class:list={['aas-cosine-demo', slide && 'is-slide']}
+  id={id}
+  data-cs-a={JSON.stringify(a)}
+  data-cs-b={JSON.stringify(b)}
+  data-cs-names={JSON.stringify(names)}
+  data-cs-geo={JSON.stringify(geo)}
+  data-cs-strings={JSON.stringify(t)}
+>
+  <div class="cs-bar">
+    <span class="cs-head"><strong>{t.title}</strong></span>
+    <div class="cs-controls">
+      <button type="button" class="cs-btn" data-cs-preset="reset">{t.reset}</button>
+      <button type="button" class="cs-btn" data-cs-preset="same">{t.same}</button>
+      <button type="button" class="cs-btn" data-cs-preset="right">{t.right}</button>
+    </div>
+  </div>
+
+  <div class="cs-body">
+    <svg class="cs-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.title} data-cs-svg>
+      <defs>
+        <marker id={`${id}-ha`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="cs-head-a" />
+        </marker>
+        <marker id={`${id}-hb`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="cs-head-b" />
+        </marker>
+      </defs>
+      <rect class="cs-pad" x={X(0)} y={Y(MAX)} width={MAX * U} height={MAX * U} />
+      {ticks.map((i) => (
+        <g class="cs-grid">
+          <line x1={X(i)} y1={Y(0)} x2={X(i)} y2={Y(MAX)} />
+          <line x1={X(0)} y1={Y(i)} x2={X(MAX)} y2={Y(i)} />
+          <text x={X(i)} y={Y(0) + 20} class="cs-tick">{i}</text>
+          {i > 0 && <text x={X(0) - 14} y={Y(i) + 5} class="cs-tick">{i}</text>}
+        </g>
+      ))}
+      <line class="cs-axis" x1={X(0)} y1={Y(0)} x2={X(MAX)} y2={Y(0)} />
+      <line class="cs-axis" x1={X(0)} y1={Y(0)} x2={X(0)} y2={Y(MAX)} />
+      <text class="cs-axis-label" x={X(MAX / 2)} y={H - 6}>{t.x}</text>
+      <text class="cs-axis-label" x={16} y={Y(MAX / 2)} transform={`rotate(-90 16 ${Y(MAX / 2)})`}>{t.y}</text>
+
+      <path class="cs-arc" data-cs-arc />
+      <text class="cs-theta" data-cs-theta>θ</text>
+
+      {['a', 'b'].map((k, i) => (
+        <g class={`cs-vec cs-${k}`}>
+          <line data-cs-line={k} x1={X(0)} y1={Y(0)} marker-end={`url(#${id}-h${k})`} />
+          <text class="cs-label" data-cs-label={k}></text>
+          <g
+            class="cs-handle"
+            data-cs-handle={k}
+            tabindex="0"
+            role="button"
+            aria-label={t.drag.replace('{n}', names[i])}
+          >
+            <circle class="cs-hit" r="20" />
+            <circle class="cs-knob" r="9" />
+          </g>
+        </g>
+      ))}
+    </svg>
+
+    <div class="cs-side">
+      <dl class="cs-read">
+        <div class="cs-row"><dt class="cs-a-text">{names[0]}</dt><dd data-cs-va></dd></div>
+        <div class="cs-row"><dt class="cs-b-text">{names[1]}</dt><dd data-cs-vb></dd></div>
+        <div class="cs-row"><dt>{t.dot}</dt><dd data-cs-dot></dd></div>
+        <div class="cs-row"><dt>{t.len}</dt><dd data-cs-len></dd></div>
+        <div class="cs-row"><dt>{t.angle}</dt><dd data-cs-deg></dd></div>
+      </dl>
+      <div class="cs-big">cos θ = <strong data-cs-cos></strong></div>
+      <p class="cs-note" data-cs-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.csStrings);
+    const names = JSON.parse(root.dataset.csNames);
+    const G = JSON.parse(root.dataset.csGeo);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const start = { a: JSON.parse(root.dataset.csA), b: JSON.parse(root.dataset.csB) };
+    const presets = {
+      reset: start,
+      same: { a: [2, 1], b: [4, 2] },
+      right: { a: [0, 3], b: [4, 0] },
+    };
+    const v = { a: start.a.slice(), b: start.b.slice() };
+    const X = (x) => G.PADL + x * G.U;
+    const Y = (y) => G.H - G.PADB - y * G.U;
+    const clamp = (x) => Math.max(0, Math.min(G.MAX, x));
+
+    const svg = root.querySelector('[data-cs-svg]');
+    const arc = root.querySelector('[data-cs-arc]');
+    const theta = root.querySelector('[data-cs-theta]');
+    const note = root.querySelector('[data-cs-note]');
+    const out = (k) => root.querySelector(`[data-cs-${k}]`);
+
+    /* 실습 코드의 cosineSimilarity와 같다. 어느 한쪽이 0벡터면 0 */
+    function cosine(p, q) {
+      const dot = p[0] * q[0] + p[1] * q[1];
+      const np = Math.hypot(p[0], p[1]);
+      const nq = Math.hypot(q[0], q[1]);
+      return { dot, np, nq, c: np === 0 || nq === 0 ? 0 : dot / (np * nq) };
+    }
+
+    function render() {
+      for (const k of ['a', 'b']) {
+        const [x, y] = v[k];
+        const line = root.querySelector(`[data-cs-line="${k}"]`);
+        /* 화살촉이 끝점 원에 가리지 않게 선을 조금 짧게 긋는다. */
+        const len = Math.hypot(x, y) * G.U;
+        const cut = len > 0 ? Math.max(0, len - 10) / len : 0;
+        line.setAttribute('x2', String(X(0) + (X(x) - X(0)) * cut));
+        line.setAttribute('y2', String(Y(0) + (Y(y) - Y(0)) * cut));
+        line.style.visibility = len > 0 ? 'visible' : 'hidden';
+        const h = root.querySelector(`[data-cs-handle="${k}"]`);
+        h.setAttribute('transform', `translate(${X(x)} ${Y(y)})`);
+        const label = root.querySelector(`[data-cs-label="${k}"]`);
+        label.textContent = `${names[k === 'a' ? 0 : 1]} (${x}, ${y})`;
+        /* 이름표는 끝점 위쪽에, 오른쪽 끝이면 왼쪽으로 붙인다. 두 끝점이 겹치면 B를 아래로 */
+        const below = k === 'b' && v.a[0] === v.b[0] && Math.abs(v.a[1] - v.b[1]) < 1;
+        label.setAttribute('x', String(X(x) + 14));
+        label.setAttribute('y', String(Y(y) + (below ? 30 : -14)));
+      }
+      const r = cosine(v.a, v.b);
+      const zero = r.np === 0 ? names[0] : r.nq === 0 ? names[1] : null;
+      if (!zero) {
+        const R = 70;
+        const angA = Math.atan2(v.a[1], v.a[0]);
+        const angB = Math.atan2(v.b[1], v.b[0]);
+        const lo = Math.min(angA, angB);
+        const hi = Math.max(angA, angB);
+        const p = (ang) => `${X(0) + R * Math.cos(ang)} ${Y(0) - R * Math.sin(ang)}`;
+        arc.setAttribute('d', hi - lo < 1e-9 ? '' : `M ${p(lo)} A ${R} ${R} 0 0 0 ${p(hi)}`);
+        const mid = (lo + hi) / 2;
+        theta.setAttribute('x', String(X(0) + (R + 16) * Math.cos(mid)));
+        theta.setAttribute('y', String(Y(0) - (R + 16) * Math.sin(mid) + 6));
+        theta.style.visibility = hi - lo < 1e-9 ? 'hidden' : 'visible';
+      } else {
+        arc.setAttribute('d', '');
+        theta.style.visibility = 'hidden';
+      }
+      const deg = zero ? null : (Math.acos(Math.max(-1, Math.min(1, r.c))) * 180) / Math.PI;
+      out('va').textContent = `(${v.a[0]}, ${v.a[1]})`;
+      out('vb').textContent = `(${v.b[0]}, ${v.b[1]})`;
+      out('dot').textContent = `${v.a[0]}·${v.b[0]} + ${v.a[1]}·${v.b[1]} = ${r.dot}`;
+      out('len').textContent = `${r.np.toFixed(3)} · ${r.nq.toFixed(3)}`;
+      out('deg').textContent = deg === null ? '-' : `${deg.toFixed(1)}°`;
+      out('cos').textContent = r.c.toFixed(3);
+
+      let msg;
+      if (zero) msg = fill(S.zeroNote, { n: zero });
+      else {
+        msg = fill(S.base, { deg: deg.toFixed(1), c: r.c.toFixed(3) });
+        if (Math.abs(r.c - 1) < 1e-9) msg += ` ${S.sameNote}`;
+        else if (r.dot === 0) msg += ` ${S.rightNote}`;
+        else msg += ` ${S.hint}`;
+      }
+      setLines(note, msg);
+    }
+
+    /* 화면 좌표 → 평점 좌표(정수 칸에 붙인다) */
+    function toGrid(ev) {
+      const m = svg.getScreenCTM();
+      if (!m) return null;
+      const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+      return [clamp(Math.round((pt.x - G.PADL) / G.U)), clamp(Math.round((G.H - G.PADB - pt.y) / G.U))];
+    }
+    let dragging = null;
+    svg.addEventListener('pointerdown', (ev) => {
+      const g = toGrid(ev);
+      if (!g) return;
+      const handle = ev.target.closest('[data-cs-handle]');
+      let k = handle ? handle.dataset.csHandle : null;
+      if (!k) {
+        /* 빈 곳을 누르면 가까운 쪽 끝점을 그리로 옮긴다. */
+        const d = (p) => (p[0] - g[0]) ** 2 + (p[1] - g[1]) ** 2;
+        k = d(v.a) <= d(v.b) ? 'a' : 'b';
+      }
+      dragging = k;
+      svg.setPointerCapture(ev.pointerId);
+      v[k] = g;
+      render();
+      ev.preventDefault();
+    });
+    svg.addEventListener('pointermove', (ev) => {
+      if (!dragging) return;
+      const g = toGrid(ev);
+      if (!g || (g[0] === v[dragging][0] && g[1] === v[dragging][1])) return;
+      v[dragging] = g;
+      render();
+    });
+    const end = () => (dragging = null);
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
+
+    root.querySelectorAll('[data-cs-handle]').forEach((h) =>
+      h.addEventListener('keydown', (ev) => {
+        const k = h.dataset.csHandle;
+        const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[ev.key];
+        if (!d) return;
+        ev.preventDefault();
+        v[k] = [clamp(v[k][0] + d[0]), clamp(v[k][1] + d[1])];
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-cs-preset]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const p = presets[btn.dataset.csPreset];
+        v.a = p.a.slice();
+        v.b = p.b.slice();
+        render();
+      }),
+    );
+
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-cosine-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-cosine-demo .cs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-cosine-demo .cs-head {
+    font-size: 0.95em;
+  }
+  .aas-cosine-demo .cs-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+  }
+  .aas-cosine-demo .cs-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cosine-demo .cs-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cosine-demo .cs-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-cosine-demo .cs-svg {
+    flex: 1.4 1 18em;
+    min-width: 0;
+    max-width: 28em;
+    max-height: 22em;
+    touch-action: none;
+    user-select: none;
+  }
+  .aas-cosine-demo .cs-pad {
+    fill: transparent;
+    cursor: crosshair;
+  }
+  .aas-cosine-demo .cs-grid line {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-tick {
+    font-size: 15px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-axis {
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-axis-label {
+    font-size: 16px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-cosine-demo .cs-arc {
+    fill: none;
+    stroke: var(--aas-role-focus);
+    stroke-width: 2.5;
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-theta {
+    font-size: 18px;
+    font-weight: 700;
+    fill: var(--aas-role-focus);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-vec line {
+    stroke-width: 4;
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-a line {
+    stroke: var(--aas-role-model);
+  }
+  .aas-cosine-demo .cs-b line {
+    stroke: var(--aas-role-source);
+  }
+  .aas-cosine-demo .cs-head-a,
+  .aas-cosine-demo .cs-a .cs-knob {
+    fill: var(--aas-role-model);
+  }
+  .aas-cosine-demo .cs-head-b,
+  .aas-cosine-demo .cs-b .cs-knob {
+    fill: var(--aas-role-source);
+  }
+  .aas-cosine-demo .cs-label {
+    font-size: 17px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-cosine-demo .cs-handle {
+    cursor: grab;
+    outline: none;
+  }
+  .aas-cosine-demo .cs-hit {
+    fill: transparent;
+  }
+  .aas-cosine-demo .cs-knob {
+    stroke: var(--aas-bg);
+    stroke-width: 2.5;
+  }
+  .aas-cosine-demo .cs-handle:hover .cs-knob,
+  .aas-cosine-demo .cs-handle:focus-visible .cs-knob {
+    stroke: var(--aas-text);
+  }
+  .aas-cosine-demo .cs-side {
+    flex: 1 1 14em;
+  }
+  .aas-cosine-demo .cs-read {
+    margin: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-cosine-demo .cs-row {
+    display: flex;
+    gap: 0.8em;
+    padding: 0.15em 0;
+  }
+  .aas-cosine-demo .cs-row dt {
+    min-width: 4.2em;
+    color: var(--aas-muted);
+    font-family: var(--aas-sans, sans-serif);
+  }
+  .aas-cosine-demo .cs-row dd {
+    margin: 0;
+    color: var(--aas-text);
+  }
+  .aas-cosine-demo .cs-row dt.cs-a-text {
+    color: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-cosine-demo .cs-row dt.cs-b-text {
+    color: var(--aas-role-source);
+    font-weight: 700;
+  }
+  .aas-cosine-demo .cs-big {
+    margin-top: 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.05em;
+    color: var(--aas-muted);
+  }
+  .aas-cosine-demo .cs-big strong {
+    font-size: 1.5em;
+    color: var(--aas-role-focus);
+  }
+  .aas-cosine-demo .cs-note {
+    margin: 0.8em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-cosine-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-cosine-demo.is-slide .cs-svg {
+    max-width: none;
+    max-height: 46vh;
+  }
+</style>
