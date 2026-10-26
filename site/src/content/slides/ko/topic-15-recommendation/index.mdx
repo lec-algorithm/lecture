@@ -9,9 +9,12 @@ toc_open: false
 ---
 
 import Slide from 'stack-site-builder/components/Slide.astro';
-import CosineFigure from '@components/CosineFigure.astro';
+import CosineDemo from '@components/CosineDemo.astro';
+import PearsonDemo from '@components/PearsonDemo.astro';
 import CollabFilterDemo from '@components/CollabFilterDemo.astro';
+import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
+import HybridDemo from '@components/HybridDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-15-recommendation)의 실행 결과와 같습니다. */}
@@ -106,23 +109,10 @@ $$
 
 <Slide>
 
-#### 사용자 A와 B
-::sub[아이템 3·4는 둘 다 0이라 아이템 1·2 평면에 그릴 수 있습니다]
+### 직접 해 보기: 사용자 A와 B
+::sub[아이템 3·4는 둘 다 0이라 아이템 1·2 평면에 그릴 수 있습니다 · 끝점을 끌어 보세요]
 
-<div class="aas-split">
-<div>
-
-<CosineFigure slide />
-
-</div>
-<div>
-
-$$
-\frac{5 \cdot 4 + 3 \cdot 0}{\sqrt{5^2 + 3^2} \, \sqrt{4^2}} = \frac{20}{5.831 \times 4} = 0.857
-$$
-
-</div>
-</div>
+<CosineDemo slide />
 
 </Slide>
 
@@ -258,6 +248,15 @@ $$
 
 <Slide>
 
+### 직접 해 보기: 평균을 빼면
+::sub[사용자를 고르고 두 보기를 오가 보세요 · C는 코사인 0.820, 피어슨 1.000]
+
+<PearsonDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 손으로 해 보기
 ::sub[A와 넷이 둘 다 본 영화는 M1·M2·M4·M5]
 
@@ -303,6 +302,15 @@ predict A (k = 3, similarity > 0)
 
 둘 다 M3을 높게 봅니다. 차이는 M6(서울의 봄)입니다.  
 드라마를 낮게 주는 A에게는 피어슨의 **1.536**이 그럴듯합니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 평점과 이웃 수
+::sub[칸을 누르면 평점이 바뀝니다 · 코사인에서 k = 2로 줄이면 M6이 1.495로 내려갑니다]
+
+<CollabFilterDemo measure="cosine" edit slide />
 
 </Slide>
 
@@ -385,6 +393,15 @@ item-based: movies A rated, by cosine to the blank (k = 2)
 
 - **새 사용자**: E와 겹치는 사람이 없어 이웃도 추천도 없습니다.
 - **새 아이템**: 새 어벤져스는 본 사람이 없어 누구에게도 추천할 수 없습니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 새 사용자와 새 영화
+::sub[버튼으로 행과 열을 더하고, 새 칸을 눌러 평점을 넣어 보세요]
+
+<ColdStartDemo content={false} slide />
 
 </Slide>
 
@@ -486,6 +503,15 @@ score = cosine(profile, genres), movies A has not rated
 
 <Slide>
 
+### 직접 해 보기: 콘텐츠 기반이 푸는 것
+::sub[같은 데모에 콘텐츠 점수를 붙였습니다 · 새 영화는 풀리고 새 사용자는 그대로입니다]
+
+<ColdStartDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 두 방식의 차이
 
 | | 협업 필터링 | 콘텐츠 기반 필터링 |
@@ -503,6 +529,15 @@ score = cosine(profile, genres), movies A has not rated
 
 ## 3. 하이브리드 필터링
 ::sub[Hybrid Filtering · 두 방식을 결합합니다]
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 가중치 α
+::sub[α는 협업 필터링 점수의 몫입니다 · 작은 예는 α가 0.75를 넘으면 순위가 바뀝니다]
+
+<HybridDemo slide />
 
 </Slide>
 
