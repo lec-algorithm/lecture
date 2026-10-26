@@ -111,6 +111,9 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const S = JSON.parse(root.dataset.bdStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
     const MAXN = { 16: 16, 365: 60 };
@@ -230,7 +233,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       tallyEl.textContent = tries ? fill(S.tally, { t: tries, c: hits, r: ((hits / tries) * 100).toFixed(0) }) : S.tallyIdle;
       drawChart();
       drawStrip();
-      setLines(note, fill(S.note, { n: N, m: M, q: pct(1 - p), p: pct(p) }) + (extra ? ` ${extra}` : ''));
+      setLines(note, join(fill(S.note, { n: N, m: M, q: pct(1 - p), p: pct(p) }), extra));
     }
 
     function clearTally() {

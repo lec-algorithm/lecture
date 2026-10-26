@@ -135,6 +135,9 @@ const slots = Array.from({ length: m }, (_, i) => i);
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const items = JSON.parse(root.dataset.hsItems);
     const S = JSON.parse(root.dataset.hsStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -160,7 +163,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       });
     });
     const last = steps[steps.length - 1];
-    last.note += ' ' + fill(S.done, { x: last.coll, m, u: last.used });
+    last.note = join(last.note, fill(S.done, { x: last.coll, m, u: last.used }));
 
     const keyEls = [...root.querySelectorAll('[data-hs-key]')];
     const stacks = [...root.querySelectorAll('[data-hs-stack]')];
