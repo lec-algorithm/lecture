@@ -1,0 +1,1174 @@
+---
+title: "Topic 09. Radix Sort and Suffix Arrays"
+description: "LSD and MSD radix sort, which repeat counting sort digit by digit; the suffix array and LCP array, built by sorting every suffix; and the longest repeated and common substrings solved on top of them"
+date: "Topic 09 · v1"
+order: 9
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import MsdRadixDemo from '@components/MsdRadixDemo.astro';
+import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import KasaiDemo from '@components/KasaiDemo.astro';
+import LcpScanDemo from '@components/LcpScanDemo.astro';
+
+{/* Slide rules follow "slide rules" section in docs/writing-rules.md.
+    Numbers match the practice code (topic-09-radix-sort) exactly. */}
+
+<Slide class="cover">
+
+# Radix Sort and Suffix Arrays
+
+Topic 09
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## This topic
+::sub[We start from Topic 03's counting sort]
+
+- **Radix sort**: split the key into digits and counting-sort each digit.
+  - Lowest digit first (LSD), highest digit first (MSD)
+- **Suffix arrays**: sort every suffix of a string.
+  - LCP array, longest repeated substring, longest common substring
+- **Stacks and queues**: which one should radix sort's buckets be?
+
+</Slide>
+
+<Slide class="center">
+
+## From counting sort to radix sort
+::sub[Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### The limit of counting sort
+::sub[Topic 03: O(n + k) without comparisons]
+
+- Count each value, accumulate, and place elements from the back.
+- It never compares elements, so it lies **outside the premise** of the $$\Omega(n \log n)$$ bound.
+- **But it needs a counting array as large as the value range $$k$$.**
+  - Values from 0 to 999 need 1000 slots.
+  - A range of a million leaves a million slots sitting mostly at 0.
+
+</Slide>
+
+<Slide>
+
+#### Split the key into digits
+::sub[Radix = the base = the number of values one digit can take]
+
+- A decimal digit has only **ten values**, 0 through 9.
+- For three-digit numbers, instead of one 1000-slot counting sort,  
+  run **a 10-slot counting sort three times**.
+- For strings, one character is one digit; a byte has 256 values.
+
+<br/>
+
+| Direction | Name |
+| --- | --- |
+| lowest digit → highest digit | **LSD** (least significant digit) |
+| highest digit → lowest digit | **MSD** (most significant digit) |
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. LSD radix sort
+::sub[LSD Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### LSD radix sort
+::sub[Lowest digit first, a non-comparison sort]
+
+- **Key ideas**
+  - Apply counting sort to each digit.
+  - That counting sort must be **stable**.
+  - Sort from the lowest digit to the highest.
+
+<br/>
+
+`437 42 531 8 74` → padded to `437 042 531 008 074`  
+Sort three times: ones digit, tens digit, hundreds digit.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Strings work the same way
+::sub[Twelve three-letter words, by last, middle, then first character]
+
+```plaintext
+      input ch2   ch1   ch0
+   0  dab   dab   dab   ace
+   1  add   cab   cab   add
+   2  cab   ebb   fad   bad
+   3  fad   add   bad   bed
+   4  fee   fad   dad   bee
+   5  bad   bad   ebb   cab
+   6  dad   dad   ace   dab
+   7  bee   fed   add   dad
+   8  fed   bed   fed   ebb
+   9  bed   fee   bed   fad
+  10  ebb   bee   fee   fed
+  11  ace   ace   bee   fee
+```
+
+The order of `bad bed bee` was made by the earlier passes, not the last one.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: scatter into buckets, then gather
+::sub[Current digit orange, finished lower digits green. Buckets empty from 0, in the order filled]
+
+<LsdRadixDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### As a procedure
+::sub[`01_lsd_radix_sort/lsdRadixSort.pseudo`]
+
+```plaintext
+ALGORITHM LsdRadixSort(A, n)
+    max <- the largest value in A
+    exp <- 1
+    while max / exp > 0 do              // exp = 1, 10, 100, ...
+        CountingSortByDigit(A, n, exp)
+        exp <- exp * 10
+
+ALGORITHM CountingSortByDigit(A, n, exp)   // Topic 03's counting sort, key = one digit
+    for i <- 0 to n-1 do                   // 1) count
+        count[(A[i] / exp) mod 10] += 1
+    for d <- 1 to 9 do                     // 2) accumulate
+        count[d] += count[d-1]
+    for i <- n-1 downto 0 do               // 3) place from the back: stable
+        d <- (A[i] / exp) mod 10
+        count[d] -= 1
+        B[count[d]] <- A[i]
+    A <- B
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`01_lsd_radix_sort/lsdRadixSort.c`]
+
+```c
+void countingSortByDigit(int a[], int n, int exp) {
+    int output[MAX_N];
+    int count[RADIX] = {0};
+    for (int i = 0; i < n; i++) {               /* 1) count */
+        count[(a[i] / exp) % RADIX]++;
+    }
+    for (int d = 1; d < RADIX; d++) {           /* 2) accumulate */
+        count[d] += count[d - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {          /* 3) place from the back */
+        int d = (a[i] / exp) % RADIX;
+        output[--count[d]] = a[i];
+    }
+    /* 4) copy output back into a */
+}
+```
+
+`lsdRadixSort` calls this function three times, with `exp = 1, 10, 100`.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[Numbers are printed padded with leading zeros]
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/01_lsd_radix_sort
+make -f /work/Makefile lsdRadixSort.out && ./lsdRadixSort.out
+```
+
+- Result
+
+```console
+input   : 437 042 531 008 074
+exp 1   : 531 042 074 437 008
+exp 10  : 008 531 437 042 074
+exp 100 : 008 042 074 437 531
+sorted  : 008 042 074 437 531
+```
+
+At `exp 10`, `531` and `437` share a tens digit and keep the previous pass's order.
+
+</Slide>
+
+<Slide>
+
+#### Why it must be stable
+::sub[One property every pass preserves]
+
+> **After pass $$p$$, the array is sorted by its lowest $$p$$ digits.**
+
+<br/>
+
+In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
+
+- **different**: this pass puts them in the right order.
+- **equal**: the lower $$p$$ digits decide, and that order is already in the array.
+  - This pass **must not disturb** it. That is stability.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[d: number of digits, k: values one digit can take]
+
+- **Time** $$O(d(n + k))$$
+  - Counting sort, $$O(n + k)$$, done $$d$$ times.
+  - Every digit is read regardless of input, so best, average, and worst are equal.
+- **Space** $$O(n + k)$$
+  - $$n$$ slots for the output array and $$k$$ for the counting array
+
+</Slide>
+
+<Slide>
+
+#### Strengths and weaknesses
+::sub[LSD Radix Sort]
+
+| Strengths | Weaknesses |
+| --- | --- |
+| stable, equal keys keep their order | needs extra memory, $$O(n + k)$$ |
+| linear time $$O(n)$$ with a fixed digit count | only for keys that split into digits (integers, fixed-length strings) |
+| performance does not depend on the input | many digits mean more passes, so slower |
+
+</Slide>
+
+<Slide>
+
+#### How it sidesteps the comparison lower bound
+::sub[It does not break the bound; it lies outside the bound's premise]
+
+- The decision-tree argument assumes **"as long as you sort by comparing."**
+- Radix sort never compares two elements.
+  - It reads one digit and computes a position from it directly.
+  - A decision-tree fork has two branches; a radix sort step has $$k$$.
+
+</Slide>
+
+<Slide>
+
+#### It is not free
+::sub[When the digit count d grows with n]
+
+- To hold $$n$$ distinct values, keys need at least $$\log_k n$$ digits.
+- If the value range grows with $$n$$, $$O(d \cdot n)$$ is back to $$O(n \log n)$$.
+
+<br/>
+
+Radix sort shines on data with **fixed-length keys**.  
+With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O(n)$$.
+
+</Slide>
+
+<Slide>
+
+#### Running time
+::sub[Sorting integer arrays by size · LSD uses one byte per digit (R = 256)]
+
+| n | Insertion sort | Merge sort | Quicksort | LSD radix sort |
+| --- | --- | --- | --- | --- |
+| 1,000 | 0.67 | 0.099 | 0.078 | 0.04 |
+| 10,000 | 66.551 | 1.4 | 1.115 | 0.372 |
+| 100,000 | 6,624.052 | 17.069 | 13.737 | 3.712 |
+| 1,000,000 | 664,056.755 | 203.398 | 165.979 | 44.333 |
+
+- When $$n$$ grows tenfold, insertion sort takes about 100 times longer; LSD, almost exactly 10.
+- At a million elements, LSD is about four times faster than quicksort.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. MSD radix sort
+::sub[MSD Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### MSD radix sort
+::sub[Highest digit first, divide and conquer]
+
+- Counting-sorting by the highest digit gathers equal digits into one range.
+  - That range is a **bucket**. The buckets are already in order.
+- Recurse on the next digit **only for buckets with two or more elements**.
+- A bucket with one element is finished right there.
+
+<br/>
+
+Let us sort `170 45 75 90 2 802 24 66`.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: one recursive call each
+::sub[Orange bracket on top: current range; brackets below: buckets. Only orange buckets recurse; green is done]
+
+<MsdRadixDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### As a procedure
+::sub[`02_msd_radix_sort/msdRadixSort.pseudo`]
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return     // at most one element, or no digits left
+
+    // 1) stable counting sort of A[lo..hi] only, by digit exp
+    //    size[d]: elements whose digit is d = size of bucket d
+    CountingSortByDigit(A, lo, hi, exp, size)
+
+    // 2) recurse on the next digit for each bucket
+    start <- lo
+    for d <- 0 to 9 do
+        if size[d] > 1 then
+            MsdRecursive(A, start, start + size[d] - 1, exp / 10)
+        start <- start + size[d]
+```
+
+The first call is `MsdRecursive(A, 0, n-1, 100)`, since 802's highest digit is the hundreds.
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`02_msd_radix_sort/msdRadixSort.c`]
+
+```c
+void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
+    if (lo >= hi || exp == 0) {
+        return;
+    }
+
+    int size[RADIX];                             /* bucket sizes */
+    countingSortByDigit(a, lo, hi, exp, size);   /* sort a[lo..hi] only */
+
+    int start = lo;
+    for (int d = 0; d < RADIX; d++) {
+        if (size[d] > 1) {
+            msdRecursive(a, start, start + size[d] - 1,
+                         exp / RADIX, depth + 1);
+        }
+        start += size[d];
+    }
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[The indentation is the recursion depth]
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/02_msd_radix_sort
+make -f /work/Makefile msdRadixSort.out && ./msdRadixSort.out
+```
+
+- Result
+
+```console
+input : 170 045 075 090 002 802 024 066
+exp 100 [0..7]: 045 075 090 002 024 066 170 802
+  buckets: 0=6 1=1 8=1
+  exp 10  [0..5]: 002 024 045 066 075 090
+    buckets: 0=1 2=1 4=1 6=1 7=1 9=1
+sorted: 002 024 045 066 075 090 170 802
+digits examined = 14 (LSD: 8 x 3 = 24)
+```
+
+The ones digit was never read. 14 digit reads; LSD takes 24.
+
+</Slide>
+
+<Slide>
+
+#### On strings
+::sub[A good fit for keys of different lengths]
+
+- Split by the first character, each bucket by the second, ...
+  - Once a bucket holds one string, its remaining characters are never read.
+- **The end of a string comes before every character.**
+  - `she` and `shells` agree through the third character; `she` ends first, so it goes first.
+- **Identical keys must be read to the end.**
+  - With many identical keys, MSD reads every character too.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[MSD Radix Sort]
+
+- **Best** $$O(n + k)$$: the first digit sends every element to a different bucket.
+- **Worst**: if keys never split, it reads $$n \times d$$ digits, like LSD.
+  - On top of that, **every recursive call** pays $$O(k)$$ to clear and accumulate counts.
+- **Space** $$O(n + dk)$$: the output array plus counting arrays stacked by recursion depth
+
+<br/>
+
+With many small buckets, scanning empty counting slots outweighs the elements.  
+So real implementations hand small buckets to insertion sort.
+
+</Slide>
+
+<Slide>
+
+#### LSD and MSD
+::sub[LSD vs. MSD]
+
+| Feature | LSD radix sort | MSD radix sort |
+| --- | --- | --- |
+| Direction | low digit → high digit | high digit → low digit |
+| Approach | iterative | recursive (divide and conquer) |
+| Early exit | no | yes |
+| Variable-length keys | poor fit | good fit |
+| Locality | whole array every pass | inside one bucket |
+| Implementation | simple | complex |
+
+</Slide>
+
+<Slide>
+
+#### Eight sorts side by side
+::sub[The top five are comparison sorts, the bottom three non-comparison sorts]
+
+| Sort | Best | Average | Worst | Space | Stability |
+| --- | --- | --- | --- | --- | --- |
+| Selection sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable |
+| Insertion sort | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable |
+| Shell sort | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | Unstable |
+| Bubble sort | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | Stable |
+| Merge sort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | Stable |
+| Counting sort | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | Stable |
+| LSD radix sort | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + k)$$ | Stable |
+| MSD radix sort | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | Stable |
+
+</Slide>
+
+<Slide class="center">
+
+## Example 3. Suffix arrays
+::sub[Suffix Array]
+
+</Slide>
+
+<Slide>
+
+#### Suffix arrays
+::sub[A core data structure of string processing]
+
+- **Suffix**: the substring cut from some position to the end
+  - A string of length $$n$$ has $$n$$ suffixes.
+- **Suffix array**: sort every suffix in dictionary order,  
+  and record **only the starting positions**, in that order
+  - $$SA[j]$$ = the start of the $$j$$-th suffix in dictionary order
+
+</Slide>
+
+<Slide>
+
+#### Example: banana$
+::sub[Step 1: list every suffix · Step 2: sort in dictionary order]
+
+| Start | Suffix | | $$j$$ | $$SA[j]$$ | Suffix |
+| --- | --- | --- | --- | --- | --- |
+| 0 | `banana$` | | 0 | 6 | `$` |
+| 1 | `anana$` | | 1 | 5 | `a$` |
+| 2 | `nana$` | | 2 | 3 | `ana$` |
+| 3 | `ana$` | | 3 | 1 | `anana$` |
+| 4 | `na$` | | 4 | 0 | `banana$` |
+| 5 | `a$` | | 5 | 4 | `na$` |
+| 6 | `$` | | 6 | 2 | `nana$` |
+
+$$SA = [6, 5, 3, 1, 0, 4, 2]$$
+
+</Slide>
+
+<Slide>
+
+#### The end character $
+::sub[We agree it is smaller than every other character · ASCII 36]
+
+- Without `$`, `a` is a prefix of `ana`.
+  - You would need a separate rule: "the shorter one comes first."
+- Appending the smallest end character folds that rule into character comparison.
+- No suffix is a prefix of another suffix.
+
+<br/>
+
+Storing suffixes as strings takes $$O(n^2)$$ space; starting positions alone take $$O(n)$$.
+
+</Slide>
+
+<Slide class="compact">
+
+#### The simple way
+::sub[Build every suffix and sort them by string comparison]
+
+```c
+static int compareSuffix(const void *a, const void *b) {
+    int i = *(const int *)a;
+    int j = *(const int *)b;
+    return strcmp(gText + i, gText + j);
+}
+
+void buildSuffixArrayNaive(const char *text, int sa[], int n) {
+    for (int i = 0; i < n; i++) {
+        sa[i] = i;
+    }
+    gText = text;
+    qsort(sa, n, sizeof(int), compareSuffix);
+}
+```
+
+- Simple to implement, but inefficient on large data.
+- $$O(n \log n)$$ comparisons of up to $$n$$ characters each: worst case $$O(n^2 \log n)$$
+
+</Slide>
+
+<Slide>
+
+#### Doubling
+::sub[Double the compared length: 1 → 2 → 4 → 8 characters]
+
+The first $$2h$$ characters of suffix $$i$$ come in two pieces.
+
+- First $$h$$ characters: the first $$h$$ of suffix $$i$$, rank $$rank[i]$$
+- Next $$h$$ characters: the first $$h$$ of suffix $$i + h$$, rank $$rank[i + h]$$
+
+<br/>
+
+**Comparing the pair** $$(rank[i], rank[i + h])$$ **compares the first** $$2h$$ **characters.**  
+No characters are reread, only two integers. Past the end, it is $$-1$$.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: banana$
+::sub[One pair stands in for the colored first k characters. Rows with equal ranks are grouped in orange]
+
+<SuffixArrayDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Two rounds
+::sub[5 distinct ranks at k = 2, 7 at k = 4]
+
+- **k = 2**: the pair is the codes of (first character, second character)
+  - `anana$` and `ana$` are both (97, 110); `nana$` and `na$` are both (110, 97)
+- **k = 4**: the pair is (rank of first 2 characters, rank of the suffix 2 later)
+  - `ana$`: position 3, `a$` 2 later has rank 1 → (2, 1)
+  - `anana$`: position 1, `ana$` 2 later has rank 2 → (2, 2)
+  - Now they split. Once all ranks are distinct, it stops.
+
+</Slide>
+
+<Slide class="compact">
+
+#### As a procedure
+::sub[`03_suffix_array/suffixArray.pseudo`]
+
+```plaintext
+ALGORITHM BuildSuffixArrayDoubling(T, n)
+    for i <- 0 to n-1 do
+        rank[i] <- T[i]                // initial rank: code of the first character
+        SA[i] <- i
+    k <- 2
+    loop
+        for i <- 0 to n-1 do
+            key[i] <- (rank[i], rank[i + k/2] if i + k/2 < n, else -1)
+        sort SA by key[SA[j]]
+        assign new ranks in sorted order (equal keys get equal ranks)
+        if all ranks are distinct then break
+        k <- k * 2
+    return SA
+```
+
+In C, the `qsort` comparison function looks at the pairs.  
+Equal pairs go in starting-position order, matching the Python version.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Output: k = 2
+::sub[`03_suffix_array` · the two pairs of equal keys also share ranks]
+
+```console
+k = 2
+   j  SA[j]  key         rank  suffix
+   0      6  ( 36,  -1)     0  $
+   1      5  ( 97,  36)     1  a$
+   2      1  ( 97, 110)     2  anana$
+   3      3  ( 97, 110)     2  ana$
+   4      0  ( 98,  97)     3  banana$
+   5      2  (110,  97)     4  nana$
+   6      4  (110,  97)     4  na$
+  distinct ranks = 5 of 7
+```
+
+`anana$` sits before `ana$` only because equal pairs go in starting-position order (1 < 3).
+
+</Slide>
+
+<Slide class="compact">
+
+#### Output: k = 4
+::sub[`03_suffix_array` · all seven ranks are distinct]
+
+```console
+k = 4
+   j  SA[j]  key         rank  suffix
+   0      6  (  0,  -1)     0  $
+   1      5  (  1,  -1)     1  a$
+   2      3  (  2,   1)     2  ana$
+   3      1  (  2,   2)     3  anana$
+   4      0  (  3,   4)     4  banana$
+   5      4  (  4,   0)     5  na$
+   6      2  (  4,   4)     6  nana$
+  distinct ranks = 7 of 7
+
+doubling SA = 6 5 3 1 0 4 2
+same = yes
+```
+
+The same suffix array as the simple way.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[This is where radix sort comes back]
+
+- There are at most $$\lceil \log_2 n \rceil$$ rounds.
+- Comparison-sorting $$n$$ pairs per round is $$O(n \log n)$$, for $$O(n \log^2 n)$$ total.
+- **A pair is a two-digit number.** Each digit ranges from $$-1$$ to $$n - 1$$.
+  - Two passes of LSD radix sort make a round $$O(n)$$.
+  - Total $$O(n \log n)$$; there are even $$O(n)$$ algorithms (SA-IS, DC3).
+
+</Slide>
+
+<Slide class="center">
+
+## Example 4. The LCP array
+::sub[Longest Common Prefix]
+
+</Slide>
+
+<Slide>
+
+#### The LCP array
+::sub[How many leading characters neighboring suffixes share]
+
+| $$j$$ | $$SA[j]$$ | Suffix | $$LCP[j]$$ | Explanation |
+| --- | --- | --- | --- | --- |
+| 0 | 6 | `$` | - | undefined |
+| 1 | 5 | `a$` | 0 | `$` and `a$` |
+| 2 | 3 | `ana$` | 1 | common prefix `a` |
+| 3 | 1 | `anana$` | 3 | common prefix `ana` |
+| 4 | 0 | `banana$` | 0 | `anana$` and `banana$` |
+| 5 | 4 | `na$` | 0 | `banana$` and `na$` |
+| 6 | 2 | `nana$` | 2 | common prefix `na` |
+
+$$LCP[j]$$ = the longest common prefix length of suffixes $$SA[j-1]$$ and $$SA[j]$$
+
+</Slide>
+
+<Slide>
+
+#### Kasai's algorithm
+::sub[In text-position order i = 0, 1, 2, ..., not sorted order]
+
+> If suffix $$i$$ and its previous neighbor have LCP $$h$$,  
+> then suffix $$i + 1$$ and its previous neighbor have LCP **at least** $$h - 1$$.
+
+<br/>
+
+- Suffix $$i + 1$$ is suffix $$i$$ with its first character removed.
+- Remove the first character of neighbor $$j$$ too: $$j + 1$$ still shares $$h - 1$$ characters.
+- So those $$h - 1$$ characters are **skipped without comparing.**
+
+</Slide>
+
+<Slide>
+
+### One step at a time: Kasai
+::sub[Orange: suffix i, blue: previous neighbor j · gray skipped, green match, red mismatch]
+
+<KasaiDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### As a procedure
+::sub[`04_lcp/lcp.pseudo`]
+
+```plaintext
+ALGORITHM BuildLcpKasai(T, SA, n)
+    for j <- 0 to n-1 do rank[SA[j]] <- j  // step 1: inverse of SA
+    h <- 0
+    for i <- 0 to n-1 do                   // step 2: in text-position order
+        if rank[i] > 0 then
+            j <- SA[rank[i] - 1]           // previous neighbor in sorted order
+            while T[i + h] = T[j + h] do   // skip h characters, then compare
+                h <- h + 1
+            LCP[rank[i]] <- h
+            if h > 0 then h <- h - 1       // next shares at least h-1
+        else
+            h <- 0                         // the first suffix has no neighbor
+```
+
+The while loop's bounds check (`i + h < n and j + h < n`) is omitted.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Output
+::sub[`04_lcp` · start h is the number of characters skipped]
+
+```console
+   i  suffix    rank  j  start h  lcp  compares
+   0  banana$      4  1        0    0         1
+   1  anana$       3  3        0    3         4
+   2  nana$        6  4        2    2         1
+   3  ana$         2  5        1    1         1
+   4  na$          5  0        0    0         1
+   5  a$           1  6        0    0         1
+   6  $            0  -        -    -         -
+char compares: kasai 9, naive 12
+```
+
+- At `i = 2`, `nana$` is `anana$` minus its `a`, so 2 characters are skipped.
+- With `aaaaaaaa$`, Kasai makes 15 comparisons; comparing from the start, 36.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[Kasai is O(n)]
+
+- $$h$$ drops by at most 1 per position and can never exceed $$n$$.
+- So $$h$$ grows at most $$2n$$ times in total in the while loop.
+- There is one mismatching comparison per position.
+
+<br/>
+
+Given the suffix array, the LCP array comes **almost for free**, in $$O(n)$$.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 5. Longest repeated substring
+::sub[Longest Repeated Substring, LRS]
+
+</Slide>
+
+<Slide class="compact">
+
+#### Longest repeated substring
+::sub[The longest substring appearing at least twice in one string]
+
+```plaintext
+aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
+tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
+cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg
+gtatagatagatagacccctagatacacatacatagatctagctagc
+tagctcatcgatacacactctcacactcaagagttatactggtcaac
+acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
+```
+
+- The answer is the 15 characters `agagttatactggtc` at positions 31 and 217.
+- Repeats in DNA, plagiarism detection, recurring bars in music: all this problem.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Brute force
+::sub[Brute-force · try every pair of starting positions i < j]
+
+```plaintext
+a a c a a g t t t a c a a g c
+  ↑               ↑
+  i               j        T[i..] and T[j..] agree through "acaag"
+```
+
+- $$\dfrac{n(n-1)}{2}$$ position pairs, up to $$D$$ characters compared per pair
+- Running time $$\le D n^2$$, where $$D$$ is the length of the longest match
+- With $$n$$ at a billion, it is impossible.
+
+</Slide>
+
+<Slide>
+
+#### Solving it by sorting
+::sub[A repeated substring = a common prefix of two suffixes]
+
+- That `acaag` appears at positions 1 and 9 means  
+  suffixes `acaagtttacaagc$` and `acaagc$` share their first 5 characters.
+- Sorting puts suffixes with long common prefixes **right next to each other.**
+- Only neighboring pairs need checking, and that is the LCP array.
+
+<br/>
+
+> **LRS = the common prefix at the maximum of the LCP array**
+
+</Slide>
+
+<Slide>
+
+### One step at a time: banana$
+::sub[One neighboring pair at a time, the common prefix (orange) against the best so far]
+
+<LcpScanDemo slide />
+
+</Slide>
+
+<Slide>
+
+### One step at a time: a 15-character base sequence
+::sub[aacaagtttacaagc · sorted, acaagc$ and acaagtttacaagc$ become neighbors]
+
+<LcpScanDemo text="aacaagtttacaagc$" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`05_lrs` · the last two lines for each input]
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/05_lrs
+make -f /work/Makefile lrs.out && ./lrs.out
+```
+
+- Result (excerpt)
+
+```console
+suffix sort: max LCP = 3 at j = 3 -> "ana" (positions 3, 1), 6 adjacent pairs
+brute force: "ana", 21 pairs, 28 char compares
+
+suffix sort: max LCP = 5 at j = 5 -> "acaag" (positions 9, 1), 15 adjacent pairs
+brute force: "acaag", 120 pairs, 161 char compares
+```
+
+Sorting checks 15 neighboring pairs; brute force checks 120 position pairs.
+
+</Slide>
+
+<Slide>
+
+#### Performance
+::sub[Sedgewick & Wayne, *Algorithms* · † marks an estimate]
+
+| Input file | Characters | Brute force | Suffix sort |
+| --- | --- | --- | --- |
+| `LRS.java` | 2,162 | 0.6 sec | 0.14 sec |
+| `amendments.txt` | 18,369 | 37 sec | 0.25 sec |
+| `aesop.txt` | 191,945 | 1.2 hours | 1.0 sec |
+| `mobydick.txt` | 1.2 million | 43 hours† | 7.6 sec |
+| `chromosome11.txt` | 7.1 million | 2 months† | 61 sec |
+| `pi.txt` | 10 million | 4 months† | 84 sec |
+
+</Slide>
+
+<Slide>
+
+#### Something to think about
+::sub[Finding long repeats in over a billion nucleotides]
+
+Whose method is likely to produce an answer?
+
+- **A**: a graduate student searches by hand.
+- **B**: brute force, checking every pair.
+- **C**: sort the suffixes with insertion sort.
+- **D**: sort the suffixes with LSD string sort.
+
+</Slide>
+
+<Slide>
+
+#### All four are in trouble
+::sub[With n at a billion, O(n²) never finishes]
+
+- **B**: $$Dn^2$$; by the trend in the table, centuries.
+- **C**: insertion sort alone makes $$O(n^2)$$ comparisons.
+- **D**: LSD assumes **keys of equal length**.
+  - Suffix lengths range anywhere from 1 to $$n$$.
+  - Padding to length $$n$$ gives $$n$$ passes × $$O(n)$$ = $$O(n^2)$$
+
+<br/>
+
+The suffix sort has to be $$O(n \log n)$$ or better.  
+An MSD-style sort for variable-length keys, or doubling with radix sort, is the way.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 6. Longest common substring
+::sub[Longest Common Substring, LCS]
+
+</Slide>
+
+<Slide>
+
+#### LRS and LCS
+::sub[Similar names, different problems]
+
+| | LRS | LCS |
+| --- | --- | --- |
+| Input | one string | two strings |
+| Looking for | what appears at least twice in one string | what appears in both strings |
+| Candidates | every neighboring pair | neighbors starting in different strings |
+
+<br/>
+
+**Watch out**: the LCP maximum of a single string is the LRS, not the LCS.
+
+</Slide>
+
+<Slide>
+
+#### Joining two strings into one
+::sub[T = S1 + "#" + S2 + "$"]
+
+1. **Put a separator `#`, found in neither string, between them.**
+2. **Build the suffix array and LCP array of $$T$$.**
+3. **Take only neighbors that start in different strings as candidates.**
+   - An LCP within one string is a repeat inside that string.
+
+<br/>
+
+`#` appears only once, so no common prefix can extend past it.  
+That makes the LCP exactly the length of a common substring.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: mississippi and kiss
+::sub[Source 1 or 2 is where a suffix starts · gray rows are same-string pairs and are skipped]
+
+<LcpScanDemo mode="lcs" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Output
+::sub[`06_lcs` · * marks a candidate pair]
+
+```console
+   j  SA[j]  from  LCP[j]  suffix
+   3      7     1       1  ippi#kiss$
+   4     13     2       1  iss$  *
+   5      4     1       3  issippi#kiss$  *
+   6      1     1       4  ississippi#kiss$
+   7     12     2       0  kiss$  *
+max LCP over all pairs = 4
+LCS = "iss" (length 3) at j = 5
+```
+
+- The overall maximum, 4 (`issi`), is all on the `mississippi` side. That is the LRS.
+- The best candidate is 3 at j = 5, where it meets `iss` from `kiss`.
+
+</Slide>
+
+<Slide>
+
+#### Using suffix arrays: KWIC
+::sub[Keyword in context · every occurrence of a query, with its context]
+
+- **Preprocessing**: build the suffix array of the text once.
+- **Query**: suffixes starting with the query are **gathered in one range** of the sorted order.
+  - Binary search finds the range's start and end. $$O(m \log n)$$
+- **Uses**: linguistics, databases, web search, word processors
+
+</Slide>
+
+<Slide class="compact">
+
+#### KWIC: search in *A Tale of Two Cities*
+::sub[15 characters of context on each side · an example from Sedgewick & Wayne]
+
+```console
+% java KWIC tale.txt 15
+search
+o st giless to search for contraband
+her unavailing search for your fathe
+le and gone in search of her husband
+t provinces in search of impoverishe
+ dispersing in search of other carri
+n that bed and search the straw hold
+```
+
+No matter how long the text, each query is one binary search over the suffix array.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 7. Stacks and queues
+::sub[Stack, Queue]
+
+</Slide>
+
+<Slide>
+
+#### Stacks and queues
+::sub[Put in A B C D, then take everything out]
+
+- **Stack**: take out from the end you put in.
+  - **Last in comes out first**, LIFO (last in, first out)
+  - push (put in), pop (take out)
+- **Queue**: put in at the back, take out from the front.
+  - **First in comes out first**, FIFO (first in, first out)
+  - enqueue (put in), dequeue (take out)
+
+| Order in | Out of a stack | Out of a queue |
+| --- | --- | --- |
+| A B C D | D C B A | A B C D |
+
+</Slide>
+
+<Slide>
+
+#### Buckets are queues
+::sub[The LSD demo's buckets took out first what went in first]
+
+- Because the buckets were queues, equal digits kept the previous pass's order.
+- Counting sort's "place from the back" does the work of ten queue buckets with one array.
+
+<br/>
+
+What happens if the buckets become **stacks**?
+
+</Slide>
+
+<Slide>
+
+### One step at a time: stack buckets
+::sub[Same input 437 042 531 008 074 · at the end, the two misplaced elements are red]
+
+<LsdRadixDemo buckets="stack" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Output
+::sub[`07_stack_queue/stackQueue.c`]
+
+```console
+push   : A B C D
+pop    : D C B A
+enqueue: A B C D
+dequeue: A B C D
+
+input        : 437 042 531 008 074
+queue exp 1  : 531 042 074 437 008
+queue exp 10 : 008 531 437 042 074
+queue exp 100: 008 042 074 437 531
+stack exp 1  : 531 042 074 437 008
+stack exp 10 : 008 437 531 042 074
+stack exp 100: 074 042 008 437 531
+queue sorted = yes, stack sorted = no
+```
+
+On the tens digit `531` and `437` flip; on the hundreds digit `008 042 074` flips.
+
+</Slide>
+
+<Slide>
+
+#### MSD has a stack too
+::sub[The call stack]
+
+- When `MsdRecursive` calls itself per bucket, return points pile up on the **call stack**.
+- The call made last finishes first. That is LIFO.
+- Without recursion, push and pop the "ranges not yet processed" on a stack yourself.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[See stability and early exit for yourself]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-09-radix-sort/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Change LSD's step 3 to place from the front.**
+   - You get the same wrong result as the stack buckets.
+2. **Feed MSD `{111, 112, 113, 114}` and `{100, 200, 300, 400}`.**
+   - The digit reads are 12 and 4.
+3. **Change LCS's `s2` to `"sip"`.**
+   - It finds `sip` without being fooled by the repeat `issi`.
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **Radix sort splits the key into digits and counting-sorts each digit.**
+   - Time $$O(d(n + k))$$; it never compares, so it is outside the bound's premise.
+2. **LSD goes from the lowest digit, and every pass must be stable.**
+   - MSD splits into buckets from the highest digit and stops once keys split.
+3. **A suffix array is the sorted starting positions of all suffixes.**
+   - Doubling orders the first $$2h$$ characters by pairs of ranks of the first $$h$$.
+4. **Kasai builds the LCP array in $$O(n)$$.**
+   - LRS is the LCP maximum; LCS looks only at neighbors from different strings.
+5. **A stack is LIFO, a queue is FIFO.**
+   - LSD's buckets must be queues.
+
+</Slide>

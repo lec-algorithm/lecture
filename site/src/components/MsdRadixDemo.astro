@@ -1,0 +1,571 @@
+---
+// MSD 기수 정렬을 재귀 호출 하나씩 넘겨 보는 데모.
+//
+// 배열 한 줄 위에 지금 호출이 맡은 구간을 괄호로 표시한다. 한 호출은 두
+// 걸음이다. (1) 구간과 이번 자리(주황)를 보여 주고, (2) 그 자리로 카운팅
+// 정렬해 칸들이 자리를 바꾸면 아래에 버킷 괄호가 생긴다. 원소가 하나뿐인
+// 버킷은 그 자리에서 끝난다(초록). 둘 이상인 버킷만 다음 자리로 재귀한다.
+// 오른쪽 아래 호출 기록은 algorithm-code 02_msd_radix_sort의 출력과 같은
+// 모양이고, "자리 읽은 횟수"도 그 출력의 digits examined와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 정렬할 0 이상의 정수. 기본은 실습 코드의 입력 */
+  values?: number[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { values = [170, 45, 75, 90, 2, 802, 24, 66], slide = false } = Astro.props;
+const id = `mr-${Math.random().toString(36).slice(2, 9)}`;
+
+const maxV = Math.max(...values);
+let width = 1;
+while (Math.floor(maxV / 10 ** width) > 0) width += 1;
+const pad = (v: number) => String(v).padStart(width, '0');
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'MSD 기수 정렬',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    calls: '호출 기록',
+    examined: '자리 읽은 횟수',
+    place0: '일의 자리',
+    place1: '십의 자리',
+    place2: '백의 자리',
+    place3: '천의 자리',
+    idle: '가장 높은 자리부터 버킷으로 나누고, 원소가 둘 이상인 버킷만 다음 자리로 재귀합니다.',
+    call: '구간 [{lo}..{hi}]을 {place}로 나눕니다. 원소 {k}개의 자리를 읽습니다.',
+    split: '버킷 {list}. 하나뿐인 버킷은 끝났습니다.',
+    splitRecurse: '버킷 {list}. 원소가 둘 이상인 버킷 {more}만 다음 자리로 재귀합니다.',
+    splitLast: '버킷 {list}. 마지막 자리라서 같은 버킷은 같은 값입니다. 끝났습니다.',
+    done: '끝. 자리를 {e}번 읽었습니다. 모든 자리를 다 읽는 LSD는 {n} × {w} = {l}번입니다.',
+  },
+  en: {
+    title: 'MSD radix sort',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    calls: 'calls',
+    examined: 'digits read',
+    place0: 'ones digit',
+    place1: 'tens digit',
+    place2: 'hundreds digit',
+    place3: 'thousands digit',
+    idle: 'Split into buckets from the highest digit; recurse only into buckets with two or more elements.',
+    call: 'Split range [{lo}..{hi}] by the {place}. Read the digit of {k} elements.',
+    split: 'Buckets {list}. A bucket with one element is finished.',
+    splitRecurse: 'Buckets {list}. Recurse to the next digit only in bucket {more} (two or more elements).',
+    splitLast: 'Buckets {list}. This was the last digit, so a bucket holds equal values. Finished.',
+    done: 'Done. Read {e} digits. LSD reads every digit: {n} × {w} = {l}.',
+  },
+  zh: {
+    title: 'MSD 基数排序',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    calls: '调用记录',
+    examined: '读取位数',
+    place0: '个位',
+    place1: '十位',
+    place2: '百位',
+    place3: '千位',
+    idle: '从最高位开始分桶，只对含两个以上元素的桶递归处理下一位。',
+    call: '按{place}划分区间 [{lo}..{hi}]，读取 {k} 个元素的这一位。',
+    split: '桶 {list}。只有一个元素的桶已经完成。',
+    splitRecurse: '桶 {list}。只对含两个以上元素的 {more} 号桶递归处理下一位。',
+    splitLast: '桶 {list}。这是最后一位，同一个桶里的值相等，已经完成。',
+    done: '结束。共读取 {e} 位。读完所有位的 LSD 需要 {n} × {w} = {l} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-msd-demo', slide && 'is-slide']}
+  id={id}
+  data-mr-values={JSON.stringify(values)}
+  data-mr-strings={JSON.stringify(t)}
+  style={`--mr-n: ${values.length}`}
+>
+  <div class="mr-bar">
+    <span class="mr-head"><strong>{t.title}</strong></span>
+    <div class="mr-controls">
+      <button type="button" data-act="back" class="mr-btn">{t.back}</button>
+      <button type="button" data-act="step" class="mr-btn">{t.step}</button>
+      <button type="button" data-act="play" class="mr-btn mr-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="mr-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="mr-body">
+    <div class="mr-scroll">
+      <div class="mr-stage">
+        <span class="mr-range" data-mr-range><span class="mr-range-label" data-mr-range-label></span></span>
+        {values.map((_, i) => <span class="mr-index" style={`--mr-at: ${i}`}>{i}</span>)}
+        {values.map((v, i) => (
+          <span class="mr-cell" data-mr-cell={i} style={`--mr-at: ${i}`}>
+            {pad(v).split('').map((ch, k) => (
+              <span class="mr-digit" data-mr-p={width - 1 - k}>{ch}</span>
+            ))}
+          </span>
+        ))}
+        <div class="mr-groups" data-mr-groups></div>
+      </div>
+    </div>
+    <div class="mr-log">
+      <span class="mr-log-title">{t.calls}</span>
+      <ol class="mr-lines" data-mr-lines></ol>
+    </div>
+  </div>
+
+  <div class="mr-foot">
+    <p class="mr-note" data-mr-note></p>
+    <span class="mr-count">{t.examined} <strong data-mr-examined>0</strong></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id, width }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const vals = JSON.parse(root.dataset.mrValues);
+    const S = JSON.parse(root.dataset.mrStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = vals.length;
+    const place = (p) => S['place' + p] ?? `10^${p}`;
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 msdRadixSort.pseudo와 같다.
+       카운팅 정렬은 구간 안에서 안정이다. */
+    function plan() {
+      const steps = [];
+      const a = vals.map((_, i) => i);       // a[k] = 자리 k에 있는 원소 번호
+      const done = new Array(n).fill(false);
+      const lines = [];
+      let examined = 0;
+      const snap = (extra) =>
+        steps.push({
+          pos: (() => { const p = new Array(n); a.forEach((id, k) => (p[id] = k)); return p; })(),
+          done: done.slice(),
+          lines: lines.slice(),
+          examined,
+          ...extra,
+        });
+
+      function rec(lo, hi, exp, p, depth) {
+        if (lo >= hi || exp === 0) return;
+        lines.push({ depth, text: `exp ${exp} [${lo}..${hi}]` });
+        const line = lines.length - 1;
+        snap({ lo, hi, p, line, groups: [], note: fill(S.call, { lo, hi, place: place(p), k: hi - lo + 1 }) });
+
+        examined += hi - lo + 1;
+        const digit = (id) => Math.floor(vals[id] / exp) % 10;
+        const buckets = Array.from({ length: 10 }, () => []);
+        for (let k = lo; k <= hi; k++) buckets[digit(a[k])].push(a[k]);
+        const sorted = buckets.flat();
+        for (let k = lo; k <= hi; k++) a[k] = sorted[k - lo];
+
+        const groups = [];
+        let start = lo;
+        for (let d = 0; d < 10; d++) {
+          const size = buckets[d].length;
+          if (!size) continue;
+          groups.push({ d, lo: start, hi: start + size - 1, more: size > 1 && exp > 1 });
+          if (size === 1 || exp === 1) buckets[d].forEach((id) => (done[id] = true));
+          start += size;
+        }
+        const list = groups.map((g) => `${g.d}=${g.hi - g.lo + 1}`).join(' ');
+        const more = groups.filter((g) => g.more).map((g) => g.d);
+        const note = exp === 1
+          ? fill(S.splitLast, { list })
+          : more.length
+            ? fill(S.splitRecurse, { list, more: more.join(', ') })
+            : fill(S.split, { list });
+        lines[line] = { depth, text: `exp ${exp} [${lo}..${hi}]: ${list}` };
+        snap({ lo, hi, p, line, groups, note });
+
+        for (const g of groups) {
+          if (g.more) rec(g.lo, g.hi, Math.floor(exp / 10), p - 1, depth + 1);
+        }
+      }
+
+      rec(0, n - 1, 10 ** (width - 1), width - 1, 0);
+      for (let i = 0; i < n; i++) done[i] = true;
+      snap({ lo: null, hi: null, p: -1, line: null, groups: [], finished: true,
+        note: fill(S.done, { e: examined, n, w: width, l: n * width }) });
+      return steps;
+    }
+
+    const steps = plan();
+    const cells = [...root.querySelectorAll('[data-mr-cell]')];
+    const range = root.querySelector('[data-mr-range]');
+    const rangeLabel = root.querySelector('[data-mr-range-label]');
+    const groupsEl = root.querySelector('[data-mr-groups]');
+    const linesEl = root.querySelector('[data-mr-lines]');
+    const note = root.querySelector('[data-mr-note]');
+    const examinedEl = root.querySelector('[data-mr-examined]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      cells.forEach((cell, i) => {
+        cell.style.setProperty('--mr-at', String(st ? st.pos[i] : i));
+        const inRange = !!(st && st.lo !== null && st.pos[i] >= st.lo && st.pos[i] <= st.hi);
+        cell.classList.toggle('is-in', inRange);
+        cell.classList.toggle('is-done', !!(st && st.done[i]));
+        cell.querySelectorAll('[data-mr-p]').forEach((dg) => {
+          const p = Number(dg.dataset.mrP);
+          dg.classList.toggle('is-cur', inRange && p === st.p);
+          dg.classList.toggle('is-fixed', inRange && p > st.p);
+        });
+      });
+
+      if (st && st.lo !== null) {
+        range.style.setProperty('--mr-lo', String(st.lo));
+        range.style.setProperty('--mr-len', String(st.hi - st.lo + 1));
+        rangeLabel.textContent = `[${st.lo}..${st.hi}]`;
+        range.classList.add('is-on');
+      } else {
+        range.classList.remove('is-on');
+      }
+
+      groupsEl.replaceChildren(
+        ...(st ? st.groups : []).map((g) => {
+          const el = document.createElement('span');
+          el.className = 'mr-group' + (g.more ? ' is-more' : '');
+          el.style.setProperty('--mr-lo', String(g.lo));
+          el.style.setProperty('--mr-len', String(g.hi - g.lo + 1));
+          const label = document.createElement('span');
+          label.textContent = String(g.d);
+          el.append(label);
+          return el;
+        }),
+      );
+
+      linesEl.replaceChildren(
+        ...(st ? st.lines : []).map((ln, k) => {
+          const li = document.createElement('li');
+          li.textContent = '  '.repeat(ln.depth) + ln.text;
+          if (st.line === k) li.className = 'is-now';
+          return li;
+        }),
+      );
+
+      examinedEl.textContent = String(st ? st.examined : 0);
+      note.textContent = st ? st.note : S.idle;
+      root.classList.toggle('is-done', !!(st && st.finished));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-msd-demo {
+    --mr-col: 3.3em;
+    --mr-cell-w: 2.9em;
+    --mr-cell-h: 1.75em;
+    --mr-cell-top: 2.6em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-msd-demo .mr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-msd-demo .mr-head {
+    font-size: 0.95em;
+  }
+  .aas-msd-demo .mr-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-msd-demo .mr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-msd-demo .mr-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-msd-demo .mr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-msd-demo .mr-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.5em;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .aas-msd-demo .mr-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .aas-msd-demo .mr-stage {
+    position: relative;
+    width: calc(var(--mr-n) * var(--mr-col));
+    height: calc(var(--mr-cell-top) + var(--mr-cell-h) + 2.4em);
+  }
+  /* 지금 호출이 맡은 구간: 칸 위의 괄호 */
+  .aas-msd-demo .mr-range {
+    position: absolute;
+    top: 0.2em;
+    height: 0.9em;
+    left: calc(var(--mr-lo, 0) * var(--mr-col) + 0.1em);
+    width: calc(var(--mr-len, 1) * var(--mr-col) - 0.2em);
+    border: 2px solid var(--aas-role-focus);
+    border-bottom: none;
+    border-radius: 0.4em 0.4em 0 0;
+    opacity: 0;
+    transition:
+      left 0.5s cubic-bezier(0.65, 0, 0.35, 1),
+      width 0.5s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.3s;
+  }
+  .aas-msd-demo .mr-range.is-on {
+    opacity: 1;
+  }
+  .aas-msd-demo .mr-range-label {
+    position: absolute;
+    top: -0.9em;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0 0.3em;
+    background: var(--aas-panel);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.7em;
+    color: var(--aas-role-focus);
+    white-space: nowrap;
+  }
+  .aas-msd-demo .mr-index {
+    position: absolute;
+    top: calc(var(--mr-cell-top) - 1.15em);
+    left: calc(var(--mr-at) * var(--mr-col));
+    width: var(--mr-col);
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.65em;
+    color: var(--aas-muted);
+  }
+  .aas-msd-demo .mr-cell {
+    position: absolute;
+    top: var(--mr-cell-top);
+    left: calc(var(--mr-at) * var(--mr-col) + (var(--mr-col) - var(--mr-cell-w)) / 2);
+    width: var(--mr-cell-w);
+    height: var(--mr-cell-h);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+    transition:
+      left 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      border-color 0.3s,
+      background-color 0.3s,
+      color 0.3s;
+  }
+  .aas-msd-demo .mr-cell.is-in {
+    border-color: var(--aas-role-model);
+    color: var(--aas-text);
+  }
+  .aas-msd-demo .mr-cell.is-done {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+  .aas-msd-demo .mr-digit {
+    display: inline-block;
+    width: 0.75em;
+    text-align: center;
+    border-radius: 0.2em;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  .aas-msd-demo .mr-digit.is-cur {
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-msd-demo .mr-digit.is-fixed {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  /* 버킷: 칸 아래의 괄호. 다음 자리로 재귀할 버킷은 주황 */
+  .aas-msd-demo .mr-groups {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--mr-cell-top) + var(--mr-cell-h) + 0.25em);
+  }
+  .aas-msd-demo .mr-group {
+    position: absolute;
+    top: 0;
+    left: calc(var(--mr-lo) * var(--mr-col) + 0.15em);
+    width: calc(var(--mr-len) * var(--mr-col) - 0.3em);
+    border-top: 2px solid var(--aas-role-eval);
+    padding-top: 0.1em;
+    text-align: center;
+    line-height: 1.2;
+    color: var(--aas-muted);
+    animation: mr-fade 0.4s ease-out;
+  }
+  .aas-msd-demo .mr-group span {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+  }
+  .aas-msd-demo .mr-group.is-more {
+    border-top-color: var(--aas-role-focus);
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  @keyframes mr-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .aas-msd-demo .mr-log {
+    min-width: 14em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+  }
+  .aas-msd-demo .mr-log-title {
+    display: block;
+    font-family: inherit;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    margin-bottom: 0.3em;
+  }
+  .aas-msd-demo .mr-lines {
+    list-style: none;
+    margin: 0;
+    padding: 0.4em 0.6em;
+    min-height: 3.2em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-msd-demo .mr-lines li {
+    white-space: pre;
+    color: var(--aas-muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .aas-msd-demo .mr-lines li.is-now {
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+
+  .aas-msd-demo .mr-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-msd-demo .mr-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-msd-demo.is-done .mr-note {
+    color: var(--aas-text);
+  }
+  .aas-msd-demo .mr-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-msd-demo .mr-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-msd-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-msd-demo.is-slide .mr-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-msd-demo .mr-cell,
+    .aas-msd-demo .mr-range,
+    .aas-msd-demo .mr-digit {
+      transition: none;
+    }
+    .aas-msd-demo .mr-group {
+      animation: none;
+    }
+  }
+</style>

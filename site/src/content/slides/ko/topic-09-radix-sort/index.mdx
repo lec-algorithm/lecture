@@ -1,0 +1,1174 @@
+---
+title: "주제 09. 기수 정렬과 접미사 배열"
+description: "자리마다 카운팅 정렬을 반복하는 LSD·MSD 기수 정렬, 모든 접미사를 정렬한 접미사 배열과 LCP 배열, 그리고 그 위에서 푸는 가장 긴 반복·공통 부분 문자열"
+date: "주제 09 · v1"
+order: 9
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import MsdRadixDemo from '@components/MsdRadixDemo.astro';
+import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import KasaiDemo from '@components/KasaiDemo.astro';
+import LcpScanDemo from '@components/LcpScanDemo.astro';
+
+{/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
+    수치는 실습 코드(topic-09-radix-sort)의 실행 결과와 같습니다. */}
+
+<Slide class="cover">
+
+# 기수 정렬과 접미사 배열
+
+주제 09
+
+*고급알고리즘*
+
+</Slide>
+
+<Slide>
+
+## 이번 주제
+::sub[주제 03의 카운팅 정렬에서 출발합니다]
+
+- **기수 정렬**: 키를 자리로 쪼개 자리마다 카운팅 정렬을 합니다.
+  - 낮은 자리부터(LSD), 높은 자리부터(MSD)
+- **접미사 배열**: 문자열의 모든 접미사를 정렬합니다.
+  - LCP 배열, 가장 긴 반복 부분 문자열, 가장 긴 공통 부분 문자열
+- **스택과 큐**: 기수 정렬의 버킷은 어느 쪽이어야 할까요.
+
+</Slide>
+
+<Slide class="center">
+
+## 카운팅 정렬에서 기수 정렬로
+::sub[Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### 카운팅 정렬의 한계
+::sub[주제 03: 비교 없이 O(n + k)]
+
+- 값마다 몇 개 있는지 세고, 누적해서, 뒤에서부터 제자리에 놓습니다.
+- 원소끼리 비교하지 않으므로 $$\Omega(n \log n)$$ 하한의 **전제 밖**에 있습니다.
+- **대신 값의 범위 $$k$$만큼 카운팅 배열이 필요합니다.**
+  - 0부터 999까지의 값이면 1000칸입니다.
+  - 범위가 백만이면 백만 칸을 거의 0으로 놀립니다.
+
+</Slide>
+
+<Slide>
+
+#### 키를 자리로 쪼갠다
+::sub[기수(radix) = 진법의 밑 = 한 자리가 가질 수 있는 값의 수]
+
+- 10진수 한 자리는 0부터 9까지 **열 가지**뿐입니다.
+- 세 자리 수라면 1000칸짜리 카운팅 정렬 한 번 대신  
+  **10칸짜리 카운팅 정렬을 세 번** 돌립니다.
+- 문자열이라면 한 글자가 한 자리, 바이트 하나는 256가지입니다.
+
+<br/>
+
+| 방향 | 이름 |
+| --- | --- |
+| 가장 낮은 자리 → 높은 자리 | **LSD**(least significant digit) |
+| 가장 높은 자리 → 낮은 자리 | **MSD**(most significant digit) |
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 1. LSD 기수 정렬
+::sub[LSD Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### LSD 기수 정렬
+::sub[가장 낮은 자리부터, 비교하지 않는 정렬]
+
+- **핵심 아이디어**
+  - 각 자리마다 카운팅 정렬을 적용합니다.
+  - 그 카운팅 정렬은 **안정**해야 합니다.
+  - 낮은 자리에서 높은 자리 순으로 정렬합니다.
+
+<br/>
+
+`437 42 531 8 74` → 자릿수를 맞춰 `437 042 531 008 074`  
+일의 자리, 십의 자리, 백의 자리 순으로 세 번 정렬합니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 문자열도 같습니다
+::sub[세 글자 단어 12개를 마지막 글자, 가운데 글자, 첫 글자 순으로]
+
+```plaintext
+      입력  2번   1번   0번
+   0  dab   dab   dab   ace
+   1  add   cab   cab   add
+   2  cab   ebb   fad   bad
+   3  fad   add   bad   bed
+   4  fee   fad   dad   bee
+   5  bad   bad   ebb   cab
+   6  dad   dad   ace   dab
+   7  bee   fed   add   dad
+   8  fed   bed   fed   ebb
+   9  bed   fee   bed   fad
+  10  ebb   bee   fee   fed
+  11  ace   ace   bee   fee
+```
+
+`bad bed bee`의 순서는 마지막 패스가 아니라 앞 패스들이 만든 것입니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 버킷에 흩었다 모으기
+::sub[이번 자리가 주황, 끝난 아래 자리가 초록입니다. 버킷 0부터 넣은 순서대로 꺼냅니다]
+
+<LsdRadixDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 절차로 적으면
+::sub[`01_lsd_radix_sort/lsdRadixSort.pseudo`]
+
+```plaintext
+ALGORITHM LsdRadixSort(A, n)
+    max <- A의 최댓값
+    exp <- 1
+    while max / exp > 0 do              // exp = 1, 10, 100, ...
+        CountingSortByDigit(A, n, exp)
+        exp <- exp * 10
+
+ALGORITHM CountingSortByDigit(A, n, exp)   // 주제 03의 카운팅 정렬, 키는 한 자리
+    for i <- 0 to n-1 do                   // 1) 세기
+        count[(A[i] / exp) mod 10] += 1
+    for d <- 1 to 9 do                     // 2) 누적
+        count[d] += count[d-1]
+    for i <- n-1 downto 0 do               // 3) 뒤에서부터 배치: 안정
+        d <- (A[i] / exp) mod 10
+        count[d] -= 1
+        B[count[d]] <- A[i]
+    A <- B
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 코드로 옮기면
+::sub[`01_lsd_radix_sort/lsdRadixSort.c`]
+
+```c
+void countingSortByDigit(int a[], int n, int exp) {
+    int output[MAX_N];
+    int count[RADIX] = {0};
+    for (int i = 0; i < n; i++) {               /* 1) 세기 */
+        count[(a[i] / exp) % RADIX]++;
+    }
+    for (int d = 1; d < RADIX; d++) {           /* 2) 누적 */
+        count[d] += count[d - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {          /* 3) 뒤에서부터 배치 */
+        int d = (a[i] / exp) % RADIX;
+        output[--count[d]] = a[i];
+    }
+    /* 4) output을 a에 다시 복사한다 */
+}
+```
+
+`lsdRadixSort`는 `exp = 1, 10, 100`으로 이 함수를 세 번 부릅니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과
+::sub[숫자는 앞을 0으로 채워 찍었습니다]
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/01_lsd_radix_sort
+make -f /work/Makefile lsdRadixSort.out && ./lsdRadixSort.out
+```
+
+- 결과
+
+```console
+input   : 437 042 531 008 074
+exp 1   : 531 042 074 437 008
+exp 10  : 008 531 437 042 074
+exp 100 : 008 042 074 437 531
+sorted  : 008 042 074 437 531
+```
+
+`exp 10`에서 십의 자리가 같은 `531`과 `437`은 앞 패스의 순서를 지킵니다.
+
+</Slide>
+
+<Slide>
+
+#### 왜 안정해야 하는가
+::sub[패스마다 지켜지는 성질 하나]
+
+> **패스 $$p$$가 끝나면, 아래 $$p$$자리만 보면 정렬되어 있다.**
+
+<br/>
+
+패스 $$p + 1$$에서 두 원소의 $$(p + 1)$$번째 자리가
+
+- **다르면**: 이번 패스가 순서를 바르게 정합니다.
+- **같으면**: 순서는 아래 $$p$$자리가 정해야 하고, 그 순서는 이미 배열에 있습니다.
+  - 이번 패스는 그 순서를 **건드리지 않아야** 합니다. 그것이 안정성입니다.
+
+</Slide>
+
+<Slide>
+
+#### 분석
+::sub[d: 자릿수, k: 한 자리가 가질 수 있는 값의 수]
+
+- **시간** $$O(d(n + k))$$
+  - 카운팅 정렬 $$O(n + k)$$를 $$d$$번 합니다.
+  - 입력과 상관없이 모든 자리를 보므로 최선·평균·최악이 같습니다.
+- **공간** $$O(n + k)$$
+  - 출력 배열 $$n$$칸과 카운팅 배열 $$k$$칸
+
+</Slide>
+
+<Slide>
+
+#### 장단점
+::sub[LSD Radix Sort]
+
+| 장점 | 단점 |
+| --- | --- |
+| 안정 정렬, 같은 키의 순서가 유지된다 | 추가 메모리 $$O(n + k)$$가 필요하다 |
+| 자릿수가 고정이면 선형 시간 $$O(n)$$ | 자리로 쪼갤 수 있는 키(정수, 고정 길이 문자열)에만 쓴다 |
+| 입력과 상관없이 성능이 일정하다 | 자릿수가 크면 패스가 늘어 느려진다 |
+
+</Slide>
+
+<Slide>
+
+#### 비교 정렬의 하한을 어떻게 피하는가
+::sub[하한을 어긴 것이 아니라 하한의 전제 밖에 있습니다]
+
+- 결정 트리 논증의 전제는 **"원소를 비교해서 정렬하는 한"** 입니다.
+- 기수 정렬은 원소끼리 한 번도 비교하지 않습니다.
+  - 숫자 하나를 읽어 그 값으로 바로 자리를 계산합니다.
+  - 결정 트리의 갈림길은 두 갈래, 기수 정렬의 한 걸음은 $$k$$갈래입니다.
+
+</Slide>
+
+<Slide>
+
+#### 공짜는 아닙니다
+::sub[자릿수 d가 n과 함께 커지면]
+
+- 서로 다른 값 $$n$$개를 담으려면 자릿수가 적어도 $$\log_k n$$입니다.
+- 값의 범위가 $$n$$과 함께 커지면 $$O(d \cdot n)$$은 다시 $$O(n \log n)$$ 꼴입니다.
+
+<br/>
+
+기수 정렬이 빛나는 곳은 **키 길이가 고정된** 데이터입니다.  
+32비트 정수, 주민등록번호, 우편번호처럼 $$d$$가 정해져 있으면 $$O(n)$$입니다.
+
+</Slide>
+
+<Slide>
+
+#### 실행 시간
+::sub[크기별 정수 배열의 정렬 시간 · LSD는 한 자리 = 바이트 하나(R = 256)]
+
+| n | 삽입 정렬 | 병합 정렬 | 퀵 정렬 | LSD 기수 정렬 |
+| --- | --- | --- | --- | --- |
+| 1,000 | 0.67 | 0.099 | 0.078 | 0.04 |
+| 10,000 | 66.551 | 1.4 | 1.115 | 0.372 |
+| 100,000 | 6,624.052 | 17.069 | 13.737 | 3.712 |
+| 1,000,000 | 664,056.755 | 203.398 | 165.979 | 44.333 |
+
+- $$n$$이 10배가 되면 삽입 정렬은 약 100배, LSD는 거의 10배입니다.
+- 백만 개에서 LSD는 퀵 정렬보다 약 네 배 빠릅니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 2. MSD 기수 정렬
+::sub[MSD Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### MSD 기수 정렬
+::sub[가장 높은 자리부터, 분할 정복]
+
+- 가장 높은 자리로 카운팅 정렬하면 같은 숫자끼리 한 구간에 모입니다.
+  - 이 구간이 **버킷**입니다. 버킷끼리는 순서가 이미 정해졌습니다.
+- 원소가 **둘 이상인 버킷만** 다음 자리로 재귀합니다.
+- 원소가 하나뿐인 버킷은 그 자리에서 끝납니다.
+
+<br/>
+
+`170 45 75 90 2 802 24 66`을 정렬해 봅니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 재귀 호출 하나씩
+::sub[위 주황 괄호가 지금 구간, 아래 괄호가 버킷입니다. 주황 버킷만 재귀하고, 초록은 끝난 원소입니다]
+
+<MsdRadixDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 절차로 적으면
+::sub[`02_msd_radix_sort/msdRadixSort.pseudo`]
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return     // 원소가 하나 이하, 또는 자리가 없다
+
+    // 1) A[lo..hi]만 exp 자리로 안정 카운팅 정렬
+    //    size[d]: 숫자가 d인 원소 수 = 버킷 d의 크기
+    CountingSortByDigit(A, lo, hi, exp, size)
+
+    // 2) 버킷마다 다음 자리로 재귀
+    start <- lo
+    for d <- 0 to 9 do
+        if size[d] > 1 then
+            MsdRecursive(A, start, start + size[d] - 1, exp / 10)
+        start <- start + size[d]
+```
+
+처음 호출은 `MsdRecursive(A, 0, n-1, 100)`입니다. 802의 가장 높은 자리가 백의 자리입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 코드로 옮기면
+::sub[`02_msd_radix_sort/msdRadixSort.c`]
+
+```c
+void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
+    if (lo >= hi || exp == 0) {
+        return;
+    }
+
+    int size[RADIX];                             /* 버킷 크기 */
+    countingSortByDigit(a, lo, hi, exp, size);   /* a[lo..hi]만 정렬 */
+
+    int start = lo;
+    for (int d = 0; d < RADIX; d++) {
+        if (size[d] > 1) {
+            msdRecursive(a, start, start + size[d] - 1,
+                         exp / RADIX, depth + 1);
+        }
+        start += size[d];
+    }
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과
+::sub[들여쓰기가 재귀 깊이입니다]
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/02_msd_radix_sort
+make -f /work/Makefile msdRadixSort.out && ./msdRadixSort.out
+```
+
+- 결과
+
+```console
+input : 170 045 075 090 002 802 024 066
+exp 100 [0..7]: 045 075 090 002 024 066 170 802
+  buckets: 0=6 1=1 8=1
+  exp 10  [0..5]: 002 024 045 066 075 090
+    buckets: 0=1 2=1 4=1 6=1 7=1 9=1
+sorted: 002 024 045 066 075 090 170 802
+digits examined = 14 (LSD: 8 x 3 = 24)
+```
+
+일의 자리는 아예 보지 않았습니다. 자리 읽기 14번, LSD는 24번입니다.
+
+</Slide>
+
+<Slide>
+
+#### 문자열에서는
+::sub[길이가 서로 다른 키에 잘 맞습니다]
+
+- 첫 글자로 나누고, 각 버킷을 둘째 글자로, ...
+  - 버킷에 하나만 남으면 나머지 글자는 보지 않습니다.
+- **문자열의 끝은 어떤 글자보다도 앞에 둡니다.**
+  - `she`와 `shells`는 셋째 글자까지 같고, 먼저 끝난 `she`가 앞입니다.
+- **완전히 같은 키는 끝까지 다 봐야 합니다.**
+  - 같은 키가 많으면 MSD도 모든 글자를 읽습니다.
+
+</Slide>
+
+<Slide>
+
+#### 분석
+::sub[MSD Radix Sort]
+
+- **최선** $$O(n + k)$$: 첫 자리에서 모두 다른 버킷으로 갈립니다.
+- **최악**: 끝까지 갈리지 않으면 LSD처럼 $$n \times d$$번 자리를 읽습니다.
+  - 여기에 **재귀 호출마다** 카운팅 배열을 비우고 누적하는 $$O(k)$$가 붙습니다.
+- **공간** $$O(n + dk)$$: 출력 배열과, 재귀 깊이만큼 쌓이는 카운팅 배열
+
+<br/>
+
+작은 버킷이 많으면 원소보다 빈 카운팅 칸을 훑는 시간이 더 걸립니다.  
+그래서 실제 구현은 버킷이 작아지면 삽입 정렬로 넘깁니다.
+
+</Slide>
+
+<Slide>
+
+#### LSD와 MSD
+::sub[LSD vs. MSD]
+
+| 특징 | LSD 기수 정렬 | MSD 기수 정렬 |
+| --- | --- | --- |
+| 정렬 방향 | 낮은 자리 → 높은 자리 | 높은 자리 → 낮은 자리 |
+| 방식 | 반복 | 재귀 (분할 정복) |
+| 조기 종료 | 불가능 | 가능 |
+| 가변 길이 키 | 불리 | 유리 |
+| 지역성 | 패스마다 배열 전체 | 버킷 하나 안에서 |
+| 구현 | 간단 | 복잡 |
+
+</Slide>
+
+<Slide>
+
+#### 여덟 정렬을 나란히
+::sub[위의 다섯은 비교 정렬, 아래의 셋은 비교하지 않는 정렬]
+
+| 정렬 | 최선 | 평균 | 최악 | 공간 | 안정성 |
+| --- | --- | --- | --- | --- | --- |
+| 선택 정렬 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 불안정 |
+| 삽입 정렬 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 안정 |
+| 셸 정렬 | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | 불안정 |
+| 버블 정렬 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 안정 |
+| 병합 정렬 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | 안정 |
+| 카운팅 정렬 | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | 안정 |
+| LSD 기수 정렬 | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + k)$$ | 안정 |
+| MSD 기수 정렬 | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | 안정 |
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 3. 접미사 배열
+::sub[Suffix Array]
+
+</Slide>
+
+<Slide>
+
+#### 접미사 배열
+::sub[문자열 처리의 핵심 데이터 구조]
+
+- **접미사**(suffix): 어느 위치부터 끝까지 잘라 낸 부분 문자열
+  - 길이 $$n$$인 문자열에는 접미사가 $$n$$개 있습니다.
+- **접미사 배열**(suffix array): 모든 접미사를 사전순으로 정렬하고,  
+  그 순서대로 **시작 위치만** 적은 배열
+  - $$SA[j]$$ = 사전순으로 $$j$$번째인 접미사의 시작 위치
+
+</Slide>
+
+<Slide>
+
+#### 예: banana$
+::sub[1단계: 모든 접미사를 나열 · 2단계: 사전순 정렬]
+
+| 시작 위치 | 접미사 | | $$j$$ | $$SA[j]$$ | 접미사 |
+| --- | --- | --- | --- | --- | --- |
+| 0 | `banana$` | | 0 | 6 | `$` |
+| 1 | `anana$` | | 1 | 5 | `a$` |
+| 2 | `nana$` | | 2 | 3 | `ana$` |
+| 3 | `ana$` | | 3 | 1 | `anana$` |
+| 4 | `na$` | | 4 | 0 | `banana$` |
+| 5 | `a$` | | 5 | 4 | `na$` |
+| 6 | `$` | | 6 | 2 | `nana$` |
+
+$$SA = [6, 5, 3, 1, 0, 4, 2]$$
+
+</Slide>
+
+<Slide>
+
+#### 끝 글자 $
+::sub[다른 어떤 글자보다도 작다고 약속합니다 · ASCII 36]
+
+- `$`가 없으면 `a`는 `ana`의 접두사입니다.
+  - "짧은 쪽이 앞"이라는 규칙을 따로 정해야 합니다.
+- 가장 작은 끝 글자를 붙이면 그 규칙이 글자 비교 안에 들어갑니다.
+- 어떤 접미사도 다른 접미사의 접두사가 되지 않습니다.
+
+<br/>
+
+접미사를 문자열로 저장하면 $$O(n^2)$$ 공간, 시작 위치만 적으면 $$O(n)$$입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 단순한 방법
+::sub[모든 접미사를 만들어 문자열로 비교해 정렬합니다]
+
+```c
+static int compareSuffix(const void *a, const void *b) {
+    int i = *(const int *)a;
+    int j = *(const int *)b;
+    return strcmp(gText + i, gText + j);
+}
+
+void buildSuffixArrayNaive(const char *text, int sa[], int n) {
+    for (int i = 0; i < n; i++) {
+        sa[i] = i;
+    }
+    gText = text;
+    qsort(sa, n, sizeof(int), compareSuffix);
+}
+```
+
+- 구현은 간단하지만 큰 데이터에는 비효율적입니다.
+- $$O(n \log n)$$번 비교, 비교 한 번이 최대 $$n$$글자: 최악 $$O(n^2 \log n)$$
+
+</Slide>
+
+<Slide>
+
+#### 더블링
+::sub[비교할 길이를 1 → 2 → 4 → 8글자로 두 배씩]
+
+접미사 $$i$$의 앞 $$2h$$글자는 두 토막입니다.
+
+- 앞 $$h$$글자: 접미사 $$i$$의 앞 $$h$$글자, 순위 $$rank[i]$$
+- 뒤 $$h$$글자: 접미사 $$i + h$$의 앞 $$h$$글자, 순위 $$rank[i + h]$$
+
+<br/>
+
+**짝 $$(rank[i], rank[i + h])$$를 비교하면 앞 $$2h$$글자를 비교한 것과 같습니다.**  
+글자를 다시 읽지 않고 정수 두 개만 비교합니다. 넘어가면 $$-1$$입니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: banana$
+::sub[칠한 앞 k글자를 짝 하나가 대신합니다. 순위가 같은 줄은 주황으로 묶입니다]
+
+<SuffixArrayDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 두 라운드
+::sub[k = 2에서 순위 5가지, k = 4에서 7가지]
+
+- **k = 2**: 짝은 (첫 글자, 둘째 글자)의 문자 코드
+  - `anana$`와 `ana$`는 둘 다 (97, 110), `nana$`와 `na$`는 둘 다 (110, 97)
+- **k = 4**: 짝은 (앞 2글자의 순위, 2칸 뒤 접미사의 순위)
+  - `ana$`: 위치 3, 2칸 뒤 `a$`의 순위 1 → (2, 1)
+  - `anana$`: 위치 1, 2칸 뒤 `ana$`의 순위 2 → (2, 2)
+  - 이제 갈립니다. 순위가 모두 다르면 끝입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 절차로 적으면
+::sub[`03_suffix_array/suffixArray.pseudo`]
+
+```plaintext
+ALGORITHM BuildSuffixArrayDoubling(T, n)
+    for i <- 0 to n-1 do
+        rank[i] <- T[i]                // 처음 순위: 첫 글자의 문자 코드
+        SA[i] <- i
+    k <- 2
+    loop
+        for i <- 0 to n-1 do
+            key[i] <- (rank[i], i + k/2 < n이면 rank[i + k/2], 아니면 -1)
+        SA를 key[SA[j]] 순으로 정렬한다
+        정렬 순서대로 새 순위를 매긴다 (key가 같으면 같은 순위)
+        if 순위가 모두 다르면 then break
+        k <- k * 2
+    return SA
+```
+
+C 구현은 `qsort`의 비교 함수가 짝을 봅니다.  
+짝이 같으면 시작 위치 순으로 두어 Python과 같은 순서를 냅니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과: k = 2
+::sub[`03_suffix_array` · 짝이 같은 두 쌍은 순위도 같습니다]
+
+```console
+k = 2
+   j  SA[j]  key         rank  suffix
+   0      6  ( 36,  -1)     0  $
+   1      5  ( 97,  36)     1  a$
+   2      1  ( 97, 110)     2  anana$
+   3      3  ( 97, 110)     2  ana$
+   4      0  ( 98,  97)     3  banana$
+   5      2  (110,  97)     4  nana$
+   6      4  (110,  97)     4  na$
+  distinct ranks = 5 of 7
+```
+
+`anana$`가 `ana$` 앞에 있는 것은 짝이 같아 시작 위치 순(1 < 3)으로 둔 것뿐입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과: k = 4
+::sub[`03_suffix_array` · 순위 일곱 개가 모두 다릅니다]
+
+```console
+k = 4
+   j  SA[j]  key         rank  suffix
+   0      6  (  0,  -1)     0  $
+   1      5  (  1,  -1)     1  a$
+   2      3  (  2,   1)     2  ana$
+   3      1  (  2,   2)     3  anana$
+   4      0  (  3,   4)     4  banana$
+   5      4  (  4,   0)     5  na$
+   6      2  (  4,   4)     6  nana$
+  distinct ranks = 7 of 7
+
+doubling SA = 6 5 3 1 0 4 2
+same = yes
+```
+
+단순한 방법과 같은 접미사 배열입니다.
+
+</Slide>
+
+<Slide>
+
+#### 분석
+::sub[여기서 기수 정렬이 다시 쓰입니다]
+
+- 라운드는 많아야 $$\lceil \log_2 n \rceil$$번입니다.
+- 라운드마다 짝 $$n$$개를 비교 정렬하면 $$O(n \log n)$$, 전체 $$O(n \log^2 n)$$
+- **짝은 두 자리 수입니다.** 한 자리의 값은 $$-1$$부터 $$n - 1$$까지
+  - LSD 기수 정렬 두 패스로 정렬하면 라운드가 $$O(n)$$
+  - 전체 $$O(n \log n)$$, 더 나아가 $$O(n)$$ 알고리즘(SA-IS, DC3)도 있습니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 4. LCP 배열
+::sub[Longest Common Prefix]
+
+</Slide>
+
+<Slide>
+
+#### LCP 배열
+::sub[이웃한 접미사가 앞에서 몇 글자를 공유하는가]
+
+| $$j$$ | $$SA[j]$$ | 접미사 | $$LCP[j]$$ | 설명 |
+| --- | --- | --- | --- | --- |
+| 0 | 6 | `$` | - | 정의하지 않음 |
+| 1 | 5 | `a$` | 0 | `$`와 `a$` |
+| 2 | 3 | `ana$` | 1 | 공통 접두사 `a` |
+| 3 | 1 | `anana$` | 3 | 공통 접두사 `ana` |
+| 4 | 0 | `banana$` | 0 | `anana$`와 `banana$` |
+| 5 | 4 | `na$` | 0 | `banana$`와 `na$` |
+| 6 | 2 | `nana$` | 2 | 공통 접두사 `na` |
+
+$$LCP[j]$$ = 접미사 $$SA[j-1]$$과 $$SA[j]$$의 최장 공통 접두사 길이
+
+</Slide>
+
+<Slide>
+
+#### Kasai 알고리즘
+::sub[정렬 순서가 아니라 텍스트 위치 순서 i = 0, 1, 2, ...로]
+
+> 접미사 $$i$$와 그 앞 이웃의 LCP가 $$h$$이면,  
+> 접미사 $$i + 1$$과 그 앞 이웃의 LCP는 **적어도** $$h - 1$$이다.
+
+<br/>
+
+- 접미사 $$i + 1$$은 접미사 $$i$$에서 첫 글자를 뗀 것입니다.
+- 앞 이웃 $$j$$도 첫 글자를 떼면 $$j + 1$$, 둘은 여전히 $$h - 1$$글자를 공유합니다.
+- 그래서 $$h - 1$$글자는 **비교하지 않고 건너뜁니다.**
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: Kasai
+::sub[주황이 접미사 i, 파랑이 앞 이웃 j · 회색은 건너뛴 글자, 초록은 일치, 빨강은 불일치]
+
+<KasaiDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 절차로 적으면
+::sub[`04_lcp/lcp.pseudo`]
+
+```plaintext
+ALGORITHM BuildLcpKasai(T, SA, n)
+    for j <- 0 to n-1 do rank[SA[j]] <- j  // 1단계: SA의 역함수
+    h <- 0
+    for i <- 0 to n-1 do                   // 2단계: 텍스트 위치 순서로
+        if rank[i] > 0 then
+            j <- SA[rank[i] - 1]           // 정렬에서 바로 앞 이웃
+            while T[i + h] = T[j + h] do   // h글자는 건너뛰고 비교
+                h <- h + 1
+            LCP[rank[i]] <- h
+            if h > 0 then h <- h - 1       // 다음은 적어도 h-1글자 공유
+        else
+            h <- 0                         // 맨 앞 접미사는 이웃이 없다
+```
+
+while의 범위 검사(`i + h < n and j + h < n`)는 줄였습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과
+::sub[`04_lcp` · start h가 건너뛴 글자 수]
+
+```console
+   i  suffix    rank  j  start h  lcp  compares
+   0  banana$      4  1        0    0         1
+   1  anana$       3  3        0    3         4
+   2  nana$        6  4        2    2         1
+   3  ana$         2  5        1    1         1
+   4  na$          5  0        0    0         1
+   5  a$           1  6        0    0         1
+   6  $            0  -        -    -         -
+char compares: kasai 9, naive 12
+```
+
+- `i = 2`의 `nana$`는 `anana$`에서 `a`를 뗀 것이라 2글자를 건너뜁니다.
+- `aaaaaaaa$`로 바꾸면 Kasai 15번, 처음부터 비교하면 36번입니다.
+
+</Slide>
+
+<Slide>
+
+#### 분석
+::sub[Kasai는 O(n)]
+
+- $$h$$는 위치마다 많아야 1씩 줄고, $$n$$을 넘지 못합니다.
+- 그래서 while에서 $$h$$가 늘어나는 횟수는 모두 합쳐 $$2n$$ 이하입니다.
+- 불일치 비교는 위치마다 한 번입니다.
+
+<br/>
+
+접미사 배열이 있으면 LCP 배열은 $$O(n)$$에 **거의 공짜로** 따라옵니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 5. 가장 긴 반복 부분 문자열
+::sub[Longest Repeated Substring, LRS]
+
+</Slide>
+
+<Slide class="compact">
+
+#### 가장 긴 반복 부분 문자열
+::sub[문자열 하나에 두 번 이상 나오는 가장 긴 부분 문자열]
+
+```plaintext
+aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
+tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
+cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg
+gtatagatagatagacccctagatacacatacatagatctagctagc
+tagctcatcgatacacactctcacactcaagagttatactggtcaac
+acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
+```
+
+- 답은 위치 31과 217의 15글자 `agagttatactggtc`입니다.
+- DNA의 반복 구간, 표절 탐지, 음악의 되풀이되는 마디가 모두 이 문제입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 무차별 대입
+::sub[Brute-force · 가능한 시작 위치 쌍 i < j를 모두 시도]
+
+```plaintext
+a a c a a g t t t a c a a g c
+  ↑               ↑
+  i               j        T[i..]와 T[j..]가 "acaag"까지 같다
+```
+
+- 위치 쌍이 $$\dfrac{n(n-1)}{2}$$개, 쌍마다 최대 $$D$$글자 비교
+- 실행 시간 $$\le D n^2$$, $$D$$는 가장 긴 일치의 길이
+- $$n$$이 10억이면 불가능합니다.
+
+</Slide>
+
+<Slide>
+
+#### 정렬로 풀기
+::sub[반복되는 부분 문자열 = 두 접미사의 공통 접두사]
+
+- `acaag`가 위치 1과 9에 나온다는 것은  
+  접미사 `acaagtttacaagc$`와 `acaagc$`가 앞 5글자를 공유한다는 뜻입니다.
+- 접미사를 정렬하면 공통 접두사가 긴 접미사끼리 **바로 이웃합니다.**
+- 이웃 쌍만 보면 되고, 그것이 LCP 배열입니다.
+
+<br/>
+
+> **LRS = LCP 배열의 최댓값이 가리키는 공통 접두사**
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: banana$
+::sub[이웃 한 쌍씩, 공통 접두사(주황)를 지금까지의 최댓값과 견줍니다]
+
+<LcpScanDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 염기 서열 15글자
+::sub[aacaagtttacaagc · 정렬하면 acaagc$와 acaagtttacaagc$가 이웃합니다]
+
+<LcpScanDemo text="aacaagtttacaagc$" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과
+::sub[`05_lrs` · 두 입력의 마지막 두 줄]
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/05_lrs
+make -f /work/Makefile lrs.out && ./lrs.out
+```
+
+- 결과 (일부)
+
+```console
+suffix sort: max LCP = 3 at j = 3 -> "ana" (positions 3, 1), 6 adjacent pairs
+brute force: "ana", 21 pairs, 28 char compares
+
+suffix sort: max LCP = 5 at j = 5 -> "acaag" (positions 9, 1), 15 adjacent pairs
+brute force: "acaag", 120 pairs, 161 char compares
+```
+
+정렬을 거치면 이웃 쌍 15개, 무차별 대입은 위치 쌍 120개를 봅니다.
+
+</Slide>
+
+<Slide>
+
+#### 성능
+::sub[Sedgewick·Wayne, 『Algorithms』 · †는 추정치]
+
+| 입력 파일 | 글자 수 | 무차별 대입 | 접미사 정렬 |
+| --- | --- | --- | --- |
+| `LRS.java` | 2,162 | 0.6초 | 0.14초 |
+| `amendments.txt` | 18,369 | 37초 | 0.25초 |
+| `aesop.txt` | 191,945 | 1.2시간 | 1.0초 |
+| `mobydick.txt` | 120만 | 43시간† | 7.6초 |
+| `chromosome11.txt` | 710만 | 2개월† | 61초 |
+| `pi.txt` | 1000만 | 4개월† | 84초 |
+
+</Slide>
+
+<Slide>
+
+#### 생각해 볼 문제
+::sub[10억 개가 넘는 뉴클레오타이드에서 길게 반복되는 서열 찾기]
+
+누구의 방법이 답을 낼 가능성이 높을까요.
+
+- **A**: 대학원생이 손으로 찾습니다.
+- **B**: 모든 쌍을 확인하는 무차별 대입을 씁니다.
+- **C**: 접미사를 삽입 정렬로 정렬합니다.
+- **D**: 접미사를 LSD 문자열 정렬로 정렬합니다.
+
+</Slide>
+
+<Slide>
+
+#### 넷 다 어렵습니다
+::sub[n이 10억이면 O(n²)은 끝나지 않습니다]
+
+- **B**: $$Dn^2$$, 위 표의 추세로 보면 수백 년입니다.
+- **C**: 삽입 정렬은 비교만 $$O(n^2)$$번입니다.
+- **D**: LSD는 **길이가 같은 키**가 전제입니다.
+  - 접미사는 길이가 1부터 $$n$$까지 제각각입니다.
+  - 길이를 $$n$$으로 맞추면 패스 $$n$$번 × $$O(n)$$ = $$O(n^2)$$
+
+<br/>
+
+접미사 정렬을 $$O(n \log n)$$ 이하로 해야 합니다.  
+가변 길이 키에 맞는 MSD 계열 정렬이나, 기수 정렬을 쓰는 더블링이 그 길입니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 6. 가장 긴 공통 부분 문자열
+::sub[Longest Common Substring, LCS]
+
+</Slide>
+
+<Slide>
+
+#### LRS와 LCS
+::sub[이름은 비슷하지만 다른 문제입니다]
+
+| | LRS | LCS |
+| --- | --- | --- |
+| 입력 | 문자열 하나 | 문자열 둘 |
+| 찾는 것 | 한 문자열 안에서 두 번 이상 나오는 것 | 두 문자열에 함께 나오는 것 |
+| 후보 | 모든 이웃 쌍 | 서로 다른 문자열에서 시작한 이웃 쌍 |
+
+<br/>
+
+**주의할 점**: 한 문자열의 LCP 최댓값은 LCS가 아니라 LRS입니다.
+
+</Slide>
+
+<Slide>
+
+#### 두 문자열을 하나로
+::sub[T = S1 + "#" + S2 + "$"]
+
+1. **두 문자열 사이에 어느 쪽에도 없는 구분자 `#`를 넣습니다.**
+2. **$$T$$의 접미사 배열과 LCP 배열을 만듭니다.**
+3. **서로 다른 문자열에서 시작한 이웃만 후보로 삼습니다.**
+   - 같은 문자열끼리의 LCP는 그 문자열 안의 반복입니다.
+
+<br/>
+
+`#`는 한 번만 나오므로 공통 접두사는 `#`를 넘어갈 수 없습니다.  
+그래서 LCP가 곧 공통 부분 문자열의 길이입니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: mississippi와 kiss
+::sub[출처 1, 2가 시작한 문자열 · 회색 줄은 같은 문자열끼리라 건너뜁니다]
+
+<LcpScanDemo mode="lcs" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과
+::sub[`06_lcs` · *가 후보 쌍]
+
+```console
+   j  SA[j]  from  LCP[j]  suffix
+   3      7     1       1  ippi#kiss$
+   4     13     2       1  iss$  *
+   5      4     1       3  issippi#kiss$  *
+   6      1     1       4  ississippi#kiss$
+   7     12     2       0  kiss$  *
+max LCP over all pairs = 4
+LCS = "iss" (length 3) at j = 5
+```
+
+- 전체 최댓값 4(`issi`)는 둘 다 `mississippi` 쪽입니다. 그것은 LRS입니다.
+- 후보 중 최댓값은 j = 5의 3, `kiss`의 `iss`와 만난 자리입니다.
+
+</Slide>
+
+<Slide>
+
+#### 접미사 배열의 쓰임: KWIC
+::sub[Keyword in context · 질의어가 나오는 모든 자리를 문맥과 함께]
+
+- **전처리**: 텍스트의 접미사 배열을 한 번 만들어 둡니다.
+- **질의**: 질의어로 시작하는 접미사들은 정렬에서 **한 구간에 모여** 있습니다.
+  - 이진 검색으로 구간의 처음과 끝을 찾습니다. $$O(m \log n)$$
+- **응용**: 언어학, 데이터베이스, 웹 검색, 워드 프로세서
+
+</Slide>
+
+<Slide class="compact">
+
+#### KWIC: 『두 도시 이야기』에서 search
+::sub[앞뒤 15글자 문맥 · Sedgewick·Wayne의 예]
+
+```console
+% java KWIC tale.txt 15
+search
+o st giless to search for contraband
+her unavailing search for your fathe
+le and gone in search of her husband
+t provinces in search of impoverishe
+ dispersing in search of other carri
+n that bed and search the straw hold
+```
+
+텍스트가 아무리 길어도 질의마다 접미사 배열 위의 이진 검색 한 번입니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 예제 7. 스택과 큐
+::sub[Stack, Queue]
+
+</Slide>
+
+<Slide>
+
+#### 스택과 큐
+::sub[A B C D를 넣고 모두 꺼내면]
+
+- **스택**(stack): 넣은 쪽으로 꺼냅니다.
+  - **나중에 넣은 것이 먼저**, LIFO(last in, first out)
+  - push(넣기), pop(꺼내기)
+- **큐**(queue): 뒤로 넣고 앞에서 꺼냅니다.
+  - **먼저 넣은 것이 먼저**, FIFO(first in, first out)
+  - enqueue(넣기), dequeue(꺼내기)
+
+| 넣은 순서 | 스택에서 꺼낸 순서 | 큐에서 꺼낸 순서 |
+| --- | --- | --- |
+| A B C D | D C B A | A B C D |
+
+</Slide>
+
+<Slide>
+
+#### 버킷은 큐다
+::sub[LSD 데모의 버킷은 먼저 넣은 것을 먼저 꺼냈습니다]
+
+- 큐 버킷이라서 같은 숫자끼리 앞 패스의 순서가 지켜졌습니다.
+- 카운팅 정렬의 "뒤에서부터 배치"는 큐 버킷 열 개와 같은 일을 배열 하나로 합니다.
+
+<br/>
+
+버킷을 **스택**으로 바꾸면 어떻게 될까요.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 스택 버킷
+::sub[같은 입력 437 042 531 008 074 · 끝에서 순서가 틀린 두 원소가 빨강입니다]
+
+<LsdRadixDemo buckets="stack" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행 결과
+::sub[`07_stack_queue/stackQueue.c`]
+
+```console
+push   : A B C D
+pop    : D C B A
+enqueue: A B C D
+dequeue: A B C D
+
+input        : 437 042 531 008 074
+queue exp 1  : 531 042 074 437 008
+queue exp 10 : 008 531 437 042 074
+queue exp 100: 008 042 074 437 531
+stack exp 1  : 531 042 074 437 008
+stack exp 10 : 008 437 531 042 074
+stack exp 100: 074 042 008 437 531
+queue sorted = yes, stack sorted = no
+```
+
+십의 자리에서 `531`과 `437`이 뒤집히고, 백의 자리에서 `008 042 074`가 뒤집힙니다.
+
+</Slide>
+
+<Slide>
+
+#### 스택은 MSD에도 있습니다
+::sub[호출 스택]
+
+- `MsdRecursive`가 버킷마다 자기 자신을 부를 때, 돌아올 자리가 **호출 스택**에 쌓입니다.
+- 가장 나중에 부른 호출이 가장 먼저 끝납니다. LIFO입니다.
+- 재귀 없이 짜려면 "아직 처리하지 않은 구간"을 직접 스택에 넣고 꺼내면 됩니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 지금 해 볼 것
+::sub[안정성과 조기 종료를 눈으로 확인하기]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-09-radix-sort/`  
+파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다.
+
+1. **LSD의 3단계를 앞에서부터 배치하도록 바꿔 봅니다.**
+   - 스택 버킷과 같은 틀린 결과가 나옵니다.
+2. **MSD에 `{111, 112, 113, 114}`와 `{100, 200, 300, 400}`을 넣어 봅니다.**
+   - 자리 읽은 횟수가 12번과 4번입니다.
+3. **LCS의 `s2`를 `"sip"`로 바꿔 봅니다.**
+   - 같은 문자열 안의 반복(`issi`)에 속지 않고 `sip`을 찾습니다.
+
+</Slide>
+
+<Slide>
+
+## 남길 것
+
+1. **기수 정렬은 키를 자리로 쪼개 자리마다 카운팅 정렬을 합니다.**
+   - 시간 $$O(d(n + k))$$, 비교를 하지 않으므로 하한의 전제 밖입니다.
+2. **LSD는 낮은 자리부터, 패스마다 안정해야 합니다.**
+   - MSD는 높은 자리부터 버킷으로 나누고, 갈리면 더 읽지 않습니다.
+3. **접미사 배열은 모든 접미사를 정렬한 시작 위치의 배열입니다.**
+   - 더블링은 앞 $$2h$$글자의 순서를 앞 $$h$$글자의 순위 짝으로 구합니다.
+4. **LCP 배열은 Kasai로 $$O(n)$$에 만듭니다.**
+   - LRS는 LCP의 최댓값, LCS는 서로 다른 문자열의 이웃만 봅니다.
+5. **스택은 LIFO, 큐는 FIFO입니다.**
+   - LSD의 버킷은 큐여야 합니다.
+
+</Slide>
