@@ -1,0 +1,383 @@
+---
+// 트라이와 TST의 정지 그림. 스크립트 없이 서버에서 SVG로 다 그린다.
+//
+// 키 목록을 받아 그 자리에서 트라이(또는 TST)를 실제로 만들어 그린다. 손으로
+// 적은 모양이 아니므로 키를 바꾸면 그림도 바뀐다. 기존 TreeFigure는 이진
+// 트리 전용이라 자식이 여럿인 트라이를 그릴 수 없어서 따로 둔다.
+//
+// - kind="trie": R-way 트라이. 노드 안에 들어오는 링크의 문자, 옆에 값
+// - kind="tst": TST. 노드마다 링크 3개를 그리고, 빈 링크는 작은 점으로
+// - kind="compressed": 자식이 하나뿐이고 값이 없는 노드를 아래와 합친 트라이
+//   (단일 분기를 없앤 모양)
+// - kind="node": 노드 하나의 링크 배열 a-z. chars의 문자 칸만 채운다.
+//
+// counts를 주면 그림 아래에 노드·링크·빈 링크 수를 적는다. 실습 코드의 space
+// 표와 같은 셈이다(트라이는 루트 포함, 링크는 노드마다 26개).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  kind?: 'trie' | 'tst' | 'compressed' | 'node';
+  /** 넣을 키와 값 (넣는 순서대로) */
+  words?: [string, number][];
+  /** kind="node": 링크가 있는 문자들 */
+  chars?: string;
+  /** 노드·링크 수를 그림 아래에 적는다. */
+  counts?: boolean;
+  /** 그림 아래 설명 (스크린 리더용 이름도 된다) */
+  caption?: string;
+  /** 슬라이드용: 칸 높이에 맞춰 크게 */
+  slide?: boolean;
+}
+const { kind = 'trie', words = [], chars = '', counts = false, caption, slide = false } = Astro.props;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: { root: '루트', nodes: '노드', links: '링크', empty: '빈 링크', unit: '개', sep: ' · ', children: 'children[26]' },
+  en: { root: 'root', nodes: 'nodes', links: 'links', empty: 'null links', unit: '', sep: ' · ', children: 'children[26]' },
+  zh: { root: '根', nodes: '节点', links: '链接', empty: '空链接', unit: ' 个', sep: ' · ', children: 'children[26]' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const R26 = 26;
+
+type P = { id: string; label: string; x: number; y: number; value?: number; parent?: string; root?: boolean; wide?: boolean };
+let placed: P[] = [];
+let stubs: { x1: number; y1: number; x2: number; y2: number }[] = [];
+let W = 0;
+let H = 0;
+let countText = '';
+const RAD = kind === 'tst' ? 13 : 16;
+const fmt = (label: string, n: number) => (lang === 'en' ? `${n} ${label}` : `${label} ${n}${t.unit}`);
+
+if (kind === 'trie' || kind === 'compressed') {
+  /* 트라이를 만든다. id는 루트에서의 문자열 */
+  type N = { id: string; kids: string[]; value?: number; label: string };
+  const nodes = new Map<string, N>([['', { id: '', kids: [], label: '' }]]);
+  for (const [w, v] of words) {
+    let cur = '';
+    for (const ch of w) {
+      const next = cur + ch;
+      if (!nodes.has(next)) {
+        nodes.set(next, { id: next, kids: [], label: ch });
+        nodes.get(cur)!.kids.push(next);
+        nodes.get(cur)!.kids.sort();
+      }
+      cur = next;
+    }
+    nodes.get(cur)!.value = v;
+  }
+  const total = nodes.size;
+  if (kind === 'compressed') {
+    /* 값이 없고 자식이 하나뿐인 노드는 자식과 합친다(루트 제외). */
+    const merge = (id: string) => {
+      const n = nodes.get(id)!;
+      while (id !== '' && n.value === undefined && n.kids.length === 1) {
+        const k = nodes.get(n.kids[0])!;
+        n.label += k.label;
+        n.value = k.value;
+        n.kids = k.kids;
+        nodes.delete(k.id);
+      }
+      n.kids.forEach(merge);
+    };
+    merge('');
+  }
+  const UNIT = kind === 'compressed' ? 74 : 48;
+  /* 슬라이드에서는 높이에 맞춰 줄어드므로, 깊은 트라이는 레벨 간격을 좁혀 노드가
+     너무 작아지지 않게 한다(트라이 데모의 노드와 비슷한 크기). */
+  const deepest = Math.max(1, ...words.map(([w]) => w.length));
+  const LEVEL = slide ? Math.min(50, Math.max(32, Math.floor(340 / deepest))) : 50;
+  let slot = 0;
+  let maxD = 0;
+  const pos = new Map<string, { x: number; y: number }>();
+  const place = (id: string, d: number) => {
+    const n = nodes.get(id)!;
+    maxD = Math.max(maxD, d);
+    if (n.kids.length === 0) {
+      pos.set(id, { x: slot * UNIT, y: d * LEVEL });
+      slot += 1;
+    } else {
+      n.kids.forEach((k) => place(k, d + 1));
+      const a = pos.get(n.kids[0])!;
+      const b = pos.get(n.kids[n.kids.length - 1])!;
+      pos.set(id, { x: (a.x + b.x) / 2, y: d * LEVEL });
+    }
+  };
+  place('', 0);
+  for (const [id, n] of nodes) {
+    const p = pos.get(id)!;
+    placed.push({ id, label: n.label, x: p.x, y: p.y, value: n.value, root: id === '', wide: n.label.length > 1 });
+  }
+  for (const [, n] of nodes) n.kids.forEach((k) => (placed.find((q) => q.id === k)!.parent = n.id));
+  W = Math.max(1, slot - 1) * UNIT;
+  H = maxD * LEVEL;
+  if (kind === 'trie') {
+    countText = [fmt(t.nodes, total), fmt(t.links, total * R26), fmt(t.empty, total * R26 - (total - 1))].join(t.sep);
+  } else {
+    countText = fmt(t.nodes, nodes.size);
+  }
+} else if (kind === 'tst') {
+  type N = { id: string; ch: string; value?: number };
+  const nodes = new Map<string, N>();
+  for (const [w, v] of words) {
+    let id = '';
+    let i = 0;
+    while (nodes.has(id)) {
+      const n = nodes.get(id)!;
+      if (w[i] < n.ch) id += 'L';
+      else if (w[i] > n.ch) id += 'R';
+      else if (i < w.length - 1) {
+        id += 'M';
+        i += 1;
+      } else break;
+    }
+    if (!nodes.has(id)) {
+      for (; i < w.length; i++) {
+        nodes.set(id, { id, ch: w[i] });
+        if (i < w.length - 1) id += 'M';
+      }
+    }
+    nodes.get(id)!.value = v;
+  }
+  const UNIT = 36;
+  const LEVEL = slide ? 28 : 32;
+  let slot = 0;
+  let maxD = 0;
+  const pos = new Map<string, { x: number; y: number }>();
+  const place = (id: string, d: number) => {
+    if (!nodes.has(id)) return;
+    maxD = Math.max(maxD, d);
+    place(id + 'L', d + 1);
+    if (nodes.has(id + 'M')) {
+      place(id + 'M', d + 1);
+      pos.set(id, { x: pos.get(id + 'M')!.x, y: d * LEVEL });
+    } else {
+      pos.set(id, { x: slot * UNIT, y: d * LEVEL });
+      slot += 1;
+    }
+    place(id + 'R', d + 1);
+  };
+  place('', 0);
+  for (const [id, n] of nodes) {
+    const p = pos.get(id)!;
+    placed.push({ id, label: n.ch, x: p.x, y: p.y, value: n.value, parent: id === '' ? undefined : id.slice(0, -1) });
+    (['L', 'M', 'R'] as const).forEach((dir, k) => {
+      if (nodes.has(id + dir)) return;
+      const dx = (k - 1) * 9;
+      stubs.push({ x1: p.x + (k - 1) * 5, y1: p.y + RAD - 2, x2: p.x + dx, y2: p.y + RAD + 8 });
+    });
+  }
+  W = Math.max(1, slot - 1) * UNIT;
+  H = maxD * LEVEL + 10;
+  countText = [fmt(t.nodes, nodes.size), fmt(t.links, nodes.size * 3), fmt(t.empty, nodes.size * 3 - (nodes.size - 1))].join(t.sep);
+}
+
+const PAD = kind === 'compressed' ? 50 : 32;
+const TOP = RAD + 20;
+const byId = new Map(placed.map((p) => [p.id, p]));
+const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+const CELL = 22;
+const vbW = kind === 'node' ? CELL * 26 + 20 : W + 2 * PAD;
+const vbH = kind === 'node' ? 70 : H + TOP + RAD + 16;
+---
+
+<figure class:list={['aas-trie-figure', slide && 'is-slide', `is-${kind}`]} style={`--trf-w: ${vbW}; --trf-h: ${vbH}`}>
+  {
+    kind === 'node' ? (
+      <svg viewBox={`-10 -30 ${CELL * 26 + 20} 70`} role="img" aria-label={caption ?? t.children}>
+        <text class="trf-arr-label" x="0" y="-12">
+          {t.children}
+        </text>
+        {letters.map((ch, i) => (
+          <g class:list={['trf-cell', chars.includes(ch) && 'is-on']}>
+            <rect x={i * CELL} y="0" width={CELL} height={CELL} />
+            <text x={i * CELL + CELL / 2} y={CELL / 2}>
+              {ch}
+            </text>
+          </g>
+        ))}
+      </svg>
+    ) : (
+      <svg viewBox={`${-PAD} ${-TOP} ${W + 2 * PAD} ${H + TOP + RAD + 16}`} role="img" aria-label={caption ?? ''}>
+        {stubs.map((s) => (
+          <g class="trf-stub">
+            <line x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />
+            <circle cx={s.x2} cy={s.y2} r="2.3" />
+          </g>
+        ))}
+        {placed
+          .filter((p) => p.parent !== undefined)
+          .map((p) => {
+            const q = byId.get(p.parent!)!;
+            return <line class="trf-edge" x1={q.x} y1={q.y} x2={p.x} y2={p.y} />;
+          })}
+        {placed.map((p) => (
+          <g class:list={['trf-node', p.root && 'is-root', p.value !== undefined && 'has-value', p.wide && 'is-wide']}>
+            {p.root ? (
+              <>
+                <circle cx={p.x} cy={p.y} r={RAD * 0.8} />
+                <text class="trf-root" x={p.x} y={p.y - RAD - 4}>
+                  {t.root}
+                </text>
+              </>
+            ) : p.wide ? (
+              <ellipse cx={p.x} cy={p.y} rx={8 + p.label.length * 5} ry={RAD} />
+            ) : (
+              <circle cx={p.x} cy={p.y} r={RAD} />
+            )}
+            {!p.root && (
+              <text class="trf-ch" x={p.x} y={p.y}>
+                {p.label}
+              </text>
+            )}
+            {p.value !== undefined && (
+              <text
+                class="trf-val"
+                x={p.x + (p.wide ? 10 + p.label.length * 5 : RAD + 3)}
+                y={kind === 'tst' ? p.y - RAD + 3 : p.y + RAD * 0.55}
+              >
+                {p.value}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    )
+  }
+  {(caption || (counts && countText)) && (
+    <figcaption>
+      {caption}
+      {caption && counts && countText && <br />}
+      {counts && countText}
+    </figcaption>
+  )}
+</figure>
+
+<style>
+  .aas-trie-figure {
+    margin: 1.5rem auto;
+    text-align: center;
+  }
+  .aas-trie-figure svg {
+    display: block;
+    margin-inline: auto;
+    width: 100%;
+    /* 그림의 원래 폭보다 많이 키우지 않는다. 노드가 몇 개 없는 그림이 화면을 채우지 않게 */
+    max-width: min(30rem, calc(var(--trf-w) * 1.15px));
+    max-height: 26rem;
+    height: auto;
+  }
+  .aas-trie-figure.is-node svg {
+    max-width: 40rem;
+  }
+  .aas-trie-figure figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .trf-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+  }
+  .trf-stub line {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .trf-stub circle {
+    fill: var(--aas-muted);
+    opacity: 0.6;
+  }
+  .trf-node circle,
+  .trf-node ellipse {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 1.6;
+  }
+  .trf-node.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .trf-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .trf-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .trf-val {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* TST: 기본은 흰 원, 키가 끝나는 노드만 검게 */
+  .is-tst .trf-node circle {
+    fill: var(--aas-bg);
+  }
+  .is-tst .trf-ch {
+    font-size: 13px;
+    fill: var(--aas-text);
+  }
+  .is-tst .trf-node.has-value circle {
+    fill: var(--aas-text);
+  }
+  .is-tst .trf-node.has-value .trf-ch {
+    fill: var(--aas-bg);
+  }
+  .is-tst .trf-val {
+    font-size: 11px;
+  }
+
+  /* 노드 하나의 링크 배열 */
+  .trf-arr-label {
+    font-size: 13px;
+    fill: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .trf-cell rect {
+    fill: var(--aas-bg);
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .trf-cell text {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .trf-cell.is-on rect {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .trf-cell.is-on text {
+    fill: #fff;
+    font-weight: 700;
+  }
+
+  /* 슬라이드: 칸 높이에 맞춰 키운다. vh인 이유는 SearchDemo 참고 */
+  .aas-trie-figure.is-slide {
+    margin: 0.5rem auto;
+  }
+  .aas-trie-figure.is-slide svg {
+    /* 그림끼리 같은 비율로 키운다. 아주 높은 그림만 화면 높이에 맞춰 줄인다. */
+    height: min(62vh, calc(var(--trf-h) * 0.18vh));
+    /* 테마가 슬라이드의 svg 높이를 막아 두므로 여기서 다시 연다. */
+    max-height: 62vh;
+    width: auto;
+    max-width: 100%;
+  }
+  .aas-trie-figure.is-slide.is-node svg {
+    width: 100%;
+    height: auto;
+  }
+  .aas-trie-figure.is-slide figcaption {
+    font-size: clamp(0.9rem, 2.4vh, 1.5rem);
+  }
+</style>
