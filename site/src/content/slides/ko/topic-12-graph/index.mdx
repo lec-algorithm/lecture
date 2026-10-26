@@ -14,6 +14,10 @@ import GraphSearchDemo from '@components/GraphSearchDemo.astro';
 import KruskalDemo from '@components/KruskalDemo.astro';
 import HeapDemo from '@components/HeapDemo.astro';
 import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+import GraphTermsDemo from '@components/GraphTermsDemo.astro';
+import GraphRepDemo from '@components/GraphRepDemo.astro';
+import DfsAppDemo from '@components/DfsAppDemo.astro';
+import CutDemo from '@components/CutDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-12-graph)의 실행 결과와 같습니다. */}
@@ -50,6 +54,15 @@ Prim과 Dijkstra는 "지금 가장 가까운 것"을 고르는 그리디이고,
 
 ## 그래프
 ::sub[Graph]
+
+</Slide>
+
+<Slide>
+
+### 용어를 눌러 보기
+::sub[용어를 누르면 그래프에서 그 부분이 칠해집니다 · 정점을 누르면 기준 정점이 바뀝니다]
+
+<GraphTermsDemo slide />
 
 </Slide>
 
@@ -169,6 +182,15 @@ Prim과 Dijkstra는 "지금 가장 가까운 것"을 고르는 그리디이고,
 
 <Slide>
 
+### 직접 해 보기: 세 가지 표현
+::sub[`01_bfs`와 같은 그래프 · 간선과 행렬 칸은 눌러서 넣고 빼기, 정점은 눌러서 이웃 찾기]
+
+<GraphRepDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 인접 행렬과 인접 목록
 ::sub[필요한 공간이 다릅니다]
 
@@ -178,45 +200,6 @@ Prim과 Dijkstra는 "지금 가장 가까운 것"을 고르는 그리디이고,
 - **인접 목록**: 정점마다 이웃의 목록
   - 정점 배열, 간선 배열, 서로를 가리키는 포인터
   - 공간 $$\Theta(n + m)$$, 무방향 간선은 양 끝에 한 칸씩
-
-</Slide>
-
-<Slide class="compact">
-
-#### 같은 그래프, 두 가지 표현
-::sub[`01_bfs`의 앞부분 · BFS와 DFS 예제에서 계속 씁니다]
-
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="g7" slide />
-
-</div>
-<div>
-
-```console
-adjacency matrix
-    0 1 2 3 4 5 6
-  0 0 1 1 0 0 1 1
-  1 1 0 0 0 0 0 0
-  2 1 0 0 1 0 0 0
-  3 0 0 1 0 1 1 0
-  4 0 0 0 1 0 1 1
-  5 1 0 0 1 1 0 0
-  6 1 0 0 0 1 0 0
-
-adjacency list
-  0: 1 2 5 6
-  1: 0
-  2: 0 3
-  3: 2 4 5
-  4: 3 5 6
-  5: 0 3 4
-  6: 0 4
-```
-
-</div>
-</div>
 
 </Slide>
 
@@ -481,31 +464,10 @@ order: 0 6 4 5 3 2 1
 
 <Slide>
 
-#### 응용: 연결 요소
-::sub[한 번의 DFS로 닿는 정점에 같은 id를 붙입니다]
+### 한 걸음씩: 연결 요소
+::sub[`02_dfs`의 둘째 부분 · 아직 방문하지 않은 정점마다 DFS를 새로 시작하고, 닿는 정점에 같은 id를 붙입니다]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} slide />
-
-</div>
-<div>
-
-```console
-connected components (V = 13, E = 13)
-  id 0: 0 1 2 3 4 5 6
-  id 1: 7 8
-  id 2: 9 10 11 12
-count = 3
-```
-
-<br/>
-
-초록 id 0, 파랑 id 1, 주황 id 2
-
-</div>
-</div>
+<DfsAppDemo slide />
 
 </Slide>
 
@@ -532,6 +494,15 @@ count = 3
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 위상 정렬
+::sub[나가는 간선을 다 본 뒤에 번호를 줍니다 · 파랑은 아직 끝나지 않은 호출, 초록은 끝난 정점]
+
+<DfsAppDemo mode="topo" slide />
 
 </Slide>
 
@@ -642,24 +613,10 @@ Kruskal과 Prim 예제
 
 <Slide>
 
-#### Cut 속성
-::sub[어떤 cut이든, 가장 가벼운 crossing edge는 MST에 있습니다]
+### 직접 해 보기: Cut 속성
+::sub[cut은 정점을 두 편으로 나누기, crossing edge는 두 편을 잇는 간선 · 가장 가벼운 crossing edge는 MST에 있습니다]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} slide />
-
-</div>
-<div>
-
-- **cut**: 정점을 비어 있지 않은 두 집합으로 나누기
-- **crossing edge**: 두 집합을 잇는 간선
-  - 파란 점선
-- 가장 가벼운 0-2(0.26)가 MST에 있습니다.
-
-</div>
-</div>
+<CutDemo slide />
 
 </Slide>
 
@@ -688,6 +645,7 @@ Kruskal과 Prim 예제
 
 <br/>
 
+앞 데모의 "칠하기"가 바로 이 일반형입니다.  
 칠한 간선은 언제나 MST의 간선입니다.  
 예: 0-2, 5-7, 6-2, 0-7, 2-3, 1-7, 4-5 순서로 칠해도 같은 MST  
 "어떤 cut을 고르는가"를 정한 것이 Kruskal과 Prim입니다.
@@ -1418,6 +1376,15 @@ pop 2 (f 18 = 14 + 4): close
 expanded: 0 1 7 2 4 5 2 3
 path: 0 4 5 2 6, cost 25
 ```
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 휴리스틱 바꾸기
+::sub[같은 그래프, 0에서 6까지 · 칩으로 h를 바꾸고 끝까지 돌려 보세요]
+
+<HeapGraphDemo mode="astar" hChoices slide />
 
 </Slide>
 

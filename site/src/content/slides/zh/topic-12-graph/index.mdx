@@ -14,6 +14,10 @@ import GraphSearchDemo from '@components/GraphSearchDemo.astro';
 import KruskalDemo from '@components/KruskalDemo.astro';
 import HeapDemo from '@components/HeapDemo.astro';
 import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+import GraphTermsDemo from '@components/GraphTermsDemo.astro';
+import GraphRepDemo from '@components/GraphRepDemo.astro';
+import DfsAppDemo from '@components/DfsAppDemo.astro';
+import CutDemo from '@components/CutDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-12-graph）的运行结果一致。 */}
@@ -50,6 +54,15 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 ## 图
 ::sub[Graph]
+
+</Slide>
+
+<Slide>
+
+### 点击术语
+::sub[点击术语，图中对应的部分会上色 · 点击顶点可更换基准顶点]
+
+<GraphTermsDemo slide />
 
 </Slide>
 
@@ -169,6 +182,15 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 <Slide>
 
+### 动手试试：三种表示
+::sub[与 `01_bfs` 相同的图 · 点击边和矩阵格可加入或删除边，点击顶点查找邻居]
+
+<GraphRepDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 邻接矩阵与邻接表
 ::sub[所需空间不同]
 
@@ -178,45 +200,6 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 - **邻接表**：每个顶点一张邻居列表
   - 顶点数组、边数组、互相指向的指针
   - 空间 $$\Theta(n + m)$$，无向边在两端各占一格
-
-</Slide>
-
-<Slide class="compact">
-
-#### 同一个图，两种表示
-::sub[`01_bfs` 的前半部分 · BFS 和 DFS 的例子会一直用到]
-
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="g7" slide />
-
-</div>
-<div>
-
-```console
-adjacency matrix
-    0 1 2 3 4 5 6
-  0 0 1 1 0 0 1 1
-  1 1 0 0 0 0 0 0
-  2 1 0 0 1 0 0 0
-  3 0 0 1 0 1 1 0
-  4 0 0 0 1 0 1 1
-  5 1 0 0 1 1 0 0
-  6 1 0 0 0 1 0 0
-
-adjacency list
-  0: 1 2 5 6
-  1: 0
-  2: 0 3
-  3: 2 4 5
-  4: 3 5 6
-  5: 0 3 4
-  6: 0 4
-```
-
-</div>
-</div>
 
 </Slide>
 
@@ -481,31 +464,10 @@ order: 0 6 4 5 3 2 1
 
 <Slide>
 
-#### 应用：连通分量
-::sub[给一次 DFS 能到达的顶点标上同一个 id]
+### 一步一步：连通分量
+::sub[`02_dfs` 的第二部分 · 在每个未访问的顶点开始新的 DFS，给它能到达的顶点标上同一个 id]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} slide />
-
-</div>
-<div>
-
-```console
-connected components (V = 13, E = 13)
-  id 0: 0 1 2 3 4 5 6
-  id 1: 7 8
-  id 2: 9 10 11 12
-count = 3
-```
-
-<br/>
-
-绿色 id 0，蓝色 id 1，橙色 id 2
-
-</div>
-</div>
+<DfsAppDemo slide />
 
 </Slide>
 
@@ -532,6 +494,15 @@ count = 3
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 一步一步：拓扑排序
+::sub[看完所有出边后才给编号 · 蓝色是尚未结束的调用，绿色是已结束的顶点]
+
+<DfsAppDemo mode="topo" slide />
 
 </Slide>
 
@@ -642,24 +613,10 @@ Kruskal 与 Prim 的例子
 
 <Slide>
 
-#### 割的性质
-::sub[无论哪个割，最轻的横切边都在 MST 里]
+### 动手试试：割的性质
+::sub[割把顶点分成两边，横切边连接两边 · 最轻的横切边在 MST 里]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} slide />
-
-</div>
-<div>
-
-- **割**（cut）：把顶点分成两个非空集合
-- **横切边**（crossing edge）：连接两个集合的边
-  - 蓝色虚线
-- 最轻的 0-2（0.26）在 MST 里。
-
-</div>
-</div>
+<CutDemo slide />
 
 </Slide>
 
@@ -688,6 +645,7 @@ Kruskal 与 Prim 的例子
 
 <br/>
 
+前面演示里的“涂色”就是这个一般形式。  
 涂色的边总是 MST 的边。  
 例：按 0-2、5-7、6-2、0-7、2-3、1-7、4-5 的顺序涂色，也是同一棵 MST  
 规定"选哪个割"的，就是 Kruskal 和 Prim。
@@ -1418,6 +1376,15 @@ pop 2 (f 18 = 14 + 4): close
 expanded: 0 1 7 2 4 5 2 3
 path: 0 4 5 2 6, cost 25
 ```
+
+</Slide>
+
+<Slide>
+
+### 动手试试：更换启发式
+::sub[同一个图，从 0 到 6 · 用标签切换 h，然后运行到底]
+
+<HeapGraphDemo mode="astar" hChoices slide />
 
 </Slide>
 
