@@ -1,0 +1,484 @@
+---
+// 생일 문제: 키 N개를 M칸에 고르게 무작위로 넣을 때 한 번이라도 충돌할
+// 확률을 슬라이더로 보는 데모.
+//
+// 위에는 P(N) 곡선과 지금 N의 점, 실습 코드가 찍은 점들을 그린다. 옆에는
+// 1 − M/M · (M−1)/M ⋯ 꼴의 곱과 확률을 크게 띄운다. 아래 띠는 M칸 배열이고,
+// "무작위로 넣어 보기"를 누르면 키 N개를 실제로 던져 충돌한 칸을 붉게
+// 칠하고, 시도 누계와 충돌 비율을 센다(이론값에 다가가는 것을 본다).
+//
+// 확률 계산은 algorithm-code의 collisionChance(hashFunction.c ·
+// hash_function.py, 4번 덩어리)와 같다. N = 3, 5, 10(M = 16)은 18.0%,
+// 50.0%, 97.4%, N = 23(M = 365)은 50.7%다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 고를 배열 크기: 16 또는 365 */
+  m?: 16 | 365;
+  /** 처음 키 수 */
+  n?: number;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { m = 16, n = 5, slide = false } = Astro.props;
+const id = `bd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '충돌 확률',
+    keys: '키 수 N',
+    chance: '충돌이 한 번 이상',
+    throwOnce: '무작위로 넣어 보기',
+    tally: '{t}번 중 {c}번 충돌 ({r}%)',
+    tallyIdle: '아직 넣어 보지 않았습니다',
+    note: '키 {n}개를 {m}칸에 넣습니다. 한 번도 충돌하지 않을 확률은 {q}%이고, 한 번이라도 충돌할 확률은 {p}%입니다.',
+    hit: '이번에는 {c}칸에서 충돌했습니다.',
+    clean: '이번에는 충돌이 없었습니다.',
+    axis: '키 수 N',
+  },
+  en: {
+    title: 'Chance of a collision',
+    keys: 'keys N',
+    chance: 'at least one collision',
+    throwOnce: 'Throw at random',
+    tally: '{c} of {t} throws collided ({r}%)',
+    tallyIdle: 'No throws yet',
+    note: 'Put {n} keys into {m} slots. The chance of no collision at all is {q}%, so the chance of at least one is {p}%.',
+    hit: 'This throw collided in {c} slot(s).',
+    clean: 'This throw had no collision.',
+    axis: 'keys N',
+  },
+  zh: {
+    title: '冲突的概率',
+    keys: '键数 N',
+    chance: '至少冲突一次',
+    throwOnce: '随机放一次',
+    tally: '{t} 次中冲突 {c} 次（{r}%）',
+    tallyIdle: '还没有放过',
+    note: '把 {n} 个键放进 {m} 格。一次都不冲突的概率是 {q}%，至少冲突一次的概率是 {p}%。',
+    hit: '这一次有 {c} 格发生冲突。',
+    clean: '这一次没有冲突。',
+    axis: '键数 N',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-birthday-demo', slide && 'is-slide']}
+  id={id}
+  data-bd-m={m}
+  data-bd-n={n}
+  data-bd-strings={JSON.stringify(t)}
+>
+  <div class="bd-bar">
+    <div class="bd-tabs" role="tablist">
+      <span class="bd-head"><strong>{t.title}</strong></span>
+      <button type="button" class="bd-tab" data-bd-tab="16" role="tab">M = 16</button>
+      <button type="button" class="bd-tab" data-bd-tab="365" role="tab">M = 365</button>
+    </div>
+    <label class="bd-count">
+      {t.keys} <strong data-bd-nval></strong>
+      <input type="range" min="1" step="1" data-bd-range />
+    </label>
+  </div>
+
+  <div class="bd-body">
+    <svg class="bd-chart" data-bd-chart viewBox="0 0 420 210" role="img" aria-label={t.title}></svg>
+    <div class="bd-side">
+      <div class="bd-big"><span>{t.chance}</span><strong data-bd-p></strong></div>
+      <p class="bd-prod" data-bd-prod></p>
+    </div>
+  </div>
+
+  <div class="bd-throw">
+    <button type="button" class="bd-btn bd-btn-primary" data-bd-throw>{t.throwOnce}</button>
+    <span class="bd-tally" data-bd-tally></span>
+  </div>
+  <svg class="bd-strip" data-bd-strip role="img" aria-label={`M`}></svg>
+
+  <p class="bd-note" data-bd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.bdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const MAXN = { 16: 16, 365: 60 };
+    /* 실습 코드가 찍는 점 */
+    const MARKS = { 16: [3, 5, 10], 365: [23] };
+    let M = Number(root.dataset.bdM) === 365 ? 365 : 16;
+    let N = Number(root.dataset.bdN);
+
+    /* collisionChance와 같은 계산: 1 - (M/M)((M-1)/M)...((M-N+1)/M) */
+    const chance = (n, m) => {
+      let none = 1;
+      for (let i = 0; i < n; i++) none = (none * (m - i)) / m;
+      return 1 - none;
+    };
+    const pct = (x) => (x * 100).toFixed(1);
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const chart = root.querySelector('[data-bd-chart]');
+    const strip = root.querySelector('[data-bd-strip]');
+    const range = root.querySelector('[data-bd-range]');
+    const nval = root.querySelector('[data-bd-nval]');
+    const pEl = root.querySelector('[data-bd-p]');
+    const prodEl = root.querySelector('[data-bd-prod]');
+    const tallyEl = root.querySelector('[data-bd-tally]');
+    const note = root.querySelector('[data-bd-note]');
+    const tabs = [...root.querySelectorAll('[data-bd-tab]')];
+
+    let tries = 0;
+    let hits = 0;
+    let last = null; // 마지막으로 던진 결과: 칸마다 키 수
+
+    /* 곡선. x는 1..MAXN, y는 0..100% */
+    const X0 = 44;
+    const X1 = 408;
+    const Y0 = 178;
+    const Y1 = 14;
+    function drawChart() {
+      chart.replaceChildren();
+      const max = MAXN[M];
+      const xs = (n) => X0 + ((n - 1) / (max - 1)) * (X1 - X0);
+      const ys = (p) => Y0 - p * (Y0 - Y1);
+      [0, 0.5, 1].forEach((p) => {
+        el('line', { x1: X0, y1: ys(p), x2: X1, y2: ys(p), class: p === 0.5 ? 'bd-half' : 'bd-grid' }, chart);
+        el('text', { x: X0 - 6, y: ys(p), class: 'bd-ylab' }, chart).textContent = `${p * 100}%`;
+      });
+      const ticks = M === 16 ? [1, 4, 8, 12, 16] : [1, 10, 20, 30, 40, 50, 60];
+      ticks.forEach((n) => {
+        el('text', { x: xs(n), y: Y0 + 16, class: 'bd-xlab' }, chart).textContent = String(n);
+      });
+      el('text', { x: X1, y: Y0 + 30, class: 'bd-axis' }, chart).textContent = S.axis;
+      let d = '';
+      for (let n = 1; n <= max; n++) d += `${n === 1 ? 'M' : 'L'}${xs(n).toFixed(1)},${ys(chance(n, M)).toFixed(1)}`;
+      el('path', { d, class: 'bd-curve' }, chart);
+      MARKS[M].forEach((n) => {
+        const p = chance(n, M);
+        el('circle', { cx: xs(n), cy: ys(p), r: 3.5, class: 'bd-mark' }, chart);
+      });
+      const p = chance(N, M);
+      el('line', { x1: xs(N), y1: Y0, x2: xs(N), y2: ys(p), class: 'bd-drop' }, chart);
+      el('circle', { cx: xs(N), cy: ys(p), r: 6, class: 'bd-dot' }, chart);
+      const right = xs(N) > (X0 + X1) / 2;
+      el('text', { x: xs(N) + (right ? -10 : 10), y: ys(p) - 10, class: 'bd-dotlab' + (right ? ' is-left' : '') }, chart)
+        .textContent = `${pct(p)}%`;
+    }
+
+    /* M칸 띠. 16칸은 한 줄, 365칸은 73칸씩 다섯 줄 */
+    function drawStrip() {
+      strip.replaceChildren();
+      const cols = M === 16 ? 16 : 73;
+      const rows = Math.ceil(M / cols);
+      const size = 640 / cols;
+      strip.setAttribute('viewBox', `0 0 640 ${rows * size}`);
+      for (let i = 0; i < M; i++) {
+        const k = last ? last[i] : 0;
+        const cls = k === 0 ? 'bd-cell' : k === 1 ? 'bd-cell is-one' : 'bd-cell is-many';
+        el('rect', {
+          x: (i % cols) * size + size * 0.08,
+          y: Math.floor(i / cols) * size + size * 0.08,
+          width: size * 0.84,
+          height: size * 0.84,
+          rx: size * 0.15,
+          class: cls,
+        }, strip);
+        if (M === 16 && k > 1) {
+          el('text', { x: (i % cols) * size + size / 2, y: size / 2, class: 'bd-cnt' }, strip).textContent = `×${k}`;
+        }
+      }
+    }
+
+    function product() {
+      const terms = [];
+      for (let i = 0; i < N; i++) terms.push(`${M - i}/${M}`);
+      const shown = terms.length <= 5 ? terms : [...terms.slice(0, 3), '⋯', terms[terms.length - 1]];
+      return `1 − ${shown.join(' · ')}`;
+    }
+
+    function render(extra) {
+      const max = MAXN[M];
+      range.max = String(max);
+      range.value = String(N);
+      nval.textContent = String(N);
+      tabs.forEach((tab) => {
+        const on = Number(tab.dataset.bdTab) === M;
+        tab.classList.toggle('is-on', on);
+        tab.setAttribute('aria-selected', String(on));
+      });
+      const p = chance(N, M);
+      pEl.textContent = `${pct(p)}%`;
+      pEl.classList.toggle('is-bad', p >= 0.5);
+      prodEl.textContent = product();
+      tallyEl.textContent = tries ? fill(S.tally, { t: tries, c: hits, r: ((hits / tries) * 100).toFixed(0) }) : S.tallyIdle;
+      drawChart();
+      drawStrip();
+      setLines(note, fill(S.note, { n: N, m: M, q: pct(1 - p), p: pct(p) }) + (extra ? ` ${extra}` : ''));
+    }
+
+    function clearTally() {
+      tries = 0;
+      hits = 0;
+      last = null;
+    }
+    range.addEventListener('input', () => {
+      N = Number(range.value);
+      clearTally();
+      render();
+    });
+    tabs.forEach((tab) =>
+      tab.addEventListener('click', () => {
+        M = Number(tab.dataset.bdTab);
+        N = Math.min(N, MAXN[M]);
+        if (M === 365 && N < 23) N = 23;
+        if (M === 16 && N > 16) N = 5;
+        clearTally();
+        render();
+      }),
+    );
+    root.querySelector('[data-bd-throw]').addEventListener('click', () => {
+      last = new Array(M).fill(0);
+      for (let k = 0; k < N; k++) last[Math.floor(Math.random() * M)] += 1;
+      const clash = last.filter((x) => x > 1).length;
+      tries += 1;
+      if (clash) hits += 1;
+      render(clash ? fill(S.hit, { c: clash }) : S.clean);
+    });
+    N = Math.min(Math.max(1, N), MAXN[M]);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-birthday-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-birthday-demo .bd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-birthday-demo .bd-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-birthday-demo .bd-head {
+    font-size: 0.95em;
+    margin-right: 0.4em;
+  }
+  .aas-birthday-demo .bd-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-birthday-demo .bd-tab:hover,
+  .aas-birthday-demo .bd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-birthday-demo .bd-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-birthday-demo .bd-count {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-birthday-demo .bd-count strong {
+    min-width: 1.6em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-birthday-demo .bd-count input {
+    width: 12em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-birthday-demo .bd-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+  }
+  .aas-birthday-demo .bd-chart {
+    flex: 1.5 1 18em;
+    min-width: 0;
+    max-height: 15em;
+  }
+  .aas-birthday-demo .bd-side {
+    flex: 1 1 12em;
+  }
+  .aas-birthday-demo .bd-big {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-birthday-demo .bd-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.8em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-birthday-demo .bd-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-birthday-demo .bd-prod {
+    margin: 0.4em 0 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.5;
+  }
+  .aas-birthday-demo .bd-grid {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .aas-birthday-demo .bd-half {
+    stroke: var(--aas-muted);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+  }
+  .aas-birthday-demo .bd-ylab,
+  .aas-birthday-demo .bd-xlab,
+  .aas-birthday-demo .bd-axis {
+    font-family: var(--aas-mono, monospace);
+    font-size: 12px;
+    fill: var(--aas-muted);
+  }
+  .aas-birthday-demo .bd-ylab {
+    text-anchor: end;
+    dominant-baseline: central;
+  }
+  .aas-birthday-demo .bd-xlab {
+    text-anchor: middle;
+  }
+  .aas-birthday-demo .bd-axis {
+    text-anchor: end;
+    font-family: inherit;
+  }
+  .aas-birthday-demo .bd-curve {
+    fill: none;
+    stroke: var(--aas-role-model);
+    stroke-width: 2.5;
+  }
+  .aas-birthday-demo .bd-mark {
+    fill: var(--aas-bg);
+    stroke: var(--aas-role-model);
+    stroke-width: 2;
+  }
+  .aas-birthday-demo .bd-drop {
+    stroke: var(--aas-role-focus);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 3;
+  }
+  .aas-birthday-demo .bd-dot {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-bg);
+    stroke-width: 2;
+  }
+  .aas-birthday-demo .bd-dotlab {
+    font-family: var(--aas-mono, monospace);
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--aas-text);
+  }
+  .aas-birthday-demo .bd-dotlab.is-left {
+    text-anchor: end;
+  }
+  .aas-birthday-demo .bd-throw {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4em 1em;
+    margin: 0.6em 0 0.4em;
+  }
+  .aas-birthday-demo .bd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-birthday-demo .bd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-birthday-demo .bd-tally {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-birthday-demo .bd-strip {
+    display: block;
+    width: 100%;
+    max-height: 2.6em;
+  }
+  .aas-birthday-demo .bd-cell {
+    fill: color-mix(in srgb, var(--aas-muted) 15%, transparent);
+  }
+  .aas-birthday-demo .bd-cell.is-one {
+    fill: var(--aas-role-model);
+  }
+  .aas-birthday-demo .bd-cell.is-many {
+    fill: var(--aas-role-guard);
+  }
+  .aas-birthday-demo .bd-cnt {
+    font-family: var(--aas-mono, monospace);
+    font-size: 15px;
+    font-weight: 700;
+    fill: #fff;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-birthday-demo .bd-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 3.2em;
+  }
+  .aas-birthday-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-birthday-demo.is-slide .bd-chart {
+    max-height: 34vh;
+  }
+</style>
