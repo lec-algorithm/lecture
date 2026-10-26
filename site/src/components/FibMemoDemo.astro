@@ -89,10 +89,11 @@ const plainCalls = all.length;
 
 const leaves = leafSlot;
 const levels = Math.max(...all.map((d) => d.depth)) + 1;
+// 슬라이드에서는 노드를 키우고 층 간격을 줄여, 같은 높이에서 글자가 크게 보이게 한다.
 const COL = 64;
-const ROW = 62;
-const NW = 46;
-const NH = 28;
+const ROW = slide ? 58 : 62;
+const NW = slide ? 56 : 46;
+const NH = slide ? 36 : 28;
 const cx = (d: Node) => (d.x + 0.5) * COL;
 const cy = (d: Node) => d.depth * ROW + NH / 2 + 4;
 const viewW = leaves * COL;
@@ -580,9 +581,24 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     font-size: clamp(1rem, 3vh, 2rem);
     margin: 0.5rem 0;
   }
-  /* 글자를 키운 만큼 트리는 높이로 묶어 슬라이드를 넘지 않게 한다. */
+  /* 트리는 높이로 묶어 슬라이드를 넘지 않게 하고, 노드 글자는 viewBox 안에서 키운다. */
   .aas-fib-memo-demo.is-slide .fm-tree {
-    max-height: 50vh;
+    height: 52vh;
+  }
+  .aas-fib-memo-demo.is-slide .fm-node text {
+    font-size: 17px;
+    font-weight: 600;
+  }
+  /* 강의실 뒤에서도 앞으로 부를 노드가 읽히도록 덜 흐리게 */
+  .aas-fib-memo-demo.is-slide .fm-node:not(.is-seen) {
+    opacity: 0.5;
+  }
+  .aas-fib-memo-demo.is-slide .fm-memo {
+    font-size: 1em;
+  }
+  .aas-fib-memo-demo.is-slide .fm-memo th,
+  .aas-fib-memo-demo.is-slide .fm-memo td {
+    padding: 0.3em 0.8em;
   }
   .aas-fib-memo-demo.is-slide .fm-note {
     min-height: 1.6em;
