@@ -12,7 +12,11 @@ slides: ["topic-10-trie"]
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
 import TrieFigure from '@components/TrieFigure.astro';
-import TreeFigure from '@components/TreeFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
 
 > 주제 07의 이진 탐색 트리와 주제 08의 해시 테이블은 키를 **통째로** 다뤘습니다.
 > 키 전체를 비교하거나, 키 전체로 해시값을 셉니다.  
@@ -58,10 +62,6 @@ import TreeFigure from '@components/TreeFigure.astro';
 - **value**: 그 키의 값. 이 주제의 예제에서는 정수
 
 링크는 문자를 직접 배열 인덱스로 바꿔 찾습니다. `b`는 1번 칸, `s`는 18번 칸입니다.
-아래는 키 `by`, `sea`, `sells`, `she`, `shells`, `the`를 넣은 트라이의 루트입니다.
-26칸 중 `b`, `s`, `t` 세 칸만 쓰고 나머지 23칸은 NULL입니다.
-
-<TrieFigure kind="node" chars="bst" />
 
 ```c
 typedef struct TrieNode {
@@ -79,7 +79,11 @@ typedef struct TrieNode {
 | --- | --- | --- | --- | --- | --- | --- |
 | 값 | 4 | 2 | 1 | 0 | 3 | 5 |
 
-<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts />
+아래 데모에서 노드를 누르면 그 노드의 링크 배열 26칸이 펼쳐집니다. 처음 보이는
+루트는 `b`, `s`, `t` 세 칸만 쓰고 나머지 23칸은 NULL입니다. 칠한 칸을 누르면 그
+자식으로 내려갑니다.
+
+<TrieNodeDemo />
 
 그림을 읽는 법은 셋입니다.
 
@@ -188,6 +192,12 @@ ALGORITHM Search(root, word)
 
 자식을 a부터 z 순서로 돌기 때문에 결과가 **사전 순**으로 나옵니다. 값을 먼저
 확인하고 자식으로 내려가므로 `she`가 `shells`보다 앞섭니다.
+
+접두사를 직접 쳐 보세요. 한 글자 칠 때마다 접두사의 노드가 한 칸 내려가고, 그
+아래 서브트라이의 키가 자동 완성 목록처럼 뜹니다. `shx`처럼 없는 접두사는 `sh`
+노드에서 `x` 링크가 비어 있어 바로 끝납니다.
+
+<TrieNodeDemo mode="complete" />
 
 ```plaintext
 ALGORITHM GetWordsWithPrefix(root, prefix)
@@ -337,11 +347,16 @@ nodes = 17
 정해지면 트라이는 하나로 정해집니다. 앞의 여섯 키를 어떤 순서로 넣어도 같은
 그림이 나옵니다.
 
-이진 탐색 트리는 그렇지 않습니다. 아래 트리는 5, 3, 9, 4, 7, 12, 6, 8, 20 순서로
-넣은 것입니다. 같은 수를 3, 4, 5, …, 20처럼 정렬된 순서로 넣으면 오른쪽으로만
-뻗은 한 줄이 됩니다. 주제 07에서 본 최악의 모양입니다.
+이진 탐색 트리는 그렇지 않습니다. 아래 데모는 같은 여섯 키를 순서만 바꿔 트라이와
+이진 탐색 트리에 함께 넣습니다.
 
-<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} />
+<TrieOrderDemo />
+
+- **사전 순**: 실습 코드의 순서 by, sea, sells, she, shells, the가 마침 사전 순입니다.
+  이진 탐색 트리는 오른쪽으로만 뻗은 높이 6의 한 줄이 됩니다. 주제 07에서 본 최악의
+  모양입니다. 역순도 왼쪽으로 뻗은 한 줄입니다.
+- **가운데부터**: 가운데 키를 먼저 넣으면 높이가 3으로 줄어듭니다.
+- **트라이**: 어느 순서로 넣어도 마지막 모양이 같습니다. 섞기를 여러 번 눌러 보세요.
 
 ### 탐색과 삽입의 최악 \{#worst-case}
 
@@ -366,7 +381,12 @@ nodes = 17
   때문입니다.
 
 실습 코드는 7글자 무작위 키 $$N$$개로 트라이를 만들고 무작위 키로 1000번 찾아,
-거친 노드 수(루트 포함)의 평균을 냅니다.
+거친 노드 수(루트 포함)의 평균을 냅니다. 아래 데모는 같은 난수로 같은 실험을 하고,
+1000번의 검색이 각각 노드 몇 개에서 끝났는지 막대로 보입니다. 오른쪽 아래 목록은
+처음 여섯 번의 검색에서 키의 몇 글자까지 따라갔는지입니다. 빨간 밑줄 글자의 링크가
+비어 있었습니다.
+
+<TrieMissDemo />
 
 - 결과 (끝부분)
 
@@ -379,6 +399,7 @@ search miss, random keys of length 7, 1000 searches
 
 키가 열 배가 될 때마다 0.6\~0.7개씩 늘어납니다. $$\log_{26} 10 \approx 0.71$$이므로
 $$\log_R N$$을 따라 자라는 것입니다. 키는 7글자인데 평균 서너 노드에서 끝납니다.
+데모에서 키 길이를 20으로 바꾸면 평균은 2.13, 2.83, 3.44로 거의 그대로입니다.
 
 ### 공간 \{#space}
 
@@ -389,15 +410,15 @@ $$R$$인 알파벳 위의 키 $$N$$개, 키의 평균 길이를 $$w$$라 하면 
 - **키가 짧거나 접두사를 많이 공유하면** $$RN$$에 가깝습니다.
 - **키가 길고 서로 다르면** $$RNw$$에 가깝습니다.
 
-두 키 집합을 그려 봅니다. 둘 다 키가 6개입니다.
+아래 데모에서 키 집합을 바꿔 봅니다. 둘 다 키가 6개입니다.
 
-- 접두사를 거의 다 공유하는 경우 (`s`, `she`, `sh`, `shells`, `shel`, `shell`)
+- **chain**: 접두사를 거의 다 공유하는 경우 (`s`, `she`, `sh`, `shells`, `shel`, `shell`)
+- **spread**: 서로 공유하지 않는 경우 (`shells`, `an`, `bat`, `the`, `yell`, `ear`)
 
-<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts />
+막대는 루트를 뺀 링크 수가 $$RN$$과 $$RNw$$ 사이 어디에 있는지 보입니다. 입력창에
+단어를 직접 쳐도 됩니다.
 
-- 서로 공유하지 않는 경우 (`shells`, `an`, `bat`, `the`, `yell`, `ear`)
-
-<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts />
+<TrieSpaceDemo set="chain" />
 
 실습 코드의 표가 같은 셈을 합니다.
 
@@ -420,13 +441,15 @@ $$R$$을 줄이면 공간을 상당히 아낄 수 있습니다. 이것이 뒤에
 
 트라이가 공간을 지나치게 쓰는 가장 큰 이유는 **링크를 단 하나만 쓰는 노드**가
 길게 이어지기 때문입니다. `shells`(1)와 `shellfish`(2) 두 키만 넣어도 노드가
-열 개 넘게 생기고, 그중 대부분은 자식이 하나뿐입니다.
+11개 생기고, 그중 7개는 값이 없고 자식이 하나뿐입니다. 데모에서 점선으로 그린
+노드입니다.
 
-<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts />
+값이 없고 자식이 하나뿐인 노드를 한 걸음에 하나씩 아래 노드와 합쳐 봅니다.
 
-값이 없고 자식이 하나뿐인 노드를 아래 노드와 합치면 갈라지는 곳만 남습니다.
+<TrieCompressDemo />
 
-<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts />
+다 합치면 갈라지는 곳과 값이 있는 노드만 남아 노드 11개가 4개(루트, `shell`, `fish`,
+`s`)가 됩니다.
 
 이렇게 단일 분기를 없앤 트라이를 압축 트라이(radix tree, Patricia trie)라고
 부릅니다. 노드에 문자 하나가 아니라 문자열 조각이 붙습니다. 이 주제에서는 구현하지
@@ -650,6 +673,13 @@ space (3 links per node)
   이진 탐색 트리처럼 TST도 넣는 순서에 따라 모양이 바뀝니다.
 
 ## 트라이와 TST \{#trie-vs-tst}
+
+같은 키로 세 구조를 만들어 노드와 링크를 세어 봅니다. 탭을 바꾸거나 단어를 직접
+쳐 보세요. TST의 노드는 늘 트라이보다 루트 하나만큼 적고, 링크는 노드마다 26개에서
+3개로 줄어듭니다. 이진 탐색 트리는 키 하나가 노드 하나라 링크가 가장 적지만,
+노드마다 키 전체를 담고 비교할 때 키를 앞에서부터 맞춰 봅니다.
+
+<TrieSpaceDemo set="apple" compare />
 
 | 특성 | 트라이 | TST |
 | --- | --- | --- |
