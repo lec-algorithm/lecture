@@ -9,6 +9,12 @@
 // 단계는 스크립트가 알고리즘을 실제로 돌려 만든다. 절차는 algorithm-code
 // topic-14의 04_grid_paths(pathsTab), 06_knapsack(knapsack)과 같다.
 //
+// editable을 주면 직접 바꿔 볼 수 있다(기본값이면 예전과 똑같다). 표는 처음부터
+// 다 채운 상태로 시작하고, 바꿀 때마다 알고리즘을 다시 돌려 끝 상태를 보인다.
+// - grid: 칸을 누르면 장애물을 놓거나 뺀다. 출발점과 목표 칸은 바꿀 수 없다.
+// - knapsack: 용량 슬라이더와 물건의 무게·가치 입력. 그리디(단위 무게당 가치
+//   순, topic-06 zero_one_greedy)의 답을 함께 보인다.
+//
 // 배낭의 unit은 표시용이다. 무게가 모두 unit의 배수이면 dp[i][c]는 c를 unit의
 // 배수로 내림한 칸과 같으므로, 그 칸들만 보여도 값과 복원이 같다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
@@ -25,6 +31,8 @@ interface Props {
   capacity?: number;
   /** knapsack: 이 간격의 용량만 열로 보인다. 모든 무게가 이 값의 배수여야 한다. */
   unit?: number;
+  /** 직접 바꿔 보기: grid는 장애물, knapsack은 용량과 물건 */
+  editable?: boolean;
   /** 슬라이드용: 글자와 칸을 키운다. */
   slide?: boolean;
 }
@@ -43,6 +51,7 @@ const {
   ],
   capacity = 50,
   unit: unitProp = 10,
+  editable = false,
   slide = false,
 } = Astro.props;
 const unit =
@@ -86,6 +95,16 @@ const STRINGS: Record<string, Record<string, string>> = {
     ks_take: 'dp[{i}][{c}] = {z}, 위 칸은 {x}입니다. 값이 다르니 {i}번 물건을 담았습니다. 용량 {r} 열로 올라갑니다.',
     ks_skip: 'dp[{i}][{c}] = {z}, 위 칸과 같습니다. {i}번 물건은 담지 않았습니다.',
     ks_done: '담은 물건 {list}, 가치 {z}',
+    restore_obs: '원래 장애물',
+    edit_grid: '장애물 {k}개 · 장애물이 없으면 {free}가지',
+    capacity: '용량',
+    item: '물건 {i}',
+    weight: '무게',
+    value: '가치',
+    none: '없음',
+    ks_greedy: '그리디(단위 무게당 가치 순): 물건 {list}, 가치 {g}',
+    ks_same: '동적 계획법과 같음',
+    ks_worse: '동적 계획법보다 {d} 적음',
   },
   en: {
     title_grid: 'Grid path tabulation',
@@ -109,6 +128,16 @@ const STRINGS: Record<string, Record<string, string>> = {
     ks_take: 'dp[{i}][{c}] = {z} differs from the cell above, {x}. Item {i} was taken. Move up to capacity {r}.',
     ks_skip: 'dp[{i}][{c}] = {z} equals the cell above. Item {i} was not taken.',
     ks_done: 'Items taken: {list}, value {z}',
+    restore_obs: 'Original obstacles',
+    edit_grid: '{k} obstacles · {free} paths with none',
+    capacity: 'capacity',
+    item: 'item {i}',
+    weight: 'w',
+    value: 'v',
+    none: 'none',
+    ks_greedy: 'Greedy (by value per weight): items {list}, value {g}',
+    ks_same: 'same as DP',
+    ks_worse: '{d} less than DP',
   },
   zh: {
     title_grid: '网格路径递推填表',
@@ -132,33 +161,80 @@ const STRINGS: Record<string, Record<string, string>> = {
     ks_take: 'dp[{i}][{c}] = {z} 与上一格 {x} 不同。放了物品 {i}。上移到容量 {r}。',
     ks_skip: 'dp[{i}][{c}] = {z} 与上一格相同。没有放物品 {i}。',
     ks_done: '放入的物品 {list}，价值 {z}',
+    restore_obs: '恢复障碍',
+    edit_grid: '障碍 {k} 个 · 没有障碍时 {free} 条',
+    capacity: '容量',
+    item: '物品 {i}',
+    weight: '重',
+    value: '价值',
+    none: '无',
+    ks_greedy: '贪心（按单位重量价值）：物品 {list}，价值 {g}',
+    ks_same: '与动态规划相同',
+    ks_worse: '比动态规划少 {d}',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const title = t[`title_${problem}`];
 const corner = t[`corner_${problem}`];
-const config = { problem, target, obstacles, items, capacity, unit, nRows, nCols };
+// 장애물이 없을 때의 경로 수: C(x + y, x)
+let free = 1;
+for (let k = 1; k <= target[0]; k++) free = (free * (target[1] + k)) / k;
+const MAX_CAP = Math.max(capacity, unit * 10);
+const config = { problem, target, obstacles, items, capacity, unit, nRows, nCols, editable, free: Math.round(free) };
 const VX = 100;
 const VY = 75;
 ---
 
 <div
-  class:list={['aas-dp-grid-demo', slide && 'is-slide', `is-${problem}`]}
+  class:list={['aas-dp-grid-demo', slide && 'is-slide', `is-${problem}`, editable && 'is-editable']}
   id={id}
   data-dg-strings={JSON.stringify(t)}
   data-dg-config={JSON.stringify(config)}
   style={`--dg-cols: ${nCols}; --dg-rows: ${nRows}`}
 >
   <div class="dg-bar">
-    <span class="dg-head"><strong>{title}</strong></span>
+    <span class="dg-head">
+      <strong>{title}</strong>
+      {editable && problem === 'grid' && <span class="dg-extra" data-dg-extra />}
+    </span>
     <span class="dg-controls">
       <button type="button" class="dg-btn" data-dg-back>{t.back}</button>
       <button type="button" class="dg-btn" data-dg-step>{t.step}</button>
       <button type="button" class="dg-btn dg-btn-primary" data-dg-play>{t.play}</button>
       <button type="button" class="dg-btn" data-dg-reset>{t.reset}</button>
+      {
+        editable && problem === 'grid' && (
+          <button type="button" class="dg-btn" data-dg-orig>
+            {t.restore_obs}
+          </button>
+        )
+      }
     </span>
   </div>
+  {
+    editable && problem === 'knapsack' && (
+      <div class="dg-edit">
+        <label class="dg-cap">
+          {t.capacity} <strong data-dg-capval>{capacity}</strong>
+          <input type="range" min={unit} max={MAX_CAP} step={unit} value={capacity} data-dg-cap />
+        </label>
+        {items.map(([w, v], i) => (
+          <span class="dg-item">
+            <span>{t.item.replace('{i}', String(i + 1))}</span>
+            <label>
+              {t.weight}
+              <input type="number" min={unit} max={MAX_CAP} step={unit} value={w} data-dg-w={i} />
+            </label>
+            <label>
+              {t.value}
+              <input type="number" min="0" max="999" step="10" value={v} data-dg-v={i} />
+            </label>
+          </span>
+        ))}
+      </div>
+    )
+  }
 
   <div class="dg-scroll">
     <div class="dg-frame">
@@ -196,8 +272,9 @@ const VY = 75;
 
   <div class="dg-foot">
     <p class="dg-note" data-dg-note></p>
-    <span class="dg-count">{t.filled} <strong data-dg-count>0</strong> / {nRows * nCols}</span>
+    <span class="dg-count">{t.filled} <strong data-dg-count>0</strong> / <span data-dg-total>{nRows * nCols}</span></span>
   </div>
+  {editable && problem === 'knapsack' && <p class="dg-extra" data-dg-extra />}
 </div>
 
 <script>
@@ -350,25 +427,109 @@ const VY = 75;
       svg.appendChild(head);
     }
 
+    /* 주제 06의 zero_one_greedy: 단위 무게당 가치가 높은 순(같으면 입력 순)으로 들어가면 담는다. */
+    function greedyKnap(items: Cell[], cap: number) {
+      const order = items.map((it, i) => ({ w: it[0], v: it[1], i: i + 1 })).sort((a, b) => b.v / b.w - a.v / a.w);
+      let left = cap;
+      let total = 0;
+      const taken: number[] = [];
+      for (const it of order) {
+        if (it.w <= left) {
+          left -= it.w;
+          total += it.v;
+          taken.push(it.i);
+        }
+      }
+      return { total, taken: taken.sort((a, b) => a - b) };
+    }
+
     document.querySelectorAll<HTMLElement>('.aas-dp-grid-demo').forEach((root) => {
       if (root.dataset.dgWired) return;
       root.dataset.dgWired = '1';
 
       const S = JSON.parse(root.dataset.dgStrings || '{}');
       const cfg = JSON.parse(root.dataset.dgConfig || '{}');
-      const steps = plan(cfg, S);
-      const cells = [...root.querySelectorAll<HTMLElement>('[data-dg-i]')];
+      const orig: Cell[] = cfg.obstacles.map((c: Cell) => [...c] as Cell);
+      let steps = plan(cfg, S);
+      let cells = [...root.querySelectorAll<HTMLElement>('[data-dg-i]')];
       const svg = root.querySelector<SVGSVGElement>('[data-dg-svg]')!;
       const note = root.querySelector<HTMLElement>('[data-dg-note]')!;
       const count = root.querySelector<HTMLElement>('[data-dg-count]')!;
+      const total = root.querySelector<HTMLElement>('[data-dg-total]')!;
+      const extra = root.querySelector<HTMLElement>('[data-dg-extra]');
       const stepBtn = root.querySelector<HTMLButtonElement>('[data-dg-step]')!;
       const playBtn = root.querySelector<HTMLButtonElement>('[data-dg-play]')!;
       const blocked = (i: number, j: number) =>
         cfg.problem === 'grid' && (cfg.obstacles as Cell[]).some(([x, y]) => x === i && y === j);
       const has = (list: Cell[], i: number, j: number) => list.some(([a, b]) => a === i && b === j);
 
-      let at = -1;
+      let at = cfg.editable ? steps.length - 1 : -1;
       let timer: number | null = null;
+
+      function showExtra() {
+        if (!extra) return;
+        if (cfg.problem === 'grid') {
+          extra.textContent = fill(S.edit_grid, { k: cfg.obstacles.length, free: cfg.free });
+          return;
+        }
+        const best = steps[steps.length - 1].dp[cfg.nRows - 1][cfg.nCols - 1] as number;
+        const g = greedyKnap(cfg.items, cfg.capacity);
+        const line = fill(S.ks_greedy, { list: g.taken.length ? g.taken.join(', ') : S.none, g: g.total });
+        const tail = g.total === best ? S.ks_same : fill(S.ks_worse, { d: best - g.total });
+        extra.textContent = `${line} · ${tail}`;
+        extra.classList.toggle('is-worse', g.total < best);
+      }
+
+      /* 배낭의 용량이 바뀌면 열 수가 달라지므로 표를 새로 짓는다. */
+      function rebuild() {
+        const R: number = cfg.nRows;
+        const C: number = cfg.nCols;
+        root.style.setProperty('--dg-cols', String(C));
+        root.style.setProperty('--dg-rows', String(R));
+        const colhead = root.querySelector<HTMLElement>('.dg-colhead')!;
+        colhead.replaceChildren(
+          ...Array.from({ length: C }, (_, k) => {
+            const e = document.createElement('span');
+            e.textContent = String(k * cfg.unit);
+            return e;
+          }),
+        );
+        const rowhead = root.querySelector<HTMLElement>('.dg-rowhead')!;
+        rowhead.replaceChildren(
+          ...Array.from({ length: R }, (_, i) => {
+            const e = document.createElement('span');
+            e.append(String(i));
+            if (i > 0) {
+              const sm = document.createElement('small');
+              sm.textContent = `(${cfg.items[i - 1][0]}, ${cfg.items[i - 1][1]})`;
+              e.append(sm);
+            }
+            return e;
+          }),
+        );
+        const box = root.querySelector<HTMLElement>('.dg-cells')!;
+        cells.forEach((el) => el.remove());
+        cells = [];
+        for (let i = 0; i < R; i++) {
+          for (let j = 0; j < C; j++) {
+            const e = document.createElement('span');
+            e.className = 'dg-cell';
+            e.dataset.dgI = String(i);
+            e.dataset.dgJ = String(j);
+            box.insertBefore(e, svg);
+            cells.push(e);
+          }
+        }
+        svg.setAttribute('viewBox', `0 0 ${C * VX} ${R * VY}`);
+        total.textContent = String(R * C);
+      }
+
+      function replan() {
+        stop();
+        steps = plan(cfg, S);
+        at = steps.length - 1;
+        render();
+      }
 
       function render() {
         const s = at >= 0 ? steps[at] : null;
@@ -399,6 +560,7 @@ const VY = 75;
         }
         count.textContent = String(filled);
         setLines(note, s ? s.note : S.idle);
+        showExtra();
         const last = at === steps.length - 1;
         root.classList.toggle('is-done', last);
         stepBtn.disabled = last;
@@ -440,6 +602,63 @@ const VY = 75;
         at = -1;
         render();
       });
+
+      if (cfg.editable && cfg.problem === 'grid') {
+        /* 칸을 누르면 장애물을 놓거나 뺀다. 출발점과 목표 칸은 그대로 둔다. */
+        root.querySelector('.dg-cells')!.addEventListener('click', (ev) => {
+          const el = (ev.target as HTMLElement).closest<HTMLElement>('[data-dg-i]');
+          if (!el) return;
+          const i = Number(el.dataset.dgI);
+          const j = Number(el.dataset.dgJ);
+          if ((i === 0 && j === 0) || (i === cfg.nRows - 1 && j === cfg.nCols - 1)) return;
+          const list = cfg.obstacles as Cell[];
+          const k = list.findIndex(([x, y]) => x === i && y === j);
+          if (k >= 0) list.splice(k, 1);
+          else list.push([i, j]);
+          replan();
+        });
+        root.querySelector('[data-dg-orig]')!.addEventListener('click', () => {
+          cfg.obstacles = orig.map((c) => [...c] as Cell);
+          replan();
+        });
+      }
+      if (cfg.editable && cfg.problem === 'knapsack') {
+        const cap = root.querySelector<HTMLInputElement>('[data-dg-cap]')!;
+        const capVal = root.querySelector<HTMLElement>('[data-dg-capval]')!;
+        const unit: number = cfg.unit;
+        const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+        const readItems = () => {
+          root.querySelectorAll<HTMLInputElement>('[data-dg-w]').forEach((inp) => {
+            const i = Number(inp.dataset.dgW);
+            const raw = Number(inp.value);
+            if (!Number.isFinite(raw)) return;
+            const w = clamp(Math.round(raw / unit) * unit, unit, Number(inp.max));
+            cfg.items[i][0] = w;
+          });
+          root.querySelectorAll<HTMLInputElement>('[data-dg-v]').forEach((inp) => {
+            const i = Number(inp.dataset.dgV);
+            const raw = Number(inp.value);
+            if (!Number.isFinite(raw)) return;
+            cfg.items[i][1] = clamp(Math.round(raw), 0, 999);
+          });
+        };
+        const apply = () => {
+          readItems();
+          cfg.capacity = Number(cap.value);
+          capVal.textContent = cap.value;
+          cfg.nCols = cfg.capacity / unit + 1;
+          rebuild();
+          replan();
+        };
+        cap.addEventListener('input', apply);
+        root.querySelectorAll<HTMLInputElement>('[data-dg-w], [data-dg-v]').forEach((inp) => {
+          inp.addEventListener('change', () => {
+            apply();
+            if (inp.dataset.dgW !== undefined) inp.value = String(cfg.items[Number(inp.dataset.dgW)][0]);
+            else inp.value = String(cfg.items[Number(inp.dataset.dgV)][1]);
+          });
+        });
+      }
 
       render();
     });
@@ -653,6 +872,78 @@ const VY = 75;
   .aas-dp-grid-demo .dg-count strong {
     color: var(--aas-text);
     font-family: var(--aas-mono, monospace);
+  }
+
+  /* 직접 바꿔 보기 */
+  .aas-dp-grid-demo.is-editable.is-grid .dg-cell {
+    cursor: pointer;
+  }
+  .aas-dp-grid-demo.is-editable.is-grid .dg-cell:hover {
+    border-color: var(--aas-text);
+  }
+  .aas-dp-grid-demo .dg-edit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.4em;
+    align-items: center;
+    margin-bottom: 0.6em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-grid-demo .dg-cap {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-dp-grid-demo .dg-cap strong {
+    min-width: 2em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-dp-grid-demo .dg-cap input {
+    width: 8em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-dp-grid-demo .dg-item {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-dp-grid-demo .dg-item > span {
+    color: var(--aas-text);
+  }
+  .aas-dp-grid-demo .dg-item input {
+    width: 3.6em;
+    margin-left: 0.2em;
+    padding: 0.15em 0.3em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+  }
+  .aas-dp-grid-demo .dg-extra {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-grid-demo .dg-head .dg-extra {
+    margin: 0 0 0 1em;
+    font-size: 0.85em;
+  }
+  /* 입력 줄이 한 줄 늘어난 만큼 칸을 줄인다. 화살표 SVG와 맞도록 가로:세로 4:3을 지킨다. */
+  .aas-dp-grid-demo.is-editable.is-knapsack {
+    --dg-w: 3.2em;
+    --dg-h: 2.4em;
+  }
+  .aas-dp-grid-demo.is-editable.is-grid {
+    --dg-w: 2.96em;
+    --dg-h: 2.22em;
+  }
+  .aas-dp-grid-demo .dg-extra.is-worse {
+    color: var(--aas-role-guard);
+    font-weight: 600;
   }
 
   /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
