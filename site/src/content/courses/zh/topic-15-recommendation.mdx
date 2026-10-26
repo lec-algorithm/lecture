@@ -10,9 +10,12 @@ tags: ["自主学习"]
 slides: ["topic-15-recommendation"]
 ---
 
-import CosineFigure from '@components/CosineFigure.astro';
+import CosineDemo from '@components/CosineDemo.astro';
+import PearsonDemo from '@components/PearsonDemo.astro';
 import CollabFilterDemo from '@components/CollabFilterDemo.astro';
+import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
+import HybridDemo from '@components/HybridDemo.astro';
 
 > 这是课程计划书里没有的附加材料，不计入考试范围。  
 > Netflix 挑下一部电影、Spotify 挑下一首歌，说到底都是**填补表格空格**的问题。  
@@ -86,9 +89,11 @@ $$
 | 用户 C | 0 | 0 | 5 | 4 |
 | 用户 D | 0 | 0 | 4 | 0 |
 
-A 和 B 的物品 3、4 都是 0，所以可以原样画在物品 1、2 的平面上。
+A 和 B 的物品 3、4 都是 0，所以可以原样画在物品 1、2 的平面上。拖动端点试试。
+方向不变、只改长度，余弦不变；把一个向量贴到坐标轴上构成直角，余弦就变成 0。
+评分不会是负数，所以两个向量的夹角不会超过 90 度。
 
-<CosineFigure />
+<CosineDemo />
 
 $$
 \text{cos}(A, B) = \frac{5 \cdot 4 + 3 \cdot 0}{\sqrt{5^2 + 3^2} \, \sqrt{4^2}}
@@ -177,7 +182,15 @@ $$
 $$
 
 求和只在两人**都看过的电影**上进行，$$\bar{a}$$ 和 $$\bar{b}$$ 也是这些电影
-上的均值。手算一下。A 与其他四人都看过的电影是 M1、M2、M4、M5。
+上的均值。
+
+先用柱子看。选一位比较对象，再点**减去均值**。只留下两人都看过的电影，柱子按
+各自的均值下移，比平时打得低的电影落到 0 以下。选 C 时两组柱子形状完全相同，
+D 和 E 则方向相反。
+
+<PearsonDemo />
+
+再手算一下。A 与其他四人都看过的电影是 M1、M2、M4、M5。
 
 | | M1 | M2 | M4 | M5 | 均值 | 减去均值 | 皮尔逊 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -276,6 +289,12 @@ predict A (k = 3, similarity > 0)
 邻居，得到 **2.542**；皮尔逊排除 E，得到 **1.536**。考虑到 A 给剧情片打分
 偏低，皮尔逊的结果更合理。
 
+这次自己改一改。点击格子，评分按 0→1→…→5→0 变化；用上面的按钮选择相似度和
+$$k$$。每次改动都会重新计算相似度、邻居和预测，并显示最后一步；点**重置**可以
+再一步一步跟一遍。用余弦时把 $$k$$ 减到 2，E 被排除，M6 的预测降到 1.495。
+
+<CollabFilterDemo measure="cosine" edit />
+
 **代价**：有 $$m$$ 位用户、$$n$$ 个物品时，一个相似度是 $$O(n)$$，目标用户与
 其余所有人是 $$O(mn)$$。要预先算好所有用户对，需要 $$O(m^2 n)$$。用户多达数亿时，
 这个平方就成了问题。
@@ -351,6 +370,13 @@ recommend to A (pearson): M3 (4.464)
 
 - **新物品**：新的复仇者联盟电影上映了。还没有人看过，那一列全是空格，无论
   基于用户还是基于物品，都无法把它推荐给任何人。
+
+在例 1 的矩阵里亲手制造这两种情况。打开**新电影 M7** 会多出没人评过的一列，
+打开**新用户 F** 会多出没有评分的一行。点击新格子输入评分，就会重新计算皮尔逊
+（$$k = 3$$）预测。只给 F 一个评分时，减去均值后只剩 0，仍然无法计算相似度；
+要给两个以上才可能出现邻居。M7 要等某位邻居评过分才会有预测。
+
+<ColdStartDemo content={false} />
 
 ## 例 2. 基于内容的过滤 \{#content-based}
 
@@ -490,6 +516,12 @@ $$O(n \log n)$$。与其他用户的数量无关。
 - **只推荐相似的东西。** 喜欢动作片的人只会看到动作片，遇到口味之外的好电影的
   机会就少了。协同过滤能像 C 看过的《首尔之春》那样做出跨类型的推荐。
 
+下面是在[冷启动](#cold-start)的演示里加上一行内容分数。打开 M7，协同过滤无法
+预测，基于内容的方法却给出 0.764。打开 F，画像是零向量，内容分数也全是 0。
+给 F 打一个分，画像马上就有了。
+
+<ColdStartDemo />
+
 ## 两种方式的差别 \{#comparison}
 
 | | 协同过滤 | 基于内容的过滤 |
@@ -514,9 +546,17 @@ $$
 \text{score}_i = \alpha \cdot \text{cf}_i + (1 - \alpha) \cdot \text{content}_i
 $$
 
-先看一个小例子：用 $$\alpha = 0.5$$ 混合三个物品的协同过滤分数 (0.8, 0.7,
+先看一个小例子：混合三个物品的协同过滤分数 (0.8, 0.7,
 0.3) 与内容分数 (0.6, 0.9, 0.4)。对 A，则把例 1 的皮尔逊预测除以 5 调到
 0\~1，再与例 2 的分数混合。没有协同过滤分数的 M7 直接使用内容分数。
+
+拖动 $$\alpha$$ 试试。每根柱子由协同过滤部分和内容部分叠成，各行按分数调换
+位置。小例子里 $$\alpha$$ 大于 0.75 后，物品 1 超过物品 2。A 的顺序无论
+$$\alpha$$ 怎么变都是 M3、M7、M6。
+
+<HybridDemo />
+
+练习代码按一半一半（$$\alpha = 0.5$$）混合。
 
 - 结果（`02_content_based_filtering` 续）
 
