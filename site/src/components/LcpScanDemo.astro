@@ -59,6 +59,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     idleLrs: '정렬된 접미사에서 이웃한 두 줄의 공통 접두사가 반복되는 부분 문자열입니다. 위에서부터 LCP의 최댓값을 찾습니다.',
     idleLcs: '{a}와 {b}를 #로 이어 붙였습니다. 서로 다른 문자열에서 시작한 이웃만 공통 부분 문자열입니다.',
     pair: 'j = {j}: 공통 접두사 "{p}" (길이 {h}).',
+    pairNone: 'j = {j}: 공통 접두사가 없습니다 (길이 0).',
     better: ' 지금까지 최댓값보다 깁니다. 최댓값 ← {h}',
     notBetter: ' 최댓값 {b}보다 길지 않습니다.',
     same: 'j = {j}: 두 접미사가 모두 문자열 {o}에서 시작합니다. 공통 접두사(길이 {h})는 그 문자열 안의 반복일 뿐이라 건너뜁니다.',
@@ -84,6 +85,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     idleLrs: 'The common prefix of two neighboring sorted suffixes is a repeated substring. Scan from the top for the largest LCP.',
     idleLcs: '{a} and {b} are joined with #. Only neighbors that start in different strings give a common substring.',
     pair: 'j = {j}: common prefix "{p}" (length {h}).',
+    pairNone: 'j = {j}: no common prefix (length 0).',
     better: ' Longer than the best so far. best ← {h}',
     notBetter: ' Not longer than the best, {b}.',
     same: 'j = {j}: both suffixes start in string {o}. Their common prefix (length {h}) is only a repeat inside it; skip.',
@@ -109,6 +111,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     idleLrs: '排序后相邻两个后缀的公共前缀就是重复出现的子串。从上往下找 LCP 的最大值。',
     idleLcs: '用 # 连接 {a} 和 {b}。只有起点在不同字符串中的相邻后缀才给出公共子串。',
     pair: 'j = {j}：公共前缀 "{p}"（长度 {h}）。',
+    pairNone: 'j = {j}：没有公共前缀（长度 0）。',
     better: '比目前的最大值长。最大值 ← {h}',
     notBetter: '不比最大值 {b} 长。',
     same: 'j = {j}：两个后缀都从字符串 {o} 开始。公共前缀（长度 {h}）只是该字符串内部的重复，跳过。',
@@ -212,7 +215,7 @@ const isLcs = mode === 'lcs';
           cand = false;
           note = fill(S.same, { j, o: f, h });
         } else {
-          note = fill(S.pair, { j, p: text.slice(sa[j], sa[j] + h), h });
+          note = h > 0 ? fill(S.pair, { j, p: text.slice(sa[j], sa[j] + h), h }) : fill(S.pairNone, { j });
           if (h > best) {
             note += fill(S.better, { h });
             best = h;
