@@ -37,7 +37,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     nodes: '노드',
     links: '링크',
     single: '단일 분기',
-    idle: '표준 트라이입니다. 값이 없고 자식이 하나뿐인 노드가 {k}개 있습니다. 이 노드들을 하나씩 아래 노드와 합칩니다.',
+    idle: '표준 트라이에서 값이 없고 자식이 하나뿐인 노드(점선)는 {k}개입니다. 이 노드들을 하나씩 아래 노드와 합칩니다.',
     merge: '"{a}" + "{b}" → "{ab}": 값이 없고 자식이 하나뿐이라 아래 노드와 합칩니다.',
     done: '더 합칠 노드가 없습니다. 갈라지는 곳과 값이 있는 노드만 남아 노드 {from}개가 {to}개가 되었습니다.',
   },
@@ -52,7 +52,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     nodes: 'nodes',
     links: 'links',
     single: 'one-way nodes',
-    idle: 'A standard trie. {k} nodes hold no value and have only one child. Merge them one at a time with the node below.',
+    idle: 'In this standard trie, {k} nodes (dashed) hold no value and have only one child. Merge them one at a time with the node below.',
     merge: '"{a}" + "{b}" → "{ab}": no value and only one child, so merge it with the node below.',
     done: 'Nothing left to merge. Only branching points and nodes with values remain, so {from} nodes became {to}.',
   },
@@ -67,7 +67,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     nodes: '节点',
     links: '链接',
     single: '单分支节点',
-    idle: '这是标准字典树。没有值且只有一个子节点的节点有 {k} 个。把它们逐个与下面的节点合并。',
+    idle: '这棵标准字典树里，没有值且只有一个子节点的节点（虚线）有 {k} 个。把它们逐个与下面的节点合并。',
     merge: '"{a}" + "{b}" → "{ab}"：没有值且只有一个子节点，与下面的节点合并。',
     done: '没有可合并的节点了。只剩分叉处和存值的节点，{from} 个节点变成 {to} 个。',
   },
@@ -182,7 +182,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     };
     const svg = root.querySelector('[data-tc-svg]');
     const UNIT = 70;
-    const LEVEL = 32;
+    const LEVEL = 30;
     const RAD = 14;
     const layout = (snap) => {
       const pos = new Map();
@@ -444,9 +444,19 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-trie-compress-demo.is-slide .tc-body {
     flex-wrap: nowrap;
   }
+  /* 슬라이드: 트리를 칸 높이에 맞춰 키우고, 옆 숫자는 그 곁에 붙인다. */
+  .aas-trie-compress-demo.is-slide .tc-body {
+    gap: 0.8em 4em;
+  }
+  .aas-trie-compress-demo.is-slide .tc-note {
+    min-height: 1.6em;
+  }
   .aas-trie-compress-demo.is-slide .tc-svg {
-    flex-basis: 22em;
-    max-height: 52vh;
+    flex: 0 0 auto;
+    height: 47vh;
+    width: auto;
+    max-width: 60%;
+    max-height: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .aas-trie-compress-demo .tc-nd.is-pop {

@@ -49,10 +49,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     tst: 'TST',
     bst: '이진 탐색 트리',
     perNode: '노드마다 링크 {r}개',
-    note: '루트를 뺀 링크는 {l}개입니다. RN = {rn}, RNw = {rnw} 사이에서 {pct}% 자리입니다.',
+    note: '루트를 뺀 링크 {l}개는 RN = {rn}, RNw = {rnw} 사이에서 {pct}% 자리입니다.',
     noteLow: '키들이 접두사를 다 공유해서 RN 쪽 끝에 붙었습니다.',
     noteHigh: '키들이 첫 글자부터 서로 갈라져서 RNw 쪽 끝에 붙었습니다.',
-    noteUsed: '쓰는 링크는 {u}개뿐이고 나머지는 NULL입니다.',
     noteCompare: '노드 수는 트라이가 {tn}개, TST가 {sn}개로 루트 하나 차이입니다. 링크는 노드마다 26개에서 3개로 줄어 {tl}개가 {sl}개가 됩니다.',
     bad: 'a부터 z까지의 소문자 단어만 받습니다. 단어는 10개, 한 단어는 12글자까지입니다.',
   },
@@ -72,10 +71,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     tst: 'TST',
     bst: 'Binary search tree',
     perNode: '{r} links per node',
-    note: 'Below the root there are {l} links. That sits at {pct}% of the way from RN = {rn} to RNw = {rnw}.',
+    note: 'The {l} links below the root sit at {pct}% of the way from RN = {rn} to RNw = {rnw}.',
     noteLow: 'The keys share all their prefixes, so it lands on the RN end.',
     noteHigh: 'The keys part ways at the first character, so it lands on the RNw end.',
-    noteUsed: 'Only {u} links are used and the rest are null.',
     noteCompare: 'The trie has {tn} nodes and the TST {sn}, one root apart. Links drop from 26 to 3 per node, so {tl} links become {sl}.',
     bad: 'Only lowercase words a to z are accepted, up to 10 words of up to 12 letters.',
   },
@@ -95,10 +93,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     tst: 'TST',
     bst: '二叉搜索树',
     perNode: '每个节点 {r} 个链接',
-    note: '根以外的链接有 {l} 个。在 RN = {rn} 到 RNw = {rnw} 之间处于 {pct}% 的位置。',
+    note: '根以外的 {l} 个链接在 RN = {rn} 到 RNw = {rnw} 之间处于 {pct}% 的位置。',
     noteLow: '这些键共享全部前缀，所以落在 RN 一端。',
     noteHigh: '这些键从第一个字符就分开，所以落在 RNw 一端。',
-    noteUsed: '用到的链接只有 {u} 个，其余都是 NULL。',
     noteCompare: '节点数字典树 {tn} 个，TST {sn} 个，只差一个根。链接从每个节点 26 个减到 3 个，{tl} 个变成 {sl} 个。',
     bad: '只接受由小写字母 a 到 z 组成的单词，最多 10 个，每个最多 12 个字母。',
   },
@@ -116,6 +113,10 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
 >
   <div class="sp-bar">
     <span class="sp-head"><strong>{compare ? t.titleCompare : t.title}</strong></span>
+    <label class="sp-input">
+      <span>{t.input}</span>
+      <input type="text" data-sp-input autocomplete="off" spellcheck="false" />
+    </label>
     <div class="sp-tabs">
       {
         sets.map((s) => (
@@ -126,10 +127,6 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
       }
     </div>
   </div>
-  <label class="sp-input">
-    <span>{t.input}</span>
-    <input type="text" data-sp-input autocomplete="off" spellcheck="false" />
-  </label>
 
   <div class="sp-body">
     <svg class="sp-svg" data-sp-svg role="img" aria-label={t.trie}></svg>
@@ -230,7 +227,7 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
     function draw(trie) {
       const deepest = Math.max(1, ...[...trie.keys()].map((k) => k.length));
       const UNIT = 46;
-      const LEVEL = Math.min(46, Math.max(28, Math.floor(330 / deepest)));
+      const LEVEL = Math.min(46, Math.max(30, Math.floor(330 / deepest)));
       const RAD = 14;
       const pos = new Map();
       let slot = 0;
@@ -328,7 +325,6 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
         text += fill(S.note, { l: rest, rn, rnw, pct });
         if (rest === rn && rn !== rnw) text += S.sep + S.noteLow;
         else if (rest === rnw && rn !== rnw) text += S.sep + S.noteHigh;
-        text += S.sep + fill(S.noteUsed, { u: nodes - 1 });
       }
       setLines(note, text);
     }
@@ -404,6 +400,7 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
     color: #fff;
   }
   .aas-trie-space-demo .sp-input {
+    flex: 1 1 16em;
     display: flex;
     gap: 0.6em;
     align-items: center;
@@ -588,8 +585,22 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
   .aas-trie-space-demo.is-slide .sp-body {
     flex-wrap: nowrap;
   }
+  /* 슬라이드: 트리를 칸 높이에 맞춰 키운다. 폭은 viewBox 비율을 따른다. */
   .aas-trie-space-demo.is-slide .sp-svg {
-    max-height: 38vh;
+    flex: 0 0 auto;
+    height: 47vh;
+    width: auto;
+    max-width: 58%;
+    max-height: none;
+  }
+  .aas-trie-space-demo.is-slide .sp-note {
+    min-height: 1.6em;
+  }
+  .aas-trie-space-demo.is-slide .sp-body {
+    justify-content: space-around;
+  }
+  .aas-trie-space-demo.is-slide .sp-side {
+    flex: 0 1 26em;
   }
   @media (prefers-reduced-motion: reduce) {
     .aas-trie-space-demo .sp-dot,
