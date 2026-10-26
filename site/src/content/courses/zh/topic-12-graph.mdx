@@ -14,6 +14,10 @@ import GraphSearchDemo from '@components/GraphSearchDemo.astro';
 import KruskalDemo from '@components/KruskalDemo.astro';
 import HeapDemo from '@components/HeapDemo.astro';
 import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+import GraphTermsDemo from '@components/GraphTermsDemo.astro';
+import GraphRepDemo from '@components/GraphRepDemo.astro';
+import DfsAppDemo from '@components/DfsAppDemo.astro';
+import CutDemo from '@components/CutDemo.astro';
 
 > 到目前为止我们处理的是数组、树、表这类排成一列或有上下之分的数据。  
 > 本主题处理的是**任何东西都可以和任何东西相连**的数据，也就是图。  
@@ -27,6 +31,15 @@ import HeapGraphDemo from '@components/HeapGraphDemo.astro';
 
 [[graph|图]] (graph) G 由**顶点**（vertex）的集合 V，以及把顶点两两相连的
 **边**（edge）的集合 E 组成。
+
+把描述图的术语一个个点开看看。点击术语，下面的图中它所指的部分就会上色；点击顶点，
+那个顶点就成为基准。邻居、度、路径和环都以选中的顶点为准来显示。这个图有 7 个顶点、
+9 条边，后面 BFS 和 DFS 的例子会一直用到。
+
+<GraphTermsDemo />
+
+所有顶点的度加起来是 18，正好是 9 条边的两倍。因为一条边会让两端顶点的度各加一。
+整理如下。
 
 - **顶点**：也叫节点（node）。个数通常记作 $$n$$ 或 $$V$$。
 - **边**：顶点的对。个数记作 $$m$$ 或 $$E$$。
@@ -119,9 +132,13 @@ import HeapGraphDemo from '@components/HeapGraphDemo.astro';
 组成。所需空间是 $$\Theta(n + m)$$。
 每个顶点一格，每条无向边在两端的列表里各占一格，共 $$2m$$ 格。
 
-用两种方式存同一个图。下面这个图在 BFS 和 DFS 的例子里会一直用到。
+用三种方式同时存同一个图。它和前面术语演示的图相同，BFS 和 DFS 的例子也会一直用到。
+点击图中的边会删除它，点击矩阵的格子会加入或删除那一对顶点之间的边。点击顶点，
+会显示查找它的邻居时两种表示各要看几格：矩阵要看完一行 7 格，邻接表只看邻居个数那么多。
 
-<GraphFigure graph="g7" caption="7 个顶点，9 条边（BFS·DFS 的例子）" />
+<GraphRepDemo />
+
+初始画面与实践代码的输出相同。
 
 - 运行（`01_bfs` 的前半部分）
 
@@ -469,7 +486,12 @@ order: 0 6 4 5 3 2 1
 ### 应用：连通分量 \{#dfs-components}
 
 在前面 13 个顶点的图里，从每个还没访问的顶点启动 DFS，给一次 DFS 能到达的顶点
-标上同一个编号（id）。这次用递归版 DFS。
+标上同一个编号（id）。这次用递归版 DFS。右边的调用栈显示递归现在深入到哪里。
+
+<DfsAppDemo />
+
+从 0 开始的 DFS 把 0 到 6 都标为 id 0 之后，外层循环跳过 1 到 6，在 7 开始第二次
+DFS。再在 9 开始第三次就结束了。
 
 ```plaintext
 ALGORITHM Components(G)
@@ -496,8 +518,6 @@ connected components (V = 13, E = 13)
 count = 3
 ```
 
-<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} caption="绿色 id 0 · 蓝色 id 1 · 橙色 id 2" />
-
 ### 应用：拓扑排序 \{#topological-sort}
 
 七门课程之间有先修关系。u → v 表示"先修 u 才能修 v"。在遵守所有先修关系的前提下
@@ -508,7 +528,10 @@ count = 3
 有向图 G 的拓扑顺序就是给顶点编号 $$f(v) \in \{1, 2, \dots, n\}$$，
 使得对所有边 (u, v) 都有 $$f(u) < f(v)$$。DFS 正好能给出这个编号。
 **看完所有出边之后**才给编号，并且从大号往回倒着给。先结束的顶点，
-后面没有要排在它之后的顶点了。
+后面没有要排在它之后的顶点了。蓝色是还在调用栈里、尚未结束的顶点，绿色是已结束
+并得到编号的顶点。
+
+<DfsAppDemo mode="topo" />
 
 ```plaintext
 ALGORITHM TopologicalSort(G)
@@ -603,7 +626,11 @@ MST 是许多领域的基础问题。
 - **横切边**（crossing edge）是连接一个集合中的顶点与另一个集合中的顶点的边。
 - **割的性质**：无论给定哪个割，权重最小的横切边都在 MST 里。
 
-<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} caption="把绿色 {0, 1, 4, 5, 7} 和蓝色 {2, 3, 6} 分开的割。蓝色虚线是横切边，最轻的 0-2（0.26）是绿色" />
+一开始的割把绿色 {0, 1, 4, 5, 7} 和蓝色 {2, 3, 6} 分开。蓝色虚线是横切边，最轻的
+0-2（0.26）是橙色。点击顶点会把它移到另一边，多换几种割试试。无论哪个割，橙色的边
+都是后面 Kruskal 和 Prim 求出的 MST 的边。
+
+<CutDemo />
 
 **证明**：假设最轻的横切边 e 不在 MST 里。
 
@@ -626,6 +653,9 @@ $$V - 1$$ 条，就总存在一个没有已涂色横切边的割：
 把涂色边构成的一块和其余部分分开即可。所以结束时 MST 就完成了。
 在例子图中，即使按各种方式选割，按 0-2、5-7、6-2、0-7、2-3、1-7、4-5 的顺序
 涂色，也会得到和后面 Kruskal·Prim 相同的七条边。
+
+上面演示里的<strong>给最轻的边涂色</strong>按钮就是这个通用形式。最轻的边如果已经涂过色，
+就没有新边可涂，所以要把割换成"一个已涂色的连通块对其余顶点"，涂七次试试。总权重是 1.81。
 
 这个通用形式没有规定"选哪个割"。把它规定下来的就是 Kruskal 和 Prim。
 
@@ -1486,6 +1516,20 @@ path: 0 4 5 2 6, cost 25
 `...` 省略的是两次运行中相同的行。完整输出在实践文件夹的 README 里。
 
 ### 分析 \{#a-star-analysis}
+
+A* 的性能取决于 $$h$$。在同一个图上只换 $$h$$ 看看。点击标签会从头重新运行，标签下方
+显示运行到底时关闭的次数和找到的路径。$$h^*$$ 是每个顶点到目标的真实最短距离。
+
+<HeapGraphDemo mode="astar" hChoices />
+
+| $$h$$ | 关闭次数 | 路径 | 代价 |
+| --- | --- | --- | --- |
+| 示例 $$h$$（重新打开） | 8 | 0 → 4 → 5 → 2 → 6 | 25 |
+| $$h = 0$$ | 7 | 0 → 4 → 5 → 2 → 6 | 25 |
+| $$h = h^*$$ | 4 | 0 → 4 → 5 → 2 → 6 | 25 |
+| $$h = 2h^*$$ | 2 | 0 → 4 → 6 | **29** |
+
+$$2h^*$$ 高估了剩余距离，所以不是可采纳的。它关闭的顶点最少，却给出不是最短路径的 29。
 
 - **时间**：最坏情况 $$O(b^d)$$。$$b$$ 是分支因子（顶点的平均邻居数），
   $$d$$ 是最优解的深度。实际性能很大程度上取决于启发式。

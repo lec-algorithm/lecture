@@ -14,6 +14,10 @@ import GraphSearchDemo from '@components/GraphSearchDemo.astro';
 import KruskalDemo from '@components/KruskalDemo.astro';
 import HeapDemo from '@components/HeapDemo.astro';
 import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+import GraphTermsDemo from '@components/GraphTermsDemo.astro';
+import GraphRepDemo from '@components/GraphRepDemo.astro';
+import DfsAppDemo from '@components/DfsAppDemo.astro';
+import CutDemo from '@components/CutDemo.astro';
 
 > So far we have worked with data that lines up or has an up and a down: arrays, trees, tables.  
 > This topic is about data where **anything can connect to anything**: graphs.  
@@ -29,6 +33,16 @@ import HeapGraphDemo from '@components/HeapGraphDemo.astro';
 
 A [[graph|graph]] G consists of a set V of **vertices** and a set E of **edges**,
 each edge joining two vertices.
+
+Click through the names we use for graphs. Clicking a term colours the part of the
+graph it refers to, and clicking a vertex makes it the vertex in focus. Neighbours,
+degree, path and cycle are shown for the selected vertex. The graph has 7 vertices and
+9 edges, and it is the same one used in the BFS and DFS examples later.
+
+<GraphTermsDemo />
+
+The degrees add up to 18, twice the 9 edges, because each edge adds one to the degree
+at both of its ends. In summary:
 
 - **Vertex**: also called a node. The count is usually written $$n$$ or $$V$$.
 - **Edge**: a pair of vertices. The count is written $$m$$ or $$E$$.
@@ -126,10 +140,15 @@ array of edges, and pointers between edges and vertices. The space needed is
 $$\Theta(n + m)$$: one slot per vertex, plus $$2m$$ slots because each undirected edge
 appears in the lists of both of its endpoints.
 
-Here is the same graph stored both ways. This graph is used throughout the BFS and DFS
-examples.
+Here is the same graph stored three ways at once. It is the graph from the terms demo,
+and the BFS and DFS examples keep using it. Click an edge of the graph to remove it, and
+click a matrix cell to add or remove the edge for that pair. Click a vertex to see how
+many slots each representation reads to find its neighbours: the matrix reads all 7
+cells of a row, the list only as many as there are neighbours.
 
-<GraphFigure graph="g7" caption="7 vertices, 9 edges (BFS and DFS examples)" />
+<GraphRepDemo />
+
+The starting state matches the program output.
 
 - Run (first part of `01_bfs`)
 
@@ -485,6 +504,12 @@ implementation choice.
 
 On the 13-vertex graph from before, start a DFS at each vertex not yet visited, and give
 the vertices reached by one DFS the same number (id). This time we use the recursive DFS.
+The call stack on the right shows how deep the recursion currently goes.
+
+<DfsAppDemo />
+
+Once the DFS from 0 has given id 0 to every vertex from 0 to 6, the outer loop skips 1
+through 6 and starts a second DFS at 7. Starting a third at 9 finishes the job.
 
 ```plaintext
 ALGORITHM Components(G)
@@ -511,8 +536,6 @@ connected components (V = 13, E = 13)
 count = 3
 ```
 
-<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} caption="green id 0 · blue id 1 · orange id 2" />
-
 ### Application: topological sort \{#topological-sort}
 
 Seven courses have prerequisites. u → v means "you must take u before v". Choosing an
@@ -524,7 +547,11 @@ A topological order of a directed graph G labels the vertices with numbers
 $$f(v) \in \{1, 2, \dots, n\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
 produces these numbers directly. A vertex gets its number **after all its outgoing
 edges have been explored**, and numbers are handed out backwards from the largest. A
-vertex that finishes first is one with nothing left to come after it.
+vertex that finishes first is one with nothing left to come after it. Blue vertices
+are still on the call stack and have not finished; green ones have finished and have
+their number.
+
+<DfsAppDemo mode="topo" />
 
 ```plaintext
 ALGORITHM TopologicalSort(G)
@@ -623,7 +650,12 @@ The example graph has 8 vertices and 16 edges. Weights have two decimal places.
 - A **crossing edge** joins a vertex in one set to a vertex in the other.
 - **Cut property**: for any cut, the crossing edge of smallest weight is in the MST.
 
-<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} caption="A cut separating green {0, 1, 4, 5, 7} from blue {2, 3, 6}. Dashed blue lines are crossing edges; the lightest, 0-2 (0.26), is green" />
+The starting cut separates green {0, 1, 4, 5, 7} from blue {2, 3, 6}. Dashed blue lines
+are crossing edges, and the lightest, 0-2 (0.26), is orange. Clicking a vertex moves it
+to the other side, so try many different cuts. Whatever the cut, the orange edge is an
+edge of the MST that Kruskal and Prim find later.
+
+<CutDemo />
 
 **Proof**: suppose the lightest crossing edge e is not in the MST.
 
@@ -647,6 +679,11 @@ edges are coloured, there is always a cut with no coloured crossing edge: split 
 piece formed by the coloured edges from the rest. So when it ends, the MST is complete.
 In the example graph, choosing cuts so that edges are coloured in the order 0-2, 5-7,
 6-2, 0-7, 2-3, 1-7, 4-5 also yields the same seven edges as Kruskal and Prim below.
+
+The demo's **Colour the lightest edge** button is exactly this general form. If the
+lightest edge is already coloured there is nothing new to colour, so keep changing the
+cut to one coloured cluster against the rest and colour seven times. The total weight
+comes to 1.81.
 
 This general form does not say "which cut to pick". Kruskal and Prim are the ones that decide.
 
@@ -1537,6 +1574,23 @@ path: 0 4 5 2 6, cost 25
 practice folder's README.
 
 ### Analysis \{#a-star-analysis}
+
+A*'s performance depends on $$h$$. Change only $$h$$ on the same graph. Clicking a chip
+restarts the run, and the line below the chips shows how many closes it takes and which
+path it finds when run to the end. $$h^*$$ is the true shortest distance from each vertex
+to the goal.
+
+<HeapGraphDemo mode="astar" hChoices />
+
+| $$h$$ | Closes | Path | Cost |
+| --- | --- | --- | --- |
+| sample $$h$$ (with reopening) | 8 | 0 → 4 → 5 → 2 → 6 | 25 |
+| $$h = 0$$ | 7 | 0 → 4 → 5 → 2 → 6 | 25 |
+| $$h = h^*$$ | 4 | 0 → 4 → 5 → 2 → 6 | 25 |
+| $$h = 2h^*$$ | 2 | 0 → 4 → 6 | **29** |
+
+$$2h^*$$ overestimates the remaining distance, so it is not admissible. It closes the
+fewest vertices but returns 29, which is not the shortest path.
 
 - **Time**: $$O(b^d)$$ in the worst case, where $$b$$ is the branching factor (the average
   number of neighbours) and $$d$$ the depth of the optimal solution. Actual performance

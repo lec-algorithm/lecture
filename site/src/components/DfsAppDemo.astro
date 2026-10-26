@@ -1,0 +1,665 @@
+---
+// 재귀 DFS로 하는 두 가지 일을 한 걸음씩 보는 데모. mode로 고른다.
+//
+//   components: 무방향 그래프 g13의 연결 요소. 바깥 반복이 아직 방문하지 않은
+//               정점을 만날 때마다 새 DFS를 시작하고, 그 DFS로 닿는 정점에
+//               같은 id를 붙인다. 정점 색이 id다(초록 0, 파랑 1, 주황 2).
+//   topo:       방향 그래프 dag의 위상 정렬. Finish(v)는 나가는 간선을 다 본
+//               뒤에 f(v)를 받고, 번호는 큰 것부터 거꾸로 준다. 파랑은 호출
+//               스택에 있는(아직 끝나지 않은) 정점, 초록은 끝난 정점이다.
+//
+// 오른쪽에 재귀의 호출 스택을 보인다. 절차와 결과는 algorithm-code의
+// 02_dfs와 같다. 이웃은 작은 번호부터 본다. components는 id 0: 0~6,
+// id 1: 7 8, id 2: 9~12, topo는 f: 0=3 1=6 2=5 3=1 4=7 5=4 6=2가 나온다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  mode?: 'components' | 'topo';
+  /** topo: 정점 이름(과목명) */
+  names?: string[];
+  /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
+  initial?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  mode = 'components',
+  names = [
+    'Algorithms',
+    'Complexity Theory',
+    'Artificial Intelligence',
+    'Intro to CS',
+    'Cryptography',
+    'Scientific Computing',
+    'Advanced Programming',
+  ],
+  initial = -1,
+  slide = false,
+} = Astro.props;
+const graph = mode === 'topo' ? 'dag' : 'g13';
+const g = getGraph(graph);
+const n = g.nodes.length;
+const id = `da-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    components: '연결 요소 (재귀 DFS)',
+    topo: '위상 정렬 (재귀 DFS)',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    stack: '호출 스택',
+    bottom: '바닥 → 위',
+    empty: '비었음',
+    ids: '연결 요소',
+    order: '위상 순서 (f 번호)',
+    count: '요소',
+    countTopo: '번호 준 정점',
+    cIdle: '바깥 반복이 0부터 {last}까지 정점을 차례로 봅니다.',
+    cSkip: '{skip}: 이미 id가 있어 건너뜁니다. ',
+    cStart: '{v}: 아직 방문하지 않았습니다. 여기서 새 DFS를 시작하고, 닿는 정점에 모두 id {c} 표시를 합니다.',
+    cVisit: '{p} → {v}: 처음 닿은 정점입니다. 방문 표시, id = {c}',
+    cEnd: 'DFS가 끝났습니다. 더 닿을 정점이 없습니다. id {c}: {list}',
+    cDone: '모든 정점을 봤습니다. 연결 요소는 {k}개입니다.',
+    tIdle: '바깥 반복이 0부터 {last}까지 정점을 차례로 봅니다. 번호는 {n}부터 거꾸로 줍니다.',
+    tSkip: '{skip}: 이미 방문해서 건너뛰고, 바깥 반복이 {v}에서 새로 시작합니다. ',
+    tStart: '바깥 반복이 {v}에서 새로 시작합니다. ',
+    tEnter: 'Finish({v}): 방문 표시, 나가는 간선은 {out}',
+    tEnterNone: 'Finish({v}): 방문 표시, 나가는 간선이 없습니다.',
+    tEnterSeen: ' · {seen} 쪽은 이미 방문',
+    tFinish: 'Finish({v}) 끝: 나가는 간선을 다 봤습니다. f({v}) = {f}',
+    tDone: '다 끝났습니다. 위상 순서는 {order}입니다. 모든 간선이 f가 작은 쪽에서 큰 쪽으로 갑니다.',
+    none: '-',
+  },
+  en: {
+    components: 'Connected components (recursive DFS)',
+    topo: 'Topological sort (recursive DFS)',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    stack: 'Call stack',
+    bottom: 'bottom → top',
+    empty: 'empty',
+    ids: 'Components',
+    order: 'Topological order (f)',
+    count: 'components',
+    countTopo: 'numbered',
+    cIdle: 'The outer loop looks at the vertices 0 through {last} in turn.',
+    cSkip: '{skip}: already have an id, skip. ',
+    cStart: '{v} is not visited yet. Start a new DFS here and mark every vertex it reaches with id {c}.',
+    cVisit: '{p} → {v}: reached for the first time. Mark it, id = {c}',
+    cEnd: 'The DFS is over. Nothing more to reach. id {c}: {list}',
+    cDone: 'Every vertex has been seen. There are {k} connected components.',
+    tIdle: 'The outer loop looks at the vertices 0 through {last} in turn. Numbers are handed out from {n} downwards.',
+    tSkip: '{skip}: already visited, so the outer loop skips them and starts again from {v}. ',
+    tStart: 'The outer loop starts again from {v}. ',
+    tEnter: 'Finish({v}): mark it, outgoing edges go to {out}',
+    tEnterNone: 'Finish({v}): mark it, no outgoing edges.',
+    tEnterSeen: ' · {seen} already visited',
+    tFinish: 'Finish({v}) ends: all outgoing edges are done. f({v}) = {f}',
+    tDone: 'Done. Topological order: {order}. Every edge goes from a smaller f to a larger f.',
+    none: '-',
+  },
+  zh: {
+    components: '连通分量（递归 DFS）',
+    topo: '拓扑排序（递归 DFS）',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    stack: '调用栈',
+    bottom: '栈底 → 栈顶',
+    empty: '空',
+    ids: '连通分量',
+    order: '拓扑顺序（f 编号）',
+    count: '分量',
+    countTopo: '已编号',
+    cIdle: '外层循环依次查看顶点 0 到 {last}。',
+    cSkip: '{skip}：已有 id，跳过。',
+    cStart: '{v} 尚未访问。从这里开始新的 DFS，把它能到达的顶点都标为 id {c}。',
+    cVisit: '{p} → {v}：第一次到达。标记，id = {c}',
+    cEnd: 'DFS 结束，没有更多可到达的顶点。id {c}：{list}',
+    cDone: '所有顶点都看过了。连通分量共 {k} 个。',
+    tIdle: '外层循环依次查看顶点 0 到 {last}。编号从 {n} 开始倒着给。',
+    tSkip: '{skip} 已访问，外层循环跳过它们，从 {v} 重新开始。',
+    tStart: '外层循环从 {v} 重新开始。',
+    tEnter: 'Finish({v})：标记，出边指向 {out}',
+    tEnterNone: 'Finish({v})：标记，没有出边。',
+    tEnterSeen: ' · {seen} 已访问',
+    tFinish: 'Finish({v}) 结束：出边都看完了。f({v}) = {f}',
+    tDone: '结束。拓扑顺序为 {order}。所有边都从 f 小的一端指向 f 大的一端。',
+    none: '-',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-dfs-app-demo', slide && 'is-slide', `is-${mode}`]}
+  id={id}
+  data-da-mode={mode}
+  data-da-n={n}
+  data-da-edges={JSON.stringify(g.edges)}
+  data-da-directed={g.directed ? '1' : '0'}
+  data-da-names={JSON.stringify(names)}
+  data-da-initial={initial}
+  data-da-strings={JSON.stringify(t)}
+>
+  <div class="da-bar">
+    <span class="da-head"><strong>{mode === 'topo' ? t.topo : t.components}</strong></span>
+    <div class="da-controls">
+      <button type="button" data-act="back" class="da-btn">{t.back}</button>
+      <button type="button" data-act="step" class="da-btn">{t.step}</button>
+      <button type="button" data-act="play" class="da-btn da-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="da-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="da-body">
+    <div class="da-graph">
+      <GraphFigure graph={graph} bare slide={slide} />
+    </div>
+    <div class="da-panel">
+      <div class="da-label"><span>{t.stack}</span><span>{t.bottom}</span></div>
+      <div class="da-stack" data-da-stack></div>
+      <div class="da-label"><span>{mode === 'topo' ? t.order : t.ids}</span></div>
+      {mode === 'topo' ? (
+        <ol class="da-slots">
+          {Array.from({ length: n }, (_, k) => (
+            <li data-da-slot={k + 1}>
+              <i>{k + 1}</i>
+              <b data-da-sv></b>
+              <span data-da-sn></span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div class="da-ids" data-da-ids></div>
+      )}
+    </div>
+  </div>
+
+  <div class="da-foot">
+    <p class="da-note" data-da-note></p>
+    <span class="da-count">
+      {mode === 'topo' ? t.countTopo : t.count} <strong data-da-count>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const S = JSON.parse(root.dataset.daStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const mode = root.dataset.daMode;
+    const n = Number(root.dataset.daN);
+    const edges = JSON.parse(root.dataset.daEdges);
+    const directed = root.dataset.daDirected === '1';
+    const names = JSON.parse(root.dataset.daNames);
+
+    /* 인접 목록. 이웃은 작은 번호부터 본다. */
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      if (!directed) adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+
+    const steps = [];
+    const marked = new Array(n).fill(false);
+    const stack = [];
+    const ids = new Array(n).fill(-1);
+    const f = new Array(n).fill(0);
+    let groups = [];
+    function snap(cur, from, note, extra) {
+      steps.push({
+        cur,
+        from,
+        note,
+        stack: stack.slice(),
+        marked: marked.slice(),
+        ids: ids.slice(),
+        f: f.slice(),
+        groups: groups.map((g) => g.slice()),
+        ...extra,
+      });
+    }
+
+    /* components: 02_dfs의 components()와 같다. */
+    function planComponents() {
+      let count = 0;
+      let skipFrom = 0;
+      const visit = (v, c, p, pre) => {
+        marked[v] = true;
+        ids[v] = c;
+        stack.push(v);
+        groups[c].push(v);
+        snap(v, p, p < 0 ? pre + fill(S.cStart, { v, c }) : fill(S.cVisit, { v, c, p }));
+        adj[v].forEach((w) => {
+          if (!marked[w]) visit(w, c, v, '');
+        });
+        stack.pop();
+      };
+      for (let v = 0; v < n; v++) {
+        if (marked[v]) continue;
+        const skipped = [];
+        for (let x = skipFrom; x < v; x++) skipped.push(x);
+        const pre = skipped.length && count > 0 ? fill(S.cSkip, { skip: rangeText(skipped) }) : '';
+        groups.push([]);
+        visit(v, count, -1, pre);
+        const list = groups[count].slice().sort((a, b) => a - b).join(' ');
+        snap(null, -1, fill(S.cEnd, { c: count, list }), { count: count + 1 });
+        count += 1;
+        skipFrom = v + 1;
+      }
+      snap(null, -1, fill(S.cDone, { k: count }), { count, end: true });
+    }
+    /* 이어진 번호는 1~6처럼 줄인다. */
+    function rangeText(arr) {
+      if (arr.length > 2 && arr[arr.length - 1] - arr[0] === arr.length - 1) return `${arr[0]}~${arr[arr.length - 1]}`;
+      return arr.join(', ');
+    }
+
+    /* topo: 02_dfs의 topological_sort()와 같다. */
+    function planTopo() {
+      let label = n;
+      let done = 0;
+      const finish = (s, p, pre) => {
+        marked[s] = true;
+        stack.push(s);
+        const out = adj[s];
+        const seen = out.filter((v) => marked[v]);
+        let note = pre + (out.length ? fill(S.tEnter, { v: s, out: out.join(', ') }) : fill(S.tEnterNone, { v: s }));
+        if (seen.length) note += fill(S.tEnterSeen, { seen: seen.join(', ') });
+        snap(s, p, note, { count: done });
+        out.forEach((v) => {
+          if (!marked[v]) finish(v, s, '');
+        });
+        f[s] = label;
+        done += 1;
+        snap(s, -1, fill(S.tFinish, { v: s, f: label }), { count: done, fresh: label });
+        label -= 1;
+        stack.pop();
+      };
+      let skipFrom = 0;
+      for (let v = 0; v < n; v++) {
+        if (marked[v]) continue;
+        const skipped = [];
+        for (let x = skipFrom; x < v; x++) skipped.push(x);
+        let pre = v > 0 ? fill(S.tStart, { v }) : '';
+        if (v > 0 && skipped.length) pre = fill(S.tSkip, { skip: rangeText(skipped), v });
+        finish(v, -1, pre);
+        skipFrom = v + 1;
+      }
+      const order = [];
+      for (let v = 0; v < n; v++) order[f[v] - 1] = v;
+      snap(null, -1, fill(S.tDone, { order: order.join(' ') }), { count: done, end: true });
+    }
+
+    if (mode === 'topo') planTopo();
+    else planComponents();
+
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const findEdge = (a, b) => edgeEls.get(`${a}-${b}`) ?? (directed ? null : edgeEls.get(`${b}-${a}`));
+    const TONES = ['done', 'focus', 'open', 'dim', 'ring', 'tree', 'cand'];
+    const setTones = (el, tones) => {
+      const want = new Set((tones || '').split(' ').filter(Boolean));
+      TONES.forEach((tn) => el.classList.toggle(`is-${tn}`, want.has(tn)));
+    };
+    const ID_TONE = ['done', 'open', 'focus'];
+    const stackEl = root.querySelector('[data-da-stack]');
+    const idsEl = root.querySelector('[data-da-ids]');
+    const slotEls = [...root.querySelectorAll('[data-da-slot]')];
+    const noteEl = root.querySelector('[data-da-note]');
+    const countEl = root.querySelector('[data-da-count]');
+
+    function render(i) {
+      const st = i >= 0 ? steps[i] : null;
+      nodeEls.forEach((el, v) => {
+        let tn = '';
+        if (st) {
+          if (mode === 'topo') {
+            if (st.f[v]) tn = 'done';
+            else if (st.stack.includes(v)) tn = 'open';
+            if (st.cur === v) tn = st.f[v] ? 'done ring' : 'focus';
+          } else {
+            if (st.ids[v] >= 0) tn = ID_TONE[st.ids[v] % ID_TONE.length];
+            if (st.cur === v) tn += ' ring';
+          }
+        }
+        setTones(el, tn);
+      });
+      const hot = st && st.cur !== null && st.from >= 0 ? findEdge(st.from, st.cur) : null;
+      edgeEls.forEach((el) => setTones(el, el === hot ? 'focus' : ''));
+      badgeEls.forEach((el, v) => {
+        if (!st) el.textContent = '';
+        else if (mode === 'topo') el.textContent = st.f[v] ? `f=${st.f[v]}` : '';
+        else el.textContent = '';
+      });
+      stackEl.replaceChildren(
+        ...(st && st.stack.length
+          ? st.stack.map((v, k) => {
+              const s = document.createElement('span');
+              s.className = 'da-frame';
+              if (k === st.stack.length - 1) s.classList.add('is-top');
+              s.textContent = mode === 'topo' ? `Finish(${v})` : `Visit(${v})`;
+              return s;
+            })
+          : [Object.assign(document.createElement('span'), { className: 'da-empty', textContent: st ? S.empty : '' })]),
+      );
+      if (idsEl) {
+        idsEl.replaceChildren(
+          ...(st ? st.groups : []).map((grp, c) => {
+            const row = document.createElement('div');
+            row.className = `da-idrow is-c${c % 3}`;
+            const lab = document.createElement('b');
+            lab.textContent = `id ${c}`;
+            const val = document.createElement('span');
+            val.textContent = grp.slice().sort((a, b) => a - b).join(' ');
+            row.append(lab, val);
+            return row;
+          }),
+        );
+      }
+      slotEls.forEach((li) => {
+        const k = Number(li.dataset.daSlot);
+        const v = st ? st.f.indexOf(k) : -1;
+        li.querySelector('[data-da-sv]').textContent = v >= 0 ? String(v) : '';
+        li.querySelector('[data-da-sn]').textContent = v >= 0 ? names[v] ?? '' : '';
+        li.classList.toggle('is-on', v >= 0);
+        li.classList.toggle('is-fresh', !!st && st.fresh === k);
+      });
+      countEl.textContent = String(st ? st.count ?? (st.groups ? st.groups.length : 0) : 0);
+      const idle = mode === 'topo' ? fill(S.tIdle, { last: n - 1, n }) : fill(S.cIdle, { last: n - 1 });
+      setLines(noteEl, st ? st.note : idle);
+      root.classList.toggle('is-done', !!(st && st.end));
+    }
+
+    let at = Math.min(Number(root.dataset.daInitial), steps.length - 1);
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1200);
+    });
+    render(at);
+  })();
+</script>
+
+<style is:global>
+  .aas-dfs-app-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-dfs-app-demo .da-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-dfs-app-demo .da-head {
+    font-size: 0.95em;
+  }
+  .aas-dfs-app-demo .da-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-dfs-app-demo .da-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-dfs-app-demo .da-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-dfs-app-demo .da-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-dfs-app-demo .da-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-dfs-app-demo .da-graph {
+    flex: 0 1 16em;
+    min-width: 11em;
+  }
+  .aas-dfs-app-demo .da-panel {
+    flex: 1 1 14em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-dfs-app-demo .da-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-dfs-app-demo .da-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    min-height: 1.8em;
+    margin-bottom: 0.5em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-dfs-app-demo .da-frame {
+    padding: 0.1em 0.45em;
+    border-radius: 0.35em;
+    background: var(--aas-role-model);
+    color: #fff;
+    white-space: nowrap;
+    animation: da-in 0.3s ease-out;
+  }
+  .aas-dfs-app-demo .da-frame.is-top {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-dfs-app-demo .da-empty {
+    color: var(--aas-muted);
+  }
+  @keyframes da-in {
+    from {
+      transform: translateY(-0.4em);
+      opacity: 0;
+    }
+  }
+  .aas-dfs-app-demo .da-ids {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-dfs-app-demo .da-idrow {
+    display: flex;
+    gap: 0.6em;
+    align-items: center;
+  }
+  .aas-dfs-app-demo .da-idrow b {
+    padding: 0.05em 0.5em;
+    border-radius: 0.35em;
+    color: #fff;
+  }
+  .aas-dfs-app-demo .da-idrow.is-c0 b {
+    background: var(--aas-role-eval);
+  }
+  .aas-dfs-app-demo .da-idrow.is-c1 b {
+    background: var(--aas-role-model);
+  }
+  .aas-dfs-app-demo .da-idrow.is-c2 b {
+    background: var(--aas-role-focus);
+  }
+  .aas-dfs-app-demo .da-slots {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.2em;
+    font-size: 0.85em;
+  }
+  .aas-dfs-app-demo .da-slots li {
+    display: flex;
+    gap: 0.6em;
+    align-items: center;
+    margin: 0;
+    padding: 0.05em 0.4em;
+    border-bottom: 1px solid var(--aas-border);
+    min-height: 1.5em;
+    /* 테마가 슬라이드의 li 글자 크기를 따로 정하므로 되돌린다. */
+    font-size: 1em;
+    line-height: 1.35;
+    transition: background-color 0.3s;
+  }
+  .aas-dfs-app-demo .da-slots i {
+    width: 1.2em;
+    font-style: normal;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-dfs-app-demo .da-slots b {
+    width: 1.2em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-dfs-app-demo .da-slots li.is-on {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+  .aas-dfs-app-demo .da-slots li.is-fresh {
+    background: color-mix(in srgb, var(--aas-role-focus) 24%, transparent);
+  }
+  .aas-dfs-app-demo .da-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-dfs-app-demo .da-note {
+    flex: 1 1 24em;
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-dfs-app-demo.is-done .da-note {
+    color: var(--aas-text);
+  }
+  .aas-dfs-app-demo .da-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-dfs-app-demo .da-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기 */
+  .aas-dfs-app-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-dfs-app-demo.is-slide .da-body {
+    flex-wrap: nowrap;
+  }
+  .aas-dfs-app-demo.is-slide .da-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 40vh;
+  }
+  .aas-dfs-app-demo.is-slide.is-topo .da-graph {
+    --gf-slide-h: 36vh;
+  }
+  .aas-dfs-app-demo.is-slide .da-slots li {
+    min-height: 1.3em;
+    padding: 0 0.4em;
+  }
+  /* g13은 세로로 길어서 설명 세 줄이 들어갈 만큼 줄인다. */
+  .aas-dfs-app-demo.is-slide.is-components .da-graph {
+    --gf-slide-h: 38vh;
+  }
+  .aas-dfs-app-demo.is-slide .da-slots {
+    font-size: 0.74em;
+    gap: 0.1em;
+  }
+  .aas-dfs-app-demo.is-slide .da-note {
+    font-size: 0.8em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-dfs-app-demo .da-frame {
+      animation: none;
+    }
+    .aas-dfs-app-demo .da-slots li {
+      transition: none;
+    }
+  }
+</style>

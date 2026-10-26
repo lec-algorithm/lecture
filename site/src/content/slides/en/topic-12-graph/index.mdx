@@ -14,6 +14,10 @@ import GraphSearchDemo from '@components/GraphSearchDemo.astro';
 import KruskalDemo from '@components/KruskalDemo.astro';
 import HeapDemo from '@components/HeapDemo.astro';
 import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+import GraphTermsDemo from '@components/GraphTermsDemo.astro';
+import GraphRepDemo from '@components/GraphRepDemo.astro';
+import DfsAppDemo from '@components/DfsAppDemo.astro';
+import CutDemo from '@components/CutDemo.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Numbers match the practice code (topic-12-graph) exactly. */}
@@ -50,6 +54,15 @@ and the heap is what makes Huffman coding $$O(k \log k)$$.
 
 ## Graphs
 ::sub[Graph]
+
+</Slide>
+
+<Slide>
+
+### Click the terms
+::sub[Click a term to colour that part of the graph · click a vertex to change the vertex in focus]
+
+<GraphTermsDemo slide />
 
 </Slide>
 
@@ -169,6 +182,15 @@ means scanning the whole list.
 
 <Slide>
 
+### Try it: three representations
+::sub[The same graph as `01_bfs` · click edges and matrix cells to add or remove, click a vertex to find its neighbours]
+
+<GraphRepDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Adjacency matrix and adjacency list
 ::sub[They need different amounts of space]
 
@@ -178,45 +200,6 @@ means scanning the whole list.
 - **Adjacency list**: a list of neighbours for each vertex
   - An array of vertices, an array of edges, pointers between them
   - Space $$\Theta(n + m)$$, one slot at each end of an undirected edge
-
-</Slide>
-
-<Slide class="compact">
-
-#### One graph, two representations
-::sub[First part of `01_bfs` · used throughout the BFS and DFS examples]
-
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="g7" slide />
-
-</div>
-<div>
-
-```console
-adjacency matrix
-    0 1 2 3 4 5 6
-  0 0 1 1 0 0 1 1
-  1 1 0 0 0 0 0 0
-  2 1 0 0 1 0 0 0
-  3 0 0 1 0 1 1 0
-  4 0 0 0 1 0 1 1
-  5 1 0 0 1 1 0 0
-  6 1 0 0 0 1 0 0
-
-adjacency list
-  0: 1 2 5 6
-  1: 0
-  2: 0 3
-  3: 2 4 5
-  4: 3 5 6
-  5: 0 3 4
-  6: 0 4
-```
-
-</div>
-</div>
 
 </Slide>
 
@@ -481,31 +464,10 @@ order: 0 6 4 5 3 2 1
 
 <Slide>
 
-#### Application: connected components
-::sub[Vertices reached by one DFS get the same id]
+### One step at a time: connected components
+::sub[Second part of `02_dfs` · start a new DFS at every unvisited vertex and give every vertex it reaches the same id]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} slide />
-
-</div>
-<div>
-
-```console
-connected components (V = 13, E = 13)
-  id 0: 0 1 2 3 4 5 6
-  id 1: 7 8
-  id 2: 9 10 11 12
-count = 3
-```
-
-<br/>
-
-Green id 0, blue id 1, orange id 2
-
-</div>
-</div>
+<DfsAppDemo slide />
 
 </Slide>
 
@@ -532,6 +494,15 @@ Green id 0, blue id 1, orange id 2
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### One step at a time: topological sort
+::sub[A vertex is numbered after its outgoing edges · blue calls have not finished yet, green vertices have]
+
+<DfsAppDemo mode="topo" slide />
 
 </Slide>
 
@@ -642,24 +613,10 @@ The Kruskal and Prim examples
 
 <Slide>
 
-#### The cut property
-::sub[For any cut, the lightest crossing edge is in the MST]
+### Try it: the cut property
+::sub[A cut splits the vertices into two sides, a crossing edge joins them · the lightest crossing edge is in the MST]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} slide />
-
-</div>
-<div>
-
-- **Cut**: splitting the vertices into two non-empty sets
-- **Crossing edge**: an edge joining the two sets
-  - Dashed blue lines
-- The lightest, 0-2 (0.26), is in the MST.
-
-</div>
-</div>
+<CutDemo slide />
 
 </Slide>
 
@@ -688,6 +645,7 @@ The Kruskal and Prim examples
 
 <br/>
 
+The demo's "colour" button is exactly this general form.  
 Every coloured edge is an MST edge.  
 E.g. colouring 0-2, 5-7, 6-2, 0-7, 2-3, 1-7, 4-5 in that order gives the same MST  
 Kruskal and Prim are what decide "which cut to pick".
@@ -1418,6 +1376,15 @@ pop 2 (f 18 = 14 + 4): close
 expanded: 0 1 7 2 4 5 2 3
 path: 0 4 5 2 6, cost 25
 ```
+
+</Slide>
+
+<Slide>
+
+### Try it: change the heuristic
+::sub[Same graph, from 0 to 6 · pick an h with the chips and run it to the end]
+
+<HeapGraphDemo mode="astar" hChoices slide />
 
 </Slide>
 
