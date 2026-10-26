@@ -1,0 +1,1484 @@
+---
+title: "主题 12. 图与最短路径"
+description: "用顶点和边描述世界的图。图的表示与遍历（BFS、DFS）、最小生成树（Kruskal、Prim）、支撑二者的最小堆，以及最短路径（Dijkstra、A*）"
+date: "主题 12 · v1"
+order: 12
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import GraphFigure from '@components/GraphFigure.astro';
+import GraphSearchDemo from '@components/GraphSearchDemo.astro';
+import KruskalDemo from '@components/KruskalDemo.astro';
+import HeapDemo from '@components/HeapDemo.astro';
+import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+
+{/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
+    数字与实践代码（topic-12-graph）的运行结果一致。 */}
+
+<Slide class="cover">
+
+# 图与最短路径
+
+主题 12
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 本主题
+::sub[任何东西都可以和任何东西相连的数据]
+
+- **前半部分**：描述图、遍历图、以最低代价把它连起来。
+  - 表示、BFS 与 DFS、最小生成树（Kruskal、Prim）、最小堆
+- **后半部分**：用同样的堆框架寻找最短的路。
+  - Dijkstra、A*
+
+<br/>
+
+主题 06 的两个约定在这里兑现。  
+Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，  
+能把霍夫曼编码做到 $$O(k \log k)$$ 的就是堆。
+
+</Slide>
+
+<Slide class="center">
+
+## 图
+::sub[Graph]
+
+</Slide>
+
+<Slide>
+
+#### 什么是图
+::sub[顶点（vertex）的集合 V 与边（edge）的集合 E]
+
+- **顶点**：也叫节点。个数记作 $$n$$ 或 $$V$$
+- **边**：顶点的对。个数记作 $$m$$ 或 $$E$$
+  - 无向：无序对（朋友关系）
+  - 有向：有序对（关注）
+- **路径**：由边连接起来的顶点序列
+- **环**：首尾顶点相同的路径
+- **度**：连在一个顶点上的边数
+
+</Slide>
+
+<Slide>
+
+#### 世界上的图
+::sub[连接同一对顶点的边有多条时叫平行边，本主题没有]
+
+- **社交网络**：朋友关系（Facebook）、关注关系（Instagram）
+- **交通**：地铁线路图、道路网、航班
+- **网页**：网页的链接结构，PageRank
+- **推荐系统**：用户与商品的关系（主题 15）
+- **生物信息学**：蛋白质相互作用网络
+
+</Slide>
+
+<Slide>
+
+#### 最多有多少条边
+::sub[n 个顶点、没有平行边、连通的无向图]
+
+- **最少** $$n - 1$$ 条
+  - 连成一条线。去掉任何一条，整块就断成两块。
+- **最多** $$\dfrac{n(n-1)}{2}$$ 条
+  - 所有顶点对都相连。$$(n-1) + (n-2) + \dots + 1$$
+  - 顶点有 5 个时是 $$4 + 3 + 2 + 1 = 10$$ 条
+
+<br/>
+
+这个差距决定了图算法的代价。
+
+</Slide>
+
+<Slide>
+
+#### 图的种类
+::sub[边数、方向、环]
+
+- **稀疏**（sparse）：$$m = O(n)$$
+  - 社交网络
+- **稠密**（dense）：$$m = O(n^2)$$
+  - 完全图
+- **有向 / 无向**
+- **有环 / 无环**
+  - 有方向且没有环就是 DAG（directed acyclic graph）
+
+</Slide>
+
+<Slide>
+
+#### 图能回答的问题
+::sub[差之毫厘，难易立判]
+
+| 问题 | 内容 | 难度 |
+| --- | --- | --- |
+| 路径、最短路径 | s 与 t 之间的（最短）路径 | 容易，本主题 |
+| 连通性、MST | 是否全部相连，以最低代价相连 | 容易，本主题 |
+| 欧拉回路 | 经过每条**边**各一次的环 | 容易，$$O(V + E)$$ |
+| 哈密顿回路 | 经过每个**顶点**各一次的环 | NP-complete |
+| 平面性 | 能否画成边不相交 | $$O(V)$$，但很复杂 |
+| 图同构 | 两个邻接表是否是同一个图 | 至今未知 |
+
+</Slide>
+
+<Slide class="center">
+
+## 图的表示
+::sub[Graph Representation]
+
+</Slide>
+
+<Slide>
+
+#### 边的列表
+::sub[把边按对排开 · 13 个顶点，13 条边]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="g13" slide />
+
+</div>
+<div>
+
+```plaintext
+0-1   0-2   0-5   0-6
+3-4   3-5   4-5   4-6
+7-8   9-10  9-11  9-12
+11-12
+```
+
+<br/>
+
+最简单，但要问  
+"0 的邻居是谁"时，  
+就得把整个列表扫一遍。
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 邻接矩阵与邻接表
+::sub[所需空间不同]
+
+- **邻接矩阵**：$$n \times n$$ 矩阵，$$A_{ij} = 1$$ 表示有 i-j 边。
+  - 也有记边数或权重的变形。
+  - 空间 $$\Theta(n^2)$$
+- **邻接表**：每个顶点一张邻居列表
+  - 顶点数组、边数组、互相指向的指针
+  - 空间 $$\Theta(n + m)$$，无向边在两端各占一格
+
+</Slide>
+
+<Slide class="compact">
+
+#### 同一个图，两种表示
+::sub[`01_bfs` 的前半部分 · BFS 和 DFS 的例子会一直用到]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="g7" slide />
+
+</div>
+<div>
+
+```console
+adjacency matrix
+    0 1 2 3 4 5 6
+  0 0 1 1 0 0 1 1
+  1 1 0 0 0 0 0 0
+  2 1 0 0 1 0 0 0
+  3 0 0 1 0 1 1 0
+  4 0 0 0 1 0 1 1
+  5 1 0 0 1 1 0 0
+  6 1 0 0 0 1 0 0
+
+adjacency list
+  0: 1 2 5 6
+  1: 0
+  2: 0 3
+  3: 2 4 5
+  4: 3 5 6
+  5: 0 3 4
+  6: 0 4
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 邻接矩阵 vs. 邻接表
+::sub[首尔(0)-釜山(1)、首尔-大邱(2)、釜山-光州(3) · 表是 4 + 6 格，矩阵是 16 格]
+
+| 操作 | 邻接矩阵 | 邻接表 |
+| --- | --- | --- |
+| 空间 | $$O(V^2)$$ | $$O(V + E)$$ |
+| 添加顶点 | $$O(V^2)$$ | $$O(1)$$ |
+| 判断边是否存在 | $$O(1)$$ | $$O(\text{degree})$$ |
+| 所有相邻顶点 | $$O(V)$$ | $$O(\text{degree})$$ |
+| 添加边 | $$O(1)$$ | $$O(1)$$ |
+| 删除边 | $$O(1)$$ | $$O(\text{degree})$$ |
+
+<br/>
+
+搜索最常问"邻居是谁"。实践代码全部使用邻接表。
+
+</Slide>
+
+<Slide class="center">
+
+## 图的搜索
+::sub[Graph Search]
+
+</Slide>
+
+<Slide>
+
+#### 要做什么
+::sub[从起点 s 能到达的所有顶点，不看两次，在 O(m + n) 内]
+
+**通用搜索算法**
+
+1. 一开始只有 s 已探索。
+2. 只要可能就重复：
+   - 选一条 u 已探索、v 未探索的边 (u, v)。
+   - 把 v 标记为已探索。
+
+<br/>
+
+**命题**：结束时 v 已被探索 ⇔ 存在从 s 到 v 的路径
+
+</Slide>
+
+<Slide>
+
+#### 为什么正确
+::sub[反证法：假设有路径，但 v 没有被探索]
+
+- s 已探索，v 未探索。
+- 那么路径上一定有一条边 (u, x)，"已探索的 u 后面紧跟未探索的 x"。
+- 只要还剩这样的边，算法就不会结束。
+  - 矛盾。
+
+<br/>
+
+剩下的问题只有一个。  
+**横跨边界的边有好几条时，先选哪一条？**
+
+</Slide>
+
+<Slide>
+
+#### BFS 与 DFS
+::sub[同一种通用搜索，只是选择顺序不同]
+
+| | BFS | DFS |
+| --- | --- | --- |
+| 扩展方式 | 按层，近的先 | 一条路走到底，走不通就退回 |
+| 数据结构 | 队列（FIFO） | 栈（LIFO）或递归 |
+| 运行时间 | $$O(m + n)$$ | $$O(m + n)$$ |
+| 擅长的事 | 无权最短路径、连通分量 | 拓扑排序、连通分量、环检测 |
+
+</Slide>
+
+<Slide class="center">
+
+## 例 1. 广度优先搜索
+::sub[Breadth-First Search]
+
+</Slide>
+
+<Slide>
+
+#### BFS
+::sub[一层一层向外扩散]
+
+- 标记 s 并放入 FIFO 队列。
+- 重复直到队列为空：
+  - 取出最早进入的顶点 v。
+  - 把 v 的邻居中未标记的标记并放入队列。
+
+<br/>
+
+看完相距 1 条边的全部顶点，才进入相距 2 条边的。  
+为方便起见，邻居按编号从小到大查看。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：BFS(0)
+::sub[绿色是看完的顶点，蓝色在队列里，橙色是刚取出的 · 蓝色数字是距离]
+
+<GraphSearchDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`01_bfs/bfs.pseudo` · 放入时标记]
+
+```plaintext
+marked[s] <- true,  dist[s] <- 0
+enqueue s into Q
+while Q 不为空 do
+    v <- dequeue from Q                 // 最早进入的顶点
+    for each w in adj[v] do             // 为方便起见按升序
+        if not marked[w] then
+            marked[w] <- true
+            from[w] <- v
+            dist[w] <- dist[v] + 1      // 下一层
+            enqueue w into Q
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`01_bfs/` · 距离为 1 的 1、2、5、6 全部取出后才轮到 3、4]
+
+- 运行
+
+```console
+visit 0, queue [0]
+dequeue 0: check 1 2 5 6 -> visit 1 2 5 6, queue [1 2 5 6]
+dequeue 1: check 0, queue [2 5 6]
+dequeue 2: check 0 3 -> visit 3, queue [5 6 3]
+dequeue 5: check 0 3 4 -> visit 4, queue [6 3 4]
+dequeue 6: check 0 4, queue [3 4]
+dequeue 3: check 2 4 5, queue [4]
+dequeue 4: check 3 5 6, queue []
+order: 0 1 2 5 6 3 4
+path 0 -> 4: 0 5 4 (2 edges)
+```
+
+</Slide>
+
+<Slide>
+
+#### BFS 的性质与最短路径
+::sub[n_s, m_s：从 s 能到达的顶点数和边数]
+
+- **命题 1**：结束时 v 已被探索 ⇔ 存在从 s 到 v 的路径
+- **命题 2**：运行时间 $$O(n_s + m_s)$$
+  - 每个顶点进队一次、出队一次。
+  - 每条边在两端各看一次。
+- **最短路径**：$$\text{dist}(w) = \text{dist}(v) + 1$$
+  - 沿 from 往回追就得到路径。4 ← 5 ← 0
+  - **只在所有边长度相同时**才是最短。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 应用：连通分量
+::sub[从每个尚未探索的顶点各启动一次搜索]
+
+```plaintext
+把所有顶点标记为未探索
+for i <- 1 to n do
+    if i 还未被探索 then
+        BFS(G, i)                       // 从 i 能到达的顶点构成一个连通分量
+```
+
+- 虽然调用多次，但顶点和边总共只各看一次。
+  - $$O(m + n)$$
+- 用 DFS 也能做同样的事。实践代码用的是 DFS。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 2. 深度优先搜索
+::sub[Depth-First Search]
+
+</Slide>
+
+<Slide>
+
+#### DFS
+::sub[一条路挖到底，再退回来]
+
+- 把顶点 v 标记为已访问。
+- 对 v 的每个未标记的邻居，递归地做同样的事。
+- 也可以用 LIFO 栈代替递归。
+
+<br/>
+
+实践代码的栈 DFS 在**取出时**标记。  
+同一个顶点可能两次进栈，取出时已访问就丢弃。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：DFS(0)
+::sub[邻居按编号从小到大压栈，所以大编号在栈顶]
+
+<GraphSearchDemo mode="dfs" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`02_dfs/dfs.pseudo` · 栈里存（顶点，放入它的顶点）]
+
+```plaintext
+push (s, -1) into S
+while S 不为空 do
+    (v, p) <- pop from S                // 最后放入的顶点
+    if marked[v] then continue          // 已访问就丢弃
+    marked[v] <- true                   // 取出时标记
+    from[v] <- p
+    for each w in adj[v] do             // 为方便起见按升序压栈
+        if not marked[w] then
+            push (w, v) into S
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`02_dfs/` · 从大编号开始压栈就是 0 1 2 3 4 5 6，与递归顺序相同]
+
+- 运行
+
+```console
+push 0, stack [0]
+pop 0: visit 0, check 1 2 5 6 -> push 1 2 5 6, stack [1 2 5 6]
+pop 6: visit 6, check 0 4 -> push 4, stack [1 2 5 4]
+pop 4: visit 4, check 3 5 6 -> push 3 5, stack [1 2 5 3 5]
+pop 5: visit 5, check 0 3 4 -> push 3, stack [1 2 5 3 3]
+pop 3: visit 3, check 2 4 5 -> push 2, stack [1 2 5 3 2]
+pop 2: visit 2, check 0 3, stack [1 2 5 3]
+pop 3: already visited, stack [1 2 5]
+pop 5: already visited, stack [1 2]
+pop 2: already visited, stack [1]
+pop 1: visit 1, check 0, stack []
+order: 0 6 4 5 3 2 1
+```
+
+</Slide>
+
+<Slide>
+
+#### 应用：连通分量
+::sub[给一次 DFS 能到达的顶点标上同一个 id]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} slide />
+
+</div>
+<div>
+
+```console
+connected components (V = 13, E = 13)
+  id 0: 0 1 2 3 4 5 6
+  id 1: 7 8
+  id 2: 9 10 11 12
+count = 3
+```
+
+<br/>
+
+绿色 id 0，蓝色 id 1，橙色 id 2
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 应用：拓扑排序
+::sub[u → v：先修 u 才能修 v]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="dag" slide />
+
+</div>
+<div>
+
+0. Algorithms
+1. Complexity Theory
+2. Artificial Intelligence
+3. Intro to CS
+4. Cryptography
+5. Scientific Computing
+6. Advanced Programming
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="compact">
+
+#### 拓扑排序：看完所有出边后才给编号
+::sub[对所有边 (u, v)，f(u) 小于 f(v) · 从大号往回倒着给]
+
+```plaintext
+Finish(s):
+    marked[s] <- true
+    for each 边 (s, v) do
+        if not marked[v] then Finish(v)
+    f[s] <- label,  label <- label - 1     // 先结束的顶点拿后面的编号
+```
+
+- 运行
+
+```console
+topological sort (V = 7, E = 11, directed)
+  f: 0=3 1=6 2=5 3=1 4=7 5=4 6=2
+  order: 3 6 0 5 2 1 4
+```
+
+有有向环时没有拓扑顺序。
+
+</Slide>
+
+<Slide>
+
+#### DFS 能做的其他事
+::sub[路径、可达性、环、强连通分量]
+
+- **可达性**
+  - 删除到达不了的代码、检测无法跳出的循环
+  - 标记-清除垃圾回收器
+- **有向环检测**
+  - Java 的循环继承、Excel 的循环引用
+  - 有通回正在访问的顶点的边（back edge）就是环
+- **强连通分量**
+  - Kosaraju-Sharir 算法：两次 DFS
+
+</Slide>
+
+<Slide>
+
+#### BFS vs. DFS
+::sub[同样的搜索，不同的顺序]
+
+| 特性 | BFS | DFS |
+| --- | --- | --- |
+| 数据结构 | 队列（FIFO） | 栈（LIFO）或递归 |
+| 内存 | 一层的宽度 | 路径的深度 |
+| 最短路径 | 在无权图中保证 | 不保证 |
+| 实现 | 循环 | 递归或循环 |
+| 应用举例 | SNS 好友推荐 | 走迷宫、网页爬虫、拓扑排序 |
+
+</Slide>
+
+<Slide class="center">
+
+## 最小生成树
+::sub[Minimum Spanning Tree]
+
+</Slide>
+
+<Slide>
+
+#### 树、生成树、MST
+::sub[以最低代价连起所有顶点]
+
+- **树**：无环且连通的无向图，边有 $$V - 1$$ 条
+- **生成树**：包含所有顶点、且是树的子图
+- **最小生成树**：边权之和最小的生成树
+- **用在哪里**
+  - 聚类分析、最大瓶颈路径
+  - 以太网的生成树协议、TSP 近似
+  - 通信网、电网、道路设计
+
+</Slide>
+
+<Slide>
+
+#### 简化假设
+::sub[把所有生成树都造出来试试？数量会指数增长]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="mst" slide />
+
+</div>
+<div>
+
+- **权重各不相同。**
+  - 这样 MST 只有一个。
+- **图是连通的。**
+
+<br/>
+
+8 个顶点，16 条边  
+Kruskal 与 Prim 的例子
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 割的性质
+::sub[无论哪个割，最轻的横切边都在 MST 里]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} slide />
+
+</div>
+<div>
+
+- **割**（cut）：把顶点分成两个非空集合
+- **横切边**（crossing edge）：连接两个集合的边
+  - 蓝色虚线
+- 最轻的 0-2（0.26）在 MST 里。
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 割的性质的证明
+::sub[假设最轻的横切边 e 不在 MST 里]
+
+1. **把 e 加进 MST 就会产生环**。
+2. **环上的另一条边 f 也是横切边**。
+   - 要回到出发的一侧，必须再横跨一次割。
+3. **去掉 f、加入 e，仍然是生成树**。
+4. **e 比 f 轻，所以得到更轻的生成树**。
+   - 比 MST 还轻，矛盾。
+
+</Slide>
+
+<Slide>
+
+#### Greedy MST
+::sub[把割的性质直接写成算法]
+
+1. 一开始所有边都不涂色。
+2. 找一个没有已涂色横切边的割，把最轻的横切边涂色。
+3. 重复，直到涂了 $$V - 1$$ 条边。
+
+<br/>
+
+涂色的边总是 MST 的边。  
+例：按 0-2、5-7、6-2、0-7、2-3、1-7、4-5 的顺序涂色，也是同一棵 MST  
+规定"选哪个割"的，就是 Kruskal 和 Prim。
+
+</Slide>
+
+<Slide>
+
+#### Greedy、Kruskal、Prim
+::sub[都是建立在割的性质上的贪心]
+
+| | Greedy MST | Kruskal | Prim |
+| --- | --- | --- | --- |
+| 思路 | 直接用割的性质 | 以边为中心，全局选择 | 以顶点为中心，局部扩展 |
+| 起点 | 任意 | 最轻的边 | 指定的一个顶点 |
+| 时间 | 取决于实现 | $$O(E \log E)$$ | $$O(E \log V)$$ |
+| 预处理 | 无 | 边排序 | 无 |
+| 实现 | 难（管理割） | 中等（union-find） | 容易（优先队列） |
+
+</Slide>
+
+<Slide class="center">
+
+## 例 3. Kruskal 算法
+::sub[Kruskal's Algorithm, 1956]
+
+</Slide>
+
+<Slide>
+
+#### Kruskal
+::sub[从轻的边开始，只要不成环就加入]
+
+- 把边按权重升序排序。
+- 每个顶点有一个 `comp`（块编号）。一开始各自单独一块。
+- 边的两端
+  - 在**不同块**：加入，并合并两块。
+  - 在**同一块**：已经有路径，加入就会成环。丢弃。
+- 边有 $$V - 1$$ 条时停止。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：Kruskal
+::sub[先按权重排队，顶点旁的蓝色数字是 comp]
+
+<KruskalDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`03_mst_kruskal/kruskal.pseudo` · 块编号取块中最小的顶点]
+
+```plaintext
+edges <- 把 G 的边按权重升序排序
+comp[v] <- v  (所有 v)
+for each (u, v, w) in edges do
+    if comp[u] != comp[v] then          // 不同的块 -> 不成环
+        把 (u, v, w) 加入 mst
+        把 comp 为 comp[u] 或 comp[v] 的顶点都改成 min(comp[u], comp[v])
+        if |mst| = V - 1 then break
+    else                                // 同一块 -> 加入就成环
+        丢弃 (u, v)
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`03_mst_kruskal/` · 权重乘以 100 当整数处理，只在打印时换成小数]
+
+- 运行
+
+```console
+  0-7 0.16  add   comp [0 1 2 3 4 5 6 0]
+  2-3 0.17  add   comp [0 1 2 2 4 5 6 0]
+  1-7 0.19  add   comp [0 0 2 2 4 5 6 0]
+  0-2 0.26  add   comp [0 0 0 0 4 5 6 0]
+  5-7 0.28  add   comp [0 0 0 0 4 0 6 0]
+  1-3 0.29  skip  (1 and 3 both in 0, cycle)
+  1-5 0.32  skip  (1 and 5 both in 0, cycle)
+  2-7 0.34  skip  (2 and 7 both in 0, cycle)
+  4-5 0.35  add   comp [0 0 0 0 0 0 6 0]
+  1-2 0.36  skip  (1 and 2 both in 0, cycle)
+  4-7 0.37  skip  (4 and 7 both in 0, cycle)
+  0-4 0.38  skip  (0 and 4 both in 0, cycle)
+  6-2 0.40  add   comp [0 0 0 0 0 0 0 0]
+7 edges = V - 1, stop
+total weight = 1.81
+```
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[MST：0-7 2-3 1-7 0-2 5-7 4-5 6-2，总权重 1.81]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="mst" edgeTones={{ '0-7': 'tree', '2-3': 'tree', '1-7': 'tree', '0-2': 'tree', '5-7': 'tree', '4-5': 'tree', '6-2': 'tree' }} slide />
+
+</div>
+<div>
+
+- **正确性**：Greedy MST 的特例
+  - 把 v 所在的块和其余部分看成割，e 就是这个割中最轻的横切边
+- **时间**
+  - 排序 $$O(E \log E)$$
+  - 合并 $$O(V)$$ × $$V-1$$ 次
+  - 用 union-find 就是 $$O(E \log E)$$
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="center">
+
+## 例 4. 优先队列与最小堆
+::sub[Priority Queue, Min Heap]
+
+</Slide>
+
+<Slide>
+
+#### 优先队列
+::sub[Prim、Dijkstra、霍夫曼都想要"当下最小的那个"]
+
+- **普通队列**：FIFO
+  - 放入 A、B、C、D，就是 A → B → C → D
+- **优先队列**：优先级最高的元素先出来
+  - A(3)、B(1)、C(5)、D(2) 从小往大取：B → D → A → C
+- **同优先级之间的顺序不保证**。
+  - 实践代码和演示规定先放入的先取出。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 堆
+::sub[完全二叉树 + 堆性质]
+
+- **完全二叉树**：除最后一层外都是满的，最后一层从左往右填
+- **最小堆**：父节点值 ≤ 子节点值，根是最小值
+- **最大堆**：父节点值 ≥ 子节点值，根是最大值
+
+```plaintext
+           1                 数组   [1, 2, 3, 4, 5, 6, 7, 8, 9]
+       2       3             下标    0  1  2  3  4  5  6  7  8
+     4   5   6   7
+    8 9                      i 的父 (i-1)/2,  子 2i+1, 2i+2
+```
+
+</Slide>
+
+<Slide>
+
+#### 插入与取出最小值
+::sub[每层都只比较一次]
+
+- **插入**
+  1. 检查是否已满。
+  2. 放到末尾的空位。
+  3. 比父节点小就交换，上移一层。**sift up**
+- **取出最小值**
+  1. 检查是否为空，保存根。
+  2. 把最后一个元素移到根。
+  3. 比较小的子节点大就交换，下移一层。**sift down**
+
+</Slide>
+
+<Slide>
+
+### 一步一步：最小堆
+::sub[insert 10, insert 0, extract min · 橙色是移动的元素，蓝色是比较对象]
+
+<HeapDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`04_min_heap/minHeap.pseudo`]
+
+```plaintext
+HeapifyUp(heap, i):                       // sift up
+    while i > 0 do
+        p <- (i - 1) / 2
+        if heap[i] >= heap[p] then break  // 不比父节点小就留在原位
+        swap heap[i], heap[p],  i <- p
+
+HeapifyDown(heap, i):                     // sift down
+    loop
+        m <- i, l <- 2i + 1, r <- 2i + 2
+        if l < size and heap[l] < heap[m] then m <- l
+        if r < size and heap[r] < heap[m] then m <- r
+        if m = i then break               // 不比两个子节点大就留在原位
+        swap heap[i], heap[m],  i <- m
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`04_min_heap/` · 0 交换三次就到了根]
+
+- 运行
+
+```console
+insert 0 at index 10
+  0 (index 10) vs parent 5 (index 4): swap
+  0 (index 4) vs parent 2 (index 1): swap
+  0 (index 1) vs parent 1 (index 0): swap
+  reached the root
+heap [0 1 3 4 2 6 7 8 9 10 5]
+
+extract min 0, move last 5 to the root
+  5 (index 0) vs children 1 (index 1), 3 (index 2): swap with 1
+  5 (index 1) vs children 4 (index 3), 2 (index 4): swap with 2
+  5 (index 4) vs children 10 (index 9): stay
+heap [1 2 3 4 5 6 7 8 9 10]
+
+extract all: 1 2 3 4 5 6 7 8 9 10
+```
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[完全二叉树的高度是 log n]
+
+- **插入、取出最小值**：$$O(\log n)$$
+- **查看最小值**：$$O(1)$$
+- **堆排序**：全部取出就是升序，$$O(n \log n)$$
+- **主题 06 的霍夫曼编码**
+  - 每次扫遍森林是 $$O(k^2)$$
+  - 把森林放进最小堆是 $$O(k \log k)$$
+
+</Slide>
+
+<Slide class="center">
+
+## 例 5. Prim 算法
+::sub[Prim's Algorithm, 1959]
+
+</Slide>
+
+<Slide>
+
+#### Prim
+::sub[从一个顶点出发，贪心地让树长大]
+
+- 从顶点 0 开始。
+- 在恰好只有一端在树中的边里，加入最轻的那条。
+- `key[v]`：接到树上的最轻边的权重
+  - 从最小堆取出 key 最小的顶点。
+  - key 变小就修改并**重新放入**。过时项在取出时丢弃。
+
+<br/>
+
+主题 06 里说的"当下最近者"，就是这个顶点。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：Prim
+::sub[`0.26:2` 表示以 key 0.26 对应顶点 2 · 划线的是过时项]
+
+<HeapGraphDemo mode="prim" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`05_mst_prim/prim.pseudo`]
+
+```plaintext
+key[s] <- 0,  insert (0, s) into PQ
+while PQ 不为空且 |mst| < V - 1 do
+    (k, u) <- ExtractMin(PQ)            // 当下离树最近的顶点
+    if inTree[u] then continue          // 丢弃过时项
+    inTree[u] <- true
+    if u != s then 把 (via[u], u, k) 加入 mst
+    for each (u, v, w) in adj[u] do
+        if not inTree[v] and w < key[v] then
+            key[v] <- w,  via[v] <- u   // 更轻的边
+            insert (w, v) into PQ       // 不修改，而是重新放入
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`05_mst_prim/` · 4 的 key 从 0.38 到 0.37 再到 0.35，减小了两次]
+
+- 运行（后半部分）
+
+```console
+pop 3 (key 0.17): add 2-3
+pop 5 (key 0.28): add 7-5
+  4: key 0.35 via 5
+pop 3 (key 0.29): skip, already in tree
+pop 4 (key 0.35): add 5-4
+pop 4 (key 0.37): skip, already in tree
+pop 4 (key 0.38): skip, already in tree
+pop 6 (key 0.40): add 2-6
+7 edges = V - 1, stop
+total weight = 1.81
+```
+
+接入树的顺序是 0、7、1、2、3、5、4、6。
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[和 Kruskal 一样的七条边，一样的 1.81]
+
+- **正确性**：Greedy MST 的特例
+  - 把"当前的树"和"其余部分"看成割，选中的边就是最轻的横切边
+- **时间**：$$O(E \log E) = O(E \log V)$$
+  - 堆里的项每条边最多一个
+  - $$E \le V^2$$，所以 $$\log E \le 2 \log V$$
+- **与 Kruskal 的不同**
+  - Kruskal 是多块各自长大再合并。
+  - Prim 自始至终只有一块在长大。
+
+</Slide>
+
+<Slide class="center">
+
+### 在这里先停一下
+
+前半部分：描述图、遍历图、以最低代价连起来，并做出了堆。  
+后半部分：用同样的堆框架寻找**最短的路**。  
+把 Prim 改一行就是 Dijkstra，再加上一个估计值就是 A*。
+
+</Slide>
+
+<Slide class="center">
+
+## 最短路径
+::sub[Shortest Path]
+
+</Slide>
+
+<Slide>
+
+#### 最短路径
+::sub[带权有向图 G = (V, E)]
+
+- 从 s 到 t 边权之和最小的路径
+  - 无向图看成每条边换成两条反向边的有向图。
+- **变形**
+  - 单对：从 s 到 t
+  - 单源：从 s 到其他所有顶点（Dijkstra）
+  - 所有点对
+- 长度不是边数，而是**权重之和**。
+
+</Slide>
+
+<Slide>
+
+#### 为什么还需要另一个最短路径算法
+::sub[BFS 不是已经能在线性时间内求最短路径了吗？]
+
+- BFS 只在**所有边权都是 1 时**才是最短。
+- 有经过三条边的 3 + 3 + 3 = 9 的路和只有一条边的 20 的路时呢？
+  - BFS 先找到只有一条边的那条就停下。
+
+<br/>
+
+**解决方法：Dijkstra 最短路径算法**
+
+</Slide>
+
+<Slide class="center">
+
+## 例 6. Dijkstra 算法
+::sub[Dijkstra's Algorithm]
+
+</Slide>
+
+<Slide>
+
+#### Dijkstra
+::sub[从一个起点到其他所有顶点的最短距离]
+
+1. $$\text{dist}[s] = 0$$，其余为 $$\infty$$
+2. 已确定顶点的集合 $$X = \{s\}$$
+3. 当 $$X \ne V$$ 时
+   - 在 v ∈ X、w ∉ X 的边中，把 $$\text{dist}[v] + w(v, w)$$ 最小的 w 放进 X。
+   - 用 w 的出边尝试缩短邻居的 dist。**松弛**（relaxation）
+
+<br/>
+
+按距离由近到远一个一个确定。
+
+</Slide>
+
+<Slide>
+
+#### Dijkstra 与 Prim
+::sub[都是用最小堆挑"当下最小值"的贪心]
+
+| | Dijkstra | Prim |
+| --- | --- | --- |
+| 目的 | 最短路径 | 最小生成树 |
+| 修改时用的值 | $$\text{dist}[u] + w(u, v)$$ | $$w(u, v)$$ |
+| 值的含义 | 从起点**累积**的距离 | **一条**边的权重 |
+| 结果 | 到所有顶点的最短距离 | 连起所有顶点的最小代价 |
+
+</Slide>
+
+<Slide>
+
+### 一步一步：Dijkstra
+::sub[蓝色数字是目前找到的距离 · 绿色已确定，蓝色虚线是尚未确定的 from]
+
+<HeapGraphDemo mode="dijkstra" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`06_dijkstra/dijkstra.pseudo` · 与 Prim 相比只改了修改值的那一行]
+
+```plaintext
+dist[s] <- 0,  insert (0, s) into PQ
+while PQ 不为空 do
+    (d, u) <- ExtractMin(PQ)            // 未确定的顶点中最近的
+    if done[u] then continue            // 丢弃过时项
+    done[u] <- true                     // 这个距离以后不再改变
+    for each (u, v, w) in adj[u] do
+        if not done[v] and dist[u] + w < dist[v] then
+            dist[v] <- dist[u] + w      // 松弛
+            from[v] <- u
+            insert (dist[v], v) into PQ
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`06_dijkstra/` · 2 的距离从 17 到 15 再到 14]
+
+- 运行（最后部分）
+
+```console
+  v  dist  from
+  0     0     -
+  1     5     0
+  2    14     5
+  3    17     2
+  4     9     0
+  5    13     4
+  6    25     2
+  7     8     0
+path 0 -> 6: 0 4 5 2 6 (25)
+```
+
+确定顺序 0、1、7、4、5、2、3、6  
+确定的距离 0、5、8、9、13、14、17、25 不会减小。
+
+</Slide>
+
+<Slide>
+
+#### 为什么正确
+::sub[权重非负的有向图]
+
+- 边 v → w 在确定 v 时**恰好松弛一次**。
+  - 紧接着 $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$
+- 这个不等式一直保持到结束。
+  - $$\text{dist}[w]$$ 只会减小。
+  - $$\text{dist}[v]$$ 确定后不再改变。因为权重非负。
+- 结束时对所有边都成立，所以 dist 就是最短距离。
+
+</Slide>
+
+<Slide>
+
+#### 运行时间
+::sub[取决于用什么实现优先队列 · * 均摊]
+
+| 数据结构 | 放入 | 取出最小值 | 修改值 | 合计 |
+| --- | --- | --- | --- | --- |
+| 无序数组 | $$1$$ | $$V$$ | $$1$$ | $$V^2$$ |
+| 二叉堆 | $$\log V$$ | $$\log V$$ | $$\log V$$ | $$E \log V$$ |
+| d 叉堆 | $$\log_d V$$ | $$d \log_d V$$ | $$\log_d V$$ | $$E \log_{E/V} V$$ |
+| 斐波那契堆 | $$1^*$$ | $$\log V^*$$ | $$1^*$$ | $$E + V \log V$$ |
+
+<br/>
+
+稠密图用数组好，稀疏图用二叉堆好。  
+斐波那契堆的合计不是 $$E + \log V$$，而是 $$E + V \log V$$。
+
+</Slide>
+
+<Slide>
+
+### 负权重
+::sub[Dijkstra 紧接着 0 就确定了 3。可是 0 → 1 → 2 → 3 是 4 + 6 − 9 = 1]
+
+<HeapGraphDemo mode="dijkstra" graph="neg" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 负权重时会出错
+::sub[`06_dijkstra/` 的最后部分]
+
+- 运行
+
+```console
+negative weight: 0->1 4, 0->3 2, 1->2 6, 2->3 -9
+pop 3 (dist 2): done
+pop 1 (dist 4): done
+  1->2: dist[2] = 10 via 1
+pop 2 (dist 10): done
+  2->3: 1 < 2, but 3 is already done
+dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
+```
+
+- **给所有权重加 9 呢？** 13、11、15、0
+  - 0 → 3 是 11，0 → 1 → 2 → 3 是 28。**最短路径变了**。
+- 负权重需要 Bellman-Ford 算法。
+
+</Slide>
+
+<Slide>
+
+#### 负环
+::sub[边权之和为负的有向环]
+
+- 给 Dijkstra 的例子图加一条权重为 $$-8$$ 的边 5 → 7
+  - 7 → 5 → 7 是 $$6 - 8 = -2$$
+  - 每绕一圈就更短，最短路径**没有定义**。
+- 只有在 s 能到达的负环**不存在时**，最短路径树才存在。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 7. A* 算法
+::sub[A Star Algorithm]
+
+</Slide>
+
+<Slide>
+
+#### A*
+::sub[到一个目标，用剩余距离的估计值先往目标方向找]
+
+- Dijkstra 求到**所有**顶点。导航通常只要到**一个目标**。
+- 游戏、机器人路径搜索、地理信息系统（GIS）
+- 每个节点三个值
+  - $$g(n)$$：从起点到 n 的**实际**距离
+  - $$h(n)$$：从 n 到目标剩余距离的**估计**（启发式）
+  - $$f(n) = g(n) + h(n)$$：经过这个节点的路径的预计总代价
+- 从 $$f$$ 最小的节点开始打开。
+
+</Slide>
+
+<Slide>
+
+#### 启发式函数 h(n)
+::sub[从真理馆 A 到电影院 · 在宿舍 C 栋前对朋友说]
+
+- "大概 10 分钟。"接近实际且不超过。**好的估计**
+- "2 分钟就到。"没超过，但太乐观，**起不到引路的作用**。
+  - 到处都说 0，就和 Dijkstra 相同。
+- 把要 15 分钟的地方说成"30 分钟"，就会避开这条路而**错过最短路径**。
+
+<br/>
+
+距离启发式：直线距离、曼哈顿距离、切比雪夫距离
+
+</Slide>
+
+<Slide>
+
+#### 看起来近的不一定是答案
+::sub[走到这里用了 2 分钟，能去的地方有三处]
+
+| 下一个地点 | 要花的时间 | $$g$$ | $$h$$ | $$f = g + h$$ |
+| --- | --- | --- | --- | --- |
+| A 栋 | 5 分钟 | $$2 + 5 = 7$$ | 10 | 17 |
+| C 栋 | 3 分钟 | $$2 + 3 = 5$$ | 10 | **15** |
+| 综合馆 | 1 分钟 | $$2 + 1 = 3$$ | 17 | 20 |
+
+<br/>
+
+最近的综合馆是远离目标的方向。A* 选 C 栋。
+
+</Slide>
+
+<Slide>
+
+#### 例子图
+::sub[和 Dijkstra 相同的图 · 起点 0，目标 6 · 顶点旁是 h]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="sp" nodeTones={{ 0: 'ring', 6: 'ring' }} badges={{ 0: 'h=14', 1: 'h=10', 2: 'h=4', 3: 'h=2', 4: 'h=11', 5: 'h=6', 6: 'h=0', 7: 'h=8' }} slide />
+
+</div>
+<div>
+
+- **开放列表**（open）
+  - 已发现但尚未关闭的候选
+  - 最小堆，键是 $$f$$
+- **关闭列表**（closed）
+  - 取出并看过邻居的顶点
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### 一步一步：不重新打开的 A*
+::sub[常见的实现：已关闭的顶点不再看第二次]
+
+<HeapGraphDemo mode="astar" reopen={false} slide />
+
+</Slide>
+
+<Slide>
+
+#### 26 不是最短
+::sub[在同一个图上 Dijkstra 是 0 → 4 → 5 → 2 → 6，25]
+
+- 0 → 7 → 2 → 6，**26** 不是最短路径。
+- 分歧出现在关闭 5 的时候。
+  - 从 5 到 2，$$g = 14$$，比现在的 15 短。
+  - 可是 2 已经关闭，于是直接略过。
+  - 2 的 $$g$$ 定在 15，6 也定在 26。
+
+</Slide>
+
+<Slide>
+
+#### 启发式的两个条件
+::sub[h*(n)：从 n 到目标的实际最短距离]
+
+- **可采纳性**（admissible）：$$h(n) \le h^*(n)$$
+  - 不高估。**允许重新打开时**能找到最短路径。
+- **一致性**（consistent）：$$h(n) \le c(n, n') + h(n')$$
+  - **不重新打开也**能找到最短路径。是更强的条件。
+- 这个例子的 h 可采纳，但不一致。
+  - $$h(4) = 11 > 4 + h(5) = 10$$
+  - $$h(5) = 6 > 1 + h(2) = 5$$
+
+</Slide>
+
+<Slide>
+
+### 一步一步：重新打开
+::sub[找到通向已关闭顶点的更短路径时，重新打开它]
+
+<HeapGraphDemo mode="astar" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`07_a_star/aStar.pseudo` · 与 Dijkstra 不同：键是 g + h，到目标即停，可重新打开]
+
+```plaintext
+g[s] <- 0,  insert (g[s] + h[s], s) into open
+while open 不为空 do
+    (f, u) <- ExtractMin(open)          // f 最小的顶点
+    if closed[u] then continue          // 丢弃过时项
+    if u = t then return 路径, g[t]
+    closed[u] <- true
+    for each (u, v, w) in adj[u] do
+        if g[u] + w >= g[v] then continue
+        if closed[v] and not reopen then continue
+        closed[v] <- false              // （reopen 时）重新打开
+        g[v] <- g[u] + w,  cameFrom[v] <- u
+        insert (g[v] + h[v], v) into open
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`07_a_star/` · 两次运行的分歧处]
+
+- 运行
+
+```console
+inconsistent edges: 4->5 (11 > 4 + 6) 5->2 (6 > 1 + 4)
+
+without reopening closed nodes
+pop 5 (f 19 = 13 + 6): close
+  2: g 14 < 15, but 2 is closed
+expanded: 0 1 7 2 4 5 3
+path: 0 7 2 6, cost 26
+
+with reopening
+pop 5 (f 19 = 13 + 6): close
+  2: g 14 < 15, reopen, f 18
+pop 2 (f 18 = 14 + 4): close
+  3: g 17, f 19
+  6: g 25, f 25
+expanded: 0 1 7 2 4 5 2 3
+path: 0 4 5 2 6, cost 25
+```
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[b：分支因子，d：最优解的深度]
+
+- **时间**：最坏 $$O(b^d)$$，实际取决于启发式。
+  - 完美的启发式（$$h = h^*$$）：$$O(d)$$，这个例子里只关闭 0、4、5、2。
+  - 毫无信息的启发式（$$h = 0$$）：和 Dijkstra 相同。
+- **空间**：$$O(b^d)$$，开放列表和关闭列表都要保存。
+- **进一步改进**
+  - IDA*（内存）、双向 A*、分层寻路
+  - 模式数据库、机器学习启发式
+
+</Slide>
+
+<Slide>
+
+#### 与其他算法并排看
+::sub[BFS、Dijkstra、A*、Greedy Best-First]
+
+| 算法 | 搜索方式 | 最优性 | 效率 | 内存 |
+| --- | --- | --- | --- | --- |
+| BFS | 盲目搜索 | 保证（单位权重） | 低 | 高 |
+| Dijkstra | 以距离为准 | 保证（非负权重） | 中 | 中 |
+| A* | 目标导向 | 有条件保证 | 高 | 高 |
+| Greedy Best-First | 只用 $$h$$ | 不保证 | 很高 | 低 |
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手试试
+::sub[找出改变顺序也不变的东西]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-12-graph/`  
+打开文件，按编辑器右上角的 **▶ 按钮**即可运行。
+
+1. **在 `01_bfs` 里改变边的顺序**。
+   - 访问顺序和 from 会变，但 dist 不变。
+2. **改变 `05_mst_prim` 的起点**。
+   - 接入顺序会变，但 MST 和 1.81 不变。
+3. **改变 `07_a_star` 的 h**。
+   - 全是 0 就是 Dijkstra，用实际剩余距离就只关闭四个顶点。
+
+</Slide>
+
+<Slide>
+
+## 要带走的
+
+1. **邻接表占 $$\Theta(n + m)$$，邻接矩阵占 $$\Theta(n^2)$$ 的空间**。
+   - 搜索适合用表。
+2. **BFS 和 DFS 是同一种通用搜索**。
+   - 队列就按层走（最短路径），栈就先往深处走（拓扑排序）。二者都是 $$O(m + n)$$
+3. **Kruskal 和 Prim 都建立在割的性质上**。
+   - 只在选割方式上不同的贪心，例子的 MST 是 1.81
+4. **最小堆的 sift up、sift down 都是 $$O(\log n)$$ 的操作**。
+5. **Prim、Dijkstra、A* 是同一个框架**。
+   - 堆的键分别是一条边、累积距离、累积距离 + 估计
+
+</Slide>
