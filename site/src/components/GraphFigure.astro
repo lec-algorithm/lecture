@@ -1,0 +1,302 @@
+---
+// 그래프 그림. 스크립트 없이 서버에서 SVG로 다 그린다.
+//
+// 주제 12의 예제 그래프(GraphSamples.ts)를 이름으로 받아 그린다. 혼자 놓으면
+// 정지 그림이고, 그래프 데모들은 이 컴포넌트를 안에 넣은 뒤 정점과 간선의
+// 클래스(is-done, is-tree …)와 배지 글자만 바꿔 단계를 보인다. 그래서
+// 상태별 모양을 여기 한 곳에서 정한다.
+//
+//   정점: data-gf-node="3"        간선: data-gf-edge="0-7" (입력에 적힌 방향)
+//   배지: data-gf-badge="3"       (정점 오른쪽 위의 작은 글자: 거리, key 등)
+//
+// 혼자 놓을 때는 좌표 1이 화면 0.85px쯤 되도록 폭을 정한다. 그래프마다
+// 크기가 달라도 정점과 글자는 같은 크기로 보인다.
+//
+// 화살표 머리는 marker 대신 다각형으로 그린다. 간선 상태에 따라 색이
+// 함께 바뀌어야 하는데, marker는 선의 색을 따라가지 않는다.
+import { getGraph, type GraphSample } from './GraphSamples';
+
+type Tone = 'done' | 'focus' | 'open' | 'dim' | 'ring' | 'tree' | 'cand' | 'reject';
+
+interface Props {
+  /** GraphSamples의 이름(g7, g13, dag, mst, sp, neg) 또는 그래프 자체 */
+  graph: string | GraphSample;
+  /** 정점 번호 → 상태. 여러 개면 공백으로 잇는다("done ring"). */
+  nodeTones?: Record<string, string>;
+  /** "u-v" → 상태 */
+  edgeTones?: Record<string, string>;
+  /** 정점 번호 → 배지 글자 */
+  badges?: Record<string, string>;
+  /** 가중치를 쓸지. 기본은 가중치가 있으면 쓴다. */
+  weights?: boolean;
+  /** 그림 아래 설명 (스크린 리더용 이름도 된다) */
+  caption?: string;
+  /** 슬라이드용: 칸 높이에 맞춰 크게 */
+  slide?: boolean;
+  /** 데모 안에 넣을 때: 바깥 여백과 폭 제한을 없앤다. */
+  bare?: boolean;
+}
+
+const {
+  graph,
+  nodeTones = {},
+  edgeTones = {},
+  badges = {},
+  weights,
+  caption,
+  slide = false,
+  bare = false,
+} = Astro.props;
+const g = getGraph(graph);
+
+const R = 19;
+const PAD = 34;
+const xs = g.nodes.map((p) => p[0]);
+const ys = g.nodes.map((p) => p[1]);
+const minX = Math.min(...xs) - PAD;
+const minY = Math.min(...ys) - PAD;
+const W = Math.max(...xs) - minX + PAD;
+const H = Math.max(...ys) - minY + PAD;
+const showWeights = weights ?? g.edges.some((e) => e.length > 2);
+const fmt = (w: number) => (g.scale ? (w / g.scale).toFixed(2) : String(w));
+const label = (v: number) => g.labels?.[v] ?? String(v);
+const toneOf = (key: string, u: number, v: number) =>
+  edgeTones[key] ?? (g.directed ? undefined : edgeTones[`${v}-${u}`]);
+
+const edges = g.edges.map(([u, v, w]) => {
+  const [x1, y1] = g.nodes[u];
+  const [x2, y2] = g.nodes[v];
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  const ux = (x2 - x1) / len;
+  const uy = (y2 - y1) / len;
+  const head = g.directed ? 11 : 0;
+  const tipX = x2 - ux * R;
+  const tipY = y2 - uy * R;
+  const arrow = g.directed
+    ? [
+        [tipX, tipY],
+        [tipX - ux * head - uy * 5.5, tipY - uy * head + ux * 5.5],
+        [tipX - ux * head + uy * 5.5, tipY - uy * head - ux * 5.5],
+      ]
+        .map((p) => p.map((c) => c.toFixed(1)).join(','))
+        .join(' ')
+    : '';
+  // 가중치 글자는 간선 가운데에서 수직으로 조금 비켜 놓는다.
+  const mx = (x1 + x2) / 2 - uy * 12;
+  const my = (y1 + y2) / 2 + ux * 12;
+  const key = `${u}-${v}`;
+  return {
+    key,
+    tone: toneOf(key, u, v),
+    x1: x1 + ux * R,
+    y1: y1 + uy * R,
+    x2: tipX - ux * head * 0.8,
+    y2: tipY - uy * head * 0.8,
+    arrow,
+    w,
+    mx,
+    my,
+  };
+});
+---
+
+<figure class:list={['aas-graph-figure', slide && 'is-slide', bare && 'is-bare']}>
+  <svg
+    viewBox={`${minX} ${minY} ${W} ${H}`}
+    role="img"
+    aria-label={caption ?? ''}
+    style={bare || slide ? undefined : `max-width: ${Math.round(W * 0.85)}px`}
+  >
+    {edges.map((e) => (
+      <g class:list={['gf-edge', e.tone && e.tone.split(' ').map((t) => `is-${t}`)]} data-gf-edge={e.key}>
+        <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} />
+        {e.arrow && <polygon points={e.arrow} />}
+        {showWeights && e.w !== undefined && (
+          <text class="gf-weight" x={e.mx} y={e.my}>{fmt(e.w)}</text>
+        )}
+      </g>
+    ))}
+    {g.nodes.map(([x, y], v) => (
+      <g
+        class:list={['gf-node', nodeTones[v] && nodeTones[v].split(' ').map((t) => `is-${t}`)]}
+        data-gf-node={v}
+      >
+        <circle cx={x} cy={y} r={R} />
+        <text class="gf-label" x={x} y={y}>{label(v)}</text>
+        <text class="gf-badge" x={x + R - 2} y={y - R - 3} data-gf-badge={v}>{badges[v] ?? ''}</text>
+      </g>
+    ))}
+  </svg>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style is:global>
+  .aas-graph-figure {
+    margin: 1.5rem auto;
+    text-align: center;
+  }
+  .aas-graph-figure svg {
+    display: block;
+    margin-inline: auto;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .aas-graph-figure figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-graph-figure.is-bare {
+    margin: 0;
+  }
+  .aas-graph-figure.is-bare svg {
+    max-width: none;
+  }
+  .aas-graph-figure.is-slide {
+    margin: 0.5rem auto;
+  }
+  .aas-graph-figure.is-slide svg {
+    max-width: none;
+    width: auto;
+    height: 52vh;
+  }
+
+  /* 간선 */
+  .aas-graph-figure .gf-edge line {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+    transition:
+      stroke 0.3s,
+      stroke-width 0.3s,
+      opacity 0.3s;
+  }
+  .aas-graph-figure .gf-edge polygon {
+    fill: var(--aas-muted);
+    transition: fill 0.3s;
+  }
+  .aas-graph-figure .gf-weight {
+    font-size: 15px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    paint-order: stroke;
+    stroke: var(--aas-bg);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+  }
+  /* 트리에 든 간선(확정): 초록 굵게 */
+  .aas-graph-figure .gf-edge.is-tree line {
+    stroke: var(--aas-role-eval);
+    stroke-width: 5;
+  }
+  .aas-graph-figure .gf-edge.is-tree polygon {
+    fill: var(--aas-role-eval);
+  }
+  .aas-graph-figure .gf-edge.is-tree .gf-weight {
+    fill: var(--aas-text);
+    font-weight: 700;
+  }
+  /* 지금 보는 간선: 주황 */
+  .aas-graph-figure .gf-edge.is-focus line {
+    stroke: var(--aas-role-focus);
+    stroke-width: 5;
+  }
+  .aas-graph-figure .gf-edge.is-focus polygon {
+    fill: var(--aas-role-focus);
+  }
+  .aas-graph-figure .gf-edge.is-focus .gf-weight {
+    fill: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  /* 후보(아직 확정 아님): 파랑 점선 */
+  .aas-graph-figure .gf-edge.is-cand line {
+    stroke: var(--aas-role-model);
+    stroke-width: 3.5;
+    stroke-dasharray: 7 5;
+  }
+  .aas-graph-figure .gf-edge.is-cand polygon {
+    fill: var(--aas-role-model);
+  }
+  /* 버린 간선: 빨강 점선 */
+  .aas-graph-figure .gf-edge.is-reject line {
+    stroke: var(--aas-role-guard);
+    stroke-width: 2.5;
+    stroke-dasharray: 4 5;
+    opacity: 0.75;
+  }
+  .aas-graph-figure .gf-edge.is-reject polygon {
+    fill: var(--aas-role-guard);
+  }
+  .aas-graph-figure .gf-edge.is-dim {
+    opacity: 0.3;
+  }
+
+  /* 정점: 기본은 예전 슬라이드처럼 검은 원 */
+  .aas-graph-figure .gf-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.3s,
+      stroke 0.3s,
+      opacity 0.3s;
+  }
+  .aas-graph-figure .gf-label {
+    font-size: 17px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-graph-figure .gf-badge {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    text-anchor: start;
+    font-family: var(--aas-mono, monospace);
+    paint-order: stroke;
+    stroke: var(--aas-bg);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+  }
+  /* 확정·방문: 초록 */
+  .aas-graph-figure .gf-node.is-done circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  /* 지금 꺼낸 정점: 주황 */
+  .aas-graph-figure .gf-node.is-focus circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  /* 큐·스택·힙에 들어 있음: 파랑 */
+  .aas-graph-figure .gf-node.is-open circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-graph-figure .gf-node.is-done .gf-label,
+  .aas-graph-figure .gf-node.is-focus .gf-label,
+  .aas-graph-figure .gf-node.is-open .gf-label {
+    fill: #fff;
+  }
+  /* 출발·목표 표시: 빨간 고리 */
+  .aas-graph-figure .gf-node.is-ring circle {
+    stroke: var(--aas-role-guard);
+    stroke-width: 5;
+  }
+  .aas-graph-figure .gf-node.is-dim {
+    opacity: 0.35;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-graph-figure .gf-edge line,
+    .aas-graph-figure .gf-edge polygon,
+    .aas-graph-figure .gf-node circle {
+      transition: none;
+    }
+  }
+</style>
