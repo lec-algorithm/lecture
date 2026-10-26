@@ -12,7 +12,11 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
 import TrieFigure from '@components/TrieFigure.astro';
-import TreeFigure from '@components/TreeFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的"슬라이드 규칙"。
     数字与实践代码（topic-10-trie）的运行结果一致。 */}
@@ -86,8 +90,6 @@ import TreeFigure from '@components/TreeFigure.astro';
 - **hasValue**：是否有键在这个节点结束
 - **value**：那个键的值
 
-<TrieFigure kind="node" chars="bst" caption="放入六个键的字典树的根：26 格里只用了 b、s、t 三格" slide />
-
 </Slide>
 
 <Slide class="compact">
@@ -111,10 +113,10 @@ typedef struct TrieNode {
 
 <Slide>
 
-#### 存放六个键的字典树
-::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5]
+### 存放六个键的字典树
+::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · 点节点就能看到它的链接数组]
 
-<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+<TrieNodeDemo slide />
 
 </Slide>
 
@@ -289,6 +291,15 @@ ALGORITHM Search(root, word)
 
 </Slide>
 
+<Slide>
+
+### 自己输入：自动补全
+::sub[输入前缀，它下面的键按字典序列出来]
+
+<TrieNodeDemo mode="complete" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 收集写成代码
@@ -404,12 +415,10 @@ nodes = 17
 
 <Slide>
 
-#### 二叉搜索树看顺序
-::sub[按 5, 3, 9, 4, 7, 12, 6, 8, 20 的顺序插入的树]
+### 逐步看：插入顺序
+::sub[同样六个键只换插入顺序，只有二叉搜索树改变形状]
 
-<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} slide />
-
-同样的数按 3, 4, 5, …, 20 的顺序插入，就会变成只向右伸的一条线。
+<TrieOrderDemo slide />
 
 </Slide>
 
@@ -440,6 +449,15 @@ nodes = 17
   - 在英语词典里查 `xmcwkeicowalcoeks`，三四个字母就知道没有。
 - 如果字典树里有一百万个随机键
   - 不管是 7 位车牌还是 20 位账号，四五个节点就结束。
+
+</Slide>
+
+<Slide>
+
+### 自己数一数：查找失败
+::sub[用 N 个随机键建字典树，再用随机键查 1000 次]
+
+<TrieMissDemo slide />
 
 </Slide>
 
@@ -478,19 +496,10 @@ $$\log_{26} 10 \approx 0.71$$，也就是随 $$\log_R N$$ 增长。
 
 <Slide>
 
-#### RN 一侧：前缀全部共享
-::sub[s · she · sh · shells · shel · shell]
+### 自己改一改：RN 与 RNw 之间
+::sub[chain 共享全部前缀，spread 一个也不共享 · 也可以自己输入键]
 
-<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts slide />
-
-</Slide>
-
-<Slide>
-
-#### RNw 一侧：互不共享
-::sub[shells · an · bat · the · yell · ear]
-
-<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts slide />
+<TrieSpaceDemo set="chain" slide />
 
 </Slide>
 
@@ -517,21 +526,10 @@ space (R = 26, w = average key length)
 
 <Slide>
 
-#### 单分支
+### 逐步看：折叠单分支
 ::sub[空间用得过多，最大的原因是只用一个链接的节点]
 
-<div class="aas-split">
-<div>
-
-<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts caption="标准字典树" slide />
-
-</div>
-<div>
-
-<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts caption="去掉单分支的字典树" slide />
-
-</div>
-</div>
+<TrieCompressDemo slide />
 
 </Slide>
 
@@ -780,6 +778,15 @@ space (3 links per node)
 
 ## 字典树与 TST
 ::sub[Trie vs. TST]
+
+</Slide>
+
+<Slide>
+
+### 自己改一改：同样的键，三种结构
+::sub[字典树、TST、二叉搜索树的节点与链接 · 也可以自己输入键]
+
+<TrieSpaceDemo set="apple" compare slide />
 
 </Slide>
 
