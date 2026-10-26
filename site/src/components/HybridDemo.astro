@@ -1,0 +1,449 @@
+---
+// 하이브리드 필터링의 가중치 α를 슬라이더로 바꿔 보는 데모.
+//
+// score = α · cf + (1 - α) · content. 왼쪽은 실습 코드의 작은 예(아이템 셋의
+// cf 0.8 0.7 0.3, content 0.6 0.9 0.4), 오른쪽은 사용자 A의 빈칸이다. A의 cf는
+// 예제 1의 피어슨 예측(k = 3)을 5로 나눈 값, content는 예제 2의 프로필 코사인이고,
+// 둘 다 스크립트가 평점과 장르에서 직접 계산한다. 아무도 평가하지 않은 M7은
+// cf가 없어 콘텐츠 점수를 그대로 쓴다. 막대는 두 몫을 쌓아 그리고, 점수 순으로
+// 줄이 자리를 바꾼다.
+//
+// α = 0.5에서 algorithm-code의 contentBasedFiltering.c 출력과 같다.
+// toy 0.700 0.800 0.350, A: M3 0.847, M7 0.764, M6 0.248.
+// 작은 예는 α가 0.75보다 커지면 아이템 1이 아이템 2를 앞선다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 α */
+  alpha?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 막대는 키운다. */
+  slide?: boolean;
+}
+const { alpha = 0.5, slide = false } = Astro.props;
+const id = `hd-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 예제 1의 평점(A가 대상)과 예제 2의 장르. M7은 아무도 평가하지 않은 새 영화 */
+const data = {
+  ratings: [
+    [5, 5, 0, 4, 2, 0],
+    [5, 4, 5, 4, 3, 1],
+    [4, 4, 4, 3, 1, 2],
+    [1, 2, 1, 1, 4, 5],
+    [4, 3, 4, 4, 5, 5],
+  ],
+  features: [
+    [1, 1, 0, 0],
+    [1, 0, 1, 0],
+    [1, 0, 0, 1],
+    [1, 0, 0, 1],
+    [0, 1, 1, 0],
+    [0, 0, 1, 0],
+    [1, 1, 0, 1],
+  ],
+  k: 3,
+  toyCf: [0.8, 0.7, 0.3],
+  toyContent: [0.6, 0.9, 0.4],
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '하이브리드 가중치',
+    contentOnly: '콘텐츠만',
+    cfOnly: '협업 필터링만',
+    toy: '작은 예',
+    user: '사용자 A의 빈칸',
+    item: '아이템 {n}',
+    cf: '협업 필터링',
+    content: '콘텐츠',
+    noCf: 'cf 없음',
+    weights: 'α = {a}: 협업 필터링 점수를 {p}%, 콘텐츠 점수를 {q}% 반영합니다.',
+    toyOrder: '작은 예의 순위는 {list}입니다.',
+    tie: '{x}, {y}: 점수가 같습니다.',
+    userOrder: 'A에게는 {list} 순서로 추천합니다.',
+    m7: 'M7은 협업 필터링 점수가 없어 α와 상관없이 콘텐츠 점수 {s} 그대로입니다.',
+  },
+  en: {
+    title: 'Hybrid weight',
+    contentOnly: 'content only',
+    cfOnly: 'collaborative only',
+    toy: 'Toy example',
+    user: 'User A’s blanks',
+    item: 'item {n}',
+    cf: 'collaborative',
+    content: 'content',
+    noCf: 'no cf',
+    weights: 'α = {a}: the collaborative score counts {p}% and the content score {q}%.',
+    toyOrder: 'The toy ranking is {list}.',
+    tie: '{x} and {y} have the same score.',
+    userOrder: 'For A the order is {list}.',
+    m7: 'M7 has no collaborative score, so it keeps its content score {s} whatever α is.',
+  },
+  zh: {
+    title: '混合权重',
+    contentOnly: '只看内容',
+    cfOnly: '只看协同过滤',
+    toy: '小例子',
+    user: '用户 A 的空格',
+    item: '物品 {n}',
+    cf: '协同过滤',
+    content: '内容',
+    noCf: '无 cf',
+    weights: 'α = {a}：协同过滤分数占 {p}%，内容分数占 {q}%。',
+    toyOrder: '小例子的排名是 {list}。',
+    tie: '{x} 与 {y} 分数相同。',
+    userOrder: '给 A 的推荐顺序是 {list}。',
+    m7: 'M7 没有协同过滤分数，无论 α 是多少都保持内容分数 {s}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const a0 = Math.min(1, Math.max(0, alpha));
+---
+
+<div
+  class:list={['aas-hybrid-demo', slide && 'is-slide']}
+  id={id}
+  data-hd-data={JSON.stringify(data)}
+  data-hd-alpha={a0}
+  data-hd-strings={JSON.stringify(t)}
+>
+  <div class="hd-bar">
+    <span class="hd-head"><strong>{t.title}</strong></span>
+    <label class="hd-slider">
+      <span class="hd-end">{t.contentOnly}</span>
+      <input type="range" min="0" max="1" step="0.05" data-hd-range aria-label="α" />
+      <span class="hd-end">{t.cfOnly}</span>
+    </label>
+    <span class="hd-alpha">α = <strong data-hd-aval></strong></span>
+  </div>
+  <div class="hd-legend">
+    <span class="hd-key hd-key-cf"></span>{t.cf}
+    <span class="hd-key hd-key-ct"></span>{t.content}
+  </div>
+
+  <div class="hd-panels">
+    <section class="hd-panel" data-hd-panel="toy">
+      <h4 class="hd-ptitle">{t.toy}</h4>
+      <div class="hd-list" data-hd-list></div>
+    </section>
+    <section class="hd-panel" data-hd-panel="user">
+      <h4 class="hd-ptitle">{t.user}</h4>
+      <div class="hd-list" data-hd-list></div>
+    </section>
+  </div>
+
+  <p class="hd-note" data-hd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const D = JSON.parse(root.dataset.hdData);
+    const S = JSON.parse(root.dataset.hdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const f3 = (x) => x.toFixed(3);
+    let alpha = Number(root.dataset.hdAlpha);
+
+    /* 실습 코드와 같은 함수들 */
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+    function pearson(a, b) {
+      const common = [];
+      for (let i = 0; i < a.length; i++) if (a[i] > 0 && b[i] > 0) common.push(i);
+      if (!common.length) return 0;
+      let sa = 0, sb = 0;
+      for (const i of common) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / common.length, mb = sb / common.length;
+      let num = 0, da = 0, db = 0;
+      for (const i of common) {
+        num += (a[i] - ma) * (b[i] - mb);
+        da += (a[i] - ma) * (a[i] - ma);
+        db += (b[i] - mb) * (b[i] - mb);
+      }
+      return da === 0 || db === 0 ? 0 : num / Math.sqrt(da * db);
+    }
+    function hybridScore(cf, content, a) {
+      return cf === null ? content : a * cf + (1 - a) * content;
+    }
+
+    /* A의 cf: 피어슨, 0보다 큰 이웃 k명의 가중 평균을 5로 나눈다. */
+    const R = D.ratings;
+    const sim = R.map((row, v) => (v === 0 ? null : pearson(R[0], row)));
+    const nb = [];
+    while (nb.length < D.k) {
+      let best = -1;
+      sim.forEach((s, v) => {
+        if (v === 0 || nb.includes(v) || s === null || s <= 0) return;
+        if (best < 0 || s > sim[best]) best = v;
+      });
+      if (best < 0) break;
+      nb.push(best);
+    }
+    const predict = (item) => {
+      let num = 0, den = 0;
+      for (const v of nb) {
+        if (item < R[v].length && R[v][item] > 0) {
+          num += sim[v] * R[v][item];
+          den += sim[v];
+        }
+      }
+      return den === 0 ? null : num / den;
+    };
+    /* A의 content: 본 영화마다 (평점 - 3)만큼 장르를 더한 프로필과의 코사인 */
+    const rA = D.features.map((_, i) => (i < R[0].length ? R[0][i] : 0));
+    const profile = D.features[0].map((_, j) => D.features.reduce((acc, f, i) => acc + (rA[i] > 0 ? (rA[i] - 3) * f[j] : 0), 0));
+    const userItems = D.features
+      .map((f, i) => i)
+      .filter((i) => rA[i] === 0)
+      .map((i) => {
+        const p = predict(i);
+        return { name: `M${i + 1}`, cf: p === null ? null : p / 5, content: cosine(profile, D.features[i]) };
+      });
+    const toyItems = D.toyCf.map((cf, i) => ({ name: fill(S.item, { n: i + 1 }), cf, content: D.toyContent[i] }));
+
+    /* 줄 만들기. 줄은 absolute로 두고 순위에 따라 위아래로 옮긴다. */
+    const panels = [...root.querySelectorAll('[data-hd-panel]')].map((sec, p) => {
+      const items = p === 0 ? toyItems : userItems;
+      const list = sec.querySelector('[data-hd-list]');
+      list.style.height = `${items.length * 2.3}em`;
+      const rows = items.map((it) => {
+        const row = document.createElement('div');
+        row.className = 'hd-row';
+        row.innerHTML =
+          '<span class="hd-rank"></span><span class="hd-name"></span>' +
+          '<span class="hd-track"><span class="hd-seg hd-cf"></span><span class="hd-seg hd-ct"></span><span class="hd-tag"></span></span>' +
+          '<span class="hd-val"></span>';
+        row.querySelector('.hd-name').textContent = it.name;
+        if (it.cf === null) {
+          row.classList.add('is-nocf');
+          row.querySelector('.hd-tag').textContent = S.noCf;
+        }
+        list.appendChild(row);
+        return { it, row };
+      });
+      return { rows };
+    });
+
+    const range = root.querySelector('[data-hd-range]');
+    const aval = root.querySelector('[data-hd-aval]');
+    const note = root.querySelector('[data-hd-note]');
+    range.value = String(alpha);
+
+    /* 점수 내림차순. 차이가 아주 작으면 같은 점수로 보고 원래 순서를 지킨다. */
+    const EPS = 1e-9;
+    function ranked(rows) {
+      return rows
+        .map((r, i) => ({ ...r, i, s: hybridScore(r.it.cf, r.it.content, alpha) }))
+        .sort((x, y) => (Math.abs(x.s - y.s) < EPS ? x.i - y.i : y.s - x.s));
+    }
+    function render() {
+      aval.textContent = alpha.toFixed(2);
+      const orders = panels.map(({ rows }) => {
+        const order = ranked(rows);
+        order.forEach((r, k) => {
+          const cfPart = r.it.cf === null ? 0 : alpha * r.it.cf;
+          const ctPart = r.it.cf === null ? r.it.content : (1 - alpha) * r.it.content;
+          r.row.style.transform = `translateY(${k * 2.3}em)`;
+          r.row.querySelector('.hd-rank').textContent = `#${k + 1}`;
+          r.row.querySelector('.hd-cf').style.width = `${cfPart * 100}%`;
+          r.row.querySelector('.hd-ct').style.width = `${ctPart * 100}%`;
+          r.row.querySelector('.hd-val').textContent = f3(r.s);
+          r.row.classList.toggle('is-top', k === 0);
+        });
+        return order;
+      });
+      const pct = Math.round(alpha * 100);
+      const parts = [fill(S.weights, { a: alpha.toFixed(2), p: pct, q: 100 - pct })];
+      parts.push(fill(S.toyOrder, { list: orders[0].map((r) => r.it.name).join(' > ') }));
+      for (let k = 1; k < orders[0].length; k++) {
+        if (Math.abs(orders[0][k].s - orders[0][k - 1].s) < EPS) parts.push(fill(S.tie, { x: orders[0][k - 1].it.name, y: orders[0][k].it.name }));
+      }
+      parts.push(fill(S.userOrder, { list: orders[1].map((r) => r.it.name).join(' > ') }));
+      const m7 = orders[1].find((r) => r.it.cf === null);
+      if (m7) parts.push(fill(S.m7, { s: f3(m7.it.content) }));
+      setLines(note, parts.join(' '));
+    }
+    range.addEventListener('input', () => {
+      alpha = Number(range.value);
+      render();
+    });
+    root.classList.add('is-still');
+    render();
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('is-still')));
+  })();
+</script>
+
+<style is:global>
+  .aas-hybrid-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-hybrid-demo .hd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-hybrid-demo .hd-head {
+    font-size: 0.95em;
+  }
+  .aas-hybrid-demo .hd-slider {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-hybrid-demo .hd-slider input {
+    width: 12em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-hybrid-demo .hd-alpha {
+    font-size: 1em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-hybrid-demo .hd-alpha strong {
+    font-size: 1.3em;
+    color: var(--aas-role-focus);
+  }
+  .aas-hybrid-demo .hd-legend {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    margin: 0.5em 0 0.3em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-hybrid-demo .hd-key {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 0.2em;
+  }
+  .aas-hybrid-demo .hd-key-ct {
+    margin-left: 0.8em;
+  }
+  .aas-hybrid-demo .hd-key-cf,
+  .aas-hybrid-demo .hd-cf {
+    background: var(--aas-role-model);
+  }
+  .aas-hybrid-demo .hd-key-ct,
+  .aas-hybrid-demo .hd-ct {
+    background: var(--aas-role-source);
+  }
+  .aas-hybrid-demo .hd-panels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 2em;
+  }
+  .aas-hybrid-demo .hd-panel {
+    flex: 1 1 16em;
+    min-width: 0;
+  }
+  .aas-hybrid-demo .hd-ptitle {
+    margin: 0.4em 0 0.4em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-hybrid-demo .hd-list {
+    position: relative;
+  }
+  .aas-hybrid-demo .hd-row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: 2.2em 5.2em 1fr 3.4em;
+    gap: 0.5em;
+    align-items: center;
+    height: 2em;
+    transition: transform 0.4s ease;
+  }
+  .aas-hybrid-demo .hd-rank {
+    font-size: 0.85em;
+    font-weight: 700;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-hybrid-demo .hd-name {
+    font-size: 0.9em;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .aas-hybrid-demo .hd-track {
+    position: relative;
+    display: flex;
+    height: 1.2em;
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    overflow: hidden;
+  }
+  .aas-hybrid-demo .hd-seg {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+  .aas-hybrid-demo .hd-tag {
+    position: absolute;
+    right: 0.4em;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7em;
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-hybrid-demo .hd-val {
+    font-size: 0.9em;
+    font-weight: 700;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-hybrid-demo .hd-row.is-top .hd-rank,
+  .aas-hybrid-demo .hd-row.is-top .hd-val {
+    color: var(--aas-role-focus);
+  }
+  .aas-hybrid-demo .hd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-hybrid-demo.is-still * {
+    transition: none !important;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-hybrid-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-hybrid-demo * {
+      transition: none !important;
+    }
+  }
+</style>
