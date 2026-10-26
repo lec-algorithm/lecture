@@ -1,0 +1,487 @@
+---
+// LCP 배열을 Kasai 알고리즘으로 채우는 과정을 한 걸음씩 보는 데모.
+//
+// 위의 띠는 텍스트다. 글자 아래에 rank[i](그 위치에서 시작하는 접미사가
+// 정렬에서 몇 번째인지)를 적는다. 아래 표는 정렬된 접미사와 LCP 열이다.
+// 텍스트 위치 i = 0, 1, 2, ... 순으로, 위치마다 두 걸음이다.
+// (1) 고르기: 접미사 i(주황)와 정렬에서 바로 앞 이웃 j(파랑)를 표에서 찾고,
+//     이미 같다고 아는 앞 h글자를 회색으로 칠한다.
+// (2) 비교: h번째 글자부터 비교해 일치(초록)와 불일치(빨강)를 칠하고 LCP를
+//     채운다. 다음 위치는 h를 1 줄여서 시작한다.
+// 글자 비교 횟수는 algorithm-code 04_lcp의 출력(kasai 9, naive 12)과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** LCP 배열을 만들 문자열. '$'로 끝나야 한다. */
+  text?: string;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { text = 'banana$', slide = false } = Astro.props;
+const id = `ks-${Math.random().toString(36).slice(2, 9)}`;
+const n = text.length;
+const sa = [...Array(n).keys()].sort((a, b) => (text.slice(a) < text.slice(b) ? -1 : 1));
+const rank = new Array(n);
+sa.forEach((p, j) => (rank[p] = j));
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LCP 배열: Kasai 알고리즘',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    rowI: 'i',
+    rowT: 'T[i]',
+    rowRank: 'rank[i]',
+    colJ: 'j',
+    colSa: 'SA[j]',
+    colLcp: 'LCP[j]',
+    colSuffix: '접미사',
+    hLabel: 'h',
+    cmpLabel: '글자 비교',
+    idle: '텍스트 위치 순서(i = 0, 1, 2, ...)로 접미사를 하나씩 처리합니다. h는 이미 같다고 아는 글자 수입니다.',
+    pick: 'i = {i}: {s} (rank {r}). 정렬에서 바로 앞 이웃은 SA[{r1}] = {j}, {t}. h = {h}이므로 {h}번째 글자부터 비교합니다.',
+    pickSkip: ' 앞 {h}글자는 비교하지 않습니다.',
+    cmp: '{m}글자 더 일치하고 {a} ≠ {b}. LCP[{r}] = {h}. 다음 위치는 h = {next}에서 시작합니다.',
+    first: 'i = {i}: {s}는 정렬에서 맨 앞이라 이웃이 없습니다. LCP[0]은 정의하지 않고 h = 0으로 둡니다.',
+    done: '끝. LCP = {lcp}. 글자 비교 {k}번 (이웃마다 처음부터 비교하면 {naive}번)',
+  },
+  en: {
+    title: 'LCP array: Kasai',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    rowI: 'i',
+    rowT: 'T[i]',
+    rowRank: 'rank[i]',
+    colJ: 'j',
+    colSa: 'SA[j]',
+    colLcp: 'LCP[j]',
+    colSuffix: 'suffix',
+    hLabel: 'h',
+    cmpLabel: 'char compares',
+    idle: 'Process suffixes in text order (i = 0, 1, 2, ...). h is the number of characters already known to match.',
+    pick: 'i = {i}: {s} (rank {r}). Its sorted neighbor above is SA[{r1}] = {j}, {t}. h = {h}, so compare from character {h}.',
+    pickSkip: ' The first {h} characters are skipped.',
+    cmp: '{m} more match, then {a} ≠ {b}. LCP[{r}] = {h}. The next position starts at h = {next}.',
+    first: 'i = {i}: {s} is first in sorted order and has no neighbor. LCP[0] is undefined; set h = 0.',
+    done: 'Done. LCP = {lcp}. {k} char compares (comparing each neighbor pair from scratch: {naive})',
+  },
+  zh: {
+    title: 'LCP 数组：Kasai 算法',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    rowI: 'i',
+    rowT: 'T[i]',
+    rowRank: 'rank[i]',
+    colJ: 'j',
+    colSa: 'SA[j]',
+    colLcp: 'LCP[j]',
+    colSuffix: '后缀',
+    hLabel: 'h',
+    cmpLabel: '字符比较',
+    idle: '按文本位置顺序（i = 0, 1, 2, ...）逐个处理后缀。h 是已知相同的字符数。',
+    pick: 'i = {i}：{s}（rank {r}）。排序中紧邻其前的是 SA[{r1}] = {j}，{t}。h = {h}，从第 {h} 个字符开始比较。',
+    pickSkip: '前 {h} 个字符不再比较。',
+    cmp: '又匹配了 {m} 个字符，然后 {a} ≠ {b}。LCP[{r}] = {h}。下一个位置从 h = {next} 开始。',
+    first: 'i = {i}：{s} 在排序中排第一，没有前邻。LCP[0] 不定义，令 h = 0。',
+    done: '结束。LCP = {lcp}。字符比较 {k} 次（每对相邻后缀从头比较需要 {naive} 次）',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-kasai-demo', slide && 'is-slide']}
+  id={id}
+  data-ks-text={text}
+  data-ks-strings={JSON.stringify(t)}
+  style={`--ks-n: ${n}`}
+>
+  <div class="ks-bar">
+    <span class="ks-head"><strong>{t.title}</strong></span>
+    <div class="ks-controls">
+      <button type="button" data-act="back" class="ks-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ks-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ks-btn ks-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ks-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ks-body">
+    <table class="ks-strip">
+      <tbody>
+        <tr>
+          <th>{t.rowI}</th>
+          {[...text].map((_, i) => <td data-ks-pos={i}>{i}</td>)}
+        </tr>
+        <tr class="ks-chars">
+          <th>{t.rowT}</th>
+          {[...text].map((ch, i) => <td data-ks-pos={i}>{ch}</td>)}
+        </tr>
+        <tr>
+          <th>{t.rowRank}</th>
+          {[...text].map((_, i) => <td data-ks-pos={i}>{rank[i]}</td>)}
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="ks-table">
+      <thead>
+        <tr>
+          <th>{t.colJ}</th>
+          <th>{t.colSa}</th>
+          <th>{t.colLcp}</th>
+          <th class="ks-suf">{t.colSuffix}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sa.map((p, j) => (
+          <tr data-ks-row={j}>
+            <td>{j}</td>
+            <td>{p}</td>
+            <td data-ks-lcp></td>
+            <td class="ks-suf">
+              {text.slice(p).split('').map((ch, k) => <span class="ks-ch" data-ks-k={k}>{ch}</span>)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ks-foot">
+    <p class="ks-note" data-ks-note></p>
+    <span class="ks-count">
+      {t.hLabel} = <strong data-ks-h>0</strong> · {t.cmpLabel} <strong data-ks-cmp>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const text = root.dataset.ksText;
+    const S = JSON.parse(root.dataset.ksStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = text.length;
+    const sa = [...Array(n).keys()].sort((a, b) => (text.slice(a) < text.slice(b) ? -1 : 1));
+    const rank = new Array(n);
+    sa.forEach((p, j) => (rank[p] = j));
+    const show = (c) => (c === undefined ? '∅' : c);
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 lcp.pseudo와 같다. */
+    function plan() {
+      const steps = [];
+      const lcp = new Array(n).fill(null);
+      let h = 0;
+      let compares = 0;
+      for (let i = 0; i < n; i++) {
+        if (rank[i] === 0) {
+          h = 0;
+          steps.push({ i, cur: 0, prev: null, lcp: lcp.slice(), h, compares,
+            note: fill(S.first, { i, s: text.slice(i) }) });
+          continue;
+        }
+        const j = sa[rank[i] - 1];
+        const start = h;
+        let note = fill(S.pick, { i, s: text.slice(i), r: rank[i], r1: rank[i] - 1, j, t: text.slice(j), h });
+        if (h > 0) note += fill(S.pickSkip, { h });
+        steps.push({ i, j, cur: rank[i], prev: rank[i] - 1, start, end: start, miss: false,
+          lcp: lcp.slice(), h, compares, note });
+
+        let miss = false;
+        while (i + h < n && j + h < n) {
+          compares += 1;
+          if (text[i + h] !== text[j + h]) { miss = true; break; }
+          h += 1;
+        }
+        lcp[rank[i]] = h;
+        const next = h > 0 ? h - 1 : 0;
+        steps.push({ i, j, cur: rank[i], prev: rank[i] - 1, start, end: h, miss,
+          lcp: lcp.slice(), h, compares,
+          note: fill(S.cmp, { m: h - start, a: show(text[i + h]), b: show(text[j + h]), r: rank[i], h, next }) });
+        if (h > 0) h -= 1;
+      }
+      let naive = 0;
+      for (let k = 1; k < n; k++) {
+        const a = sa[k - 1], b = sa[k];
+        let x = 0;
+        while (a + x < n && b + x < n) {
+          naive += 1;
+          if (text[a + x] !== text[b + x]) break;
+          x += 1;
+        }
+      }
+      steps.push({ i: null, cur: null, prev: null, lcp: lcp.slice(), h, compares, finished: true,
+        note: fill(S.done, { lcp: ['-', ...lcp.slice(1)].join(' '), k: compares, naive }) });
+      return steps;
+    }
+
+    const steps = plan();
+    const rows = [...root.querySelectorAll('[data-ks-row]')];
+    const strip = [...root.querySelectorAll('[data-ks-pos]')];
+    const note = root.querySelector('[data-ks-note]');
+    const hEl = root.querySelector('[data-ks-h]');
+    const cmpEl = root.querySelector('[data-ks-cmp]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      strip.forEach((td) => {
+        const p = Number(td.dataset.ksPos);
+        td.classList.toggle('is-cur', !!st && st.i === p);
+        td.classList.toggle('is-prev', !!st && st.j === p && st.prev !== null);
+      });
+      rows.forEach((row, r) => {
+        const isCur = !!st && st.cur === r;
+        const isPrev = !!st && st.prev === r;
+        row.classList.toggle('is-cur', isCur);
+        row.classList.toggle('is-prev', isPrev);
+        const v = st ? st.lcp[r] : null;
+        row.querySelector('[data-ks-lcp]').textContent = r === 0 ? '-' : v === null ? '' : String(v);
+        row.querySelectorAll('[data-ks-k]').forEach((ch) => {
+          const k = Number(ch.dataset.ksK);
+          const on = (isCur || isPrev) && st.prev !== null;
+          ch.classList.toggle('is-skip', on && k < st.start);
+          ch.classList.toggle('is-match', on && k >= st.start && k < st.end);
+          ch.classList.toggle('is-miss', on && st.miss && k === st.end);
+        });
+      });
+      hEl.textContent = String(st ? st.h : 0);
+      cmpEl.textContent = String(st ? st.compares : 0);
+      note.textContent = st ? st.note : S.idle;
+      root.classList.toggle('is-done', !!(st && st.finished));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1500);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-kasai-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-kasai-demo .ks-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-kasai-demo .ks-head {
+    font-size: 0.95em;
+  }
+  .aas-kasai-demo .ks-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-kasai-demo .ks-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-kasai-demo .ks-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-kasai-demo .ks-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-kasai-demo .ks-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 2em;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-x: auto;
+  }
+  /* 테마의 표 스타일을 덮어쓴다. 데모 안의 표는 칸이 작고 테두리가 얇다. */
+  .aas-kasai-demo.aas-kasai-demo table {
+    width: auto;
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    margin: 0;
+    border-collapse: collapse;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+  }
+  .aas-kasai-demo.aas-kasai-demo :is(th, td) {
+    padding: 0.15em 0.45em;
+    border: none;
+    background: none;
+    text-align: center;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+  .aas-kasai-demo.aas-kasai-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-strip td {
+    min-width: 1.4em;
+    border-radius: 0.3em;
+    transition: background-color 0.3s;
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-strip tr:first-child td,
+  .aas-kasai-demo.aas-kasai-demo .ks-strip tr:last-child td {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-strip .ks-chars td {
+    font-weight: 700;
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-strip td.is-cur {
+    background: color-mix(in srgb, var(--aas-role-focus) 30%, transparent);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-strip td.is-prev {
+    background: color-mix(in srgb, var(--aas-role-model) 30%, transparent);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-table thead th {
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-table .ks-suf {
+    text-align: left;
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-table tbody tr {
+    background: none;
+    transition: background-color 0.3s;
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-table tbody tr.is-cur {
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, transparent);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-table tbody tr.is-prev {
+    background: color-mix(in srgb, var(--aas-role-model) 18%, transparent);
+  }
+  .aas-kasai-demo.aas-kasai-demo .ks-table td[data-ks-lcp] {
+    font-weight: 700;
+    min-width: 2em;
+  }
+  .aas-kasai-demo .ks-ch {
+    display: inline-block;
+    width: 0.85em;
+    text-align: center;
+    border-radius: 0.15em;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  .aas-kasai-demo .ks-ch.is-skip {
+    background: color-mix(in srgb, var(--aas-muted) 35%, transparent);
+  }
+  .aas-kasai-demo .ks-ch.is-match {
+    background: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-kasai-demo .ks-ch.is-miss {
+    background: var(--aas-role-guard);
+    color: #fff;
+  }
+
+  .aas-kasai-demo .ks-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-kasai-demo .ks-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-kasai-demo.is-done .ks-note {
+    color: var(--aas-text);
+  }
+  .aas-kasai-demo .ks-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-kasai-demo .ks-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-kasai-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-kasai-demo.is-slide .ks-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-kasai-demo .ks-strip td,
+    .aas-kasai-demo .ks-table tbody tr,
+    .aas-kasai-demo .ks-ch {
+      transition: none;
+    }
+  }
+</style>
