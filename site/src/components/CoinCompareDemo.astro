@@ -1,0 +1,492 @@
+---
+// 동전 단위를 바꿔 가며 그리디와 동적 계획법의 거스름돈 답을 견주는 데모.
+//
+// 동전 묶음(버튼 또는 직접 입력)을 고르면 금액 띠가 다시 칠해진다. 띠의 칸은
+// 동전들의 최대공약수 간격으로 30개다.
+// - 초록: 그리디와 동적 계획법의 동전 수가 같다.
+// - 주황: 그리디가 동전을 더 많이 쓴다.
+// - 분홍: 그리디는 나머지가 남아 막히는데, 동적 계획법은 만든다.
+// - 회색: 어느 쪽도 만들 수 없다.
+// 칸을 누르면 그 금액에서 두 방법이 낸 동전이 아래에 나온다.
+//
+// 그리디는 algorithm-code topic-06 01_coin_change(큰 동전부터 몫만큼),
+// 동적 계획법은 topic-14 02_coin_change(coin_change_tab, 동전 순서와 동점
+// 처리 포함)와 같은 절차를 스크립트가 실제로 돌린다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 동전 묶음 (코드와 같은 순서) */
+  coins?: number[];
+  /** 처음 고른 금액 */
+  amount?: number;
+  /** 버튼으로 둘 동전 묶음 */
+  presets?: number[][];
+  slide?: boolean;
+}
+const {
+  coins = [50, 40, 10],
+  amount = 80,
+  presets = [
+    [2, 3, 5],
+    [50, 40, 10],
+    [100, 50, 10],
+    [1, 3, 4],
+  ],
+  slide = false,
+} = Astro.props;
+const id = `cc-${Math.random().toString(36).slice(2, 9)}`;
+const CELLS = 30;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '그리디 vs. 동적 계획법',
+    coins: '동전',
+    apply: '적용',
+    greedy: '그리디 (큰 동전부터)',
+    dp: '동적 계획법 (모두 견줌)',
+    count: '{k}개',
+    stuck: '{r}원 남아 막힘',
+    none: '만들 수 없음',
+    same: '같음',
+    worse: '그리디가 더 많음',
+    stuckKey: '그리디만 막힘',
+    noneKey: '둘 다 불가',
+    bad: '입력은 1 이상 1000 이하의 정수를 쉼표로 나눠 씁니다.',
+    noteSame: '{a}원: 둘 다 동전 {k}개입니다.',
+    noteWorse: '{a}원: 그리디는 {g}개, 동적 계획법은 {d}개입니다. 그리디는 처음 고른 큰 동전을 되돌리지 않습니다.',
+    noteStuck: '{a}원: 그리디는 {r}원이 남아 막힙니다. 동적 계획법은 동전 {d}개로 만듭니다.',
+    noteNone: '{a}원은 어느 쪽도 만들 수 없습니다.',
+    summary: '이 띠의 금액 {n}개 중 그리디가 틀리는 금액은 {w}개입니다.',
+  },
+  en: {
+    title: 'Greedy vs. dynamic programming',
+    coins: 'coins',
+    apply: 'Apply',
+    greedy: 'Greedy (largest first)',
+    dp: 'DP (compares all)',
+    count: '{k} coins',
+    stuck: 'stuck, {r} left',
+    none: 'cannot be made',
+    same: 'same',
+    worse: 'greedy uses more',
+    stuckKey: 'only greedy stuck',
+    noneKey: 'neither can',
+    bad: 'Enter whole numbers from 1 to 1000, separated by commas.',
+    noteSame: 'Amount {a}: both use {k} coins.',
+    noteWorse: 'Amount {a}: greedy uses {g} coins, DP uses {d}. Greedy never takes back the large coin it picked first.',
+    noteStuck: 'Amount {a}: greedy gets stuck with {r} left. DP makes it with {d} coins.',
+    noteNone: 'Amount {a} cannot be made either way.',
+    summary: 'Greedy is wrong for {w} of the {n} amounts in this strip.',
+  },
+  zh: {
+    title: '贪心 vs. 动态规划',
+    coins: '硬币',
+    apply: '应用',
+    greedy: '贪心（先付大额）',
+    dp: '动态规划（全部比较）',
+    count: '{k} 枚',
+    stuck: '剩 {r} 元，卡住',
+    none: '凑不出',
+    same: '相同',
+    worse: '贪心更多',
+    stuckKey: '只有贪心卡住',
+    noneKey: '都凑不出',
+    bad: '请输入 1 到 1000 的整数，用逗号分隔。',
+    noteSame: '{a} 元：两者都用 {k} 枚。',
+    noteWorse: '{a} 元：贪心用 {g} 枚，动态规划用 {d} 枚。贪心不会收回最先选的大额硬币。',
+    noteStuck: '{a} 元：贪心剩下 {r} 元卡住了。动态规划用 {d} 枚凑出。',
+    noteNone: '{a} 元两种方法都凑不出。',
+    summary: '这一行的 {n} 个金额中，贪心答错的有 {w} 个。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const fmtSet = (cs: number[]) => `{${cs.join(', ')}}`;
+---
+
+<div
+  class:list={['aas-coin-compare-demo', slide && 'is-slide']}
+  id={id}
+  data-cc-strings={JSON.stringify(t)}
+  data-cc-coins={JSON.stringify(coins)}
+  data-cc-amount={amount}
+  data-cc-cells={CELLS}
+>
+  <div class="cc-bar">
+    <span class="cc-head"><strong>{t.title}</strong></span>
+    <span class="cc-presets">
+      {
+        presets.map((p) => (
+          <button type="button" class="cc-btn" data-cc-preset={JSON.stringify(p)}>
+            {fmtSet(p)}
+          </button>
+        ))
+      }
+    </span>
+    <form class="cc-form" data-cc-form>
+      <label>
+        {t.coins} <input type="text" inputmode="numeric" data-cc-input value={coins.join(', ')} />
+      </label>
+      <button type="submit" class="cc-btn">{t.apply}</button>
+    </form>
+  </div>
+
+  <div class="cc-strip" data-cc-strip></div>
+  <div class="cc-legend">
+    <span><i class="is-same"></i>{t.same}</span>
+    <span><i class="is-worse"></i>{t.worse}</span>
+    <span><i class="is-stuck"></i>{t.stuckKey}</span>
+    <span><i class="is-none"></i>{t.noneKey}</span>
+  </div>
+
+  <div class="cc-panels">
+    <div class="cc-panel">
+      <span class="cc-panel-head">{t.greedy}</span>
+      <span class="cc-chips" data-cc-greedy></span>
+      <strong class="cc-total" data-cc-gtotal></strong>
+    </div>
+    <div class="cc-panel">
+      <span class="cc-panel-head">{t.dp}</span>
+      <span class="cc-chips" data-cc-dp></span>
+      <strong class="cc-total" data-cc-dtotal></strong>
+    </div>
+  </div>
+
+  <p class="cc-note" data-cc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.ccStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+    const CELLS = Number(root.dataset.ccCells);
+    const strip = root.querySelector('[data-cc-strip]');
+    const input = root.querySelector('[data-cc-input]');
+    const note = root.querySelector('[data-cc-note]');
+    const gChips = root.querySelector('[data-cc-greedy]');
+    const dChips = root.querySelector('[data-cc-dp]');
+    const gTotal = root.querySelector('[data-cc-gtotal]');
+    const dTotal = root.querySelector('[data-cc-dtotal]');
+    const presetBtns = [...root.querySelectorAll('[data-cc-preset]')];
+
+    let coins = JSON.parse(root.dataset.ccCoins);
+    let pick = Number(root.dataset.ccAmount);
+    let unit = 1;
+    let res = [];
+
+    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+
+    /* 주제 06: 큰 동전부터 몫만큼 낸다. 나머지가 남으면 막힌 것이다. */
+    function greedy(a) {
+      const used = [];
+      let rest = a;
+      for (const c of [...coins].sort((x, y) => y - x)) {
+        const k = Math.floor(rest / c);
+        if (k > 0) used.push([c, k]);
+        rest -= k * c;
+      }
+      return { used, k: used.reduce((s, [, k]) => s + k, 0), rest };
+    }
+    /* 주제 14: coin_change_tab. choice로 복원한다. */
+    function table(top) {
+      const dp = new Array(top + 1).fill(Infinity);
+      const choice = new Array(top + 1).fill(0);
+      dp[0] = 0;
+      for (let a = 1; a <= top; a++) {
+        for (const c of coins) {
+          if (c <= a && dp[a - c] !== Infinity && dp[a - c] + 1 < dp[a]) {
+            dp[a] = dp[a - c] + 1;
+            choice[a] = c;
+          }
+        }
+      }
+      return { dp, choice };
+    }
+    function restore(tab, a) {
+      const cnt = new Map();
+      while (a > 0) {
+        const c = tab.choice[a];
+        cnt.set(c, (cnt.get(c) || 0) + 1);
+        a -= c;
+      }
+      return [...cnt.entries()].sort((x, y) => y[0] - x[0]);
+    }
+
+    function compute() {
+      unit = coins.reduce(gcd);
+      const top = unit * CELLS;
+      const tab = table(top);
+      res = [];
+      for (let i = 1; i <= CELLS; i++) {
+        const a = i * unit;
+        const g = greedy(a);
+        const d = tab.dp[a];
+        let kind = 'same';
+        if (d === Infinity) kind = 'none';
+        else if (g.rest > 0) kind = 'stuck';
+        else if (g.k > d) kind = 'worse';
+        res.push({ a, g, d, kind, dused: d === Infinity ? [] : restore(tab, a) });
+      }
+      if (!res.some((r) => r.a === pick)) {
+        const first = res.find((r) => r.kind === 'worse' || r.kind === 'stuck');
+        pick = (first || res[0]).a;
+      }
+      strip.replaceChildren(
+        ...res.map((r) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `cc-cell is-${r.kind}`;
+          b.dataset.ccA = String(r.a);
+          b.textContent = String(r.a);
+          return b;
+        }),
+      );
+      const key = JSON.stringify(coins);
+      presetBtns.forEach((b) => b.classList.toggle('is-on', b.dataset.ccPreset === key));
+      input.value = coins.join(', ');
+      render();
+    }
+
+    function chips(node, used) {
+      node.replaceChildren(
+        ...used.map(([c, k]) => {
+          const s = document.createElement('span');
+          s.className = 'cc-chip';
+          const v = document.createElement('b');
+          v.textContent = String(c);
+          s.append(v);
+          if (k > 1) s.append(`×${k}`);
+          return s;
+        }),
+      );
+    }
+
+    function render() {
+      const r = res.find((x) => x.a === pick);
+      strip.querySelectorAll('[data-cc-a]').forEach((b) => b.classList.toggle('is-pick', Number(b.dataset.ccA) === pick));
+      chips(gChips, r.g.used);
+      chips(dChips, r.dused);
+      gTotal.textContent = r.g.rest > 0 ? fill(S.stuck, { r: r.g.rest }) : fill(S.count, { k: r.g.k });
+      dTotal.textContent = r.d === Infinity ? S.none : fill(S.count, { k: r.d });
+      gTotal.className = `cc-total is-${r.kind === 'same' ? 'same' : r.kind === 'none' ? 'none' : 'bad'}`;
+      const wrong = res.filter((x) => x.kind === 'worse' || x.kind === 'stuck').length;
+      const msg =
+        r.kind === 'same'
+          ? fill(S.noteSame, { a: r.a, k: r.d })
+          : r.kind === 'worse'
+            ? fill(S.noteWorse, { a: r.a, g: r.g.k, d: r.d })
+            : r.kind === 'stuck'
+              ? fill(S.noteStuck, { a: r.a, r: r.g.rest, d: r.d })
+              : fill(S.noteNone, { a: r.a });
+      setLines(note, `${msg} ${fill(S.summary, { n: res.length, w: wrong })}`);
+    }
+
+    strip.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-cc-a]');
+      if (!b) return;
+      pick = Number(b.dataset.ccA);
+      render();
+    });
+    presetBtns.forEach((b) =>
+      b.addEventListener('click', () => {
+        coins = JSON.parse(b.dataset.ccPreset);
+        compute();
+      }),
+    );
+    root.querySelector('[data-cc-form]').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const xs = input.value
+        .split(/[\s,]+/)
+        .filter(Boolean)
+        .map(Number);
+      const ok = xs.length > 0 && xs.length <= 8 && xs.every((x) => Number.isInteger(x) && x >= 1 && x <= 1000);
+      if (!ok) {
+        setLines(note, S.bad);
+        return;
+      }
+      coins = [...new Set(xs)];
+      compute();
+    });
+    compute();
+  })();
+</script>
+
+<style is:global>
+  .aas-coin-compare-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-coin-compare-demo .cc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-coin-compare-demo .cc-head {
+    font-size: 0.95em;
+  }
+  .aas-coin-compare-demo .cc-presets,
+  .aas-coin-compare-demo .cc-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-coin-compare-demo .cc-form label {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-compare-demo .cc-form input {
+    width: 8.5em;
+    padding: 0.3em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-coin-compare-demo .cc-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-coin-compare-demo .cc-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-coin-compare-demo .cc-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-coin-compare-demo .cc-strip {
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    gap: 0.25em;
+  }
+  .aas-coin-compare-demo .cc-cell {
+    padding: 0.3em 0;
+    font: inherit;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    border: 1.5px solid transparent;
+    border-radius: 0.35em;
+    cursor: pointer;
+  }
+  .aas-coin-compare-demo .is-same {
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+  }
+  .aas-coin-compare-demo .is-worse {
+    background: color-mix(in srgb, var(--aas-role-focus) 45%, var(--aas-bg));
+  }
+  .aas-coin-compare-demo .is-stuck {
+    background: color-mix(in srgb, var(--aas-role-guard) 45%, var(--aas-bg));
+  }
+  .aas-coin-compare-demo .is-none {
+    background: color-mix(in srgb, var(--aas-muted) 22%, var(--aas-bg));
+    color: var(--aas-muted);
+  }
+  .aas-coin-compare-demo .cc-cell.is-pick {
+    border-color: var(--aas-text);
+    box-shadow: 0 0 0 2px var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-coin-compare-demo .cc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1.2em;
+    margin: 0.4em 0 0.7em;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-compare-demo .cc-legend i {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    margin-right: 0.35em;
+    border-radius: 0.2em;
+    vertical-align: -0.1em;
+  }
+  .aas-coin-compare-demo .cc-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8em;
+  }
+  .aas-coin-compare-demo .cc-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.7em;
+    align-items: center;
+    padding: 0.5em 0.7em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-coin-compare-demo .cc-panel-head {
+    flex-basis: 100%;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-compare-demo .cc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    min-height: 2em;
+  }
+  .aas-coin-compare-demo .cc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-compare-demo .cc-chip b {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.2em;
+    height: 2.2em;
+    padding: 0 0.25em;
+    border-radius: 999px;
+    border: 2px solid var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 30%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+  .aas-coin-compare-demo .cc-total {
+    margin-left: auto;
+    font-size: 0.95em;
+  }
+  .aas-coin-compare-demo .cc-total.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-coin-compare-demo .cc-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-coin-compare-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+</style>
