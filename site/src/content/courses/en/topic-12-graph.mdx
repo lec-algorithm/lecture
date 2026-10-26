@@ -1,36 +1,1625 @@
 ---
 title: "Topic 12. Graphs and Shortest Paths"
-description: "Representing and traversing graphs, minimum spanning trees, Dijkstra and A*"
+description: "Graphs write the world as vertices and edges. Representing and traversing them (BFS, DFS), minimum spanning trees (Kruskal, Prim), the min heap behind both, and shortest paths (Dijkstra, A*)"
 date: 2026-08-25
 category: graphs
 order: "9088"
 level: 4
 hours: "6:00"
+slides: ["topic-12-graph"]
 ---
 
-> Material is in preparation; this page fills in before the topic is taught.
+import GraphFigure from '@components/GraphFigure.astro';
+import GraphSearchDemo from '@components/GraphSearchDemo.astro';
+import KruskalDemo from '@components/KruskalDemo.astro';
+import HeapDemo from '@components/HeapDemo.astro';
+import HeapGraphDemo from '@components/HeapGraphDemo.astro';
 
-## What it covers
+> So far we have worked with data that lines up or has an up and a down: arrays, trees, tables.  
+> This topic is about data where **anything can connect to anything**: graphs.  
+> It also pays back two promises made in Topic 06.  
+> One was "Prim and Dijkstra are both greedy: they pick whatever is closest right now";
+> the other was the heap that turns Huffman coding into $$O(k \log k)$$.  
+> The topic is large, so it is taught in two parts. The first half writes graphs
+> down, walks them (BFS, DFS), connects them as cheaply as possible (MST), and
+> builds the heap that supports that work. The second half uses the same heap
+> framework to find shortest paths (Dijkstra, A*).
 
-- Graph representations: adjacency matrix and adjacency list
-- BFS and DFS, and what each is good at
-- Minimum spanning trees: greedy, Kruskal, Prim
-- The min-heap and the priority queue
-- Dijkstra's algorithm and the trouble with negative weights
-- The A\* algorithm and heuristic functions
+## What a graph is \{#graph}
 
-## Practice code
+A [[graph|graph]] G consists of a set V of **vertices** and a set E of **edges**,
+each edge joining two vertices.
 
-Lands in the `src/topic-12-graph/` folder of the `algorithm-code` repository.
-Each example pairs one pseudocode file with a C and a Python implementation.
+- **Vertex**: also called a node. The count is usually written $$n$$ or $$V$$.
+- **Edge**: a pair of vertices. The count is written $$m$$ or $$E$$.
+  - **Undirected**: an unordered pair. Like friendship, both sides are the same.
+  - **Directed**: an ordered pair. Like following someone, it goes one way only.
+- **Path**: a sequence of vertices joined by edges. If there is a path between
+  two vertices, they are **connected**.
+- **Cycle**: a path whose first and last vertices are the same
+- **Degree**: the number of edges attached to a vertex
+
+Much of the world is a graph.
+
+- **Social networks**: friendships (Facebook), followers (Instagram)
+- **Transportation**: subway maps, road networks, flight routes
+- **The web**: the link structure of web pages. PageRank, which ranks search results, runs on this graph.
+- **Recommender systems**: relations between users and products (Topic 15)
+- **Bioinformatics**: protein interaction networks
+
+Two or more edges joining the same two vertices are called **parallel edges** (multi-edges).
+The graphs in this topic have no parallel edges.
+
+### How many edges at most \{#edge-count}
+
+Take a connected (one-piece) undirected graph with $$n$$ vertices and no parallel
+edges. What is the smallest and the largest number of edges it can have?
+
+- **At least** $$n - 1$$: joining the vertices in a single line uses the fewest.
+  Remove any one edge and the piece splits in two.
+- **At most** $$\dfrac{n(n-1)}{2}$$: join every pair. The first vertex has
+  $$n-1$$ partners, the second $$n-2$$ not yet joined, and so on, giving
+  $$(n-1) + (n-2) + \dots + 1$$. With 5 vertices that is $$4 + 3 + 2 + 1 = 10$$.
+
+This gap decides what graph algorithms cost.
+
+- **Sparse** graph: the number of edges is close to the number of vertices. $$m = O(n)$$, as in social networks.
+- **Dense** graph: the number of edges is close to the square of the number of vertices. $$m = O(n^2)$$, as in complete graphs.
+
+Graphs are also classified by whether edges have direction (directed/undirected)
+and whether there are cycles (cyclic/acyclic). A directed graph with no cycles is
+called a **DAG** (directed acyclic graph).
+
+### Questions we ask of graphs \{#problems}
+
+| Question | Meaning | Difficulty |
+| --- | --- | --- |
+| Path | Is there a path between s and t? | Easy, this topic |
+| Shortest path | What is the shortest path between s and t? | Easy, this topic |
+| Connectivity | Are all vertices connected? | Easy, this topic |
+| Minimum spanning tree | What is the cheapest way to connect all vertices? | Easy, this topic |
+| Euler tour | Is there a cycle using every edge exactly once? | Easy, $$O(V + E)$$ |
+| Hamilton cycle | Is there a cycle visiting every vertex exactly once? | NP-complete |
+| Biconnectivity | Is there a vertex whose removal disconnects the graph? | Easy |
+| Planarity | Can it be drawn in the plane with no crossing edges? | $$O(V)$$, but complex in practice |
+| Graph isomorphism | Do two adjacency lists describe the same graph? | Nobody knows yet |
+
+The Euler tour comes from the walk that crosses each of the seven bridges of
+Königsberg exactly once. The Euler tour and the Hamilton cycle look like almost the
+same question, yet the first is solved in time proportional to the number of edges
+and no efficient solution is known for the second.
+Graph problems split into easy and hard by a hair's breadth like this.
+
+## Representing a graph \{#representation}
+
+Software stores graphs in one of three ways. We look at a graph with 13 vertices and
+13 edges.
+
+<GraphFigure graph="g13" caption="13 vertices, 13 edges" />
+
+### Edge list \{#edge-list}
+
+List the edges as pairs, in an array or a linked list. It is the simplest, but asking
+"who are the neighbours of vertex 0?" means scanning the whole list.
+
+```plaintext
+0-1  0-2  0-5  0-6  3-4  3-5  4-5  4-6  7-8  9-10  9-11  9-12  11-12
+```
+
+For an undirected graph the same edge is sometimes written twice, as `0-1` and `1-0`.
+
+### Adjacency matrix \{#adjacency-matrix}
+
+Write 0s and 1s in an $$n \times n$$ matrix A. $$A_{ij} = 1$$ means there is an edge
+between i and j. There are variations.
+
+- With parallel edges, $$A_{ij}$$ holds the **number** of i-j edges.
+- With weights, $$A_{ij}$$ holds the **weight** of the i-j edge.
+- A directed graph can store direction as $$A_{ij} = +1$$ (i → j) and $$-1$$ (i ← j).
+
+The space needed is $$\Theta(n^2)$$ regardless of the number of edges.
+
+### Adjacency list \{#adjacency-list}
+
+Keep a list of neighbours for each vertex. It consists of an array of vertices, an
+array of edges, and pointers between edges and vertices. The space needed is
+$$\Theta(n + m)$$: one slot per vertex, plus $$2m$$ slots because each undirected edge
+appears in the lists of both of its endpoints.
+
+Here is the same graph stored both ways. This graph is used throughout the BFS and DFS
+examples.
+
+<GraphFigure graph="g7" caption="7 vertices, 9 edges (BFS and DFS examples)" />
+
+- Run (first part of `01_bfs`)
+
+```console
+V = 7, E = 9
+
+adjacency matrix
+    0 1 2 3 4 5 6
+  0 0 1 1 0 0 1 1
+  1 1 0 0 0 0 0 0
+  2 1 0 0 1 0 0 0
+  3 0 0 1 0 1 1 0
+  4 0 0 0 1 0 1 1
+  5 1 0 0 1 1 0 0
+  6 1 0 0 0 1 0 0
+
+adjacency list
+  0: 1 2 5 6
+  1: 0
+  2: 0 3
+  3: 2 4 5
+  4: 3 5 6
+  5: 0 3 4
+  6: 0 4
+```
+
+Only 18 of the matrix's 49 cells are 1. The list writes just those 18 neighbours. The
+fewer the edges, the more the list wins.
+
+### Comparing the two \{#representation-compare}
+
+Suppose four cities, Seoul (0), Busan (1), Daegu (2) and Gwangju (3), are joined by three
+roads: Seoul-Busan, Seoul-Daegu and Busan-Gwangju.
+
+- Adjacency matrix
+
+```python
+graph_matrix = [
+    [0, 1, 1, 0],   # Seoul: connected to Busan(1), Daegu(2)
+    [1, 0, 0, 1],   # Busan: connected to Seoul(0), Gwangju(3)
+    [1, 0, 0, 0],   # Daegu: connected to Seoul(0)
+    [0, 1, 0, 0],   # Gwangju: connected to Busan(1)
+]
+```
+
+- Adjacency list
+
+```python
+graph = {
+    'Seoul': ['Busan', 'Daegu'],
+    'Busan': ['Seoul', 'Gwangju'],
+    'Daegu': ['Seoul'],
+    'Gwangju': ['Busan'],
+}
+```
+
+- **Adjacency list**: space $$O(V + E)$$. Here, 4 vertex slots plus $$2 \times 3 = 6$$ neighbour slots.
+  It records only vertices that are actually connected, so it saves memory.
+- **Adjacency matrix**: space $$O(V^2)$$. Here, 16 cells. It writes a 0 even for unconnected
+  pairs, but in return it tells you whether two vertices are connected in $$O(1)$$.
+
+| Operation | Adjacency matrix | Adjacency list |
+| --- | --- | --- |
+| Add a vertex | $$O(V^2)$$ (build a new matrix) | $$O(1)$$ |
+| Check for an edge | $$O(1)$$ | $$O(\text{degree})$$ |
+| All neighbours | $$O(V)$$ | $$O(\text{degree})$$ |
+| Add an edge | $$O(1)$$ | $$O(1)$$ (append to the list) |
+| Remove an edge | $$O(1)$$ | $$O(\text{degree})$$ (must find it in the list) |
+
+All the practice code in this topic uses adjacency lists. The question search
+algorithms ask most often is "who are this vertex's neighbours?"
+
+## Graph search \{#search}
+
+### The goal \{#search-goal}
+
+- Find **every vertex reachable** from a start vertex s.
+- **Never explore any vertex twice.**
+- So it finishes in $$O(m + n)$$ time.
+
+### Generic search \{#generic-search}
+
+Given a graph G and a start vertex s, the most general form is this.
+
+1. Initially only s is explored; everything else is unexplored.
+2. Repeat while possible:
+   - Pick an edge (u, v) with u explored and v unexplored.
+   - Mark v as explored.
+
+**Claim**: when the algorithm ends, v is explored ⇔ G has a path from s to v.
+
+We prove the right-to-left direction (⇐) by contradiction. Suppose there is a path from
+s to v but v is unexplored at the end.
+
+- s was explored from the start and v is unexplored.
+- Then somewhere on that path there must be an edge (u, x) where an explored u is
+  followed by an unexplored x. x may be v, and u may be s.
+- But while such an edge remains, the algorithm does not stop. Contradiction.
+
+One question remains. **When several edges cross the frontier, which comes first?**
+Picking the ones closest to the explored region gives BFS; going deeper from where you
+just arrived gives DFS.
+
+| | BFS | DFS |
+| --- | --- | --- |
+| How it spreads | layer by layer, nearest first | one branch to the end, backtrack when stuck |
+| Data structure | queue (FIFO) | stack (LIFO) or recursion |
+| Running time | $$O(m + n)$$ | $$O(m + n)$$ |
+| Good at | unweighted shortest paths, connected components | topological sort, connected components, cycle detection |
+
+## Example 1. Breadth-first search \{#bfs}
+
+[[bfs|Breadth-first search]] (BFS) looks at every vertex one edge away from the start,
+then two edges away, then three, spreading **layer by layer**.
+
+- Mark s and put it in a FIFO queue.
+- Repeat until the queue is empty:
+  - Take out the vertex v that entered the queue first.
+  - Mark every unmarked neighbour of v and put it in the queue.
+
+For convenience, neighbours are visited in increasing order. In the graph on the left,
+green is a vertex taken out and fully processed, blue a vertex in the queue, and orange
+the vertex just taken out. Thick green edges are the path by which each vertex was first
+discovered (from), and the small blue number beside a vertex is its distance from the start.
+
+<GraphSearchDemo />
+
+Only after 1, 2, 5 and 6 have all been taken out are 3 and 4 taken out. The layer at
+distance 2 is not entered until the whole layer at distance 1 has been seen.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM BFS(G, s)
+    for each vertex v in G do
+        marked[v] <- false, from[v] <- -1, dist[v] <- INF
+    marked[s] <- true                   // mark when enqueued
+    dist[s] <- 0
+    Q <- empty queue (FIFO)
+    enqueue s into Q
+    while Q is not empty do
+        v <- dequeue from Q             // the vertex that came in first
+        for each w in adj[v] do         // increasing order, for convenience
+            if not marked[w] then
+                marked[w] <- true
+                from[w] <- v
+                dist[w] <- dist[v] + 1  // one layer down
+                enqueue w into Q
+```
+
+- C implementation (search part of `01_bfs/bfs.c`)
+
+```c
+marked[s] = 1;
+dist[s] = 0;
+queue[tail++] = s;
+while (head < tail) {
+    int v = queue[head++];
+    order[n++] = v;
+    for (int i = 0; i < deg[v]; i++) {
+        int w = adj[v][i];
+        if (!marked[w]) {
+            marked[w] = 1;
+            from[w] = v;
+            dist[w] = dist[v] + 1;
+            queue[tail++] = w;
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-12-graph/01_bfs
+make -f /work/Makefile bfs.out && ./bfs.out
+```
+
+- Result (the graph representation printed first is omitted)
+
+```console
+BFS(0)
+visit 0, queue [0]
+dequeue 0: check 1 2 5 6 -> visit 1 2 5 6, queue [1 2 5 6]
+dequeue 1: check 0, queue [2 5 6]
+dequeue 2: check 0 3 -> visit 3, queue [5 6 3]
+dequeue 5: check 0 3 4 -> visit 4, queue [6 3 4]
+dequeue 6: check 0 4, queue [3 4]
+dequeue 3: check 2 4 5, queue [4]
+dequeue 4: check 3 5 6, queue []
+order: 0 1 2 5 6 3 4
+
+  v  from  dist
+  0     -     0
+  1     0     1
+  2     0     1
+  3     2     2
+  4     5     2
+  5     0     1
+  6     0     1
+
+path 0 -> 4: 0 5 4 (2 edges)
+```
+
+### Properties of BFS \{#bfs-properties}
+
+- **Claim 1**: when BFS ends, v is explored ⇔ there is a path from s to v.
+  BFS is a case of generic search, so the proof is the same.
+- **Claim 2**: the main loop runs in $$O(n_s + m_s)$$ time.
+  - $$n_s$$ is the number of vertices reachable from s, $$m_s$$ the number of reachable edges.
+  - Each vertex enters the queue once and leaves once.
+  - Each edge is looked at twice, once when each endpoint is taken out.
+
+### Application: unweighted shortest paths \{#bfs-shortest-path}
+
+To get dist(v), the length of the path from s to v with **the fewest edges**, add just
+two lines to BFS. That is the `dist` in the code above.
+
+- Initially set $$\text{dist}(v) = \infty$$ and $$\text{dist}(s) = 0$$.
+- When w is first discovered through edge (v, w), set $$\text{dist}(w) = \text{dist}(v) + 1$$.
+
+Following `from` backwards gives the path itself. The from of 4 is 5, and the from of 5
+is 0, so the path is 0 → 5 → 4.
+
+It is shortest because BFS spreads layer by layer. A vertex at distance k is first
+discovered only after every vertex at distance k-1 has been taken out. But that holds
+**only when every edge has the same length**. When edges have different weights, a path
+with fewer edges need not be shorter. That calls for Dijkstra, later in this topic.
+
+### Application: connected components \{#bfs-components}
+
+To find all connected components of an undirected graph, go through the vertices in turn
+and start one BFS from each vertex not yet explored.
+
+```plaintext
+mark every vertex unexplored
+for i <- 1 to n do
+    if i is not explored yet then
+        BFS(G, i)                       // vertices reached from i form one component
+```
+
+BFS is called several times, but each vertex and edge is seen only once in total, so
+this is $$O(m + n)$$. DFS can do the same job, and the practice code uses DFS.
+
+## Example 2. Depth-first search \{#dfs}
+
+[[dfs|Depth-first search]] (DFS) **digs all the way down** one branch, and when stuck it
+backs up and tries another. It is like walking a maze with one hand on the wall.
+
+- Mark vertex v as visited.
+- For each unmarked neighbour w of v, do the same recursively.
+- A LIFO stack can replace recursion. The practice code uses a stack.
+
+The stack version looks like BFS with the queue swapped for a stack. One thing differs.
+BFS marks a vertex **when it is enqueued**, but this DFS marks it **when it is popped**.
+So the same vertex can enter the stack twice, and when popped it is dropped if already visited.
+
+<GraphSearchDemo mode="dfs" />
+
+Neighbours are pushed in increasing order, so the largest number ends up on top. After 0
+the search digs into 6, 4, 5, 3 and 2, then drops the stale entries left on the stack
+(3, 5, 2) and finally visits 1.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM DFS(G, s)                      // iterative, with a stack
+    for each vertex v in G do
+        marked[v] <- false
+    S <- empty stack (LIFO)
+    push (s, -1) into S
+    while S is not empty do
+        (v, p) <- pop from S            // the vertex pushed last
+        if marked[v] then continue      // already visited: drop it
+        marked[v] <- true               // mark when popped
+        from[v] <- p
+        for each w in adj[v] do         // push in increasing order, for convenience
+            if not marked[w] then
+                push (w, v) into S
+```
+
+- C implementation (search part of `02_dfs/dfs.c`)
+
+```c
+while (top > 0) {
+    top--;
+    int v = stack[top][0];
+    int p = stack[top][1];
+    if (marked[v]) {
+        continue;                       /* already visited: stale entry */
+    }
+    marked[v] = 1;
+    from[v] = p;
+    order[n++] = v;
+    for (int i = 0; i < g->deg[v]; i++) {
+        int w = g->adj[v][i];
+        if (!marked[w]) {
+            stack[top][0] = w;          /* (vertex, who pushed it) */
+            stack[top][1] = v;
+            top++;
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-12-graph/02_dfs
+make -f /work/Makefile dfs.out && ./dfs.out
+```
+
+- Result (first part)
+
+```console
+DFS(0)
+push 0, stack [0]
+pop 0: visit 0, check 1 2 5 6 -> push 1 2 5 6, stack [1 2 5 6]
+pop 6: visit 6, check 0 4 -> push 4, stack [1 2 5 4]
+pop 4: visit 4, check 3 5 6 -> push 3 5, stack [1 2 5 3 5]
+pop 5: visit 5, check 0 3 4 -> push 3, stack [1 2 5 3 3]
+pop 3: visit 3, check 2 4 5 -> push 2, stack [1 2 5 3 2]
+pop 2: visit 2, check 0 3, stack [1 2 5 3]
+pop 3: already visited, stack [1 2 5]
+pop 5: already visited, stack [1 2]
+pop 2: already visited, stack [1]
+pop 1: visit 1, check 0, stack []
+order: 0 6 4 5 3 2 1
+
+  v  from
+  0     -
+  1     0
+  2     3
+  3     5
+  4     6
+  5     4
+  6     0
+```
+
+Push neighbours **largest first** and the smallest ends up on top, giving the visit
+order `0 1 2 3 4 5 6`. That is the same order as a recursive DFS that goes into the
+smallest neighbour first. Either way it is DFS. Which neighbour comes first is just an
+implementation choice.
+
+### Properties of DFS \{#dfs-properties}
+
+- **Claim 1**: when DFS ends, v is explored ⇔ there is a path from s to v.
+  Again, it is a case of generic search.
+- **Claim 2**: the running time is $$O(n_s + m_s)$$. Within the component of s, each
+  vertex is visited at most once and each edge looked at most twice (from both ends).
+
+### Application: connected components \{#dfs-components}
+
+On the 13-vertex graph from before, start a DFS at each vertex not yet visited, and give
+the vertices reached by one DFS the same number (id). This time we use the recursive DFS.
+
+```plaintext
+ALGORITHM Components(G)
+    count <- 0
+    for each vertex v in G do
+        if not marked[v] then
+            Visit(v, count)             // every vertex reached from v gets the same id
+            count <- count + 1
+
+ALGORITHM Visit(v, c)
+    marked[v] <- true
+    id[v] <- c
+    for each w in adj[v] do
+        if not marked[w] then Visit(w, c)
+```
+
+- Result (second part of `02_dfs`)
+
+```console
+connected components (V = 13, E = 13)
+  id 0: 0 1 2 3 4 5 6
+  id 1: 7 8
+  id 2: 9 10 11 12
+count = 3
+```
+
+<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} caption="green id 0 · blue id 1 · orange id 2" />
+
+### Application: topological sort \{#topological-sort}
+
+Seven courses have prerequisites. u → v means "you must take u before v". Choosing an
+order of courses that respects every prerequisite is a **topological sort**.
+
+<GraphFigure graph="dag" caption="0 Algorithms · 1 Complexity Theory · 2 Artificial Intelligence · 3 Intro to CS · 4 Cryptography · 5 Scientific Computing · 6 Advanced Programming" />
+
+A topological order of a directed graph G labels the vertices with numbers
+$$f(v) \in \{1, 2, \dots, n\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
+produces these numbers directly. A vertex gets its number **after all its outgoing
+edges have been explored**, and numbers are handed out backwards from the largest. A
+vertex that finishes first is one with nothing left to come after it.
+
+```plaintext
+ALGORITHM TopologicalSort(G)
+    label <- V
+    for each vertex v in G do
+        if not marked[v] then Finish(v)
+
+ALGORITHM Finish(s)
+    marked[s] <- true
+    for each edge (s, v) do
+        if not marked[v] then Finish(v)
+    f[s] <- label                       // number it after all outgoing edges are done
+    label <- label - 1
+```
+
+- Result (third part of `02_dfs`)
+
+```console
+topological sort (V = 7, E = 11, directed)
+  f: 0=3 1=6 2=5 3=1 4=7 5=4 6=2
+  order: 3 6 0 5 2 1 4
+  1. Intro to CS
+  2. Advanced Programming
+  3. Algorithms
+  4. Scientific Computing
+  5. Artificial Intelligence
+  6. Complexity Theory
+  7. Cryptography
+```
+
+The DFS that starts at 0 digs into 0 → 1 → 4, so 4 finishes first and gets the last
+number, 7. Nothing points to 3, so it comes first and gets number 1.
+
+- If G **has a directed cycle**, there is no topological order. The vertices on the
+  cycle would each have to come before the others.
+- If there is no cycle, a topological order can be found in $$O(m + n)$$ time.
+
+### Other things DFS does \{#dfs-more}
+
+- **Finding a path**: recover one path from s to t through from.
+- **Reachability**
+  - Program analysis: removing unreachable (dead) code, detecting loops that never exit
+  - Mark-and-sweep garbage collectors: delete objects unreachable from the roots.
+- **Directed cycle detection**: the Java compiler's check for cyclic inheritance, the
+  spreadsheet check for circular references. If prerequisites or a job schedule contain a
+  directed cycle, no schedule exists.
+  - In an undirected graph, meeting an edge to an already visited vertex (a back edge) during the search means a cycle.
+  - In a directed graph, meeting an edge to a vertex **still being visited** (whose recursion has not finished) means a cycle.
+- **Strongly connected components**: groups of vertices in a directed graph that can all
+  reach each other. The Kosaraju-Sharir algorithm finds them with two DFS passes. It is
+  used to find mutually dependent software modules.
+
+### BFS and DFS \{#bfs-vs-dfs}
+
+| Property | BFS | DFS |
+| --- | --- | --- |
+| Data structure | queue (FIFO) | stack (LIFO) or recursion |
+| Memory | the width of one layer (grows on wide graphs) | the depth of the path (grows on deep graphs) |
+| Shortest path | guaranteed on unweighted graphs | not guaranteed |
+| Implementation | loop | recursion or loop |
+| Example uses | friend suggestions (nearest people first) | maze solving, web crawling, topological sort |
+
+## Minimum spanning trees \{#mst}
+
+### Trees, spanning trees, minimum spanning trees \{#mst-def}
+
+- **Tree**: an acyclic, connected, undirected graph. With $$V$$ vertices it has exactly
+  $$V - 1$$ edges.
+- **Spanning tree**: a connected subgraph that includes every vertex of the graph and is a tree.
+- **Minimum spanning tree** ([[mst|MST]]): the spanning tree with the smallest total edge weight.
+
+The MST underlies problems in many fields.
+
+- Cluster analysis
+- Maximum bottleneck paths (the path whose weakest edge is strongest)
+- The spanning tree protocol that prevents loops among Ethernet bridges
+- Approximation algorithms for NP-hard problems (travelling salesman, Steiner tree)
+- Designing communication, power, water, computer and road networks
+
+Could we build every spanning tree and pick the cheapest? The number of spanning trees
+grows exponentially with the number of vertices, so that is clearly a bad idea.
+
+### Simplifying assumptions \{#mst-assumptions}
+
+The example graph has 8 vertices and 16 edges. Weights have two decimal places.
+
+<GraphFigure graph="mst" caption="8 vertices, 16 edges (Kruskal and Prim examples)" />
+
+- All edge weights are distinct. Then the MST is **unique**. With equal weights there may
+  be several MSTs.
+- The graph is connected. Otherwise we get a forest, one tree per component, instead of an MST.
+
+### The cut property \{#cut-property}
+
+- A **cut** of a graph splits its vertices into two non-empty sets.
+- A **crossing edge** joins a vertex in one set to a vertex in the other.
+- **Cut property**: for any cut, the crossing edge of smallest weight is in the MST.
+
+<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} caption="A cut separating green {0, 1, 4, 5, 7} from blue {2, 3, 6}. Dashed blue lines are crossing edges; the lightest, 0-2 (0.26), is green" />
+
+**Proof**: suppose the lightest crossing edge e is not in the MST.
+
+- Adding e to the MST creates a cycle.
+- e crosses the cut, so to return to the side it started from the cycle must cross the
+  cut once more. Another edge f of the cycle is also a crossing edge.
+- Removing f and adding e still gives a spanning tree.
+- e is lighter than f, so the new spanning tree is lighter. A spanning tree lighter than
+  the MST is a contradiction.
+
+### Greedy MST \{#greedy-mst}
+
+Turning the cut property directly into an algorithm gives this.
+
+1. Start with every edge uncoloured.
+2. Find any cut with no coloured crossing edge, and colour its lightest crossing edge.
+3. Repeat until $$V - 1$$ edges are coloured.
+
+By the cut property, every coloured edge is an MST edge. And while fewer than $$V - 1$$
+edges are coloured, there is always a cut with no coloured crossing edge: split off one
+piece formed by the coloured edges from the rest. So when it ends, the MST is complete.
+In the example graph, choosing cuts so that edges are coloured in the order 0-2, 5-7,
+6-2, 0-7, 2-3, 1-7, 4-5 also yields the same seven edges as Kruskal and Prim below.
+
+This general form does not say "which cut to pick". Kruskal and Prim are the ones that decide.
+
+| | Greedy MST | Kruskal | Prim |
+| --- | --- | --- | --- |
+| Approach | uses the cut property directly | edge-centred, lightest edge overall | vertex-centred, grows the tree one vertex at a time |
+| Starting point | anywhere | the lightest edge | one chosen vertex |
+| Time | depends on the implementation | $$O(E \log E)$$ | $$O(E \log V)$$ |
+| Preprocessing | none | sort the edges | none |
+| Implementation | hard (managing cuts) | medium (union-find) | easy (priority queue) |
+
+## Example 3. Kruskal's algorithm \{#kruskal}
+
+Kruskal's algorithm (1956) looks at the edges in increasing order of weight and adds each
+to the tree **unless it makes a cycle**.
+
+Cycles are detected with component numbers. Each vertex has a `comp` (which piece it
+belongs to), and at first every vertex is a piece of its own. If the two ends of an edge
+are in different pieces, add the edge and merge the pieces. If they are in the same piece,
+a path already exists, so adding the edge would make a cycle.
+
+<KruskalDemo />
+
+Thirteen edges were looked at and seven added. The six dropped (1-3, 1-5, 2-7, 1-2, 4-7,
+0-4) all tried to join two vertices already in one piece. The remaining 3-6, 6-0 and 6-4
+are never even looked at.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM Kruskal(G)
+    edges <- the edges of G sorted by increasing weight
+    for each vertex v in G do
+        comp[v] <- v                    // at first each vertex is its own piece
+    mst <- empty list
+    for each (u, v, w) in edges do
+        if comp[u] != comp[v] then      // joins different pieces -> no cycle
+            add (u, v, w) to mst
+            Merge(comp, comp[u], comp[v])
+            if |mst| = V - 1 then break // V-1 edges: the tree is complete
+        else                            // inside one piece -> would make a cycle
+            drop (u, v)
+    return mst
+
+ALGORITHM Merge(comp, a, b)
+    small <- min(a, b)                  // a piece is numbered by its smallest vertex
+    for each vertex x do
+        if comp[x] = a or comp[x] = b then comp[x] <- small
+```
+
+- C implementation (from `03_mst_kruskal/kruskal.c`)
+
+```c
+int kruskal(int n, Edge edges[], int m, Edge mst[]) {
+    int k = 0;
+    qsort(edges, (size_t)m, sizeof(Edge), byWeight);
+    for (int v = 0; v < n; v++) {
+        comp[v] = v;
+    }
+    for (int i = 0; i < m; i++) {
+        Edge e = edges[i];
+        if (comp[e.u] != comp[e.v]) {
+            mst[k++] = e;
+            merge(n, comp[e.u], comp[e.v]);
+            if (k == n - 1) {
+                break;
+            }
+        }
+    }
+    return k;
+}
+```
+
+The practice code handles weights (0.16 and so on) as integers multiplied by 100 and
+converts them to decimals only when printing. This keeps floating-point comparison and
+output format from drifting apart between the two languages.
+
+- Run
+
+```sh
+cd src/topic-12-graph/03_mst_kruskal
+make -f /work/Makefile kruskal.out && ./kruskal.out
+```
+
+- Result
+
+```console
+V = 8, E = 16
+edges by weight
+  0-7 0.16  add   comp [0 1 2 3 4 5 6 0]
+  2-3 0.17  add   comp [0 1 2 2 4 5 6 0]
+  1-7 0.19  add   comp [0 0 2 2 4 5 6 0]
+  0-2 0.26  add   comp [0 0 0 0 4 5 6 0]
+  5-7 0.28  add   comp [0 0 0 0 4 0 6 0]
+  1-3 0.29  skip  (1 and 3 both in 0, cycle)
+  1-5 0.32  skip  (1 and 5 both in 0, cycle)
+  2-7 0.34  skip  (2 and 7 both in 0, cycle)
+  4-5 0.35  add   comp [0 0 0 0 0 0 6 0]
+  1-2 0.36  skip  (1 and 2 both in 0, cycle)
+  4-7 0.37  skip  (4 and 7 both in 0, cycle)
+  0-4 0.38  skip  (0 and 4 both in 0, cycle)
+  6-2 0.40  add   comp [0 0 0 0 0 0 0 0]
+7 edges = V - 1, stop
+mst: 0-7 2-3 1-7 0-2 5-7 4-5 6-2
+total weight = 1.81
+```
+
+<GraphFigure graph="mst" edgeTones={{ '0-7': 'tree', '2-3': 'tree', '1-7': 'tree', '0-2': 'tree', '5-7': 'tree', '4-5': 'tree', '6-2': 'tree' }} caption="The minimum spanning tree, total weight 1.81" />
+
+### Analysis \{#kruskal-analysis}
+
+- **Correctness**: Kruskal is a special case of Greedy MST. At the moment Kruskal adds an
+  edge e = v-w, take the piece containing v and the rest as the cut. No edge crossing this
+  cut has been added yet; if one had, w would be in the same piece. Nor is there a
+  lighter crossing edge. Edges are scanned in increasing order of weight, so every lighter
+  edge has already been seen, and each was either added or dropped for being inside one
+  piece. So e is the lightest crossing edge of this cut.
+- **Time**: sorting is $$O(E \log E)$$. Checking pieces is $$O(1)$$, and merging scans the
+  whole array in $$O(V)$$, but merging happens only $$V - 1$$ times, so $$O(V^2)$$ in total.
+  Replacing the merge with **union-find** (disjoint sets) makes both checking and merging
+  nearly constant time, and the total is bounded by the sorting cost, $$O(E \log E)$$.
+
+## Example 4. Priority queues and the min heap \{#heap}
+
+At every step Prim and Dijkstra take out "the closest vertex right now". Scanning
+everything each time is slow, so we need a data structure that hands over the smallest
+item quickly. Huffman coding in Topic 06 wanted the same thing.
+
+### Priority queues \{#priority-queue}
+
+- An **ordinary queue** is FIFO. Put in A, B, C, D in that order and they come out A → B → C → D.
+- In a [[priority-queue|priority queue]] every element has a **priority**, and the element
+  with the highest priority comes out first.
+  - Built on a min heap, smaller values have higher priority. The minimum comes out first.
+  - Built on a max heap, larger values have higher priority. The maximum comes out first.
+
+Put in A(3), B(1), C(5), D(2) and take them out smallest first: B → D → A → C.
+
+All a priority queue guarantees is that **higher priority comes out first**. It does not
+guarantee the order among equal priorities. Taking A(3), B(1), C(2), D(2) largest first
+may give A → C → D → B or A → D → C → B, depending on how the heap stored them. The
+practice code and demos in this topic fix the order: among equal values, **the one put
+in first** comes out first.
+
+### Heaps \{#heap-def}
+
+A **heap** is a tree with two conditions.
+
+- **Complete binary tree**: every level is full except possibly the last, which is filled from the left.
+- **Heap property**
+  - Min heap: parent ≤ child. So the root is the overall minimum.
+  - Max heap: parent ≥ child. So the root is the overall maximum.
+
+Because it is a complete binary tree, it fits **in an array with no gaps**. Number the
+nodes top to bottom, left to right.
+
+```plaintext
+           1                 array  [1, 2, 3, 4, 5, 6, 7, 8, 9]
+       2       3             index   0  1  2  3  4  5  6  7  8
+     4   5   6   7
+    8 9                      parent of i (i-1)/2,  children 2i+1, 2i+2
+```
+
+Parents and children are reached by index arithmetic alone, with no pointers.
+
+### Insert and extract-min \{#heap-ops}
+
+- **Insert**
+  1. Check whether the heap is full.
+  2. Put the new element in the first free slot at the end of the array. In the tree, that
+     is the next position on the last level.
+  3. Restore the heap property. If it is smaller than its parent, swap them, move up one
+     level and check again. This is called sift up.
+- **Extract min**
+  1. Check whether the heap is empty.
+  2. Save the root as the minimum.
+  3. Move the last element to the root.
+  4. Restore the heap property. If it is larger than the smaller of its two children, swap
+     it with that child, move down one level and check again. This is called sift down.
+
+Insert 10 and 0 into a heap holding 1 to 9, then extract the minimum once. Orange is the
+element moving; blue is the parent or child it is compared with.
+
+<HeapDemo />
+
+10 is larger than its parent 5 and stays put. 0 swaps with its parents 5, 2 and 1 in turn,
+climbing to the root. On extraction, the last element 5 comes up to the root and then
+sinks again, swapping with the smaller children 1 and 2. The final heap is the starting
+one with 10 added.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM Insert(heap, x)
+    if heap.size = heap.capacity then return false
+    heap[heap.size] <- x                // put it in the first free slot at the end
+    heap.size <- heap.size + 1
+    HeapifyUp(heap, heap.size - 1)
+
+ALGORITHM HeapifyUp(heap, i)             // sift up
+    while i > 0 do
+        p <- (i - 1) / 2
+        if heap[i] >= heap[p] then break    // not smaller than the parent: stay
+        swap heap[i], heap[p]
+        i <- p
+
+ALGORITHM ExtractMin(heap)
+    min <- heap[0]                      // the root is the minimum
+    heap[0] <- heap[heap.size - 1]      // move the last element to the root
+    heap.size <- heap.size - 1
+    HeapifyDown(heap, 0)
+    return min
+
+ALGORITHM HeapifyDown(heap, i)           // sift down
+    loop
+        m <- i, l <- 2i + 1, r <- 2i + 2
+        if l < heap.size and heap[l] < heap[m] then m <- l
+        if r < heap.size and heap[r] < heap[m] then m <- r
+        if m = i then break             // not larger than both children: stay
+        swap heap[i], heap[m]           // swap with the smaller child
+        i <- m
+```
+
+- C implementation (from `04_min_heap/minHeap.c`, print lines removed)
+
+```c
+void heapifyUp(Heap *h, int i) {
+    while (i > 0) {
+        int p = (i - 1) / 2;
+        if (h->a[i] >= h->a[p]) {
+            return;
+        }
+        swap(h, i, p);
+        i = p;
+    }
+}
+
+void heapifyDown(Heap *h, int i) {
+    for (;;) {
+        int m = i;
+        int l = 2 * i + 1;
+        int r = 2 * i + 2;
+        if (l < h->size && h->a[l] < h->a[m]) m = l;
+        if (r < h->size && h->a[r] < h->a[m]) m = r;
+        if (m == i) {
+            return;
+        }
+        swap(h, i, m);
+        i = m;
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-12-graph/04_min_heap
+make -f /work/Makefile minHeap.out && ./minHeap.out
+```
+
+- Result
+
+```console
+heap [1 2 3 4 5 6 7 8 9]
+
+insert 10 at index 9
+  10 (index 9) vs parent 5 (index 4): stay
+heap [1 2 3 4 5 6 7 8 9 10]
+
+insert 0 at index 10
+  0 (index 10) vs parent 5 (index 4): swap
+  0 (index 4) vs parent 2 (index 1): swap
+  0 (index 1) vs parent 1 (index 0): swap
+  reached the root
+heap [0 1 3 4 2 6 7 8 9 10 5]
+
+extract min 0, move last 5 to the root
+  5 (index 0) vs children 1 (index 1), 3 (index 2): swap with 1
+  5 (index 1) vs children 4 (index 3), 2 (index 4): swap with 2
+  5 (index 4) vs children 10 (index 9): stay
+heap [1 2 3 4 5 6 7 8 9 10]
+
+extract all: 1 2 3 4 5 6 7 8 9 10
+```
+
+### Analysis \{#heap-analysis}
+
+- A complete binary tree with $$n$$ elements has height $$\lfloor \log_2 n \rfloor$$.
+  Sift up and sift down do one compare-and-swap per level, so **both insert and extract**
+  are $$O(\log n)$$. In the 11-element heap, 0 reached the root after three swaps.
+- **Just looking** at the minimum means reading the root, so it is $$O(1)$$.
+- Extracting everything that is left gives ascending order. That is **heap sort**, $$O(n \log n)$$.
+- In Topic 06's Huffman coding, finding "the two lightest trees" by scanning the whole
+  forest each time cost $$O(k^2)$$ for $$k$$ symbols. With the forest in a min heap, two
+  extractions and one insertion each cost $$O(\log k)$$, so the total is $$O(k \log k)$$.
+
+## Example 5. Prim's algorithm \{#prim}
+
+Prim's algorithm (1959) starts from one vertex and **greedily grows** a tree T.
+
+- Start at vertex 0.
+- Add to T **the lightest** edge with exactly one end in T.
+- Repeat until there are $$V - 1$$ edges.
+
+Topic 06 said "Prim is a greedy algorithm that picks whatever is closest right now". That
+"closest" is exactly the vertex that joins the tree by the lightest edge.
+
+Each vertex has a `key` (the weight of the lightest edge joining it to the tree) and a
+`via` (the tree end of that edge), and the vertex with the smallest key is taken from a min
+heap. Attaching one vertex can lower its neighbours' keys. When a key drops, update key
+and via and **insert a new entry** into the heap. The entry put in earlier stays in the
+heap, and when it is eventually taken out it is dropped if the vertex is already in the tree.
+
+<HeapGraphDemo mode="prim" />
+
+In the priority queue box, `0.26:2` is the entry "vertex 2 with key 0.26". Struck-through
+entries are stale. Vertex 4's key dropped twice, from 0.38 to 0.37 to 0.35; the stale
+0.37 and 0.38 are taken out later and dropped. Dashed blue lines are the via edges of
+vertices not yet in the tree.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM Prim(G, s)
+    for each vertex v in G do
+        key[v] <- INF, via[v] <- -1, inTree[v] <- false
+    key[s] <- 0
+    PQ <- empty min heap
+    insert (key[s], s) into PQ
+    while PQ is not empty and |mst| < V - 1 do
+        (k, u) <- ExtractMin(PQ)        // the vertex closest to the tree now
+        if inTree[u] then continue      // drop stale entries
+        inTree[u] <- true
+        if u != s then add (via[u], u, k) to mst
+        for each (u, v, w) in adj[u] do
+            if not inTree[v] and w < key[v] then
+                key[v] <- w             // found a lighter edge
+                via[v] <- u
+                insert (w, v) into PQ   // insert anew instead of updating
+    return mst
+```
+
+- C implementation (from `05_mst_prim/prim.c`, print lines removed)
+
+```c
+key[s] = 0;
+push(0, s);
+while (heapSize > 0 && edges < n - 1) {
+    Item it = pop();
+    int u = it.v;
+    if (inTree[u]) {
+        continue;                       /* stale entry */
+    }
+    inTree[u] = 1;
+    if (u != s) {
+        edges++;
+        total += it.key;
+    }
+    for (int i = 0; i < deg[u]; i++) {
+        int v = adj[u][i].v;
+        int w = adj[u][i].w;
+        if (!inTree[v] && w < key[v]) {
+            key[v] = w;
+            via[v] = u;
+            push(w, v);
+        }
+    }
+}
+```
+
+`push` and `pop` are the same sift up and sift down as the min heap above. The only
+difference is that an element is (key, insertion order, vertex). The Python
+implementation uses the standard module `heapq`.
+
+- Run
+
+```sh
+cd src/topic-12-graph/05_mst_prim
+make -f /work/Makefile prim.out && ./prim.out
+```
+
+- Result
+
+```console
+V = 8, E = 16, start 0
+pop 0 (key 0.00): start
+  2: key 0.26 via 0
+  4: key 0.38 via 0
+  6: key 0.58 via 0
+  7: key 0.16 via 0
+pop 7 (key 0.16): add 0-7
+  1: key 0.19 via 7
+  4: key 0.37 via 7
+  5: key 0.28 via 7
+pop 1 (key 0.19): add 7-1
+  3: key 0.29 via 1
+pop 2 (key 0.26): add 0-2
+  3: key 0.17 via 2
+  6: key 0.40 via 2
+pop 3 (key 0.17): add 2-3
+pop 5 (key 0.28): add 7-5
+  4: key 0.35 via 5
+pop 3 (key 0.29): skip, already in tree
+pop 4 (key 0.35): add 5-4
+pop 4 (key 0.37): skip, already in tree
+pop 4 (key 0.38): skip, already in tree
+pop 6 (key 0.40): add 2-6
+7 edges = V - 1, stop
+
+  v  key   via
+  0  0.00  -
+  1  0.19  7
+  2  0.26  0
+  3  0.17  2
+  4  0.35  5
+  5  0.28  7
+  6  0.40  2
+  7  0.16  0
+total weight = 1.81
+```
+
+The same seven edges as Kruskal, the same total weight **1.81**. With all weights distinct
+the MST is unique, so this is to be expected. What differs is the order. Kruskal picks
+light edges from the whole graph, so several pieces grow and then merge; in Prim a single
+piece grows from start to finish.
+
+### Analysis \{#prim-analysis}
+
+- **Correctness**: Prim is also a special case of Greedy MST. At each step, take "the
+  current tree T" and "the rest" as the cut. No edge crossing this cut has been chosen
+  yet, and Prim picks the lightest of them. By the cut property that edge is in the MST.
+- **Time**: at most one heap entry per edge. Each insert and extract is $$O(\log E)$$, so the
+  total is $$O(E \log E)$$, and since $$E \le V^2$$ gives $$\log E \le 2 \log V$$, it is
+  $$O(E \log V)$$.
+
+## Shortest paths \{#shortest-path}
+
+> Here we pause. The first half wrote graphs down, walked them, connected them as
+> cheaply as possible, and built the heap that supports that work.  
+> The second half uses the same heap framework to find **the shortest route**.  
+> Change one line in Prim's code and you get Dijkstra; add one estimate to Dijkstra and
+> you get A*.
+
+Given an edge-weighted directed graph $$G = (V, E)$$, the [[shortest-path|shortest path]]
+from s to t is the path with the smallest total edge weight. An undirected graph can be
+viewed as a directed graph with two opposite edges for each edge, so directed graphs are
+enough.
+
+- **Single pair**: from s to t
+- **Single source**: from s to every other vertex. Dijkstra solves this.
+- **All pairs**: between every pair of vertices
+
+The length of a shortest path is **the sum of the weights**, not the number of edges. A
+path through four edges can be shorter than a path of one edge.
+
+### Why another algorithm \{#why-dijkstra}
+
+Doesn't BFS already find shortest paths in linear time? Yes, but **only when every edge
+has weight 1**. If a path through three edges is 3 + 3 + 3 = 9 and a one-edge path is 20,
+BFS finds the one-edge path first and stops there. With weights, we need another method.
+
+## Example 6. Dijkstra's algorithm \{#dijkstra}
+
+Dijkstra's algorithm finds the **shortest distance from one source to every other
+vertex**. Think of starting from Seoul and finding the shortest distance to Busan, Daegu,
+Daejeon and Haenam.
+
+- Initialise the distance array to $$\infty$$, and set only the source's distance to 0.
+- Take the vertex with the smallest distance out of the priority queue and **finalise** that distance.
+- Try to lower the neighbours' distances through the edges leaving that vertex.
+- Repeat until the queue is empty.
+
+In effect it finalises vertices one by one in order of increasing distance from the
+source. More precisely:
+
+1. For every vertex set $$\text{dist}[s] = 0$$ and $$\text{dist}[v] = \infty$$.
+2. Let $$X = \{s\}$$. X is the set of vertices finalised so far.
+3. While $$X \ne V$$, among all edges (v → w) with v in X and w not in X, pick the one
+   minimising $$\text{dist}[v] + w(v, w)$$ and add w to X.
+4. For each edge (w → z) leaving w, set $$\text{dist}[z]$$ to
+   $$\min(\text{dist}[z], \text{dist}[w] + w(w, z))$$. This is called **relaxation**.
+
+### Side by side with Prim \{#dijkstra-vs-prim}
+
+Both are greedy algorithms that use a min heap to pick "the vertex with the smallest value
+now". At each step they pick the current best and never take it back. What differs is the
+value put into the heap.
+
+| | Dijkstra | Prim |
+| --- | --- | --- |
+| Goal | shortest paths | minimum spanning tree |
+| Value used when updating | $$\text{dist}[u] + w(u, v)$$ | $$w(u, v)$$ |
+| Meaning of the value | distance **accumulated** from the source | weight of **one** edge joining the tree |
+| Result | shortest distance from the source to every vertex | the minimum cost of connecting every vertex |
+
+### One step at a time \{#dijkstra-demo}
+
+We compute distances from vertex 0 in a directed graph with 8 vertices and 16 edges. The
+blue number beside a vertex is the distance found so far, and from in the table is the
+vertex just before it on that path. Green edges are the from edges of finalised vertices;
+dashed blue lines are the from edges of vertices not yet finalised.
+
+<HeapGraphDemo mode="dijkstra" />
+
+Vertex 2's distance dropped three times: 17, 15, 14. The first path found, 0 → 1 → 2,
+is 17; the next, 0 → 7 → 2, is 15; and the last, 0 → 4 → 5 → 2, is 14. By the time 2
+is finalised, no shorter path remains.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM Dijkstra(G, s)
+    for each vertex v in G do
+        dist[v] <- INF, from[v] <- -1, done[v] <- false
+    dist[s] <- 0
+    PQ <- empty min heap
+    insert (dist[s], s) into PQ
+    while PQ is not empty do
+        (d, u) <- ExtractMin(PQ)        // the closest vertex not yet finalised
+        if done[u] then continue        // drop stale entries
+        done[u] <- true                 // this distance will not change again
+        for each (u, v, w) in adj[u] do
+            if not done[v] and dist[u] + w < dist[v] then
+                dist[v] <- dist[u] + w  // relaxation: found a shorter path
+                from[v] <- u
+                insert (dist[v], v) into PQ
+    return dist, from
+```
+
+Put it beside Prim's pseudocode and almost the only change is `key[v] <- w` becoming
+`dist[v] <- dist[u] + w`.
+
+- C implementation (from `06_dijkstra/dijkstra.c`, print lines removed)
+
+```c
+dist[s] = 0;
+push(0, s);
+while (heapSize > 0) {
+    Item it = pop();
+    int u = it.v;
+    if (done[u]) {
+        continue;                       /* stale entry */
+    }
+    done[u] = 1;
+    for (int i = 0; i < g->deg[u]; i++) {
+        int v = g->adj[u][i].v;
+        int nd = dist[u] + g->adj[u][i].w;
+        if (!done[v] && nd < dist[v]) {
+            dist[v] = nd;
+            from[v] = u;
+            push(nd, v);
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-12-graph/06_dijkstra
+make -f /work/Makefile dijkstra.out && ./dijkstra.out
+```
+
+- Result (first part)
+
+```console
+V = 8, E = 16, start 0
+pop 0 (dist 0): done
+  0->1: dist[1] = 5 via 0
+  0->4: dist[4] = 9 via 0
+  0->7: dist[7] = 8 via 0
+pop 1 (dist 5): done
+  1->2: dist[2] = 17 via 1
+  1->3: dist[3] = 20 via 1
+  1->7: 9 >= 8, keep
+pop 7 (dist 8): done
+  7->2: dist[2] = 15 via 7
+  7->5: dist[5] = 14 via 7
+pop 4 (dist 9): done
+  4->5: dist[5] = 13 via 4
+  4->6: dist[6] = 29 via 4
+pop 5 (dist 13): done
+  5->2: dist[2] = 14 via 5
+  5->6: dist[6] = 26 via 5
+pop 5 (dist 14): skip, already done
+pop 2 (dist 14): done
+  2->3: dist[3] = 17 via 2
+  2->6: dist[6] = 25 via 2
+pop 2 (dist 15): skip, already done
+pop 2 (dist 17): skip, already done
+pop 3 (dist 17): done
+  3->6: 26 >= 25, keep
+pop 3 (dist 20): skip, already done
+pop 6 (dist 25): done
+pop 6 (dist 26): skip, already done
+pop 6 (dist 29): skip, already done
+
+  v  dist  from
+  0     0     -
+  1     5     0
+  2    14     5
+  3    17     2
+  4     9     0
+  5    13     4
+  6    25     2
+  7     8     0
+path 0 -> 6: 0 4 5 2 6 (25)
+```
+
+The finalising order is 0, 1, 7, 4, 5, 2, 3, 6, and the finalised distances 0, 5, 8, 9,
+13, 14, 17, 25 come out **in non-decreasing order**. That is the heart of Dijkstra.
+
+### Why it works \{#dijkstra-proof}
+
+Dijkstra's algorithm computes a shortest-path tree in a directed graph with non-negative weights.
+
+- Edge v → w is relaxed **exactly once**, when v is finalised. Right after that,
+  $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$ holds.
+- This inequality holds until the algorithm ends.
+  - $$\text{dist}[w]$$ only decreases, never increases.
+  - $$\text{dist}[v]$$ does not change after v is finalised. Each step picks the vertex
+    with the smallest distance, and with non-negative weights, a path back to v through a
+    vertex finalised later cannot be shorter than the current $$\text{dist}[v]$$.
+- So at the end $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$ for every edge, and no path
+  can be shorter than $$\text{dist}$$. Therefore $$\text{dist}$$ is the shortest distance.
+
+### Running time \{#dijkstra-time}
+
+Each vertex is inserted and extracted once, and each edge may trigger one update-key. So
+the cost depends on what the priority queue is built from.
+
+| Data structure | insert | extract-min | update-key | total |
+| --- | --- | --- | --- | --- |
+| unordered array | $$1$$ | $$V$$ | $$1$$ | $$V^2$$ |
+| binary heap | $$\log V$$ | $$\log V$$ | $$\log V$$ | $$E \log V$$ |
+| d-way heap | $$\log_d V$$ | $$d \log_d V$$ | $$\log_d V$$ | $$E \log_{E/V} V$$ |
+| Fibonacci heap | $$1^*$$ | $$\log V^*$$ | $$1^*$$ | $$E + V \log V$$ |
+
+$$^*$$ marks amortized cost.
+
+- For **dense** graphs with very many edges, the array implementation ($$O(V^2)$$) is best.
+- For **sparse** graphs, the binary heap is much faster. The practice code uses it.
+- If performance matters, a 4-way heap is worth trying.
+- The Fibonacci heap is the best in theory but rarely worth implementing.
+
+A common slip is to write the Fibonacci heap total as $$E + \log V$$. Extract-min happens
+$$V$$ times, so the correct total is $$E + V \log V$$.
+
+### Negative weights \{#negative-weights}
+
+With negative weights, Dijkstra gets it wrong. Look at a 4-vertex graph.
+
+<HeapGraphDemo mode="dijkstra" graph="neg" />
+
+Dijkstra finalises 3, at distance 2, right after 0. But 0 → 1 → 2 → 3 is shorter:
+$$4 + 6 - 9 = 1$$. That path is found when 2 is taken out, but 3 is already final, so it
+is not updated.
+
+- Result (last part of `06_dijkstra`)
+
+```console
+negative weight: 0->1 4, 0->3 2, 1->2 6, 2->3 -9
+pop 0 (dist 0): done
+  0->1: dist[1] = 4 via 0
+  0->3: dist[3] = 2 via 0
+pop 3 (dist 2): done
+pop 1 (dist 4): done
+  1->2: dist[2] = 10 via 1
+pop 2 (dist 10): done
+  2->3: 1 < 2, but 3 is already done
+dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
+```
+
+What if we add 9 to every weight to remove the negative one? The weights become 13, 11,
+15, 0, so 0 → 3 is 11 and 0 → 1 → 2 → 3 is 28. **The shortest path itself changes.** The
+more edges a path has, the more times the added amount is counted. Graphs with negative
+weights need a different algorithm (Bellman-Ford).
+
+### Negative cycles \{#negative-cycle}
+
+A **negative cycle** is a directed cycle whose total edge weight is negative. Add an edge
+5 → 7 with weight $$-8$$ to the Dijkstra example graph, and 7 → 5 → 7 becomes a cycle of
+$$6 - 8 = -2$$. Each trip around it shortens the length by 2, so the shortest path from 0
+to 6 is **undefined.** It can be made as short as you like, down to $$-\infty$$.
+
+- A shortest-path tree exists **only if** no negative cycle is reachable from s.
+- So an algorithm that handles negative weights must also report whether there is a negative cycle.
+
+## Example 7. The A* algorithm \{#a-star}
+
+Dijkstra finds shortest paths from the source to **every** vertex. But a route-finding
+app usually wants a path to **one goal**. If the goal is to the east, there is no reason
+to dutifully finalise vertices to the west.
+
+The A* algorithm uses an **estimate** of the remaining distance to the goal (a heuristic)
+to search towards the goal first. It is widely used in games, robot path planning and
+geographic information systems (GIS).
+
+- $$g(n)$$: the **actual** distance from the start to the current node n (cost so far)
+- $$h(n)$$: an **estimate** of the remaining distance from n to the goal (the heuristic)
+- $$f(n) = g(n) + h(n)$$: the expected total cost of a path through this node
+
+Dijkstra opens the node with the smallest $$g$$; A* opens the node with the smallest $$f$$.
+How accurate $$h$$ is changes performance dramatically, so $$h$$ is the heart of A*.
+
+### The heuristic function \{#heuristic}
+
+A heuristic is **a rough guess**. Suppose you want the fastest way from Building A of
+Jinri Hall on campus to the Megabox cinema. Standing in front of dormitory C, you tell a
+friend on the phone:
+
+- "I'm at C now, I'll be at Megabox in about ten minutes." Close to the truth and not
+  over it, so it is a good estimate.
+- "Almost there, two minutes." Not over the truth, but so optimistic that it cannot tell
+  you which way is closer. Saying 0 everywhere makes A* exactly Dijkstra.
+- Saying "that takes at least thirty minutes" about a place fifteen minutes away can make
+  you avoid that route and miss the shortest path. **To find the optimum, the remaining
+  distance must not be overestimated.**
+
+Distance heuristics are usually one of these three.
+
+- **Euclidean distance**: when you can move in any direction, as on a map
+- **Manhattan distance**: when you can move only up, down, left and right on a grid
+- **Chebyshev distance**: when diagonal moves on a grid cost the same as straight ones
+
+### What looks closest is not the answer \{#f-choice}
+
+It took 2 minutes to get here, and there are three places to go from this point.
+
+| Next point | Time from here | $$g$$ (known) | $$h$$ (estimate) | $$f = g + h$$ |
+| --- | --- | --- | --- | --- |
+| Building A | 5 min | $$2 + 5 = 7$$ | 10 | 17 |
+| Building C | 3 min | $$2 + 3 = 5$$ | 10 | **15** |
+| Main Hall | 1 min | $$2 + 1 = 3$$ | 17 | 20 |
+
+The nearest place, Main Hall (1 minute), lies away from the goal, so its $$h$$ is large.
+A* picks Building C, the one with the smallest $$f$$. That is the difference from a
+greedy algorithm that looks only at what is close right now.
+
+### The example graph \{#a-star-graph}
+
+On the same graph as Dijkstra, take 0 as the start and 6 as the goal. The number beside
+each vertex is its $$h$$.
+
+<GraphFigure graph="sp" nodeTones={{ 0: 'ring', 6: 'ring' }} badges={{ 0: 'h=14', 1: 'h=10', 2: 'h=4', 3: 'h=2', 4: 'h=11', 5: 'h=6', 6: 'h=0', 7: 'h=8' }} caption="Start 0, goal 6 (red rings) · the heuristic h beside each vertex" />
+
+A* uses two lists.
+
+- **Open list**: candidates discovered but not yet closed, kept in a min heap keyed by $$f$$
+- **Closed list**: vertices already taken out, with their neighbours examined
+
+### One step at a time: never reopening closed vertices \{#a-star-demo}
+
+A common A* implementation never looks at a vertex again once it is closed. Run it that way.
+
+<HeapGraphDemo mode="astar" reopen={false} />
+
+It produced the path 0 → 7 → 2 → 6 with cost **26**. Yet on the same graph Dijkstra found
+0 → 4 → 5 → 2 → 6, cost **25**. 26 is not the shortest path. It is tempting to think A*
+always finds the shortest path, but there are conditions.
+
+The fork in the road is when 5 is closed. Going from 5, reached via 4, to 2 gives
+$$g = 14$$, shorter than the 15 via 7. But 2 is already closed, so it is passed over.
+2's $$g$$ is frozen at 15, and 6 after it is frozen at 26.
+
+### What went wrong: two conditions \{#a-star-optimality}
+
+A heuristic can satisfy two conditions.
+
+- **Admissible**: $$h(n) \le h^*(n)$$ for every node, where $$h^*(n)$$ is the true
+  shortest distance from n to the goal. It never overestimates the remaining distance.
+- **Consistent** (monotonic): $$h(n) \le c(n, n') + h(n')$$ for every edge n → n'. A
+  single step never lowers the estimate by more than the step's cost. If it is consistent
+  and $$h(\text{goal}) = 0$$, it is also admissible.
+
+The $$h$$ in this example is admissible. The true remaining distances, from 0 onwards,
+are 25, 22, 11, 9, 16, 12, 0, 18, and $$h$$ exceeds them nowhere. But it is **not
+consistent**.
+
+- $$h(4) = 11 > c(4, 5) + h(5) = 4 + 6 = 10$$
+- $$h(5) = 6 > c(5, 2) + h(2) = 1 + 4 = 5$$
+
+With admissibility alone, A* finds the shortest path, but **when a shorter path to a
+closed vertex is found, that vertex must be reopened**. Skipping the reopening is safe
+only when the heuristic is also consistent, because then a vertex's $$g$$ is already
+shortest when it is closed. Checking only admissibility and never reopening gives a
+non-optimal answer, as in this example. It is a common mistake.
+
+There are two fixes.
+
+- When a shorter path to a closed vertex is found, **reopen** it.
+- Use a **consistent** $$h$$ from the start. Straight-line distance on a map is always consistent.
+
+### One step at a time: reopening \{#a-star-reopen}
+
+Same $$h$$, but this time closed vertices are reopened.
+
+<HeapGraphDemo mode="astar" />
+
+When 5 is closed, 2 is reopened. 2 is taken out again with $$f = 18$$, fixes 3 and 6, and
+6 is reached with $$g = 25$$. The path is 0 → 4 → 5 → 2 → 6, **25**, the same as Dijkstra.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM AStar(G, h, s, t, reopen)
+    for each vertex v in G do
+        g[v] <- INF, cameFrom[v] <- -1, closed[v] <- false
+    g[s] <- 0
+    open <- empty min heap
+    insert (g[s] + h[s], s) into open   // f = g + h
+    while open is not empty do
+        (f, u) <- ExtractMin(open)      // the vertex with the smallest f
+        if closed[u] then continue      // drop stale entries
+        if u = t then return PathTo(cameFrom, t), g[t]
+        closed[u] <- true               // put it on the closed list
+        for each (u, v, w) in adj[u] do
+            if g[u] + w >= g[v] then continue   // not shorter: leave it
+            if closed[v] and not reopen then continue
+            closed[v] <- false          // (with reopen) reopen a closed vertex
+            g[v] <- g[u] + w
+            cameFrom[v] <- u
+            insert (g[v] + h[v], v) into open
+    return no path
+```
+
+It differs from Dijkstra in three places: the heap key is $$g + h$$ instead of $$g$$, it
+stops as soon as the goal is taken out, and closed vertices can be reopened.
+
+- C implementation (the neighbour loop of `07_a_star/aStar.c`, print lines removed)
+
+```c
+for (int i = 0; i < gr->deg[u]; i++) {
+    int v = gr->adj[u][i].v;
+    int ng = g[u] + gr->adj[u][i].w;
+    if (ng >= g[v]) {
+        continue;                       /* not shorter: leave it */
+    }
+    if (closed[v] && !reopen) {
+        continue;                       /* do not look at closed vertices */
+    }
+    closed[v] = 0;                      /* reopen */
+    g[v] = ng;
+    cameFrom[v] = u;
+    push(ng + h[v], v);
+}
+```
+
+- Run
+
+```sh
+cd src/topic-12-graph/07_a_star
+make -f /work/Makefile aStar.out && ./aStar.out
+```
+
+- Result (the end of both runs)
+
+```console
+V = 8, E = 16, start 0, goal 6
+h: 0=14 1=10 2=4 3=2 4=11 5=6 6=0 7=8
+inconsistent edges: 4->5 (11 > 4 + 6) 5->2 (6 > 1 + 4)
+
+without reopening closed nodes
+...
+pop 5 (f 19 = 13 + 6): close
+  2: g 14 < 15, but 2 is closed
+  6: g 26 >= 26, keep
+...
+pop 6 (f 26 = 26 + 0): goal
+expanded: 0 1 7 2 4 5 3
+path: 0 7 2 6, cost 26
+
+with reopening
+...
+pop 5 (f 19 = 13 + 6): close
+  2: g 14 < 15, reopen, f 18
+  6: g 26 >= 26, keep
+pop 2 (f 18 = 14 + 4): close
+  3: g 17, f 19
+  6: g 25, f 25
+...
+pop 6 (f 25 = 25 + 0): goal
+expanded: 0 1 7 2 4 5 2 3
+path: 0 4 5 2 6, cost 25
+```
+
+`...` stands for lines that are the same in both runs. The full output is in the
+practice folder's README.
+
+### Analysis \{#a-star-analysis}
+
+- **Time**: $$O(b^d)$$ in the worst case, where $$b$$ is the branching factor (the average
+  number of neighbours) and $$d$$ the depth of the optimal solution. Actual performance
+  depends heavily on the heuristic.
+  - A perfect heuristic ($$h = h^*$$) opens only the vertices on the shortest path, $$O(d)$$.
+    In this example, setting $$h$$ to the true remaining distances closes only 0, 4, 5, 2
+    before reaching the goal.
+  - An uninformative heuristic ($$h = 0$$) is the same as Dijkstra.
+- **Space**: $$O(b^d)$$. Both the open and closed lists must be kept.
+- **Optimality**: with an admissible $$h$$ (and reopening allowed) A* finds the shortest
+  path; with a consistent $$h$$ it does so even without reopening. Consistency is the
+  stronger condition, and it guarantees efficiency as well.
+
+| Algorithm | Search style | Optimality | Efficiency | Memory |
+| --- | --- | --- | --- | --- |
+| BFS | blind | guaranteed (unit weights) | low | high |
+| Dijkstra | by distance | guaranteed (non-negative weights) | medium | medium |
+| A* | goal-directed | conditional (admissible, consistent) | high | high |
+| Greedy Best-First | heuristic ($$h$$) only | not guaranteed | very high | low |
+
+There are many ways to refine A* further.
+
+- **Less memory**: IDA* (Iterative Deepening A*) repeats with increasing depth limits and
+  is used where memory is scarce.
+- **Less computation**: bidirectional A*, searching from both ends at once, and
+  hierarchical pathfinding, which first searches a map divided into large regions
+- **Better heuristics**: precomputed pattern databases, heuristics learned with machine learning
+
+## What to keep \{#takeaway}
+
+- **Graph representation**: an adjacency matrix takes $$\Theta(n^2)$$ space with $$O(1)$$
+  edge checks; an adjacency list takes $$\Theta(n + m)$$ space and walks neighbours fast.
+  Lists suit search.
+- **BFS and DFS** are two faces of the same generic search. With a queue it goes layer by
+  layer (unweighted shortest paths); with a stack or recursion it goes deep first, used for
+  topological sort and cycle detection. Both are $$O(m + n)$$.
+- **Cut property**: for any cut, the lightest crossing edge is in the MST. Kruskal and Prim
+  are greedy algorithms that differ only in how they pick the cut. The example's MST is 1.81.
+- **Min heap**: insert sifts up, extract sifts down. Both are $$O(\log n)$$, and it is the
+  basis of the priority queue.
+- **Prim and Dijkstra share one framework**. The only difference is whether the heap holds
+  one edge's weight or an accumulated distance. Dijkstra fails with negative weights.
+- **A*** searches towards the goal using $$f = g + h$$. With an admissible $$h$$ it finds the
+  shortest path if reopening is allowed; with a consistent $$h$$ it does so without reopening.
+
+## Practice code \{#code}
+
+It lives in the [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main)
+repository under `src/topic-12-graph/`. Each example pairs one pseudocode file with a C
+and a Python implementation.
 
 ```plaintext
 src/topic-12-graph/
-├── 01_bfs/
-├── 02_dfs/
-├── 03_mst_kruskal/
-├── 04_mst_prim/
-├── 05_min_heap/
-├── 06_dijkstra/
-└── 07_a_star/
+├── 01_bfs/              # adjacency matrix and list, BFS visit order 0 1 2 5 6 3 4
+├── 02_dfs/              # DFS 0 6 4 5 3 2 1, 3 connected components, topological sort
+├── 03_mst_kruskal/      # sort the edges, check pieces, MST 1.81
+├── 04_min_heap/         # insert 10, insert 0, extract min
+├── 05_mst_prim/         # from vertex 0 with a min heap, MST 1.81
+├── 06_dijkstra/         # 25 from 0 to 6, and a negative-weight failure
+└── 07_a_star/           # 26 without reopening, 25 with reopening
 ```
+
+Open a file and press the **▶ button** at the top right of the editor
+to run it. See
+[Setting up the practice environment](/article/setup-guide/) for how to
+run things.
+
+**Try it yourself**
+
+- In `01_bfs`, delete the line that sorts the adjacency lists and change the edge order.
+  The visit order and from may change, but the dist column stays the same.
+- In `02_dfs`, push neighbours largest first. The visit order becomes `0 1 2 3 4 5 6`.
+- Change the start vertex of `05_mst_prim`. The order in which vertices join changes, but
+  the MST and 1.81 do not.
+- Set every `h` in `07_a_star` to 0 and it closes vertices in the same order as Dijkstra;
+  set it to the true remaining distances (`25 22 11 9 16 12 0 18`) and it closes only four
+  vertices before reaching the goal.
+
+## History \{#changelog}
+
+The slides and this note are versioned together. The current version is
+**v1**, shown at the bottom left of the slides.
+
+| Version | Date | Changes |
+| --- | --- | --- |
+| v1 | 2026-10-26 | First release |

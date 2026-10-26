@@ -1,0 +1,1484 @@
+---
+title: "Topic 12. Graphs and Shortest Paths"
+description: "Graphs write the world as vertices and edges. Representing and traversing them (BFS, DFS), minimum spanning trees (Kruskal, Prim), the min heap behind both, and shortest paths (Dijkstra, A*)"
+date: "Topic 12 · v1"
+order: 12
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import GraphFigure from '@components/GraphFigure.astro';
+import GraphSearchDemo from '@components/GraphSearchDemo.astro';
+import KruskalDemo from '@components/KruskalDemo.astro';
+import HeapDemo from '@components/HeapDemo.astro';
+import HeapGraphDemo from '@components/HeapGraphDemo.astro';
+
+{/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
+    Numbers match the practice code (topic-12-graph) exactly. */}
+
+<Slide class="cover">
+
+# Graphs and Shortest Paths
+
+Topic 12
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## This topic
+::sub[Data where anything can connect to anything]
+
+- **First half**: write graphs down, walk them, connect them as cheaply as possible.
+  - Representation, BFS and DFS, minimum spanning trees (Kruskal, Prim), the min heap
+- **Second half**: find the shortest route with the same heap framework.
+  - Dijkstra, A*
+
+<br/>
+
+This pays back two promises from Topic 06.  
+Prim and Dijkstra are greedy algorithms that pick "whatever is closest right now",  
+and the heap is what makes Huffman coding $$O(k \log k)$$.
+
+</Slide>
+
+<Slide class="center">
+
+## Graphs
+::sub[Graph]
+
+</Slide>
+
+<Slide>
+
+#### What a graph is
+::sub[A set V of vertices and a set E of edges]
+
+- **Vertex**: also called a node. Count $$n$$ or $$V$$
+- **Edge**: a pair of vertices. Count $$m$$ or $$E$$
+  - Undirected: an unordered pair (friendship)
+  - Directed: an ordered pair (following)
+- **Path**: a sequence of vertices joined by edges
+- **Cycle**: a path whose first and last vertices are the same
+- **Degree**: the number of edges attached to a vertex
+
+</Slide>
+
+<Slide>
+
+#### Graphs in the world
+::sub[Several edges joining the same two vertices are parallel edges; this topic has none]
+
+- **Social networks**: friendships (Facebook), followers (Instagram)
+- **Transportation**: subway maps, road networks, flight routes
+- **The web**: the link structure of web pages, PageRank
+- **Recommender systems**: users and products (Topic 15)
+- **Bioinformatics**: protein interaction networks
+
+</Slide>
+
+<Slide>
+
+#### How many edges at most
+::sub[n vertices, no parallel edges, a connected undirected graph]
+
+- **At least** $$n - 1$$
+  - Join them in a line. Remove any edge and the piece splits in two.
+- **At most** $$\dfrac{n(n-1)}{2}$$
+  - Join every pair. $$(n-1) + (n-2) + \dots + 1$$
+  - With 5 vertices, $$4 + 3 + 2 + 1 = 10$$
+
+<br/>
+
+This gap decides what graph algorithms cost.
+
+</Slide>
+
+<Slide>
+
+#### Kinds of graphs
+::sub[Number of edges, direction, cycles]
+
+- **Sparse**: $$m = O(n)$$
+  - Social networks
+- **Dense**: $$m = O(n^2)$$
+  - Complete graphs
+- **Directed / undirected**
+- **Cyclic / acyclic**
+  - Directed with no cycles: a DAG (directed acyclic graph)
+
+</Slide>
+
+<Slide>
+
+#### Questions we ask of graphs
+::sub[Easy and hard are a hair's breadth apart]
+
+| Question | Meaning | Difficulty |
+| --- | --- | --- |
+| Path, shortest path | a (shortest) path between s and t | easy, this topic |
+| Connectivity, MST | is it all connected, cheapest connection | easy, this topic |
+| Euler tour | a cycle using every **edge** once | easy, $$O(V + E)$$ |
+| Hamilton cycle | a cycle visiting every **vertex** once | NP-complete |
+| Planarity | can it be drawn with no crossings | $$O(V)$$, but complex |
+| Graph isomorphism | do two adjacency lists give the same graph | unknown |
+
+</Slide>
+
+<Slide class="center">
+
+## Representing a graph
+::sub[Graph Representation]
+
+</Slide>
+
+<Slide>
+
+#### Edge list
+::sub[List the edges as pairs · 13 vertices, 13 edges]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="g13" slide />
+
+</div>
+<div>
+
+```plaintext
+0-1   0-2   0-5   0-6
+3-4   3-5   4-5   4-6
+7-8   9-10  9-11  9-12
+11-12
+```
+
+<br/>
+
+The simplest,  
+but "who are 0's neighbours?"  
+means scanning the whole list.
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Adjacency matrix and adjacency list
+::sub[They need different amounts of space]
+
+- **Adjacency matrix**: an $$n \times n$$ matrix, $$A_{ij} = 1$$ if there is an i-j edge.
+  - Variants store edge counts or weights.
+  - Space $$\Theta(n^2)$$
+- **Adjacency list**: a list of neighbours for each vertex
+  - An array of vertices, an array of edges, pointers between them
+  - Space $$\Theta(n + m)$$, one slot at each end of an undirected edge
+
+</Slide>
+
+<Slide class="compact">
+
+#### One graph, two representations
+::sub[First part of `01_bfs` · used throughout the BFS and DFS examples]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="g7" slide />
+
+</div>
+<div>
+
+```console
+adjacency matrix
+    0 1 2 3 4 5 6
+  0 0 1 1 0 0 1 1
+  1 1 0 0 0 0 0 0
+  2 1 0 0 1 0 0 0
+  3 0 0 1 0 1 1 0
+  4 0 0 0 1 0 1 1
+  5 1 0 0 1 1 0 0
+  6 1 0 0 0 1 0 0
+
+adjacency list
+  0: 1 2 5 6
+  1: 0
+  2: 0 3
+  3: 2 4 5
+  4: 3 5 6
+  5: 0 3 4
+  6: 0 4
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Adjacency matrix vs. adjacency list
+::sub[Seoul(0)-Busan(1), Seoul-Daegu(2), Busan-Gwangju(3) · list 4 + 6 slots, matrix 16 cells]
+
+| Operation | Adjacency matrix | Adjacency list |
+| --- | --- | --- |
+| Space | $$O(V^2)$$ | $$O(V + E)$$ |
+| Add a vertex | $$O(V^2)$$ | $$O(1)$$ |
+| Check for an edge | $$O(1)$$ | $$O(\text{degree})$$ |
+| All neighbours | $$O(V)$$ | $$O(\text{degree})$$ |
+| Add an edge | $$O(1)$$ | $$O(1)$$ |
+| Remove an edge | $$O(1)$$ | $$O(\text{degree})$$ |
+
+<br/>
+
+Search asks "who are the neighbours?" most often. All the practice code uses adjacency lists.
+
+</Slide>
+
+<Slide class="center">
+
+## Graph search
+::sub[Graph Search]
+
+</Slide>
+
+<Slide>
+
+#### The goal
+::sub[Every vertex reachable from s, none seen twice, in O(m + n)]
+
+**Generic search**
+
+1. Initially only s is explored.
+2. Repeat while possible:
+   - Pick an edge (u, v) with u explored and v unexplored.
+   - Mark v as explored.
+
+<br/>
+
+**Claim**: at the end, v is explored ⇔ there is a path from s to v
+
+</Slide>
+
+<Slide>
+
+#### Why it works
+::sub[By contradiction: suppose there is a path but v is unexplored]
+
+- s is explored and v is not.
+- Then the path has an edge (u, x) where an explored u is followed by an unexplored x.
+- While such an edge remains, the algorithm does not stop.
+  - Contradiction.
+
+<br/>
+
+One question remains.  
+**When several edges cross the frontier, which comes first?**
+
+</Slide>
+
+<Slide>
+
+#### BFS and DFS
+::sub[The same generic search; only the order of choice differs]
+
+| | BFS | DFS |
+| --- | --- | --- |
+| How it spreads | layer by layer, nearest first | one branch to the end, then back up |
+| Data structure | queue (FIFO) | stack (LIFO) or recursion |
+| Running time | $$O(m + n)$$ | $$O(m + n)$$ |
+| Good at | unweighted shortest paths, components | topological sort, components, cycle detection |
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. Breadth-first search
+::sub[Breadth-First Search]
+
+</Slide>
+
+<Slide>
+
+#### BFS
+::sub[Spreading layer by layer]
+
+- Mark s and put it in a FIFO queue.
+- Repeat until the queue is empty:
+  - Take out the vertex v that came in first.
+  - Mark v's unmarked neighbours and put them in the queue.
+
+<br/>
+
+Every vertex one edge away is seen before any two edges away.  
+Neighbours are visited in increasing order, for convenience.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: BFS(0)
+::sub[Green: fully processed · blue: in the queue · orange: just taken out · blue number: distance]
+
+<GraphSearchDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`01_bfs/bfs.pseudo` · mark when enqueued]
+
+```plaintext
+marked[s] <- true,  dist[s] <- 0
+enqueue s into Q
+while Q is not empty do
+    v <- dequeue from Q                 // the vertex that came in first
+    for each w in adj[v] do             // increasing order, for convenience
+        if not marked[w] then
+            marked[w] <- true
+            from[w] <- v
+            dist[w] <- dist[v] + 1      // one layer down
+            enqueue w into Q
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`01_bfs/` · 3 and 4 only after 1, 2, 5, 6 at distance 1]
+
+- Run
+
+```console
+visit 0, queue [0]
+dequeue 0: check 1 2 5 6 -> visit 1 2 5 6, queue [1 2 5 6]
+dequeue 1: check 0, queue [2 5 6]
+dequeue 2: check 0 3 -> visit 3, queue [5 6 3]
+dequeue 5: check 0 3 4 -> visit 4, queue [6 3 4]
+dequeue 6: check 0 4, queue [3 4]
+dequeue 3: check 2 4 5, queue [4]
+dequeue 4: check 3 5 6, queue []
+order: 0 1 2 5 6 3 4
+path 0 -> 4: 0 5 4 (2 edges)
+```
+
+</Slide>
+
+<Slide>
+
+#### Properties of BFS and shortest paths
+::sub[n_s, m_s: vertices and edges reachable from s]
+
+- **Claim 1**: at the end, v is explored ⇔ there is a path from s to v
+- **Claim 2**: running time $$O(n_s + m_s)$$
+  - Each vertex enters the queue once and leaves once.
+  - Each edge is looked at once from each end.
+- **Shortest paths**: $$\text{dist}(w) = \text{dist}(v) + 1$$
+  - Follow from backwards for the path: 4 ← 5 ← 0
+  - Shortest **only when every edge has the same length**.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Application: connected components
+::sub[Start one search from each vertex not yet explored]
+
+```plaintext
+mark every vertex unexplored
+for i <- 1 to n do
+    if i is not explored yet then
+        BFS(G, i)                       // vertices reached from i form one component
+```
+
+- Called several times, but each vertex and edge is seen once in total.
+  - $$O(m + n)$$
+- DFS does the same job. The practice code uses DFS.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. Depth-first search
+::sub[Depth-First Search]
+
+</Slide>
+
+<Slide>
+
+#### DFS
+::sub[Dig to the end of one branch, then back up]
+
+- Mark vertex v as visited.
+- Do the same recursively for each unmarked neighbour of v.
+- A LIFO stack can replace recursion.
+
+<br/>
+
+The practice code's stack DFS marks a vertex **when it is popped**.  
+The same vertex can enter the stack twice, so it is dropped if already visited.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: DFS(0)
+::sub[Neighbours are pushed smallest first, so the largest ends up on top]
+
+<GraphSearchDemo mode="dfs" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`02_dfs/dfs.pseudo` · a stack slot holds (vertex, who pushed it)]
+
+```plaintext
+push (s, -1) into S
+while S is not empty do
+    (v, p) <- pop from S                // the vertex pushed last
+    if marked[v] then continue          // already visited: drop it
+    marked[v] <- true                   // mark when popped
+    from[v] <- p
+    for each w in adj[v] do             // push in increasing order, for convenience
+        if not marked[w] then
+            push (w, v) into S
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`02_dfs/` · push largest first and you get 0 1 2 3 4 5 6, the recursive order]
+
+- Run
+
+```console
+push 0, stack [0]
+pop 0: visit 0, check 1 2 5 6 -> push 1 2 5 6, stack [1 2 5 6]
+pop 6: visit 6, check 0 4 -> push 4, stack [1 2 5 4]
+pop 4: visit 4, check 3 5 6 -> push 3 5, stack [1 2 5 3 5]
+pop 5: visit 5, check 0 3 4 -> push 3, stack [1 2 5 3 3]
+pop 3: visit 3, check 2 4 5 -> push 2, stack [1 2 5 3 2]
+pop 2: visit 2, check 0 3, stack [1 2 5 3]
+pop 3: already visited, stack [1 2 5]
+pop 5: already visited, stack [1 2]
+pop 2: already visited, stack [1]
+pop 1: visit 1, check 0, stack []
+order: 0 6 4 5 3 2 1
+```
+
+</Slide>
+
+<Slide>
+
+#### Application: connected components
+::sub[Vertices reached by one DFS get the same id]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="g13" nodeTones={{ 0: 'done', 1: 'done', 2: 'done', 3: 'done', 4: 'done', 5: 'done', 6: 'done', 7: 'open', 8: 'open', 9: 'focus', 10: 'focus', 11: 'focus', 12: 'focus' }} slide />
+
+</div>
+<div>
+
+```console
+connected components (V = 13, E = 13)
+  id 0: 0 1 2 3 4 5 6
+  id 1: 7 8
+  id 2: 9 10 11 12
+count = 3
+```
+
+<br/>
+
+Green id 0, blue id 1, orange id 2
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Application: topological sort
+::sub[u → v: you must take u before v]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="dag" slide />
+
+</div>
+<div>
+
+0. Algorithms
+1. Complexity Theory
+2. Artificial Intelligence
+3. Intro to CS
+4. Cryptography
+5. Scientific Computing
+6. Advanced Programming
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="compact">
+
+#### Topological sort: number a vertex after its outgoing edges
+::sub[f(u) smaller than f(v) for every edge (u, v) · numbers handed out backwards from the largest]
+
+```plaintext
+Finish(s):
+    marked[s] <- true
+    for each edge (s, v) do
+        if not marked[v] then Finish(v)
+    f[s] <- label,  label <- label - 1     // first to finish gets a later number
+```
+
+- Run
+
+```console
+topological sort (V = 7, E = 11, directed)
+  f: 0=3 1=6 2=5 3=1 4=7 5=4 6=2
+  order: 3 6 0 5 2 1 4
+```
+
+With a directed cycle there is no topological order.
+
+</Slide>
+
+<Slide>
+
+#### Other things DFS does
+::sub[Paths, reachability, cycles, strongly connected components]
+
+- **Reachability**
+  - Removing unreachable code, detecting loops that never exit
+  - Mark-and-sweep garbage collectors
+- **Directed cycle detection**
+  - Java's cyclic inheritance, spreadsheet circular references
+  - An edge back to a vertex still being visited (a back edge) means a cycle
+- **Strongly connected components**
+  - The Kosaraju-Sharir algorithm: two DFS passes
+
+</Slide>
+
+<Slide>
+
+#### BFS vs. DFS
+::sub[Same search, different order]
+
+| Property | BFS | DFS |
+| --- | --- | --- |
+| Data structure | queue (FIFO) | stack (LIFO) or recursion |
+| Memory | the width of one layer | the depth of the path |
+| Shortest path | guaranteed on unweighted graphs | not guaranteed |
+| Implementation | loop | recursion or loop |
+| Example uses | friend suggestions | maze solving, web crawling, topological sort |
+
+</Slide>
+
+<Slide class="center">
+
+## Minimum spanning trees
+::sub[Minimum Spanning Tree]
+
+</Slide>
+
+<Slide>
+
+#### Trees, spanning trees, MSTs
+::sub[Connecting every vertex as cheaply as possible]
+
+- **Tree**: an acyclic, connected, undirected graph, with $$V - 1$$ edges
+- **Spanning tree**: a subgraph that is a tree and includes every vertex
+- **Minimum spanning tree**: the spanning tree with the smallest total edge weight
+- **Uses**
+  - Cluster analysis, maximum bottleneck paths
+  - Ethernet's spanning tree protocol, TSP approximation
+  - Communication, power and road network design
+
+</Slide>
+
+<Slide>
+
+#### Simplifying assumptions
+::sub[Try every spanning tree? Their number grows exponentially]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="mst" slide />
+
+</div>
+<div>
+
+- **All weights are distinct.**
+  - Then the MST is unique.
+- **The graph is connected.**
+
+<br/>
+
+8 vertices, 16 edges  
+The Kruskal and Prim examples
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### The cut property
+::sub[For any cut, the lightest crossing edge is in the MST]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="mst" nodeTones={{ 0: 'done', 1: 'done', 4: 'done', 5: 'done', 7: 'done', 2: 'open', 3: 'open', 6: 'open' }} edgeTones={{ '1-3': 'cand', '1-2': 'cand', '2-7': 'cand', '0-2': 'tree', '6-0': 'cand', '6-4': 'cand' }} slide />
+
+</div>
+<div>
+
+- **Cut**: splitting the vertices into two non-empty sets
+- **Crossing edge**: an edge joining the two sets
+  - Dashed blue lines
+- The lightest, 0-2 (0.26), is in the MST.
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Proof of the cut property
+::sub[Suppose the lightest crossing edge e is not in the MST]
+
+1. **Adding e to the MST makes a cycle.**
+2. **Another edge f on the cycle is also a crossing edge.**
+   - To return to the side it started from, the cycle must cross the cut again.
+3. **Removing f and adding e still gives a spanning tree.**
+4. **e is lighter than f, so the new spanning tree is lighter.**
+   - Lighter than the MST: a contradiction.
+
+</Slide>
+
+<Slide>
+
+#### Greedy MST
+::sub[The cut property turned directly into an algorithm]
+
+1. Start with every edge uncoloured.
+2. Find a cut with no coloured crossing edge, and colour its lightest crossing edge.
+3. Repeat until $$V - 1$$ edges are coloured.
+
+<br/>
+
+Every coloured edge is an MST edge.  
+E.g. colouring 0-2, 5-7, 6-2, 0-7, 2-3, 1-7, 4-5 in that order gives the same MST  
+Kruskal and Prim are what decide "which cut to pick".
+
+</Slide>
+
+<Slide>
+
+#### Greedy, Kruskal, Prim
+::sub[All greedy, all standing on the cut property]
+
+| | Greedy MST | Kruskal | Prim |
+| --- | --- | --- | --- |
+| Approach | the cut property directly | edge-centred, global choice | vertex-centred, local growth |
+| Starting point | anywhere | the lightest edge | one chosen vertex |
+| Time | depends | $$O(E \log E)$$ | $$O(E \log V)$$ |
+| Preprocessing | none | sort the edges | none |
+| Implementation | hard (managing cuts) | medium (union-find) | easy (priority queue) |
+
+</Slide>
+
+<Slide class="center">
+
+## Example 3. Kruskal's algorithm
+::sub[Kruskal's Algorithm, 1956]
+
+</Slide>
+
+<Slide>
+
+#### Kruskal
+::sub[Lightest edges first, added unless they make a cycle]
+
+- Sort the edges by increasing weight.
+- Each vertex has a `comp` (piece number). At first each is a piece of its own.
+- If the two ends of an edge are
+  - in **different pieces**, add it and merge the pieces.
+  - in **the same piece**, a path already exists, so it would make a cycle. Drop it.
+- Stop when there are $$V - 1$$ edges.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: Kruskal
+::sub[First the edges line up by weight; the blue number beside a vertex is its comp]
+
+<KruskalDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`03_mst_kruskal/kruskal.pseudo` · a piece is numbered by its smallest vertex]
+
+```plaintext
+edges <- the edges of G sorted by increasing weight
+comp[v] <- v  (for every v)
+for each (u, v, w) in edges do
+    if comp[u] != comp[v] then          // different pieces -> no cycle
+        add (u, v, w) to mst
+        set every vertex in comp[u] or comp[v] to min(comp[u], comp[v])
+        if |mst| = V - 1 then break
+    else                                // same piece -> would make a cycle
+        drop (u, v)
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`03_mst_kruskal/` · weights are integers times 100, turned into decimals only when printed]
+
+- Run
+
+```console
+  0-7 0.16  add   comp [0 1 2 3 4 5 6 0]
+  2-3 0.17  add   comp [0 1 2 2 4 5 6 0]
+  1-7 0.19  add   comp [0 0 2 2 4 5 6 0]
+  0-2 0.26  add   comp [0 0 0 0 4 5 6 0]
+  5-7 0.28  add   comp [0 0 0 0 4 0 6 0]
+  1-3 0.29  skip  (1 and 3 both in 0, cycle)
+  1-5 0.32  skip  (1 and 5 both in 0, cycle)
+  2-7 0.34  skip  (2 and 7 both in 0, cycle)
+  4-5 0.35  add   comp [0 0 0 0 0 0 6 0]
+  1-2 0.36  skip  (1 and 2 both in 0, cycle)
+  4-7 0.37  skip  (4 and 7 both in 0, cycle)
+  0-4 0.38  skip  (0 and 4 both in 0, cycle)
+  6-2 0.40  add   comp [0 0 0 0 0 0 0 0]
+7 edges = V - 1, stop
+total weight = 1.81
+```
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[MST: 0-7 2-3 1-7 0-2 5-7 4-5 6-2, total weight 1.81]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="mst" edgeTones={{ '0-7': 'tree', '2-3': 'tree', '1-7': 'tree', '0-2': 'tree', '5-7': 'tree', '4-5': 'tree', '6-2': 'tree' }} slide />
+
+</div>
+<div>
+
+- **Correctness**: a special case of Greedy MST
+  - Take v's piece and the rest as the cut; e is that cut's lightest crossing edge
+- **Time**
+  - Sorting $$O(E \log E)$$
+  - Merging $$O(V)$$ × $$V-1$$ times
+  - With union-find, $$O(E \log E)$$
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="center">
+
+## Example 4. Priority queues and the min heap
+::sub[Priority Queue, Min Heap]
+
+</Slide>
+
+<Slide>
+
+#### Priority queues
+::sub[Prim, Dijkstra and Huffman all want "the smallest right now"]
+
+- **Ordinary queue**: FIFO
+  - Put in A, B, C, D and get A → B → C → D
+- **Priority queue**: the highest priority comes out first
+  - A(3), B(1), C(5), D(2) smallest first: B → D → A → C
+- **The order among equal priorities is not guaranteed.**
+  - The practice code and demos take the one put in first.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Heaps
+::sub[A complete binary tree plus the heap property]
+
+- **Complete binary tree**: every level full except the last, which fills from the left
+- **Min heap**: parent ≤ child, the root is the minimum
+- **Max heap**: parent ≥ child, the root is the maximum
+
+```plaintext
+           1                 array  [1, 2, 3, 4, 5, 6, 7, 8, 9]
+       2       3             index   0  1  2  3  4  5  6  7  8
+     4   5   6   7
+    8 9                      parent of i (i-1)/2,  children 2i+1, 2i+2
+```
+
+</Slide>
+
+<Slide>
+
+#### Insert and extract-min
+::sub[Both do one comparison per level]
+
+- **Insert**
+  1. Check whether it is full.
+  2. Put it in the first free slot at the end.
+  3. If smaller than the parent, swap and move up a level. **sift up**
+- **Extract min**
+  1. Check whether it is empty and save the root.
+  2. Move the last element to the root.
+  3. If larger than the smaller child, swap and move down a level. **sift down**
+
+</Slide>
+
+<Slide>
+
+### One step at a time: min heap
+::sub[insert 10, insert 0, extract min · orange: the moving element, blue: what it is compared with]
+
+<HeapDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`04_min_heap/minHeap.pseudo`]
+
+```plaintext
+HeapifyUp(heap, i):                       // sift up
+    while i > 0 do
+        p <- (i - 1) / 2
+        if heap[i] >= heap[p] then break  // not smaller than the parent: stay
+        swap heap[i], heap[p],  i <- p
+
+HeapifyDown(heap, i):                     // sift down
+    loop
+        m <- i, l <- 2i + 1, r <- 2i + 2
+        if l < size and heap[l] < heap[m] then m <- l
+        if r < size and heap[r] < heap[m] then m <- r
+        if m = i then break               // not larger than both children: stay
+        swap heap[i], heap[m],  i <- m
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`04_min_heap/` · 0 reaches the root after three swaps]
+
+- Run
+
+```console
+insert 0 at index 10
+  0 (index 10) vs parent 5 (index 4): swap
+  0 (index 4) vs parent 2 (index 1): swap
+  0 (index 1) vs parent 1 (index 0): swap
+  reached the root
+heap [0 1 3 4 2 6 7 8 9 10 5]
+
+extract min 0, move last 5 to the root
+  5 (index 0) vs children 1 (index 1), 3 (index 2): swap with 1
+  5 (index 1) vs children 4 (index 3), 2 (index 4): swap with 2
+  5 (index 4) vs children 10 (index 9): stay
+heap [1 2 3 4 5 6 7 8 9 10]
+
+extract all: 1 2 3 4 5 6 7 8 9 10
+```
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[A complete binary tree has height log n]
+
+- **Insert, extract min**: $$O(\log n)$$
+- **Peek at the minimum**: $$O(1)$$
+- **Heap sort**: extract everything for ascending order, $$O(n \log n)$$
+- **Huffman coding from Topic 06**
+  - Scanning the forest each time: $$O(k^2)$$
+  - Keeping the forest in a min heap: $$O(k \log k)$$
+
+</Slide>
+
+<Slide class="center">
+
+## Example 5. Prim's algorithm
+::sub[Prim's Algorithm, 1959]
+
+</Slide>
+
+<Slide>
+
+#### Prim
+::sub[Greedily grow a tree from one vertex]
+
+- Start at vertex 0.
+- Add the lightest edge with exactly one end in the tree.
+- `key[v]`: the weight of the lightest edge joining v to the tree
+  - Take the vertex with the smallest key from a min heap.
+  - When a key drops, update it and **insert a new entry**. Stale entries are dropped when taken out.
+
+<br/>
+
+The "closest right now" from Topic 06 is exactly this vertex.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: Prim
+::sub[`0.26:2` is vertex 2 with key 0.26 · struck-through entries are stale]
+
+<HeapGraphDemo mode="prim" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`05_mst_prim/prim.pseudo`]
+
+```plaintext
+key[s] <- 0,  insert (0, s) into PQ
+while PQ is not empty and |mst| < V - 1 do
+    (k, u) <- ExtractMin(PQ)            // the vertex closest to the tree now
+    if inTree[u] then continue          // drop stale entries
+    inTree[u] <- true
+    if u != s then add (via[u], u, k) to mst
+    for each (u, v, w) in adj[u] do
+        if not inTree[v] and w < key[v] then
+            key[v] <- w,  via[v] <- u   // a lighter edge
+            insert (w, v) into PQ       // insert anew instead of updating
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`05_mst_prim/` · vertex 4's key dropped twice: 0.38, 0.37, 0.35]
+
+- Run (last part)
+
+```console
+pop 3 (key 0.17): add 2-3
+pop 5 (key 0.28): add 7-5
+  4: key 0.35 via 5
+pop 3 (key 0.29): skip, already in tree
+pop 4 (key 0.35): add 5-4
+pop 4 (key 0.37): skip, already in tree
+pop 4 (key 0.38): skip, already in tree
+pop 6 (key 0.40): add 2-6
+7 edges = V - 1, stop
+total weight = 1.81
+```
+
+Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[The same seven edges as Kruskal, the same 1.81]
+
+- **Correctness**: a special case of Greedy MST
+  - Take "the current tree" and "the rest" as the cut; the chosen edge is its lightest crossing edge
+- **Time**: $$O(E \log E) = O(E \log V)$$
+  - At most one heap entry per edge
+  - $$E \le V^2$$, so $$\log E \le 2 \log V$$
+- **How it differs from Kruskal**
+  - In Kruskal several pieces grow and then merge.
+  - In Prim a single piece grows from start to finish.
+
+</Slide>
+
+<Slide class="center">
+
+### Here we pause
+
+First half: we wrote graphs down, walked them, connected them cheaply and built a heap.  
+Second half: the same heap framework finds **the shortest route**.  
+Change one line in Prim and you get Dijkstra; add one estimate and you get A*.
+
+</Slide>
+
+<Slide class="center">
+
+## Shortest paths
+::sub[Shortest Path]
+
+</Slide>
+
+<Slide>
+
+#### Shortest paths
+::sub[An edge-weighted directed graph G = (V, E)]
+
+- The path from s to t with the smallest total edge weight
+  - An undirected graph is a directed graph with two opposite edges per edge.
+- **Variants**
+  - Single pair: from s to t
+  - Single source: from s to every other vertex (Dijkstra)
+  - All pairs
+- Length is **the sum of the weights**, not the number of edges.
+
+</Slide>
+
+<Slide>
+
+#### Why another shortest-path algorithm
+::sub[Doesn't BFS already find shortest paths in linear time?]
+
+- BFS is shortest **only when every edge has weight 1**.
+- A three-edge path of 3 + 3 + 3 = 9 and a one-edge path of 20?
+  - BFS finds the one-edge path first and stops.
+
+<br/>
+
+**The fix: Dijkstra's shortest-path algorithm**
+
+</Slide>
+
+<Slide class="center">
+
+## Example 6. Dijkstra's algorithm
+::sub[Dijkstra's Algorithm]
+
+</Slide>
+
+<Slide>
+
+#### Dijkstra
+::sub[Shortest distances from one source to every other vertex]
+
+1. $$\text{dist}[s] = 0$$, everything else $$\infty$$
+2. The set of finalised vertices $$X = \{s\}$$
+3. While $$X \ne V$$:
+   - Among edges with v ∈ X and w ∉ X, add to X the w minimising $$\text{dist}[v] + w(v, w)$$.
+   - Try to lower the neighbours' dist through the edges leaving w. **Relaxation**
+
+<br/>
+
+Vertices are finalised one by one in order of increasing distance.
+
+</Slide>
+
+<Slide>
+
+#### Dijkstra and Prim
+::sub[Both greedy, both using a min heap to pick "the smallest value now"]
+
+| | Dijkstra | Prim |
+| --- | --- | --- |
+| Goal | shortest paths | minimum spanning tree |
+| Value used when updating | $$\text{dist}[u] + w(u, v)$$ | $$w(u, v)$$ |
+| Meaning of the value | distance **accumulated** from the source | weight of **one** edge |
+| Result | shortest distance to every vertex | minimum cost to connect every vertex |
+
+</Slide>
+
+<Slide>
+
+### One step at a time: Dijkstra
+::sub[Blue number: distance so far · green: finalised, dashed blue: from of a vertex not yet finalised]
+
+<HeapGraphDemo mode="dijkstra" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`06_dijkstra/dijkstra.pseudo` · what changed from Prim is one updating line]
+
+```plaintext
+dist[s] <- 0,  insert (0, s) into PQ
+while PQ is not empty do
+    (d, u) <- ExtractMin(PQ)            // the closest vertex not yet finalised
+    if done[u] then continue            // drop stale entries
+    done[u] <- true                     // this distance will not change again
+    for each (u, v, w) in adj[u] do
+        if not done[v] and dist[u] + w < dist[v] then
+            dist[v] <- dist[u] + w      // relaxation
+            from[v] <- u
+            insert (dist[v], v) into PQ
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`06_dijkstra/` · vertex 2's distance dropped to 17, 15, 14]
+
+- Run (last part)
+
+```console
+  v  dist  from
+  0     0     -
+  1     5     0
+  2    14     5
+  3    17     2
+  4     9     0
+  5    13     4
+  6    25     2
+  7     8     0
+path 0 -> 6: 0 4 5 2 6 (25)
+```
+
+Finalising order 0, 1, 7, 4, 5, 2, 3, 6  
+The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
+
+</Slide>
+
+<Slide>
+
+#### Why it works
+::sub[A directed graph with non-negative weights]
+
+- Edge v → w is relaxed **exactly once**, when v is finalised.
+  - Right after, $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$
+- This inequality holds until the end.
+  - $$\text{dist}[w]$$ only decreases.
+  - $$\text{dist}[v]$$ does not change once final, because weights are non-negative.
+- At the end it holds for every edge, so dist is the shortest distance.
+
+</Slide>
+
+<Slide>
+
+#### Running time
+::sub[Depends on what the priority queue is built from · * amortized]
+
+| Data structure | insert | extract-min | update-key | total |
+| --- | --- | --- | --- | --- |
+| unordered array | $$1$$ | $$V$$ | $$1$$ | $$V^2$$ |
+| binary heap | $$\log V$$ | $$\log V$$ | $$\log V$$ | $$E \log V$$ |
+| d-way heap | $$\log_d V$$ | $$d \log_d V$$ | $$\log_d V$$ | $$E \log_{E/V} V$$ |
+| Fibonacci heap | $$1^*$$ | $$\log V^*$$ | $$1^*$$ | $$E + V \log V$$ |
+
+<br/>
+
+Arrays for dense graphs, binary heaps for sparse graphs.  
+The Fibonacci heap total is $$E + V \log V$$, not $$E + \log V$$.
+
+</Slide>
+
+<Slide>
+
+### Negative weights
+::sub[Dijkstra finalises 3 right after 0. But 0 → 1 → 2 → 3 is 4 + 6 − 9 = 1]
+
+<HeapGraphDemo mode="dijkstra" graph="neg" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Wrong with negative weights
+::sub[Last part of `06_dijkstra/`]
+
+- Run
+
+```console
+negative weight: 0->1 4, 0->3 2, 1->2 6, 2->3 -9
+pop 3 (dist 2): done
+pop 1 (dist 4): done
+  1->2: dist[2] = 10 via 1
+pop 2 (dist 10): done
+  2->3: 1 < 2, but 3 is already done
+dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
+```
+
+- **Add 9 to every weight?** 13, 11, 15, 0
+  - 0 → 3 is 11, 0 → 1 → 2 → 3 is 28. **The shortest path changes.**
+- Negative weights need the Bellman-Ford algorithm.
+
+</Slide>
+
+<Slide>
+
+#### Negative cycles
+::sub[A directed cycle whose total edge weight is negative]
+
+- Add 5 → 7 with weight $$-8$$ to the Dijkstra example graph
+  - 7 → 5 → 7 is $$6 - 8 = -2$$
+  - Every trip around it is shorter, so the shortest path is **undefined.**
+- A shortest-path tree exists **only if** no negative cycle is reachable from s.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 7. The A* algorithm
+::sub[A Star Algorithm]
+
+</Slide>
+
+<Slide>
+
+#### A*
+::sub[To one goal, searching towards it with an estimate of the remaining distance]
+
+- Dijkstra finds paths to **every** vertex. Route finding usually needs **one goal**.
+- Games, robot path planning, geographic information systems (GIS)
+- Three values per node
+  - $$g(n)$$: the **actual** distance from the start to n
+  - $$h(n)$$: an **estimate** of the remaining distance to the goal (heuristic)
+  - $$f(n) = g(n) + h(n)$$: the expected total cost through this node
+- Open the node with the smallest $$f$$ first.
+
+</Slide>
+
+<Slide>
+
+#### The heuristic function h(n)
+::sub[From Jinri Hall A to the Megabox cinema · on the phone in front of dormitory C]
+
+- "About ten minutes." Close to the truth and not over it. **A good estimate**
+- "Two minutes." Not over, but so optimistic it **cannot guide you.**
+  - 0 everywhere is the same as Dijkstra.
+- Calling a fifteen-minute route "thirty minutes" makes you avoid it and **miss the shortest path.**
+
+<br/>
+
+Distance heuristics: Euclidean, Manhattan, Chebyshev
+
+</Slide>
+
+<Slide>
+
+#### What looks closest is not the answer
+::sub[It took 2 minutes to get here, and there are three places to go]
+
+| Next point | Time | $$g$$ | $$h$$ | $$f = g + h$$ |
+| --- | --- | --- | --- | --- |
+| Building A | 5 min | $$2 + 5 = 7$$ | 10 | 17 |
+| Building C | 3 min | $$2 + 3 = 5$$ | 10 | **15** |
+| Main Hall | 1 min | $$2 + 1 = 3$$ | 17 | 20 |
+
+<br/>
+
+The nearest, Main Hall, lies away from the goal. A* picks Building C.
+
+</Slide>
+
+<Slide>
+
+#### The example graph
+::sub[The same graph as Dijkstra · start 0, goal 6 · h beside each vertex]
+
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="sp" nodeTones={{ 0: 'ring', 6: 'ring' }} badges={{ 0: 'h=14', 1: 'h=10', 2: 'h=4', 3: 'h=2', 4: 'h=11', 5: 'h=6', 6: 'h=0', 7: 'h=8' }} slide />
+
+</div>
+<div>
+
+- **Open list**
+  - Candidates found but not yet closed
+  - A min heap keyed by $$f$$
+- **Closed list**
+  - Vertices taken out with their neighbours examined
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### One step at a time: A* without reopening
+::sub[A common implementation: once a vertex is closed it is never looked at again]
+
+<HeapGraphDemo mode="astar" reopen={false} slide />
+
+</Slide>
+
+<Slide>
+
+#### 26 is not the shortest
+::sub[On the same graph Dijkstra finds 0 → 4 → 5 → 2 → 6, 25]
+
+- 0 → 7 → 2 → 6, **26**, is not the shortest path.
+- The fork in the road is when 5 is closed.
+  - From 5 to 2 gives $$g = 14$$, shorter than the current 15.
+  - But 2 is already closed, so it is passed over.
+  - 2's $$g$$ is frozen at 15, and 6 at 26.
+
+</Slide>
+
+<Slide>
+
+#### Two conditions on the heuristic
+::sub[h*(n): the true shortest distance from n to the goal]
+
+- **Admissible**: $$h(n) \le h^*(n)$$
+  - Never overestimates. **With reopening** it finds the shortest path.
+- **Consistent**: $$h(n) \le c(n, n') + h(n')$$
+  - Finds the shortest path **even without reopening**. The stronger condition.
+- This h is admissible but not consistent.
+  - $$h(4) = 11 > 4 + h(5) = 10$$
+  - $$h(5) = 6 > 1 + h(2) = 5$$
+
+</Slide>
+
+<Slide>
+
+### One step at a time: reopening
+::sub[When a shorter path to a closed vertex is found, reopen it]
+
+<HeapGraphDemo mode="astar" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`07_a_star/aStar.pseudo` · unlike Dijkstra: key g + h, stop at the goal, reopening]
+
+```plaintext
+g[s] <- 0,  insert (g[s] + h[s], s) into open
+while open is not empty do
+    (f, u) <- ExtractMin(open)          // the vertex with the smallest f
+    if closed[u] then continue          // drop stale entries
+    if u = t then return path, g[t]
+    closed[u] <- true
+    for each (u, v, w) in adj[u] do
+        if g[u] + w >= g[v] then continue
+        if closed[v] and not reopen then continue
+        closed[v] <- false              // (with reopen) reopen it
+        g[v] <- g[u] + w,  cameFrom[v] <- u
+        insert (g[v] + h[v], v) into open
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`07_a_star/` · where the two runs part ways]
+
+- Run
+
+```console
+inconsistent edges: 4->5 (11 > 4 + 6) 5->2 (6 > 1 + 4)
+
+without reopening closed nodes
+pop 5 (f 19 = 13 + 6): close
+  2: g 14 < 15, but 2 is closed
+expanded: 0 1 7 2 4 5 3
+path: 0 7 2 6, cost 26
+
+with reopening
+pop 5 (f 19 = 13 + 6): close
+  2: g 14 < 15, reopen, f 18
+pop 2 (f 18 = 14 + 4): close
+  3: g 17, f 19
+  6: g 25, f 25
+expanded: 0 1 7 2 4 5 2 3
+path: 0 4 5 2 6, cost 25
+```
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[b: branching factor, d: depth of the optimal solution]
+
+- **Time**: $$O(b^d)$$ in the worst case; in practice it depends on the heuristic.
+  - Perfect heuristic ($$h = h^*$$): $$O(d)$$, here it closes only 0, 4, 5, 2.
+  - Uninformative heuristic ($$h = 0$$): the same as Dijkstra.
+- **Space**: $$O(b^d)$$, keeping both the open and closed lists.
+- **Refinements**
+  - IDA* (memory), bidirectional A*, hierarchical pathfinding
+  - Pattern databases, machine-learned heuristics
+
+</Slide>
+
+<Slide>
+
+#### Side by side with other algorithms
+::sub[BFS, Dijkstra, A*, Greedy Best-First]
+
+| Algorithm | Search style | Optimality | Efficiency | Memory |
+| --- | --- | --- | --- | --- |
+| BFS | blind | guaranteed (unit weights) | low | high |
+| Dijkstra | by distance | guaranteed (non-negative weights) | medium | medium |
+| A* | goal-directed | conditional | high | high |
+| Greedy Best-First | $$h$$ only | not guaranteed | very high | low |
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Find what stays the same when the order changes]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-12-graph/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Change the edge order in `01_bfs`.**
+   - The visit order and from may change, but dist stays the same.
+2. **Change the start vertex of `05_mst_prim`.**
+   - The joining order changes, but the MST and 1.81 do not.
+3. **Change h in `07_a_star`.**
+   - All 0 gives Dijkstra; the true remaining distances close only four vertices.
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **An adjacency list is $$\Theta(n + m)$$, an adjacency matrix $$\Theta(n^2)$$.**
+   - Lists suit search.
+2. **BFS and DFS are the same generic search.**
+   - A queue goes layer by layer (shortest paths), a stack goes deep first (topological sort). Both $$O(m + n)$$
+3. **Kruskal and Prim stand on the cut property.**
+   - Greedy algorithms that differ only in the cut they pick; the example's MST is 1.81
+4. **A min heap sifts up and sifts down in $$O(\log n)$$.**
+5. **Prim, Dijkstra and A* share one framework.**
+   - The heap key is one edge, an accumulated distance, or an accumulated distance plus an estimate
+
+</Slide>
