@@ -1,0 +1,751 @@
+---
+// 트라이를 눌러 보며 읽는 데모. 모드가 둘이다.
+//
+// - node: 트라이의 노드를 누르면 그 노드의 children[26] 배열이 아래에 펼쳐진다.
+//   링크가 있는 칸만 칠하고 나머지는 NULL이다. 칠한 칸을 누르면 그 자식으로
+//   내려간다. 노드의 hasValue·value도 함께 보인다. 링크의 위치가 곧 문자이고,
+//   칸 대부분이 비어 있다는 것을 노드마다 확인한다.
+// - complete: 입력창에 접두사를 치면 자동 완성처럼 그 접두사로 시작하는 키를
+//   사전 순으로 보인다. 접두사를 따라 내려간 길은 파랑, 그 아래 서브트라이는
+//   초록 테두리, 값이 있어 모은 노드는 초록이다.
+//
+// 트라이는 키 목록으로 스크립트 안에서 실제로 만든다. 기본 키는 실습 코드
+// (algorithm-code의 topic-10-trie/01_trie)와 같은 by=4 sea=2 sells=1 she=0
+// shells=3 the=5이고, complete 모드는 실습 코드처럼 shore=7을 더한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+type Mode = 'node' | 'complete';
+interface Props {
+  mode?: Mode;
+  /** 넣을 키와 값 */
+  words?: [string, number][];
+  /** 더 넣는 키. 기본은 complete 모드에서만 shore=7 */
+  extra?: [string, number][];
+  /** node 모드: 처음 고른 노드(루트에서의 문자열, 루트는 빈 문자열) */
+  select?: string;
+  /** complete 모드: 처음 입력해 둘 접두사 */
+  prefix?: string;
+  /** complete 모드: 누르면 입력되는 접두사 예 */
+  samples?: string[];
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  mode = 'node',
+  words = [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+  extra = mode === 'complete' ? [['shore', 7]] : [],
+  select = '',
+  prefix = 'sh',
+  samples = ['s', 'sh', 'she', 'se', 't', 'x'],
+  slide = false,
+} = Astro.props;
+const id = `tn-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    'title.node': '노드의 링크 배열',
+    'title.complete': '자동 완성',
+    hint: '노드나 칠한 칸을 누르세요',
+    root: '루트',
+    rootName: '루트',
+    rootRef: '루트',
+    input: '접두사',
+    found: '모은 키',
+    value: '값',
+    used: '쓰는 칸',
+    empty: '빈 칸',
+    whole: '트라이 전체 링크',
+    visited: '거친 노드',
+    keys: '모은 키',
+    'node.root': '루트: 26칸 중 {k}칸({cs})을 쓰고 나머지 {e}칸은 NULL입니다.',
+    'node.inner': '"{s}" 노드: 부모의 {c} 칸에서 왔고, 26칸 중 {k}칸({cs})을 쓰고 {e}칸은 NULL입니다.',
+    'node.leaf': '"{s}" 노드: 부모의 {c} 칸에서 왔고, 26칸이 모두 NULL입니다.',
+    'node.value': '키 {s}의 끝이라 값을 갖습니다(value = {v}).',
+    'node.noValue': '값이 없으니 키가 아니라 지나가는 길입니다.',
+    'complete.empty': '접두사가 비어 있으면 루트 아래 전부입니다. 키 {n}개를 사전 순으로 모읍니다.',
+    'complete.hit': '접두사 "{p}": 노드 {k}개를 따라 내려왔습니다. 그 아래 서브트라이에서 키 {n}개를 사전 순으로 모읍니다.',
+    'complete.zero': '"{p}"의 노드는 있지만 그 아래에 값이 있는 노드가 없습니다.',
+    'complete.miss': '{q} 노드에 {c} 링크가 없습니다. 이 접두사로 시작하는 키는 없습니다.',
+    'complete.bad': 'a부터 z까지의 소문자만 칠 수 있습니다.',
+  },
+  en: {
+    'title.node': 'A node’s link array',
+    'title.complete': 'Autocomplete',
+    hint: 'click a node or a filled slot',
+    root: 'root',
+    rootName: 'The root',
+    rootRef: 'the root',
+    input: 'Prefix',
+    found: 'Collected',
+    value: 'Value',
+    used: 'used',
+    empty: 'null',
+    whole: 'links in the whole trie',
+    visited: 'nodes visited',
+    keys: 'keys collected',
+    'node.root': 'The root uses {k} of its 26 slots ({cs}) and the other {e} are null.',
+    'node.inner': 'Node "{s}" hangs from slot {c} of its parent and uses {k} of its 26 slots ({cs}), leaving {e} null.',
+    'node.leaf': 'Node "{s}" hangs from slot {c} of its parent, and all 26 of its slots are null.',
+    'node.value': 'It ends the key {s}, so it holds a value (value = {v}).',
+    'node.noValue': 'It holds no value, so it is a path, not a key.',
+    'complete.empty': 'With an empty prefix, everything under the root counts. Collect all {n} keys in order.',
+    'complete.hit': 'Following "{p}" took {k} nodes. Collect the {n} keys in the subtrie below, in alphabetical order.',
+    'complete.zero': 'The node for "{p}" exists, but nothing below it holds a value.',
+    'complete.miss': 'There is no link for {c} below {q}. No key starts with this prefix.',
+    'complete.bad': 'Only lowercase letters a to z can be typed.',
+  },
+  zh: {
+    'title.node': '节点的链接数组',
+    'title.complete': '自动补全',
+    hint: '点节点或涂色的格子',
+    root: '根',
+    rootName: '根',
+    rootRef: '根',
+    input: '前缀',
+    found: '收集的键',
+    value: '值',
+    used: '使用的格子',
+    empty: '空格子',
+    whole: '整棵树的链接',
+    visited: '经过的节点',
+    keys: '收集的键',
+    'node.root': '根：26 格中用了 {k} 格（{cs}），其余 {e} 格是 NULL。',
+    'node.inner': '"{s}" 节点：来自父节点的 {c} 格，26 格中用了 {k} 格（{cs}），{e} 格是 NULL。',
+    'node.leaf': '"{s}" 节点：来自父节点的 {c} 格，26 格全是 NULL。',
+    'node.value': '它是键 {s} 的结尾，所以存有值（value = {v}）。',
+    'node.noValue': '它没有值，只是路过的路径，不是键。',
+    'complete.empty': '前缀为空时，根下面的全部都算。按字典序收集全部 {n} 个键。',
+    'complete.hit': '沿 "{p}" 往下走了 {k} 个节点。在下面的子树里按字典序收集 {n} 个键。',
+    'complete.zero': '"{p}" 的节点存在，但它下面没有存值的节点。',
+    'complete.miss': '{q} 节点没有 {c} 的链接。没有以这个前缀开头的键。',
+    'complete.bad': '只能输入小写字母 a 到 z。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const config = { mode, words: words.concat(extra), select, prefix };
+const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+---
+
+<div
+  class:list={['aas-trie-node-demo', slide && 'is-slide', `is-${mode}`]}
+  id={id}
+  data-tn-config={JSON.stringify(config)}
+  data-tn-strings={JSON.stringify(t)}
+>
+  <div class="tn-bar">
+    <span class="tn-head">
+      <strong>{t[`title.${mode}`]}</strong>
+      {mode === 'node' && <span class="tn-hint">{t.hint}</span>}
+    </span>
+    {
+      mode === 'complete' && (
+        <div class="tn-controls">
+          <label class="tn-input">
+            {t.input}
+            <input type="text" data-tn-input value={prefix} autocomplete="off" spellcheck="false" maxlength="12" />
+          </label>
+          {samples.map((s) => (
+            <button type="button" class="tn-btn" data-tn-sample={s}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )
+    }
+  </div>
+
+  <div class="tn-body">
+    <svg class="tn-svg" data-tn-svg role="img" aria-label={t[`title.${mode}`]}></svg>
+    {
+      mode === 'complete' && (
+        <table class="tn-table">
+          <thead>
+            <tr>
+              <th>{t.found}</th>
+              <th>{t.value}</th>
+            </tr>
+          </thead>
+          <tbody data-tn-rows />
+        </table>
+      )
+    }
+  </div>
+
+  {
+    mode === 'node' && (
+      <div class="tn-node">
+        <div class="tn-fields">
+          <code data-tn-name />
+          <code>
+            hasValue = <strong data-tn-has />
+          </code>
+          <code>
+            value = <strong data-tn-val />
+          </code>
+        </div>
+        <div class="tn-array" data-tn-array>
+          {letters.map((ch, i) => (
+            <button type="button" class="tn-cell" data-tn-cell={ch} disabled>
+              <span class="tn-cell-ch">{ch}</span>
+              <span class="tn-cell-i">{i}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  <div class="tn-foot">
+    <p class="tn-note" data-tn-note></p>
+    <span class="tn-count" data-tn-count></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const cfg = JSON.parse(root.dataset.tnConfig);
+    const S = JSON.parse(root.dataset.tnStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const R = 26;
+
+    /* 트라이를 만든다. 노드 id는 루트에서 그 노드까지의 문자열, 루트는 ''. */
+    const trie = new Map([['', { id: '', ch: '', parent: null, kids: [], value: null }]]);
+    for (const [w, v] of cfg.words) {
+      let cur = '';
+      for (const ch of w) {
+        const next = cur + ch;
+        if (!trie.has(next)) {
+          trie.set(next, { id: next, ch, parent: cur, kids: [], value: null });
+          trie.get(cur).kids.push(next);
+          trie.get(cur).kids.sort();
+        }
+        cur = next;
+      }
+      trie.get(cur).value = v;
+    }
+
+    /* 자리: 잎은 한 칸씩, 부모는 첫 자식과 마지막 자식의 가운데 */
+    const UNIT = 50;
+    const LEVEL = cfg.mode === 'node' ? 40 : 46;
+    const RAD = 15;
+    const pos = new Map();
+    let slot = 0;
+    let maxDepth = 0;
+    (function place(nid, d) {
+      const n = trie.get(nid);
+      maxDepth = Math.max(maxDepth, d);
+      if (n.kids.length === 0) {
+        pos.set(nid, { x: slot * UNIT, y: d * LEVEL });
+        slot += 1;
+        return;
+      }
+      n.kids.forEach((k) => place(k, d + 1));
+      const a = pos.get(n.kids[0]);
+      const b = pos.get(n.kids[n.kids.length - 1]);
+      pos.set(nid, { x: (a.x + b.x) / 2, y: d * LEVEL });
+    })('', 0);
+    const W = Math.max(1, slot - 1) * UNIT;
+    const svg = root.querySelector('[data-tn-svg]');
+    const PAD = 30;
+    svg.setAttribute('viewBox', `${-PAD} ${-RAD - 18} ${W + 2 * PAD} ${maxDepth * LEVEL + 2 * RAD + 22}`);
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const edgeLayer = el('g', {});
+    const nodeLayer = el('g', {});
+    svg.appendChild(edgeLayer);
+    svg.appendChild(nodeLayer);
+    const nodeEls = new Map();
+    const edgeEls = new Map();
+    for (const [nid, n] of trie) {
+      const p = pos.get(nid);
+      if (n.parent !== null) {
+        const q = pos.get(n.parent);
+        const line = el('line', { class: 'tn-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+        edgeLayer.appendChild(line);
+        edgeEls.set(nid, line);
+      }
+      const g = el('g', { class: nid === '' ? 'tn-nd is-root' : 'tn-nd', transform: `translate(${p.x} ${p.y})` });
+      if (nid === '') {
+        g.appendChild(el('circle', { r: RAD * 0.8 }));
+        g.appendChild(el('text', { class: 'tn-root', y: -RAD - 4 }, S.root));
+      } else {
+        g.appendChild(el('circle', { r: RAD }));
+        g.appendChild(el('text', { class: 'tn-ch' }, n.ch));
+        if (n.value !== null) g.appendChild(el('text', { class: 'tn-val', x: RAD + 3, y: RAD * 0.55 }, String(n.value)));
+      }
+      nodeLayer.appendChild(g);
+      nodeEls.set(nid, g);
+    }
+    const note = root.querySelector('[data-tn-note]');
+    const count = root.querySelector('[data-tn-count]');
+    const setCount = (pairs) => {
+      count.replaceChildren();
+      pairs.forEach(([label, value], k) => {
+        if (k > 0) count.appendChild(document.createTextNode(' · '));
+        count.appendChild(document.createTextNode(`${label} `));
+        count.appendChild(Object.assign(document.createElement('strong'), { textContent: String(value) }));
+      });
+    };
+    const mark = (marks) => {
+      for (const [nid, g] of nodeEls) {
+        const m = marks[nid] || '';
+        g.setAttribute('class', `tn-nd${nid === '' ? ' is-root' : ''}${m ? ` is-${m}` : ''}`);
+        const line = edgeEls.get(nid);
+        if (line) line.setAttribute('class', `tn-edge${m ? ` is-${m}` : ''}`);
+      }
+    };
+
+    if (cfg.mode === 'node') {
+      /* 노드를 고르면 그 노드의 링크 배열을 보인다. */
+      const cells = [...root.querySelectorAll('[data-tn-cell]')];
+      const name = root.querySelector('[data-tn-name]');
+      const has = root.querySelector('[data-tn-has]');
+      const val = root.querySelector('[data-tn-val]');
+      const total = trie.size;
+      let sel = trie.has(cfg.select) ? cfg.select : '';
+      const show = () => {
+        const n = trie.get(sel);
+        const used = n.kids.map((k) => trie.get(k).ch);
+        const marks = { [sel]: 'sel' };
+        n.kids.forEach((k) => (marks[k] = 'kid'));
+        mark(marks);
+        cells.forEach((c) => {
+          const on = used.includes(c.dataset.tnCell);
+          c.classList.toggle('is-on', on);
+          c.disabled = !on;
+        });
+        name.textContent = sel === '' ? S.rootName : `"${sel}"`;
+        has.textContent = n.value !== null ? 'true' : 'false';
+        val.textContent = n.value !== null ? String(n.value) : '-';
+        const vars = { s: sel, c: n.ch, k: used.length, e: R - used.length, cs: used.join(', '), v: n.value };
+        let text = fill(sel === '' ? S['node.root'] : used.length ? S['node.inner'] : S['node.leaf'], vars);
+        if (sel !== '') text += ' ' + fill(n.value !== null ? S['node.value'] : S['node.noValue'], vars);
+        setLines(note, text);
+        setCount([[S.used, used.length], [S.empty, R - used.length], [S.whole, `${total - 1} / ${total * R}`]]);
+      };
+      for (const [nid, g] of nodeEls) {
+        g.addEventListener('click', () => {
+          sel = nid;
+          show();
+        });
+      }
+      cells.forEach((c) =>
+        c.addEventListener('click', () => {
+          const next = sel + c.dataset.tnCell;
+          if (!trie.has(next)) return;
+          sel = next;
+          show();
+        }),
+      );
+      show();
+      return;
+    }
+
+    /* complete: 접두사를 따라 내려간 뒤 그 아래를 a부터 z 순서로 모은다(getWordsWithPrefix). */
+    const input = root.querySelector('[data-tn-input]');
+    const rows = root.querySelector('[data-tn-rows]');
+    const update = () => {
+      const raw = input.value.toLowerCase();
+      const p = raw.replace(/[^a-z]/g, '');
+      const marks = { '': 'path' };
+      let cur = '';
+      let miss = null;
+      for (const ch of p) {
+        const next = cur + ch;
+        if (!trie.has(next)) {
+          miss = ch;
+          break;
+        }
+        cur = next;
+        marks[cur] = 'path';
+      }
+      const found = [];
+      if (miss === null) {
+        (function collect(nid) {
+          const n = trie.get(nid);
+          if (nid !== cur) marks[nid] = 'sub';
+          if (n.value !== null) {
+            found.push([nid, n.value]);
+            marks[nid] = 'take';
+          }
+          n.kids.forEach(collect);
+        })(cur);
+      } else {
+        marks[cur] = 'miss';
+      }
+      mark(marks);
+      rows.replaceChildren(
+        ...found.map(([w, v]) => {
+          const tr = document.createElement('tr');
+          const a = Object.assign(document.createElement('td'), { className: 'tn-key' });
+          a.append(Object.assign(document.createElement('strong'), { textContent: p }), w.slice(p.length));
+          tr.append(a, Object.assign(document.createElement('td'), { className: 'tn-v', textContent: String(v) }));
+          return tr;
+        }),
+      );
+      let text;
+      if (raw !== p) text = S['complete.bad'] + ' ';
+      else text = '';
+      if (miss !== null) text += fill(S['complete.miss'], { q: cur === '' ? S.rootRef : `"${cur}"`, c: miss });
+      else if (p === '') text += fill(S['complete.empty'], { n: found.length });
+      else if (found.length === 0) text += fill(S['complete.zero'], { p });
+      else text += fill(S['complete.hit'], { p, k: cur.length + 1, n: found.length });
+      setLines(note, text);
+      setCount([[S.visited, cur.length + 1], [S.keys, found.length]]);
+      root.querySelectorAll('[data-tn-sample]').forEach((b) => b.classList.toggle('is-on', b.dataset.tnSample === p));
+    };
+    input.addEventListener('input', update);
+    root.querySelectorAll('[data-tn-sample]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = b.dataset.tnSample;
+        update();
+      }),
+    );
+    update();
+  })();
+</script>
+
+<!-- 노드·가지·표의 칸은 스크립트가 만들므로 Astro의 scoped 스타일이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-trie-node-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-trie-node-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-node-demo .tn-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-trie-node-demo .tn-head {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.7em;
+    font-size: 0.95em;
+  }
+  .aas-trie-node-demo .tn-hint {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-node-demo .tn-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-trie-node-demo .tn-input {
+    display: inline-flex;
+    gap: 0.5em;
+    align-items: center;
+    margin-right: 0.4em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-node-demo .tn-input input {
+    width: 7em;
+    padding: 0.3em 0.6em;
+    font-size: 1.1em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.5em;
+  }
+  .aas-trie-node-demo .tn-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-node-demo .tn-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-node-demo .tn-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-trie-node-demo .tn-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .aas-trie-node-demo .tn-svg {
+    flex: 1 1 20em;
+    min-width: 0;
+    width: 100%;
+    max-height: 20em;
+  }
+  .aas-trie-node-demo.is-node .tn-svg {
+    max-height: 16em;
+  }
+
+  .aas-trie-node-demo .tn-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    transition: stroke 0.2s;
+  }
+  .aas-trie-node-demo .tn-edge.is-kid,
+  .aas-trie-node-demo .tn-edge.is-path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-trie-node-demo .tn-edge.is-sub,
+  .aas-trie-node-demo .tn-edge.is-take {
+    stroke: var(--aas-role-eval);
+    stroke-width: 2.5;
+  }
+  .aas-trie-node-demo .tn-nd {
+    cursor: pointer;
+  }
+  .aas-trie-node-demo.is-complete .tn-nd {
+    cursor: default;
+  }
+  .aas-trie-node-demo .tn-nd circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.2s,
+      stroke 0.2s,
+      opacity 0.2s;
+  }
+  .aas-trie-node-demo.is-complete .tn-nd:not([class*='is-']) circle,
+  .aas-trie-node-demo.is-complete .tn-nd.is-root:not(.is-path) circle {
+    opacity: 0.35;
+  }
+  .aas-trie-node-demo .tn-nd.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .aas-trie-node-demo .tn-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-trie-node-demo .tn-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-trie-node-demo .tn-val {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-node-demo .tn-nd.is-sel circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+    stroke-width: 4;
+  }
+  .aas-trie-node-demo .tn-nd.is-kid circle,
+  .aas-trie-node-demo .tn-nd.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-trie-node-demo .tn-nd.is-sub circle {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-trie-node-demo .tn-nd.is-take circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-trie-node-demo .tn-nd.is-take .tn-val {
+    fill: var(--aas-role-eval);
+  }
+  .aas-trie-node-demo .tn-nd.is-miss circle {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+
+  /* 링크 배열 */
+  .aas-trie-node-demo .tn-node {
+    margin-top: 0.4em;
+  }
+  .aas-trie-node-demo .tn-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    margin-bottom: 0.4em;
+    font-size: 0.85em;
+  }
+  .aas-trie-node-demo .tn-fields code {
+    background: none;
+    padding: 0;
+    color: var(--aas-muted);
+  }
+  .aas-trie-node-demo .tn-fields code:first-child {
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-trie-node-demo .tn-fields strong {
+    color: var(--aas-text);
+  }
+  .aas-trie-node-demo .tn-array {
+    display: grid;
+    grid-template-columns: repeat(26, minmax(0, 1fr));
+    gap: 0.15em;
+  }
+  .aas-trie-node-demo .tn-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.25em 0 0.15em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    line-height: 1.15;
+    cursor: default;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+  .aas-trie-node-demo .tn-cell-i {
+    font-size: 0.7em;
+    opacity: 0.75;
+  }
+  .aas-trie-node-demo .tn-cell.is-on {
+    background: var(--aas-role-model);
+    border-color: var(--aas-role-model);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .aas-trie-node-demo .tn-cell.is-on:hover {
+    outline: 2px solid var(--aas-role-focus);
+  }
+
+  /* 결과 표 */
+  .aas-trie-node-demo .tn-table {
+    flex: 0 0 auto;
+    width: auto !important;
+    min-width: 9em;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .aas-trie-node-demo .tn-table th,
+  .aas-trie-node-demo .tn-table td {
+    padding: 0.2em 0.8em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+  }
+  .aas-trie-node-demo .tn-table th {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-trie-node-demo .tn-key,
+  .aas-trie-node-demo .tn-v {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-node-demo .tn-key strong {
+    color: var(--aas-role-model);
+  }
+  .aas-trie-node-demo .tn-v {
+    font-weight: 700;
+    color: var(--aas-role-eval);
+  }
+
+  .aas-trie-node-demo .tn-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-trie-node-demo .tn-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-trie-node-demo .tn-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-trie-node-demo .tn-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  @media (max-width: 40rem) {
+    .aas-trie-node-demo .tn-array {
+      grid-template-columns: repeat(13, minmax(0, 1fr));
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-node-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-node-demo.is-slide .tn-body {
+    flex-wrap: nowrap;
+  }
+  .aas-trie-node-demo.is-slide .tn-svg {
+    flex: 1 1 auto;
+    max-height: 46vh;
+  }
+  .aas-trie-node-demo.is-slide.is-node .tn-svg {
+    max-height: 37vh;
+  }
+  .aas-trie-node-demo.is-slide .tn-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-node-demo .tn-edge,
+    .aas-trie-node-demo .tn-nd circle,
+    .aas-trie-node-demo .tn-cell {
+      transition: none;
+    }
+  }
+</style>
