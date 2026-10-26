@@ -134,6 +134,13 @@ Node 없이 돌립니다. 문서 스타일 검사(`python3 scripts/check-style.p
 돌립니다. 떠 있는 `app`과 같은 `site/`를 쓰게 되므로 `app`이 떠 있으면 실행을
 거부합니다. 먼저 `make down`을 합니다.
 
+`make up`·`make dev`가 `all predefined address pools have been fully subnetted`로
+멈추면 Docker가 새 네트워크에 줄 주소 대역을 다 쓴 것입니다. compose 프로젝트
+하나에 네트워크가 하나씩 생기고 기본 풀은 30개 남짓이라, 다른 프로젝트가 쌓이면
+이렇게 됩니다. `docker network prune`으로 쓰지 않는 네트워크를 지우면 바로 풀립니다.
+다시 막히지 않게 하려면 Docker Desktop 설정의 Docker Engine(`daemon.json`)에
+`default-address-pools`를 넓혀 둡니다. 대역은 집·학교 LAN과 겹치지 않게 고릅니다.
+
 ### 로컬 pnpm
 
 컨테이너 없이 직접 돌리려면 Node 24 이상이 필요합니다.
