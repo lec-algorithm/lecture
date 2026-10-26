@@ -1,0 +1,606 @@
+---
+// 문자열 해시 두 가지(더하기, 호너 방식)를 한 글자씩 계산해 보는 데모.
+//
+// 같은 글자로 된 단어 여섯 개(stop pots tops spot opts post)를 크기 97인
+// 배열에 넣는다. 한 걸음에 글자 하나를 처리해 h를 갱신하고, 마지막 글자까지
+// 계산하면 단어가 아래 97칸 띠의 그 칸으로 떨어진다. 탭으로 해시 함수를
+// 바꾸면 같은 단어들이 어떻게 다르게 흩어지는지 본다.
+//
+//   더하기 : h <- (h + code(c)) mod M
+//   호너   : h <- (R * h + code(c)) mod M, R = 31
+//
+// algorithm-code의 hashFunction.c · hash_function.py(3번 덩어리)와 같은 값을
+// 낸다. 더하기는 여섯 단어 모두 66, 호너는 9 79 3 49 58 49다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 고를 해시 함수 */
+  fn?: 'sum' | 'horner';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { fn = 'sum', slide = false } = Astro.props;
+const id = `sx-${Math.random().toString(36).slice(2, 9)}`;
+const words = ['stop', 'pots', 'tops', 'spot', 'opts', 'post'];
+const m = 97;
+const R = 31;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '문자열 해싱',
+    sum: '더하기',
+    horner: '호너 (R = 31)',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    used: '쓰인 칸',
+    collisions: '충돌',
+    idle: '같은 글자로 된 단어 여섯 개를 크기 97인 배열에 넣습니다. 한 걸음에 글자 하나씩 계산합니다.',
+    charSum: '단어 {w}, {n}번째 글자 {c}: 앞까지의 값에 코드를 더하고 97로 나눈 나머지를 취합니다.',
+    charHorner: '단어 {w}, {n}번째 글자 {c}: 앞까지의 값에 31을 곱하고 코드를 더한 뒤 97로 나눈 나머지를 취합니다.',
+    land: '마지막 글자까지 계산했습니다. 단어 {w} → {h}번 칸입니다.',
+    clash: '단어 {w} → {h}번 칸입니다. 이미 {o} 단어가 있어 충돌입니다.',
+    doneSum: '더하기는 글자 순서를 보지 않습니다. 그래서 여섯 단어가 {u}칸에 모였고 충돌은 {x}번입니다.',
+    doneHorner: '자리마다 31을 곱하니 순서가 값에 들어갑니다. 여섯 단어가 {u}칸에 흩어졌고 충돌은 {x}번입니다.',
+  },
+  en: {
+    title: 'String hashing',
+    sum: 'Sum',
+    horner: 'Horner (R = 31)',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    used: 'slots used',
+    collisions: 'collisions',
+    idle: 'Put six words made of the same letters into an array of size 97. Each step handles one letter.',
+    charSum: 'Word {w}, letter {n} is {c}. Add its code to the value so far and take the remainder mod 97.',
+    charHorner: 'Word {w}, letter {n} is {c}. Multiply the value so far by 31, add the code, and take the remainder mod 97.',
+    land: 'All letters done. Word {w} → slot {h}.',
+    clash: 'Word {w} → slot {h}, which already holds {o}. A collision.',
+    doneSum: 'Summing ignores the order of the letters. So the six words share {u} slot, with {x} collisions.',
+    doneHorner: 'Multiplying by 31 at each position puts the order into the value. The six words spread over {u} slots, with {x} collision.',
+  },
+  zh: {
+    title: '字符串哈希',
+    sum: '相加',
+    horner: '霍纳法 (R = 31)',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    used: '用到的格',
+    collisions: '冲突',
+    idle: '把由相同字母组成的六个单词放进大小为 97 的数组。每一步处理一个字母。',
+    charSum: '单词 {w} 的第 {n} 个字母 {c}：把编码加到前面的值上，再取除以 97 的余数。',
+    charHorner: '单词 {w} 的第 {n} 个字母 {c}：前面的值乘以 31，加上编码，再取除以 97 的余数。',
+    land: '最后一个字母也算完了。单词 {w} → {h} 号格。',
+    clash: '单词 {w} → {h} 号格，那里已有 {o}，发生冲突。',
+    doneSum: '相加不看字母的顺序。所以六个单词挤在 {u} 格里，冲突 {x} 次。',
+    doneHorner: '每个位置都乘以 31，顺序就进入了值里。六个单词分散到 {u} 格，冲突 {x} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-string-hash-demo', slide && 'is-slide']}
+  id={id}
+  data-sx-fn={fn}
+  data-sx-strings={JSON.stringify(t)}
+>
+  <div class="sx-bar">
+    <div class="sx-tabs" role="tablist">
+      <span class="sx-head"><strong>{t.title}</strong> · M = {m}</span>
+      <button type="button" class="sx-tab" data-sx-tab="sum" role="tab">{t.sum}</button>
+      <button type="button" class="sx-tab" data-sx-tab="horner" role="tab">{t.horner}</button>
+    </div>
+    <div class="sx-controls">
+      <button type="button" data-act="back" class="sx-btn">{t.back}</button>
+      <button type="button" data-act="step" class="sx-btn">{t.step}</button>
+      <button type="button" data-act="play" class="sx-btn sx-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="sx-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sx-top">
+    <div class="sx-queue">
+      {words.map((w, i) => <span class="sx-word" data-sx-word={i}>{w}<small data-sx-word-h></small></span>)}
+    </div>
+    <div class="sx-stats">
+      <span class="sx-big">
+        <span class="sx-big-label">{t.used}</span>
+        <strong data-sx-used>0</strong>
+      </span>
+      <span class="sx-big">
+        <span class="sx-big-label">{t.collisions}</span>
+        <strong data-sx-coll>0</strong>
+      </span>
+    </div>
+  </div>
+
+  <div class="sx-work">
+    <div class="sx-letters" data-sx-letters></div>
+    <p class="sx-formula" data-sx-formula>&nbsp;</p>
+  </div>
+
+  <svg class="sx-strip" data-sx-strip role="img" aria-label={t.title}></svg>
+
+  <p class="sx-note" data-sx-note></p>
+</div>
+
+<script is:inline define:vars={{ id, words, m, R }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.sxStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    let fn = root.dataset.sxFn;
+
+    /* 단계 배열: 글자 하나에 한 걸음. sumHash · hornerHash와 같은 계산이다. */
+    function build(kind) {
+      const steps = [];
+      const slotOf = [];
+      let coll = 0;
+      words.forEach((w, wi) => {
+        let h = 0;
+        const hs = [];
+        [...w].forEach((c, ci) => {
+          const code = c.charCodeAt(0);
+          const prev = h;
+          h = kind === 'sum' ? (h + code) % m : (R * h + code) % m;
+          hs.push(h);
+          const formula =
+            kind === 'sum'
+              ? `h = (${prev} + ${code}) mod ${m} = ${h}`
+              : `h = (31 × ${prev} + ${code}) mod ${m} = ${h}`;
+          const last = ci === w.length - 1;
+          let note = fill(kind === 'sum' ? S.charSum : S.charHorner, { w, n: ci + 1, c });
+          let clash = false;
+          if (last) {
+            const others = words.filter((_, j) => j < wi && slotOf[j] === h);
+            clash = others.length > 0;
+            if (clash) coll += 1;
+            slotOf[wi] = h;
+            note = fill(clash ? S.clash : S.land, { w, h, o: others[0] });
+          }
+          steps.push({ wi, ci, hs: hs.slice(), formula, note, clash, last, slots: slotOf.slice(), coll });
+        });
+      });
+      /* 마지막 한 걸음은 정리 문장만 바꾼다. */
+      const end = steps[steps.length - 1];
+      const used = new Set(end.slots).size;
+      const note = fill(kind === 'sum' ? S.doneSum : S.doneHorner, { u: used, x: end.coll });
+      steps.push({ ...end, clash: false, note, final: true });
+      return steps;
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const wordEls = [...root.querySelectorAll('[data-sx-word]')];
+    const tabs = [...root.querySelectorAll('[data-sx-tab]')];
+    const lettersEl = root.querySelector('[data-sx-letters]');
+    const formulaEl = root.querySelector('[data-sx-formula]');
+    const strip = root.querySelector('[data-sx-strip]');
+    const usedEl = root.querySelector('[data-sx-used]');
+    const collEl = root.querySelector('[data-sx-coll]');
+    const note = root.querySelector('[data-sx-note]');
+
+    /* 97칸 띠. 칸 하나는 폭 9, 단어 이름표는 그 칸 위에 쌓는다. */
+    const CW = 9;
+    const LH = 16;
+    const W = m * CW;
+    let TOP = 0;
+
+    /* 띠 위 이름표를 쌓을 높이는 이 해시 함수로 끝까지 넣었을 때 가장 높은 칸에 맞춘다. */
+    function sizeStrip() {
+      const end = steps[steps.length - 1].slots;
+      const stack = Math.max(...end.map((s) => end.filter((x) => x === s).length));
+      TOP = stack * LH + 6;
+      strip.setAttribute('viewBox', `-20 0 ${W + 40} ${TOP + 14 + 18}`);
+    }
+
+    function drawStrip(st) {
+      strip.replaceChildren();
+      const slots = st ? st.slots : [];
+      const count = new Map();
+      slots.forEach((s) => count.set(s, (count.get(s) || 0) + 1));
+      const cur = st && st.last ? st.wi : -1;
+      for (let i = 0; i < m; i++) {
+        const n = count.get(i) || 0;
+        const cls = ['sx-cell'];
+        if (n > 0) cls.push('is-full');
+        if (n > 1) cls.push('is-clash');
+        if (cur >= 0 && !st.final && slots[cur] === i) cls.push('is-now');
+        el('rect', { x: i * CW + 1, y: TOP, width: CW - 2, height: 14, rx: 2, class: cls.join(' ') }, strip);
+        if (i % 10 === 0 || i === m - 1) {
+          el('text', { x: i * CW + CW / 2, y: TOP + 14 + 14, class: 'sx-tick' }, strip).textContent = String(i);
+        }
+      }
+      const level = new Map();
+      slots.forEach((s, wi) => {
+        if (s === undefined) return;
+        const lv = level.get(s) || 0;
+        level.set(s, lv + 1);
+        const cx = s * CW + CW / 2;
+        const y = TOP - 4 - lv * LH;
+        const g = el('g', { class: 'sx-tag' + (wi === cur && !st.final ? ' is-new' : '') + ((count.get(s) || 0) > 1 ? ' is-clash' : '') }, strip);
+        el('rect', { x: cx - 18, y: y - 14, width: 36, height: 15, rx: 3 }, g);
+        el('text', { x: cx, y: y - 6.5 }, g).textContent = words[wi];
+        if (lv === 0) el('line', { x1: cx, y1: y + 1, x2: cx, y2: TOP, class: 'sx-pin' }, strip);
+      });
+    }
+
+    let steps = build(fn);
+    let at = -1;
+    sizeStrip();
+
+    function render() {
+      const st = at >= 0 ? steps[at] : null;
+      tabs.forEach((tab) => {
+        const on = tab.dataset.sxTab === fn;
+        tab.classList.toggle('is-on', on);
+        tab.setAttribute('aria-selected', String(on));
+      });
+      wordEls.forEach((we, i) => {
+        const done = st && (i < st.wi || (i === st.wi && st.last));
+        we.classList.toggle('is-now', !!st && !st.final && i === st.wi);
+        we.classList.toggle('is-done', !!done);
+        we.querySelector('[data-sx-word-h]').textContent = done ? ` → ${st.slots[i]}` : '';
+      });
+      lettersEl.replaceChildren();
+      const w = words[st ? st.wi : 0];
+      [...w].forEach((c, ci) => {
+        const box = document.createElement('span');
+        box.className = 'sx-letter';
+        if (st && !st.final && ci === st.ci) box.classList.add('is-now');
+        if (st && ci < st.ci) box.classList.add('is-done');
+        const ch = document.createElement('b');
+        ch.textContent = c;
+        const code = document.createElement('small');
+        code.textContent = String(c.charCodeAt(0));
+        const hv = document.createElement('em');
+        hv.textContent = st && ci <= st.ci ? `h ${st.hs[ci]}` : ' ';
+        box.append(ch, code, hv);
+        lettersEl.append(box);
+      });
+      formulaEl.textContent = st ? st.formula : ' ';
+      formulaEl.classList.toggle('is-clash', !!st && st.clash);
+      drawStrip(st);
+      const used = st ? new Set(st.slots.filter((s) => s !== undefined)).size : 0;
+      usedEl.textContent = String(used);
+      collEl.textContent = String(st ? st.coll : 0);
+      collEl.classList.toggle('is-bad', !!st && st.coll > 0);
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', at >= steps.length - 1);
+    }
+
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 600);
+    });
+    tabs.forEach((tab) =>
+      tab.addEventListener('click', () => {
+        stop();
+        fn = tab.dataset.sxTab;
+        steps = build(fn);
+        at = -1;
+        sizeStrip();
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-string-hash-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-string-hash-demo .sx-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-string-hash-demo .sx-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-string-hash-demo .sx-head {
+    font-size: 0.95em;
+    margin-right: 0.4em;
+  }
+  .aas-string-hash-demo .sx-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-string-hash-demo .sx-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-string-hash-demo .sx-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-string-hash-demo .sx-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-string-hash-demo .sx-btn:hover,
+  .aas-string-hash-demo .sx-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-string-hash-demo .sx-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-string-hash-demo .sx-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6em 1.5em;
+  }
+  .aas-string-hash-demo .sx-queue {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
+  .aas-string-hash-demo .sx-word {
+    padding: 0.2em 0.55em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    transition:
+      background-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-string-hash-demo .sx-word small {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-string-hash-demo .sx-word.is-done {
+    background: color-mix(in srgb, var(--aas-role-model) 15%, var(--aas-bg));
+  }
+  .aas-string-hash-demo .sx-word.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-string-hash-demo .sx-stats {
+    display: flex;
+    gap: 1.4em;
+  }
+  .aas-string-hash-demo .sx-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+  .aas-string-hash-demo .sx-big-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-string-hash-demo .sx-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-string-hash-demo .sx-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-string-hash-demo .sx-work {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4em 1.6em;
+    margin: 0.7em 0 0.3em;
+  }
+  .aas-string-hash-demo .sx-letters {
+    display: flex;
+    gap: 0.3em;
+  }
+  .aas-string-hash-demo .sx-letter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 2.6em;
+    padding: 0.2em 0.3em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    transition: box-shadow 0.3s;
+  }
+  .aas-string-hash-demo .sx-letter b {
+    font-size: 1.15em;
+    line-height: 1.2;
+  }
+  .aas-string-hash-demo .sx-letter small {
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-string-hash-demo .sx-letter em {
+    font-style: normal;
+    font-size: 0.75em;
+    color: var(--aas-role-focus);
+    font-weight: 700;
+    white-space: pre;
+  }
+  .aas-string-hash-demo .sx-letter.is-done {
+    border-color: var(--aas-role-model);
+  }
+  .aas-string-hash-demo .sx-letter.is-now {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-string-hash-demo .sx-formula {
+    margin: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.15em;
+    font-weight: 700;
+  }
+  .aas-string-hash-demo .sx-formula.is-clash {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-string-hash-demo .sx-strip {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .aas-string-hash-demo .sx-cell {
+    fill: color-mix(in srgb, var(--aas-muted) 15%, transparent);
+  }
+  .aas-string-hash-demo .sx-cell.is-full {
+    fill: var(--aas-role-model);
+  }
+  .aas-string-hash-demo .sx-cell.is-clash {
+    fill: var(--aas-role-guard);
+  }
+  .aas-string-hash-demo .sx-cell.is-now {
+    stroke: var(--aas-role-focus);
+    stroke-width: 2;
+  }
+  .aas-string-hash-demo .sx-tick {
+    font-family: var(--aas-mono, monospace);
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-string-hash-demo .sx-pin {
+    stroke: var(--aas-muted);
+    stroke-width: 1;
+  }
+  .aas-string-hash-demo .sx-tag rect {
+    fill: var(--aas-bg);
+    stroke: var(--aas-role-model);
+    stroke-width: 1.2;
+  }
+  .aas-string-hash-demo .sx-tag.is-clash rect {
+    stroke: var(--aas-role-guard);
+  }
+  .aas-string-hash-demo .sx-tag.is-new rect {
+    stroke: var(--aas-role-focus);
+    stroke-width: 2;
+  }
+  .aas-string-hash-demo .sx-tag text {
+    font-family: var(--aas-mono, monospace);
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-string-hash-demo .sx-tag.is-new {
+    animation: sx-drop 0.45s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  .aas-string-hash-demo .sx-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.2em;
+  }
+  .aas-string-hash-demo.is-done .sx-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes sx-drop {
+    from {
+      transform: translateY(-1.5em);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-string-hash-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-string-hash-demo .sx-word,
+    .aas-string-hash-demo .sx-letter {
+      transition: none;
+    }
+    .aas-string-hash-demo .sx-tag.is-new {
+      animation: none;
+    }
+  }
+</style>
