@@ -1,0 +1,450 @@
+---
+// 그래프의 용어를 눌러 보며 익히는 데모. 주제 07의 TreeTermsDemo와 같은 꼴이다.
+//
+// 위쪽 칩이 용어이고, 칩을 누르면 그래프에서 그 용어가 가리키는 부분이
+// 칠해지고 오른쪽에 뜻과 "이 그래프에서는 무엇인지"가 나온다. 정점을 누르면
+// 그 정점이 기준이 된다. 이웃·차수·경로·사이클은 고른 정점을 기준으로 보인다.
+//
+// 그래프는 BFS·DFS 예제와 같은 g7(정점 7개, 간선 9개)이다. 경로는 0에서
+// 고른 정점까지 간선 수가 가장 적은 것(BFS, 이웃은 작은 번호부터)이고,
+// 사이클은 고른 정점에서 시작해 돌아오는 가장 짧은 것이다. 둘 다 스크립트가
+// 그래프에서 직접 찾는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 처음에 보여 줄 용어 */
+  term?: 'vertex' | 'edge' | 'adj' | 'degree' | 'path' | 'cycle';
+  /** 처음 기준 정점 */
+  vertex?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { term = 'adj', vertex = 4, slide = false } = Astro.props;
+const graph = 'g7';
+const g = getGraph(graph);
+const id = `gt-${Math.random().toString(36).slice(2, 9)}`;
+const TERMS = ['vertex', 'edge', 'adj', 'degree', 'path', 'cycle'] as const;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '그래프의 용어',
+    hint: '용어나 정점을 눌러 보세요.',
+    vertex: '정점',
+    edge: '간선',
+    adj: '이웃',
+    degree: '차수',
+    path: '경로',
+    cycle: '사이클',
+    defVertex: '점 하나입니다. 노드라고도 합니다.',
+    defEdge: '두 정점을 잇는 선입니다. 방향이 있으면 화살표로 그립니다.',
+    defAdj: '간선 하나로 바로 이어진 정점입니다.',
+    defDegree: '한 정점에 붙은 간선의 수입니다.',
+    defPath: '간선으로 이어진 정점들의 순서열입니다. 길이는 간선의 수로 셉니다.',
+    defCycle: '첫 정점과 마지막 정점이 같은 경로입니다.',
+    factVertex: '이 그래프의 정점은 {n}개입니다. 번호 0부터 {last}까지를 씁니다.',
+    factEdge: '간선은 {m}개입니다. 방향이 없으므로 0-1과 1-0은 같은 간선입니다.',
+    factAdj: '{v}의 이웃: {list}',
+    factAdjTail: '파랑이 이웃입니다. 다른 정점을 눌러 보세요.',
+    factDegree: '{v}의 차수는 {d}입니다. 정점 옆 숫자가 차수이고, 모두 더하면 {sum} = 2 × {m}입니다. 간선 하나가 양 끝의 차수를 하나씩 올리기 때문입니다.',
+    factPath: '0에서 {v}까지: {path} · 간선 {k}개',
+    factPathTail: '간선 수가 가장 적은 경로입니다. 다른 길도 있지만 더 깁니다.',
+    factPathSelf: '0 자신은 간선 0개짜리 경로입니다. 다른 정점을 눌러 보세요.',
+    factCycle: '{v}에서 시작하는 가장 짧은 사이클: {cyc} · 간선 {k}개',
+    factCycleNone: '{v}에서 시작하는 사이클은 없습니다. 간선이 하나뿐이라 들어간 길로만 되돌아 나올 수 있습니다.',
+    card: '고른 정점',
+    cardLine: '{v} · 차수 {d} · 이웃 {list}',
+  },
+  en: {
+    title: 'Graph terms',
+    hint: 'Click a term or a vertex.',
+    vertex: 'vertex',
+    edge: 'edge',
+    adj: 'neighbour',
+    degree: 'degree',
+    path: 'path',
+    cycle: 'cycle',
+    defVertex: 'A single point, also called a node.',
+    defEdge: 'A line joining two vertices. With a direction it is drawn as an arrow.',
+    defAdj: 'A vertex joined directly by one edge.',
+    defDegree: 'The number of edges touching a vertex.',
+    defPath: 'A sequence of vertices joined by edges. Its length is the number of edges.',
+    defCycle: 'A path whose first and last vertices are the same.',
+    factVertex: 'This graph has {n} vertices, numbered 0 through {last}.',
+    factEdge: 'It has {m} edges. They have no direction, so 0-1 and 1-0 are the same edge.',
+    factAdj: 'Neighbours of {v}: {list}',
+    factAdjTail: 'The neighbours are blue. Try another vertex.',
+    factDegree: 'The degree of {v} is {d}. The number by each vertex is its degree, and they add up to {sum} = 2 × {m}. Each edge adds one to the degree at both of its ends.',
+    factPath: 'From 0 to {v}: {path} · {k} edges',
+    factPathTail: 'This path uses the fewest edges. Other paths exist, but they are longer.',
+    factPathSelf: '0 on its own is a path with no edges. Try another vertex.',
+    factCycle: 'Shortest cycle starting at {v}: {cyc} · {k} edges',
+    factCycleNone: 'No cycle starts at {v}. It has only one edge, so the only way out is the way in.',
+    card: 'selected vertex',
+    cardLine: '{v} · degree {d} · neighbours {list}',
+  },
+  zh: {
+    title: '图的术语',
+    hint: '点击术语或顶点。',
+    vertex: '顶点',
+    edge: '边',
+    adj: '邻居',
+    degree: '度',
+    path: '路径',
+    cycle: '环',
+    defVertex: '一个点，也叫节点。',
+    defEdge: '连接两个顶点的线。有方向时画成箭头。',
+    defAdj: '用一条边直接相连的顶点。',
+    defDegree: '连在一个顶点上的边数。',
+    defPath: '由边相连的顶点序列。长度按边数计算。',
+    defCycle: '首尾顶点相同的路径。',
+    factVertex: '这个图有 {n} 个顶点，编号从 0 到 {last}。',
+    factEdge: '有 {m} 条边。边没有方向，所以 0-1 和 1-0 是同一条边。',
+    factAdj: '{v} 的邻居：{list}',
+    factAdjTail: '蓝色是邻居。再点别的顶点试试。',
+    factDegree: '{v} 的度是 {d}。顶点旁的数字就是度，全部相加是 {sum} = 2 × {m}。因为一条边会让两端的度各加一。',
+    factPath: '从 0 到 {v}：{path} · {k} 条边',
+    factPathTail: '这是边数最少的路径。也有别的路，但更长。',
+    factPathSelf: '0 自己是一条 0 条边的路径。再点别的顶点试试。',
+    factCycle: '从 {v} 出发的最短环：{cyc} · {k} 条边',
+    factCycleNone: '没有从 {v} 出发的环。它只有一条边，只能从进来的路回去。',
+    card: '选中的顶点',
+    cardLine: '{v} · 度 {d} · 邻居 {list}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-graph-terms-demo', slide && 'is-slide']}
+  id={id}
+  data-gt-n={g.nodes.length}
+  data-gt-edges={JSON.stringify(g.edges)}
+  data-gt-term={term}
+  data-gt-vertex={vertex}
+  data-gt-strings={JSON.stringify(t)}
+>
+  <div class="gt-bar">
+    <span class="gt-head"><strong>{t.title}</strong> <span class="gt-hint">{t.hint}</span></span>
+  </div>
+  <div class="gt-chips" role="tablist">
+    {TERMS.map((k) => (
+      <button type="button" class="gt-chip" data-gt-chip={k} role="tab">{t[k]}</button>
+    ))}
+  </div>
+  <div class="gt-body">
+    <div class="gt-graph">
+      <GraphFigure graph={graph} bare slide={slide} />
+    </div>
+    <div class="gt-panel">
+      <p class="gt-term" data-gt-name></p>
+      <p class="gt-def" data-gt-def></p>
+      <p class="gt-fact" data-gt-fact></p>
+    </div>
+  </div>
+  <p class="gt-card"><span class="gt-card-label">{t.card}</span> <span data-gt-card></span></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const S = JSON.parse(root.dataset.gtStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = Number(root.dataset.gtN);
+    const edges = JSON.parse(root.dataset.gtEdges);
+    const m = edges.length;
+
+    /* 인접 목록. 무방향이므로 양쪽에 넣고, 이웃은 작은 번호부터 본다. */
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+    const key = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+    /* BFS로 a에서 b까지 간선 수가 가장 적은 경로. skip 간선은 쓰지 않는다. */
+    function bfsPath(a, b, skip) {
+      const from = new Array(n).fill(-2);
+      from[a] = -1;
+      const q = [a];
+      while (q.length) {
+        const v = q.shift();
+        if (v === b) break;
+        adj[v].forEach((w) => {
+          if (from[w] !== -2 || key(v, w) === skip) return;
+          from[w] = v;
+          q.push(w);
+        });
+      }
+      if (from[b] === -2) return null;
+      const path = [];
+      for (let x = b; x !== -1; x = from[x]) path.unshift(x);
+      return path;
+    }
+    /* v에서 시작하는 가장 짧은 사이클: 간선 v-w를 빼고 w에서 v로 가는 가장 짧은 길 + 그 간선 */
+    function shortestCycle(v) {
+      let best = null;
+      adj[v].forEach((w) => {
+        const p = bfsPath(w, v, key(v, w));
+        if (p && (!best || p.length + 1 < best.length)) best = [v, ...p];
+      });
+      return best;
+    }
+
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => {
+      const [a, b] = el.dataset.gfEdge.split('-').map(Number);
+      edgeEls.set(key(a, b), el);
+    });
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const nameEl = root.querySelector('[data-gt-name]');
+    const defEl = root.querySelector('[data-gt-def]');
+    const factEl = root.querySelector('[data-gt-fact]');
+    const cardEl = root.querySelector('[data-gt-card]');
+    const chips = [...root.querySelectorAll('[data-gt-chip]')];
+    const TONES = ['done', 'focus', 'open', 'dim', 'ring', 'tree', 'cand'];
+    const setTones = (el, tones) => {
+      const want = new Set((tones || '').split(' ').filter(Boolean));
+      TONES.forEach((tn) => el.classList.toggle(`is-${tn}`, want.has(tn)));
+    };
+    const DEF = {
+      vertex: S.defVertex, edge: S.defEdge, adj: S.defAdj,
+      degree: S.defDegree, path: S.defPath, cycle: S.defCycle,
+    };
+
+    let cur = root.dataset.gtTerm;
+    let sel = Number(root.dataset.gtVertex);
+
+    function render() {
+      const node = new Array(n).fill('');
+      const edge = new Map();
+      const badge = new Array(n).fill('');
+      let fact = '';
+      const along = (p) => {
+        for (let i = 1; i < p.length; i++) edge.set(key(p[i - 1], p[i]), 'tree');
+      };
+      switch (cur) {
+        case 'vertex':
+          node.fill('focus');
+          badge.forEach((_, v) => (badge[v] = ''));
+          fact = fill(S.factVertex, { n, last: n - 1 });
+          break;
+        case 'edge':
+          node.fill('dim');
+          edges.forEach(([a, b]) => edge.set(key(a, b), 'focus'));
+          fact = fill(S.factEdge, { m });
+          break;
+        case 'adj':
+          node.fill('dim');
+          node[sel] = 'focus';
+          adj[sel].forEach((w) => {
+            node[w] = 'open';
+            edge.set(key(sel, w), 'focus');
+          });
+          fact = `${fill(S.factAdj, { v: sel, list: adj[sel].join(', ') })}. ${S.factAdjTail}`;
+          break;
+        case 'degree':
+          node[sel] = 'focus';
+          adj[sel].forEach((w) => edge.set(key(sel, w), 'focus'));
+          adj.forEach((a, v) => (badge[v] = String(a.length)));
+          fact = fill(S.factDegree, {
+            v: sel, d: adj[sel].length, sum: adj.reduce((s, a) => s + a.length, 0), m,
+          });
+          break;
+        case 'path': {
+          node.fill('dim');
+          if (sel === 0) {
+            node[0] = 'focus';
+            fact = S.factPathSelf;
+            break;
+          }
+          const p = bfsPath(0, sel, null);
+          p.forEach((v) => (node[v] = 'done'));
+          node[0] = 'done ring';
+          node[sel] = 'focus';
+          along(p);
+          fact = `${fill(S.factPath, { v: sel, path: p.join(' → '), k: p.length - 1 })}. ${S.factPathTail}`;
+          break;
+        }
+        case 'cycle': {
+          node.fill('dim');
+          node[sel] = 'focus';
+          const c = shortestCycle(sel);
+          if (!c) {
+            adj[sel].forEach((w) => edge.set(key(sel, w), 'focus'));
+            fact = fill(S.factCycleNone, { v: sel });
+            break;
+          }
+          c.forEach((v) => v !== sel && (node[v] = 'done'));
+          along(c);
+          fact = fill(S.factCycle, { v: sel, cyc: c.join(' → '), k: c.length - 1 });
+          break;
+        }
+      }
+      nodeEls.forEach((el, v) => {
+        let tn = node[v];
+        if (v === sel && ['adj', 'degree', 'path', 'cycle'].includes(cur) && !tn.includes('ring')) tn += ' ring';
+        setTones(el, tn);
+        el.setAttribute('aria-pressed', String(v === sel));
+      });
+      edgeEls.forEach((el, k) => setTones(el, edge.get(k) ?? (cur === 'edge' ? '' : node.includes('dim') ? 'dim' : '')));
+      badgeEls.forEach((el, v) => (el.textContent = badge[v]));
+      chips.forEach((c) => {
+        const on = c.dataset.gtChip === cur;
+        c.classList.toggle('is-on', on);
+        c.setAttribute('aria-selected', String(on));
+      });
+      nameEl.textContent = S[cur];
+      setLines(defEl, DEF[cur]);
+      setLines(factEl, fact);
+      cardEl.textContent = fill(S.cardLine, { v: sel, d: adj[sel].length, list: adj[sel].join(', ') });
+    }
+
+    function select(v) {
+      sel = v;
+      // 정점에 매이지 않는 용어에서 정점을 누르면 이웃으로 넘어간다.
+      if (cur === 'vertex' || cur === 'edge') cur = 'adj';
+      render();
+    }
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => select(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          select(v);
+        }
+      });
+    });
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        cur = c.dataset.gtChip;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-graph-terms-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-graph-terms-demo .gt-bar {
+    margin-bottom: 0.6em;
+  }
+  .aas-graph-terms-demo .gt-head {
+    font-size: 0.95em;
+  }
+  .aas-graph-terms-demo .gt-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-graph-terms-demo .gt-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-graph-terms-demo .gt-chip {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-graph-terms-demo .gt-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-graph-terms-demo .gt-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-graph-terms-demo .gt-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.6em;
+    align-items: center;
+    margin-top: 0.6em;
+  }
+  .aas-graph-terms-demo .gt-graph {
+    flex: 0 1 17em;
+    min-width: 12em;
+  }
+  .aas-graph-terms-demo .gt-panel {
+    flex: 1 1 14em;
+  }
+  .aas-graph-terms-demo .gt-term {
+    margin: 0;
+    font-size: 1.25em;
+    font-weight: 800;
+    color: var(--aas-accent);
+  }
+  .aas-graph-terms-demo .gt-def {
+    margin: 0.35em 0 0;
+    font-size: 0.95em;
+    font-weight: 600;
+  }
+  .aas-graph-terms-demo .gt-fact {
+    margin: 0.6em 0 0;
+    font-size: 0.88em;
+    color: var(--aas-muted);
+  }
+  .aas-graph-terms-demo .gt-card {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-graph-terms-demo .gt-card-label {
+    color: var(--aas-muted);
+  }
+  .aas-graph-terms-demo .gf-node {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-graph-terms-demo .gf-node:hover circle,
+  .aas-graph-terms-demo .gf-node:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 4;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기 */
+  .aas-graph-terms-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-graph-terms-demo.is-slide .gt-body {
+    flex-wrap: nowrap;
+  }
+  .aas-graph-terms-demo.is-slide .gt-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 48vh;
+  }
+</style>
