@@ -1,0 +1,392 @@
+---
+// cut 속성과 Greedy MST를 직접 해 보는 데모.
+//
+// 정점을 누르면 그 정점이 cut의 반대편으로 옮겨 간다(초록 편, 파랑 편).
+// 두 편을 잇는 간선(crossing edge)이 파란 점선으로 보이고, 그중 가장 가벼운
+// 것이 주황이다. "칠하기"를 누르면 그 간선을 칠한다(초록 굵게). cut 속성에
+// 따라 칠한 간선은 언제나 MST의 간선이므로, cut을 바꿔 가며 일곱 번 칠하면
+// Kruskal·Prim과 같은 MST(총 1.81)가 나온다. 이미 칠한 간선이 가장
+// 가벼우면 새로 칠할 것이 없다. 칠한 crossing edge가 없는 cut을 고르라는
+// Greedy MST의 조건이 그래서 필요하다.
+//
+// 그래프는 Kruskal·Prim 예제(mst)다. 처음 cut은 {0, 1, 4, 5, 7}과 {2, 3, 6}이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 처음에 파랑 편에 둘 정점 */
+  side?: number[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { side = [2, 3, 6], slide = false } = Astro.props;
+const graph = 'mst';
+const g = getGraph(graph);
+const id = `ct-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'cut 속성과 Greedy MST',
+    hint: '정점을 누르면 반대편으로 옮겨 갑니다.',
+    paint: '가장 가벼운 간선 칠하기',
+    reset: '처음으로',
+    crossing: 'crossing edge (가벼운 순)',
+    painted: '칠한 간선',
+    total: '총 가중치',
+    oneSide: '한쪽이 비었습니다. 정점을 눌러 두 편으로 나누세요.',
+    status: '초록 편 {a}개, 파랑 편 {b}개 · crossing edge {k}개 · 가장 가벼운 것은 {e} ({w})',
+    statusPainted: '칠한 crossing edge: {list}',
+    did: '칠했습니다: {e} ({w}). cut 속성에 따라 이 간선은 MST에 있습니다.',
+    again: '{e} ({w}): 이미 칠한 간선입니다. 칠한 crossing edge가 없는 cut을 골라야 새 간선이 나옵니다.',
+    tipGrow: '칠한 간선으로 이어진 덩어리 하나와 나머지로 나누면 언제나 그런 cut이 됩니다.',
+    done: '간선 {k}개를 칠했습니다. 총 가중치 {total}, Kruskal·Prim과 같은 MST입니다.',
+  },
+  en: {
+    title: 'Cut property and greedy MST',
+    hint: 'Click a vertex to move it to the other side.',
+    paint: 'Colour the lightest edge',
+    reset: 'Reset',
+    crossing: 'Crossing edges (lightest first)',
+    painted: 'coloured',
+    total: 'total weight',
+    oneSide: 'One side is empty. Click vertices to split them into two sides.',
+    status: '{a} green, {b} blue · {k} crossing edges · the lightest is {e} ({w})',
+    statusPainted: 'Coloured crossing edges: {list}',
+    did: 'Coloured {e} ({w}). By the cut property this edge is in the MST.',
+    again: '{e} ({w}) is already coloured. Pick a cut with no coloured crossing edge to get a new one.',
+    tipGrow: 'Splitting off one coloured cluster from the rest always gives such a cut.',
+    done: '{k} edges coloured. Total weight {total}, the same MST as Kruskal and Prim.',
+  },
+  zh: {
+    title: 'cut 性质与 Greedy MST',
+    hint: '点击顶点，把它移到另一边。',
+    paint: '给最轻的边上色',
+    reset: '重置',
+    crossing: 'crossing edge（由轻到重）',
+    painted: '已上色',
+    total: '总权重',
+    oneSide: '有一边是空的。点击顶点把它们分成两边。',
+    status: '绿色 {a} 个，蓝色 {b} 个 · crossing edge {k} 条 · 最轻的是 {e}（{w}）',
+    statusPainted: '已上色的 crossing edge：{list}',
+    did: '已上色：{e}（{w}）。根据 cut 性质，这条边在 MST 中。',
+    again: '{e}（{w}）已经上过色。要选没有已上色 crossing edge 的 cut，才能得到新边。',
+    tipGrow: '把一个已上色的连通块和其余顶点分开，总能得到这样的 cut。',
+    done: '已给 {k} 条边上色。总权重 {total}，与 Kruskal、Prim 得到的 MST 相同。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-cut-demo', slide && 'is-slide']}
+  id={id}
+  data-ct-n={g.nodes.length}
+  data-ct-edges={JSON.stringify(g.edges)}
+  data-ct-scale={g.scale ?? 1}
+  data-ct-side={JSON.stringify(side)}
+  data-ct-strings={JSON.stringify(t)}
+>
+  <div class="ct-bar">
+    <span class="ct-head"><strong>{t.title}</strong> <span class="ct-hint">{t.hint}</span></span>
+    <div class="ct-controls">
+      <button type="button" data-act="paint" class="ct-btn ct-btn-primary">{t.paint}</button>
+      <button type="button" data-act="reset" class="ct-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ct-body">
+    <div class="ct-graph">
+      <GraphFigure graph={graph} bare slide={slide} />
+    </div>
+    <div class="ct-panel">
+      <div class="ct-label">{t.crossing}</div>
+      <div class="ct-list" data-ct-list></div>
+      <p class="ct-status" data-ct-status></p>
+      <p class="ct-count">
+        {t.painted} <strong data-ct-count>0</strong> / {g.nodes.length - 1} · {t.total} <strong data-ct-total>0.00</strong>
+      </p>
+    </div>
+  </div>
+
+  <p class="ct-note" data-ct-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const S = JSON.parse(root.dataset.ctStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const n = Number(root.dataset.ctN);
+    const edges = JSON.parse(root.dataset.ctEdges).map(([u, v, w]) => ({ u, v, w, k: `${u}-${v}` }));
+    const scale = Number(root.dataset.ctScale);
+    const fmt = (w) => (scale === 1 ? String(w) : (w / scale).toFixed(2));
+    const startSide = JSON.parse(root.dataset.ctSide);
+
+    let blue;
+    let painted;
+    let note = '';
+    function init() {
+      blue = new Array(n).fill(false);
+      startSide.forEach((v) => (blue[v] = true));
+      painted = new Set();
+      note = '';
+    }
+    init();
+
+    const crossing = () =>
+      edges.filter((e) => blue[e.u] !== blue[e.v]).sort((a, b) => a.w - b.w);
+
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const TONES = ['done', 'focus', 'open', 'dim', 'ring', 'tree', 'cand'];
+    const setTones = (el, tones) => {
+      const want = new Set((tones || '').split(' ').filter(Boolean));
+      TONES.forEach((tn) => el.classList.toggle(`is-${tn}`, want.has(tn)));
+    };
+    const listEl = root.querySelector('[data-ct-list]');
+    const statusEl = root.querySelector('[data-ct-status]');
+    const countEl = root.querySelector('[data-ct-count]');
+    const totalEl = root.querySelector('[data-ct-total]');
+    const noteEl = root.querySelector('[data-ct-note]');
+    const paintBtn = root.querySelector('[data-act="paint"]');
+
+    function render() {
+      const cr = crossing();
+      const light = cr[0];
+      nodeEls.forEach((el, v) => setTones(el, blue[v] ? 'open' : 'done'));
+      edgeEls.forEach((el, k) => {
+        const e = edges.find((x) => x.k === k);
+        let tn = '';
+        if (painted.has(k)) tn = 'tree';
+        else if (light && k === light.k) tn = 'focus';
+        else if (blue[e.u] !== blue[e.v]) tn = 'cand';
+        setTones(el, tn);
+      });
+      listEl.replaceChildren(
+        ...cr.map((e, i) => {
+          const s = document.createElement('span');
+          s.className = 'ct-chip';
+          if (i === 0) s.classList.add('is-light');
+          if (painted.has(e.k)) s.classList.add('is-painted');
+          s.textContent = `${e.k} ${fmt(e.w)}`;
+          return s;
+        }),
+      );
+      const a = blue.filter((b) => !b).length;
+      const b = n - a;
+      if (!a || !b) statusEl.textContent = S.oneSide;
+      else {
+        let st = fill(S.status, { a, b, k: cr.length, e: light.k, w: fmt(light.w) });
+        const pc = cr.filter((e) => painted.has(e.k)).map((e) => e.k);
+        if (pc.length) st += ` · ${fill(S.statusPainted, { list: pc.join(', ') })}`;
+        statusEl.textContent = st;
+      }
+      const total = edges.filter((e) => painted.has(e.k)).reduce((s, e) => s + e.w, 0);
+      countEl.textContent = String(painted.size);
+      totalEl.textContent = fmt(total);
+      paintBtn.disabled = !a || !b || painted.size >= n - 1;
+      setLines(noteEl, note);
+      root.classList.toggle('is-done', painted.size >= n - 1);
+    }
+
+    function flip(v) {
+      blue[v] = !blue[v];
+      note = '';
+      render();
+    }
+    function paint() {
+      const cr = crossing();
+      if (!cr.length || painted.size >= n - 1) return;
+      const e = cr[0];
+      if (painted.has(e.k)) {
+        note = `${fill(S.again, { e: e.k, w: fmt(e.w) })} ${S.tipGrow}`;
+      } else {
+        painted.add(e.k);
+        if (painted.size >= n - 1) {
+          const total = edges.filter((x) => painted.has(x.k)).reduce((s, x) => s + x.w, 0);
+          note = fill(S.done, { k: painted.size, total: fmt(total) });
+        } else note = fill(S.did, { e: e.k, w: fmt(e.w) });
+      }
+      render();
+    }
+
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => flip(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          flip(v);
+        }
+      });
+    });
+    paintBtn.addEventListener('click', paint);
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      init();
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-cut-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-cut-demo .ct-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-cut-demo .ct-head {
+    font-size: 0.95em;
+  }
+  .aas-cut-demo .ct-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-cut-demo .ct-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-cut-demo .ct-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cut-demo .ct-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cut-demo .ct-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-cut-demo .ct-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .aas-cut-demo .ct-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-cut-demo .ct-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-cut-demo .ct-panel {
+    flex: 1 1 14em;
+    min-width: 0;
+  }
+  .aas-cut-demo .ct-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-bottom: 0.3em;
+  }
+  .aas-cut-demo .ct-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    min-height: 1.6em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-cut-demo .ct-chip {
+    padding: 0.05em 0.45em;
+    border: 1px dashed var(--aas-role-model);
+    border-radius: 0.35em;
+    color: var(--aas-role-model);
+    white-space: nowrap;
+  }
+  .aas-cut-demo .ct-chip.is-light {
+    border: 1px solid var(--aas-role-focus);
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-cut-demo .ct-chip.is-painted {
+    border: 1px solid var(--aas-role-eval);
+    background: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-cut-demo .ct-status {
+    margin: 0.7em 0 0;
+    font-size: 0.85em;
+  }
+  .aas-cut-demo .ct-count {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-cut-demo .ct-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-cut-demo .ct-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-cut-demo.is-done .ct-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-cut-demo .gf-node {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-cut-demo .gf-node:hover circle,
+  .aas-cut-demo .gf-node:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 5;
+  }
+
+  /* 슬라이드용 */
+  .aas-cut-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-cut-demo.is-slide .ct-body {
+    flex-wrap: nowrap;
+  }
+  .aas-cut-demo.is-slide .ct-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 40vh;
+  }
+  .aas-cut-demo.is-slide .ct-note {
+    font-size: 0.8em;
+  }
+</style>
