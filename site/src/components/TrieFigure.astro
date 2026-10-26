@@ -136,7 +136,7 @@ if (kind === 'trie' || kind === 'compressed') {
     nodes.get(id)!.value = v;
   }
   const UNIT = 36;
-  const LEVEL = 40;
+  const LEVEL = 32;
   let slot = 0;
   let maxD = 0;
   const pos = new Map<string, { x: number; y: number }>();
@@ -174,9 +174,10 @@ const byId = new Map(placed.map((p) => [p.id, p]));
 const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const CELL = 22;
 const vbW = kind === 'node' ? CELL * 26 + 20 : W + 2 * PAD;
+const vbH = kind === 'node' ? 70 : H + TOP + RAD + 16;
 ---
 
-<figure class:list={['aas-trie-figure', slide && 'is-slide', `is-${kind}`]} style={`--trf-w: ${vbW}`}>
+<figure class:list={['aas-trie-figure', slide && 'is-slide', `is-${kind}`]} style={`--trf-w: ${vbW}; --trf-h: ${vbH}`}>
   {
     kind === 'node' ? (
       <svg viewBox={`-10 -30 ${CELL * 26 + 20} 70`} role="img" aria-label={caption ?? t.children}>
@@ -362,17 +363,16 @@ const vbW = kind === 'node' ? CELL * 26 + 20 : W + 2 * PAD;
     margin: 0.5rem auto;
   }
   .aas-trie-figure.is-slide svg {
-    /* 슬라이드 데모의 글자 크기(3.2vh)와 같은 비율로 키운다. */
-    width: calc(var(--trf-w) * 0.3vh);
+    /* 그림끼리 같은 비율로 키운다. 아주 높은 그림만 화면 높이에 맞춰 줄인다. */
+    height: min(58vh, calc(var(--trf-h) * 0.18vh));
+    width: auto;
     max-width: 100%;
-    max-height: 52vh;
-    height: auto;
   }
   .aas-trie-figure.is-slide.is-node svg {
     width: 100%;
     height: auto;
   }
   .aas-trie-figure.is-slide figcaption {
-    font-size: 0.8em;
+    font-size: clamp(0.9rem, 2.4vh, 1.5rem);
   }
 </style>

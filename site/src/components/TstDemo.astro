@@ -199,7 +199,13 @@ const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const config = { mode, words, prefill, detail, queries, prefix };
 const chip =
-  mode === 'search' ? queries.join(' · ') : mode === 'prefix' ? `"${prefix}"` : words.slice(prefill).map(([w]) => w).join(' ');
+  mode === 'search'
+    ? queries.join(' · ')
+    : mode === 'prefix'
+      ? `"${prefix}"`
+      : words.length - prefill > 3
+        ? `${words[prefill][0]} … ${words[words.length - 1][0]}`
+        : words.slice(prefill).map(([w]) => w).join(' ');
 ---
 
 <div
@@ -509,7 +515,7 @@ const chip =
 
     /* 자리: 왼쪽 서브트리, 자기(가운데 자식 바로 위), 오른쪽 서브트리 순서로 칸을 쓴다. */
     const UNIT = 36;
-    const LEVEL = 40;
+    const LEVEL = 32;
     const RAD = 11;
     const pos = new Map();
     let slot = 0;
@@ -912,7 +918,7 @@ const chip =
   }
   .aas-tst-demo.is-slide .ts-svg {
     flex: 1 1 auto;
-    max-height: 54vh;
+    max-height: 56vh;
   }
   .aas-tst-demo.is-slide .ts-table {
     font-size: 0.7em;
