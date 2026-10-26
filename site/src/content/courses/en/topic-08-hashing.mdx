@@ -243,9 +243,9 @@ Both methods are shown on the same data. The keys are the thirteen letters
 one. There are 10 distinct keys.
 
 Each letter is assigned an integer hash code, and the code mod $$M$$ is used
-as the hash value. The codes were chosen so that the hash values match the
-original lecture figures (the example from Sedgewick's textbook). In a real
-program, the string hash function from earlier would do this job.
+as the hash value. In this example the integers are simply fixed as in the
+table below. In a real program, the string hash function from earlier would
+do this job.
 
 | Key | A | C | E | H | L | M | P | R | S | X | Y |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -663,7 +663,8 @@ path is not cut. This is called lazy deletion.
 - `put` can reuse a marked slot **as if it were empty**.
 - Deletion is a single marker, so it is fast.
 
-Two things need care, though.
+Two things need care, though. The first is a trap implementations often
+fall into.
 
 - **`put` must not insert into the first marked slot right away.** The same
   key may still be alive further along. It has to go on to an empty slot,
@@ -680,8 +681,8 @@ fills, clusters grow and it slows down too. So the array length is not fixed;
 **it grows and shrinks according to the load factor.**
 
 - **On insert**: when the array is at least a certain fraction full, double
-  it. Half is a common threshold, and the practice code uses 0.7. The
-  threshold depends on the configuration.
+  it. The threshold differs from one implementation to another (many use
+  half); this example uses 0.7.
 - **On delete**: if $$0 < N \le M/8$$, halve it.
 
 Resizing changes $$M$$, so every hash value changes too. The slots cannot be

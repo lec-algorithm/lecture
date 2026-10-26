@@ -348,7 +348,7 @@ A hash table must have a way to **handle** collisions, not avoid them.
 <br/>
 
 - `E` appears three times and `A` twice. There are **10** distinct keys.
-- The codes were chosen so the hash values match the original figures (Sedgewick's textbook).
+- In this example the integers for each letter are simply fixed like this.
 - `Y` is a key that is never inserted. It is used to search for a missing key.
 
 </Slide>
@@ -687,6 +687,7 @@ The keys put back amount to one cluster, so when clusters are short, deletion is
   - `get` passes a marker **as if the slot were full**.
   - `put` reuses a marker **as if the slot were empty**.
 - **`put` must not insert into the first marked slot right away.**
+  - A trap implementations often fall into.
   - The same key may still be alive further along.
   - Go on to an empty slot, confirm the key is not there, then insert into the first marked slot.
 - **Markers pile up.**
@@ -699,7 +700,7 @@ The keys put back amount to one cluster, so when clusters are short, deletion is
 #### Resizing
 ::sub[Grow and shrink by the load factor. Hash values change, so every key goes in again]
 
-- **On insert**: double it when at least a certain fraction full (half is common; the practice code uses 0.7)
+- **On insert**: double it when at least a certain fraction full (it differs by implementation; this example uses 0.7)
 - **On delete**: halve it when $$0 < N \le M/8$$
 
 ```console
