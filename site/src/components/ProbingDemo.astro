@@ -11,14 +11,18 @@
 //   search : 다 넣은 표에서 H(있음)와 Y(없음)를 찾는다.
 //   naive  : C의 칸을 그냥 비운 뒤 H를 찾는다. 길이 끊겨 못 찾는다.
 //   delete : C를 지우고 뒤따르는 S, H, L을 꺼냈다가 다시 넣은 뒤 H를 찾는다.
+//   tombstone : C의 칸에 지워짐 표시(†)를 남긴다. get H는 표시를 지나 찾고,
+//               put H=13은 표시 칸에 넣지 않고 뒤의 H를 갱신하며, put Y=14는
+//               빈칸까지 가서 없음을 확인한 뒤 처음 지나온 표시 칸에 넣는다.
+//               지워짐 표시는 실습 코드에 없는 방식이라 숫자는 이 데모에서만 나온다.
 //
 // 절차와 숫자는 algorithm-code의 hashTableLP.c · hash_table_lp.py와 같다.
 // 해시 코드 표(CODES)도 같다. 해시값은 이 코드 mod 16이다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
-  /** build · search · naive · delete */
-  mode?: 'build' | 'search' | 'naive' | 'delete';
+  /** build · search · naive · delete · tombstone */
+  mode?: 'build' | 'search' | 'naive' | 'delete' | 'tombstone';
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
   slide?: boolean;
 }
@@ -57,6 +61,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     naiveRemove: '{k} 키가 있던 {i}번 칸을 그냥 비웁니다.',
     lift: '{i}번 칸의 {k} 키를 꺼냈다가 다시 넣습니다.',
     endFix: '{i}번 칸이 비어 있습니다. 무리가 끝났으니 후속 조치도 끝입니다.',
+    idleTomb: '다 넣은 표에서 C를 지우되, 칸을 비우지 않고 지워짐 표시(†)를 남깁니다. 그다음 H를 찾고, H와 Y를 넣습니다.',
+    tombMark: '{k} 키를 {i}번 칸에서 찾아 지워짐 표시를 남깁니다. 칸을 비우지 않으니 길이 끊기지 않습니다.',
+    tombPass: '{i}번 칸은 지워짐 표시입니다. 차 있는 칸처럼 지나갑니다.',
+    tombSeen: '{i}번 칸은 지워짐 표시입니다. 넣을 자리로 기억해 두고 계속 갑니다.',
+    tombTrap: '{t}번 표시 칸에 바로 넣었다면 {k} 키가 두 칸에 생겼을 것입니다.',
+    tombPut: '{i}번 칸이 비어 있으니 {k} 키는 없습니다. 기억해 둔 {t}번 표시 칸에 넣습니다. {p}칸을 봤습니다.',
     done: '끝.',
   },
   en: {
@@ -87,6 +97,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     naiveRemove: 'Just empty slot {i}, where {k} was.',
     lift: 'Take {k} out of slot {i} and insert it again.',
     endFix: 'Slot {i} is empty. The cluster has ended, and so has the cleanup.',
+    idleTomb: 'Take the full table and delete C, leaving a tombstone (†) instead of emptying the slot. Then look up H, and put H and Y.',
+    tombMark: 'Found {k} in slot {i} and left a tombstone. The slot is not emptied, so no path is cut.',
+    tombPass: 'Slot {i} holds a tombstone. Pass it like a full slot.',
+    tombSeen: 'Slot {i} holds a tombstone. Remember it as a place to insert, and keep going.',
+    tombTrap: 'Putting {k} straight into the tombstone in slot {t} would have left {k} in two slots.',
+    tombPut: 'Slot {i} is empty, so {k} is not in the table. Put it into the remembered tombstone in slot {t}. {p} probes.',
     done: 'Done.',
   },
   zh: {
@@ -117,6 +133,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     naiveRemove: '直接清空 {k} 所在的 {i} 号格。',
     lift: '把 {i} 号格的 {k} 取出，再重新插入。',
     endFix: '{i} 号格为空。簇已结束，善后也结束。',
+    idleTomb: '在插满的表里删除 C，但不清空格子，而是留下删除标记（†）。然后查找 H，再插入 H 和 Y。',
+    tombMark: '在 {i} 号格找到 {k}，留下删除标记。格子没有清空，路径不会断。',
+    tombPass: '{i} 号格是删除标记。像有键的格一样跳过。',
+    tombSeen: '{i} 号格是删除标记。把它记作插入位置，继续往后看。',
+    tombTrap: '如果直接放进 {t} 号标记格，{k} 就会出现在两个格里。',
+    tombPut: '{i} 号格为空，所以 {k} 不存在。放进记住的 {t} 号标记格。共探测 {p} 格。',
     done: '结束。',
   },
 };
@@ -191,6 +213,9 @@ const slots = Array.from({ length: m }, (_, i) => i);
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const S = JSON.parse(root.dataset.pdStrings);
     const mode = root.dataset.pdMode;
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -207,8 +232,9 @@ const slots = Array.from({ length: m }, (_, i) => i);
     const snap = (x) => {
       if (record) steps.push({ keys: tk.slice(), vals: tv.slice(), n, ...x });
     };
-    const lead = (k, h, p, i) =>
-      (p === 1 ? fill(S.first, { k, h }) + ' ' : '') + (p > 1 && i === 0 ? S.wrap + ' ' : '');
+    /* 지워짐 표시. tombstone 모드에서만 배열에 들어간다. 다른 모드에서는 나오지 않는다. */
+    const TOMB = '†';
+    const lead = (k, h, p, i) => join(p === 1 ? fill(S.first, { k, h }) : '', p > 1 && i === 0 ? S.wrap : '');
 
     function put(k, v, op) {
       const h = hashOf(k);
@@ -221,16 +247,16 @@ const slots = Array.from({ length: m }, (_, i) => i);
           tk[i] = k;
           tv[i] = v;
           n += 1;
-          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'placed' }, note: pre + fill(S.putEmpty, { i, p }) });
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'placed' }, note: join(pre, fill(S.putEmpty, { i, p })) });
           return i;
         }
         if (tk[i] === k) {
           const old = tv[i];
           tv[i] = v;
-          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'updated' }, note: pre + fill(S.putSame, { i, old, v }) });
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'updated' }, note: join(pre, fill(S.putSame, { i, old, v })) });
           return i;
         }
-        snap({ op, p, probe: i, chip: { k, v, i }, mark: null, note: pre + fill(S.collide, { i, o: tk[i] }) });
+        snap({ op, p, probe: i, chip: { k, v, i }, mark: null, note: join(pre, fill(S.collide, { i, o: tk[i] })) });
         i = (i + 1) % m;
       }
     }
@@ -246,14 +272,15 @@ const slots = Array.from({ length: m }, (_, i) => i);
         if (tk[i] === null) {
           const j = tk.indexOf(k);
           const body = j >= 0 ? fill(S.lost, { i, k, j }) : fill(S.miss, { i, k, p });
-          snap({ op, p, probe: i, chip: { k, v: '?', i, query: true }, mark: { i, kind: 'stop' }, note: pre + body, bad: true });
+          snap({ op, p, probe: i, chip: { k, v: '?', i, query: true }, mark: { i, kind: 'stop' }, note: join(pre, body), bad: true });
           return;
         }
         if (tk[i] === k) {
-          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'hit' }, note: pre + fill(S.hit, { i, k, v: tv[i], p }), good: true });
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'hit' }, note: join(pre, fill(S.hit, { i, k, v: tv[i], p })), good: true });
           return;
         }
-        snap({ op, p, probe: i, chip: { k, v: '?', i, query: true }, mark: null, note: pre + fill(S.pass, { i, o: tk[i] }) });
+        const passNote = tk[i] === TOMB ? fill(S.tombPass, { i }) : fill(S.pass, { i, o: tk[i] });
+        snap({ op, p, probe: i, chip: { k, v: '?', i, query: true }, mark: null, note: join(pre, passNote) });
         i = (i + 1) % m;
       }
     }
@@ -285,6 +312,60 @@ const slots = Array.from({ length: m }, (_, i) => i);
       snap({ op, p, probe: j, chip: null, mark: { i: j, kind: 'stop' }, note: fill(S.endFix, { i: j }) });
     }
 
+    /* tombstone 모드: 지운 칸에 표시를 남긴다. */
+    function removeTomb(k) {
+      const op = `delete ${k}`;
+      let i = hashOf(k);
+      let p = 1;
+      while (tk[i] !== k) {
+        i = (i + 1) % m;
+        p += 1;
+      }
+      tk[i] = TOMB;
+      tv[i] = null;
+      n -= 1;
+      snap({ op, p, probe: i, chip: null, mark: { i, kind: 'marked' }, note: fill(S.tombMark, { k, i }) });
+    }
+
+    /* tombstone 모드의 put: 표시는 넣을 자리로 기억만 하고 빈칸이나 같은 키까지 간다. */
+    function putTomb(k, v) {
+      const op = `put ${k}=${v}`;
+      const h = hashOf(k);
+      let i = h;
+      let p = 0;
+      let first = -1;
+      for (;;) {
+        p += 1;
+        const pre = lead(k, h, p, i);
+        if (tk[i] === null) {
+          const at = first >= 0 ? first : i;
+          tk[at] = k;
+          tv[at] = v;
+          n += 1;
+          const body = first >= 0 ? fill(S.tombPut, { i, k, t: first, p }) : fill(S.putEmpty, { i, p });
+          snap({ op, p, probe: i, chip: null, mark: { i: at, kind: 'placed' }, note: join(pre, body) });
+          return;
+        }
+        if (tk[i] === k) {
+          const old = tv[i];
+          tv[i] = v;
+          /* 값 바꿈 문장은 마침표 없이 끝나므로 다음 문장을 이으려면 하나 붙인다. */
+          const same = fill(S.putSame, { i, old, v });
+          const sameNote = first >= 0 && !/[.。]$/.test(same) ? `${same}.` : same;
+          const trap = first >= 0 ? fill(S.tombTrap, { k, t: first }) : '';
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'updated' }, note: join(pre, sameNote, trap) });
+          return;
+        }
+        if (tk[i] === TOMB) {
+          if (first < 0) first = i;
+          snap({ op, p, probe: i, chip: { k, v, i }, mark: null, note: join(pre, fill(S.tombSeen, { i })) });
+        } else {
+          snap({ op, p, probe: i, chip: { k, v, i }, mark: null, note: join(pre, fill(S.collide, { i, o: tk[i] })) });
+        }
+        i = (i + 1) % m;
+      }
+    }
+
     record = mode === 'build';
     [...keys].forEach((k, v) => put(k, v, `put ${k}=${v}`));
     const initial = { keys: tk.slice(), vals: tv.slice(), n };
@@ -303,8 +384,13 @@ const slots = Array.from({ length: m }, (_, i) => i);
     } else if (mode === 'delete') {
       remove('C', false);
       get('H');
+    } else if (mode === 'tombstone') {
+      removeTomb('C');
+      get('H');
+      putTomb('H', keys.length);
+      putTomb('Y', keys.length + 1);
     }
-    const idle = { build: S.idleBuild, search: S.idleSearch, naive: S.idleNaive, delete: S.idleDelete }[mode];
+    const idle = { build: S.idleBuild, search: S.idleSearch, naive: S.idleNaive, delete: S.idleDelete, tombstone: S.idleTomb }[mode];
 
     const cells = [...root.querySelectorAll('[data-pd-cell]')];
     const runs = [...root.querySelectorAll('[data-pd-run]')];
@@ -356,10 +442,11 @@ const slots = Array.from({ length: m }, (_, i) => i);
       cells.forEach((cell, i) => {
         const k = st.keys[i];
         cell.querySelector('.pd-k').textContent = k ?? '';
-        cell.querySelector('.pd-v').textContent = k === null ? '' : String(st.vals[i]);
-        cell.classList.toggle('is-full', k !== null);
+        cell.querySelector('.pd-v').textContent = k === null || k === TOMB ? '' : String(st.vals[i]);
+        cell.classList.toggle('is-full', k !== null && k !== TOMB);
+        cell.classList.toggle('is-tomb', k === TOMB);
         cell.classList.toggle('is-probe', st.probe === i);
-        for (const kind of ['placed', 'updated', 'hit', 'stop', 'hole']) {
+        for (const kind of ['placed', 'updated', 'hit', 'stop', 'hole', 'marked']) {
           cell.classList.toggle(`is-${kind}`, !!st.mark && st.mark.i === i && st.mark.kind === kind);
         }
         const run = runs[i];
@@ -384,7 +471,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       probesEl.classList.toggle('is-good', !!st.good);
       loadEl.textContent = `${st.n}/${m}`;
       clusterEl.textContent = String(cl.longest);
-      setLines(note, s >= steps.length - 1 && s >= 0 ? `${st.note} ${S.done}` : st.note);
+      setLines(note, s >= steps.length - 1 && s >= 0 ? join(st.note, S.done) : st.note);
       root.classList.toggle('is-done', s >= steps.length - 1);
     }
 
@@ -630,6 +717,22 @@ const slots = Array.from({ length: m }, (_, i) => i);
     font-weight: 700;
   }
   .aas-probing-demo .pd-cell.is-stop {
+    box-shadow: 0 0 0 3px var(--aas-role-guard);
+  }
+  /* 지워짐 표시: 차 있는 칸처럼 길을 잇지만 키는 없다. */
+  .aas-probing-demo .pd-cell.is-tomb {
+    border-style: dashed;
+    border-color: var(--aas-muted);
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--aas-muted) 14%, var(--aas-bg)) 0 0.25em,
+      var(--aas-bg) 0.25em 0.5em
+    );
+  }
+  .aas-probing-demo .pd-cell.is-tomb .pd-k {
+    color: var(--aas-muted);
+  }
+  .aas-probing-demo .pd-cell.is-marked {
     box-shadow: 0 0 0 3px var(--aas-role-guard);
   }
   .aas-probing-demo .pd-cell.is-hole {
