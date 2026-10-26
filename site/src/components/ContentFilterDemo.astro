@@ -186,6 +186,12 @@ const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const F = JSON.parse(root.dataset.cbdFeatures);
     const r = JSON.parse(root.dataset.cbdRatings);
     const fresh = JSON.parse(root.dataset.cbdNew);
@@ -306,7 +312,7 @@ const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
         bar.style.width = `${(Math.abs(v) / maxAbs) * 100}%`;
         bar.classList.toggle('is-neg', v < 0);
       });
-      note.textContent = st ? st.note : fill(S.idle, { u: user });
+      setLines(note, st ? st.note : fill(S.idle, { u: user }));
       root.classList.toggle('is-done', !!(st && st.done));
     }
 

@@ -195,6 +195,12 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const R = JSON.parse(root.dataset.cfdRatings);
     const users = JSON.parse(root.dataset.cfdUsers);
     const target = Number(root.dataset.cfdTarget);
@@ -415,7 +421,7 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
           el.classList.toggle('is-nb', !!(st && st.picked && st.picked.includes(i)));
         });
       }
-      note.textContent = st ? st.note : idle;
+      setLines(note, st ? st.note : idle);
       root.classList.toggle('is-done', !!(st && st.done));
     }
 
