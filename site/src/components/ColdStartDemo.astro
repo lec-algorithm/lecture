@@ -1,0 +1,597 @@
+---
+// 콜드 스타트를 직접 일으켜 보는 데모.
+//
+// 예제 1의 평점 행렬(사용자 A부터 E, 영화 M1부터 M6)에서 시작한다. "새 영화 M7"을 켜면 아무도
+// 평가하지 않은 열이, "새 사용자 F"를 켜면 평점이 하나도 없는 행이 생긴다.
+// 새 사용자가 있으면 그가 대상이고, 없으면 A가 대상이다. 오른쪽 표에 대상의
+// 빈칸마다 사용자 기반 협업 필터링(피어슨, k = 3)의 예측 평점과, content를
+// 주면 콘텐츠 기반 점수(예제 2의 장르와 프로필의 코사인)를 적는다.
+// 새로 생긴 행과 열의 칸을 누르면 평점이 0→1→…→5→0으로 바뀌고 바로 다시 잰다.
+//
+// 절차와 수치는 algorithm-code의 collaborativeFiltering.c(피어슨, k = 3:
+// M3 4.464, M6 1.536)와 contentBasedFiltering.c(M3 0.802, M7 0.764,
+// M6 0.189)와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 콘텐츠 기반 점수 열도 보여 줄지 */
+  content?: boolean;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { content = true, slide = false } = Astro.props;
+const id = `csd-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 예제 1의 평점(마지막 행 F와 마지막 열 M7은 새로 생기는 자리)과 예제 2의 장르 */
+const ratings = [
+  [5, 5, 0, 4, 2, 0, 0],
+  [5, 4, 5, 4, 3, 1, 0],
+  [4, 4, 4, 3, 1, 2, 0],
+  [1, 2, 1, 1, 4, 5, 0],
+  [4, 3, 4, 4, 5, 5, 0],
+  [0, 0, 0, 0, 0, 0, 0],
+];
+const users = ['A', 'B', 'C', 'D', 'E', 'F'];
+const features = [
+  [1, 1, 0, 0],
+  [1, 0, 1, 0],
+  [1, 0, 0, 1],
+  [1, 0, 0, 1],
+  [0, 1, 1, 0],
+  [0, 0, 1, 0],
+  [1, 1, 0, 1],
+];
+const NEW_U = 5;
+const NEW_I = 6;
+const K = 3;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '콜드 스타트',
+    sub: '피어슨',
+    newItem: '새 영화 M7',
+    newUser: '새 사용자 F',
+    restore: '원래대로',
+    cfRow: '협업 예측',
+    cbRow: '콘텐츠',
+    legendCf: '맨 아래 줄은 빈칸마다 협업 필터링의 예측 평점입니다.',
+    legend: '아래 두 줄은 빈칸마다 협업 필터링의 예측 평점과 콘텐츠 기반 점수(프로필과의 코사인)입니다.',
+    profile: '프로필',
+    neighbors: '이웃',
+    none: '없음',
+    intro: '위의 두 버튼으로 새 영화와 새 사용자를 넣어 보세요. 새로 생긴 행과 열의 칸을 누르면 평점이 바뀝니다.',
+    userZero: '새 사용자 {u}: 평점이 하나도 없습니다. 유사도가 모두 0이라 이웃이 없고 예측도 없습니다.',
+    userZeroC: '프로필도 0벡터라 콘텐츠 점수도 모두 0입니다.',
+    userOne: '새 사용자 {u}: 평점이 하나뿐입니다. 평균을 빼면 0만 남아 피어슨을 잴 수 없습니다.',
+    userOneC: '콘텐츠 기반은 그 한 편으로 프로필을 만듭니다.',
+    userFlat: '프로필이 아직 0벡터입니다. 3점은 가중치가 0입니다.',
+    userSome: '새 사용자 {u}: 평점이 {c}개입니다. 이웃은 {list}입니다.',
+    userNoNb: '새 사용자 {u}: 평점이 {c}개지만 아직 유사도가 0보다 큰 사용자가 없습니다.',
+    itemZero: '새 영화 {i}: 평가가 하나도 없어 협업 필터링은 예측하지 못합니다.',
+    itemZeroC: '콘텐츠 기반은 장르만으로 점수를 매깁니다.',
+    itemSome: '새 영화 {i}: 평점이 {c}개 생겼습니다.',
+    itemNoNb: '그러나 이웃 중에는 아직 본 사람이 없어 예측할 수 없습니다.',
+    itemPred: '이웃의 평점으로 예측할 수 있게 됐습니다.',
+  },
+  en: {
+    title: 'Cold start',
+    sub: 'Pearson',
+    newItem: 'New movie M7',
+    newUser: 'New user F',
+    restore: 'Restore',
+    cfRow: 'CF',
+    cbRow: 'content',
+    legendCf: 'The bottom row gives the collaborative prediction for each blank.',
+    legend: 'The two bottom rows give, for each blank, the collaborative prediction and the content score (cosine with the profile).',
+    profile: 'profile',
+    neighbors: 'neighbors',
+    none: 'none',
+    intro: 'Use the two buttons above to add a new movie and a new user. Click a cell in the new row or column to change its rating.',
+    userZero: 'New user {u} has no ratings at all. Every similarity is 0, so there are no neighbors and no predictions.',
+    userZeroC: 'The profile is the zero vector too, so every content score is 0.',
+    userOne: 'New user {u} has only one rating. Subtracting the mean leaves only 0, so Pearson cannot be measured.',
+    userOneC: 'Content-based filtering builds a profile from that one movie.',
+    userFlat: 'The profile is still the zero vector. A rating of 3 has weight 0.',
+    userSome: 'New user {u} has {c} ratings. The neighbors are {list}.',
+    userNoNb: 'New user {u} has {c} ratings, but no user has similarity above 0 yet.',
+    itemZero: 'Nobody has rated new movie {i}, so collaborative filtering cannot predict it.',
+    itemZeroC: 'Content-based filtering scores it from its genres alone.',
+    itemSome: 'New movie {i} now has {c} ratings.',
+    itemNoNb: 'But none of the neighbors has rated it, so it still cannot be predicted.',
+    itemPred: 'It can now be predicted from the neighbors’ ratings.',
+  },
+  zh: {
+    title: '冷启动',
+    sub: '皮尔逊',
+    newItem: '新电影 M7',
+    newUser: '新用户 F',
+    restore: '还原',
+    cfRow: '协同预测',
+    cbRow: '内容',
+    legendCf: '最下面一行是每个空格的协同过滤预测评分。',
+    legend: '下面两行是每个空格的协同过滤预测评分和基于内容的分数（与画像的余弦）。',
+    profile: '画像',
+    neighbors: '邻居',
+    none: '无',
+    intro: '用上面两个按钮加入新电影和新用户。点击新出现的行和列的格子可以改评分。',
+    userZero: '新用户 {u}：一个评分也没有。相似度全是 0，没有邻居，也就没有预测。',
+    userZeroC: '画像也是零向量，所以内容分数全是 0。',
+    userOne: '新用户 {u}：只有一个评分。减去均值后只剩 0，无法计算皮尔逊。',
+    userOneC: '基于内容的方法用这一部电影建立画像。',
+    userFlat: '画像仍是零向量。3 分的权重是 0。',
+    userSome: '新用户 {u}：有 {c} 个评分。邻居是 {list}。',
+    userNoNb: '新用户 {u}：有 {c} 个评分，但还没有相似度大于 0 的用户。',
+    itemZero: '新电影 {i}：没有人评过，协同过滤无法预测。',
+    itemZeroC: '基于内容的方法只凭类型就能打分。',
+    itemSome: '新电影 {i}：已有 {c} 个评分。',
+    itemNoNb: '但邻居中还没有人看过，仍然无法预测。',
+    itemPred: '现在可以用邻居的评分来预测了。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const items = features.map((_, i) => `M${i + 1}`);
+---
+
+<div
+  class:list={['aas-cold-demo', slide && 'is-slide', content && 'has-content']}
+  id={id}
+  data-csd-ratings={JSON.stringify(ratings)}
+  data-csd-users={JSON.stringify(users)}
+  data-csd-features={JSON.stringify(features)}
+  data-csd-new={JSON.stringify([NEW_U, NEW_I])}
+  data-csd-k={K}
+  data-csd-content={content ? '1' : '0'}
+  data-csd-strings={JSON.stringify(t)}
+  style={`--csd-cols: ${items.length}`}
+>
+  <div class="csd-bar">
+    <span class="csd-head"><strong>{t.title}</strong> <span class="csd-sub">{t.sub} · k = {K}</span></span>
+    <div class="csd-controls">
+      <button type="button" class="csd-btn" data-csd-toggle="item" aria-pressed="false">{t.newItem}</button>
+      <button type="button" class="csd-btn" data-csd-toggle="user" aria-pressed="false">{t.newUser}</button>
+      <button type="button" class="csd-btn" data-csd-restore>{t.restore}</button>
+    </div>
+  </div>
+
+  <div class="csd-body">
+    <div class="csd-grid">
+      <span class="csd-corner"></span>
+      {items.map((name, i) => <span class:list={['csd-colhead', i === NEW_I && 'is-new-col']} data-csd-col={i}>{name}</span>)}
+      {ratings.map((row, u) => (
+        <>
+          <span class:list={['csd-rowhead', u === NEW_U && 'is-new-row']} data-csd-rowhead={u}>{users[u]}</span>
+          {row.map((_, i) => (
+            <span
+              class:list={['csd-cell', u === NEW_U && 'is-new-row', i === NEW_I && 'is-new-col']}
+              data-csd-cell={`${u}-${i}`}
+            ></span>
+          ))}
+        </>
+      ))}
+      <span class="csd-rowhead csd-reshead is-first">{t.cfRow}</span>
+      {items.map((_, i) => <span class:list={['csd-res', 'is-first', i === NEW_I && 'is-new-col']} data-csd-cf={i}></span>)}
+      {content && (
+        <>
+          <span class="csd-rowhead csd-reshead">{t.cbRow}</span>
+          {items.map((_, i) => <span class:list={['csd-res', i === NEW_I && 'is-new-col']} data-csd-cb={i}></span>)}
+        </>
+      )}
+    </div>
+
+    <div class="csd-result">
+      <p class="csd-legend">{content ? t.legend : t.legendCf}</p>
+      <p class="csd-meta"><span>{t.neighbors}</span> <strong data-csd-nb></strong></p>
+      {content && <p class="csd-meta"><span>{t.profile}</span> <strong data-csd-prof></strong></p>}
+      <p class="csd-note" data-csd-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const R0 = JSON.parse(root.dataset.csdRatings);
+    const R = R0.map((row) => row.slice());
+    const users = JSON.parse(root.dataset.csdUsers);
+    const F = JSON.parse(root.dataset.csdFeatures);
+    const [NEW_U, NEW_I] = JSON.parse(root.dataset.csdNew);
+    const K = Number(root.dataset.csdK);
+    const withContent = root.dataset.csdContent === '1';
+    const S = JSON.parse(root.dataset.csdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const iname = (i) => `M${i + 1}`;
+    const f3 = (x) => x.toFixed(3);
+    let on = { item: false, user: false };
+
+    /* 실습 코드와 같은 함수들. 0은 안 본 칸이다. */
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+    function pearson(a, b) {
+      const common = [];
+      for (let i = 0; i < a.length; i++) if (a[i] > 0 && b[i] > 0) common.push(i);
+      if (!common.length) return 0;
+      let sa = 0, sb = 0;
+      for (const i of common) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / common.length, mb = sb / common.length;
+      let num = 0, da = 0, db = 0;
+      for (const i of common) {
+        num += (a[i] - ma) * (b[i] - mb);
+        da += (a[i] - ma) * (a[i] - ma);
+        db += (b[i] - mb) * (b[i] - mb);
+      }
+      return da === 0 || db === 0 ? 0 : num / Math.sqrt(da * db);
+    }
+    /* sim이 0보다 큰 것 중 큰 순서로 최대 k개. 같으면 번호가 작은 쪽이 먼저 */
+    function topNeighbors(sim, skip, k) {
+      const out = [];
+      while (out.length < k) {
+        let best = -1;
+        sim.forEach((s, v) => {
+          if (v === skip || out.includes(v) || s === null || s <= 0) return;
+          if (best < 0 || s > sim[best]) best = v;
+        });
+        if (best < 0) break;
+        out.push(best);
+      }
+      return out;
+    }
+
+    /* 지금 보이는 행과 열만으로 협업 필터링과 콘텐츠 기반을 계산한다. */
+    function compute() {
+      const rows = users.map((_, u) => u).filter((u) => u !== NEW_U || on.user);
+      const cols = F.map((_, i) => i).filter((i) => i !== NEW_I || on.item);
+      const target = on.user ? NEW_U : 0;
+      const vec = (u) => cols.map((i) => R[u][i]);
+      const sim = users.map((_, v) => (rows.includes(v) && v !== target ? pearson(vec(target), vec(v)) : null));
+      const nb = topNeighbors(sim, target, K);
+      const blanks = cols.filter((i) => R[target][i] === 0);
+      const cf = {};
+      for (const b of blanks) {
+        let num = 0, den = 0;
+        for (const v of nb) {
+          if (R[v][b] > 0) {
+            num += sim[v] * R[v][b];
+            den += sim[v];
+          }
+        }
+        cf[b] = den === 0 ? null : num / den;
+      }
+      /* 콘텐츠 기반: 본 영화마다 (평점 - 3)만큼 장르를 더한 프로필과의 코사인 */
+      const g = F[0].length;
+      const profile = new Array(g).fill(0);
+      for (const i of cols) if (R[target][i] > 0) for (let j = 0; j < g; j++) profile[j] += (R[target][i] - 3) * F[i][j];
+      const cb = {};
+      for (const b of blanks) cb[b] = cosine(profile, F[b]);
+      const rated = cols.filter((i) => R[target][i] > 0).length;
+      return { rows, cols, target, sim, nb, blanks, cf, cb, profile, rated };
+    }
+
+    const cells = new Map([...root.querySelectorAll('[data-csd-cell]')].map((el) => [el.dataset.csdCell, el]));
+    const rowHeads = [...root.querySelectorAll('[data-csd-rowhead]')];
+    const colHeads = [...root.querySelectorAll('[data-csd-col]')];
+    const cfEls = [...root.querySelectorAll('[data-csd-cf]')];
+    const cbEls = [...root.querySelectorAll('[data-csd-cb]')];
+    const nbEl = root.querySelector('[data-csd-nb]');
+    const profEl = root.querySelector('[data-csd-prof]');
+    const note = root.querySelector('[data-csd-note]');
+    const toggles = [...root.querySelectorAll('[data-csd-toggle]')];
+
+    function render() {
+      const st = compute();
+      root.classList.toggle('show-item', on.item);
+      root.classList.toggle('show-user', on.user);
+      root.style.setProperty('--csd-cols', String(st.cols.length));
+      rowHeads.forEach((h, u) => {
+        h.classList.toggle('is-target', u === st.target);
+        h.classList.toggle('is-nb', st.nb.includes(u));
+      });
+      colHeads.forEach((h, i) => h.classList.toggle('is-blank', st.blanks.includes(i)));
+      cells.forEach((el, key) => {
+        const [u, i] = key.split('-').map(Number);
+        const x = R[u][i];
+        const blank = u === st.target && x === 0;
+        el.textContent = x === 0 ? (blank ? '?' : '·') : String(x);
+        el.classList.toggle('is-empty', x === 0);
+        el.classList.toggle('is-blank', blank);
+        el.classList.toggle('is-target', u === st.target);
+        el.classList.toggle('is-nb', st.nb.includes(u));
+      });
+
+      /* 결과 표: 빈칸마다 협업 필터링 예측과 콘텐츠 점수 */
+      const best = (obj) => {
+        let top = null;
+        for (const b of st.blanks) if (obj[b] !== null && obj[b] > 0 && (top === null || obj[b] > obj[top])) top = b;
+        return top;
+      };
+      const topCf = best(st.cf);
+      const topCb = best(st.cb);
+      const put = (el, text, none, top) => {
+        el.textContent = text;
+        el.classList.toggle('is-none', none);
+        el.classList.toggle('is-top', top);
+      };
+      cfEls.forEach((el) => {
+        const b = Number(el.dataset.csdCf);
+        if (!st.blanks.includes(b)) return put(el, '', false, false);
+        put(el, st.cf[b] === null ? '—' : f3(st.cf[b]), st.cf[b] === null, b === topCf);
+      });
+      cbEls.forEach((el) => {
+        const b = Number(el.dataset.csdCb);
+        if (!st.blanks.includes(b)) return put(el, '', false, false);
+        put(el, f3(st.cb[b]), st.cb[b] === 0, b === topCb);
+      });
+      nbEl.textContent = st.nb.length ? st.nb.map((v) => users[v]).join(', ') : S.none;
+      if (profEl) profEl.textContent = `(${st.profile.join(' ')})`;
+      toggles.forEach((b) => {
+        b.classList.toggle('is-on', on[b.dataset.csdToggle]);
+        b.setAttribute('aria-pressed', String(on[b.dataset.csdToggle]));
+      });
+
+      /* 설명 */
+      const parts = [];
+      if (on.user) {
+        const u = users[NEW_U];
+        if (st.rated === 0) {
+          parts.push(fill(S.userZero, { u }));
+          if (withContent) parts.push(S.userZeroC);
+        } else if (st.rated === 1) {
+          parts.push(fill(S.userOne, { u }));
+          if (withContent) parts.push(st.profile.some((x) => x !== 0) ? S.userOneC : S.userFlat);
+        } else if (st.nb.length) {
+          parts.push(fill(S.userSome, { u, c: st.rated, list: st.nb.map((v) => users[v]).join(', ') }));
+        } else {
+          parts.push(fill(S.userNoNb, { u, c: st.rated }));
+        }
+      }
+      if (on.item) {
+        const i = iname(NEW_I);
+        const c = st.rows.filter((u) => u !== st.target && R[u][NEW_I] > 0).length;
+        if (c === 0 && st.blanks.includes(NEW_I)) {
+          parts.push(fill(S.itemZero, { i }));
+          if (withContent) parts.push(S.itemZeroC);
+        } else if (st.blanks.includes(NEW_I)) {
+          parts.push(fill(S.itemSome, { i, c }));
+          parts.push(st.cf[NEW_I] === null ? S.itemNoNb : S.itemPred);
+        }
+      }
+      if (!parts.length) parts.push(S.intro);
+      setLines(note, parts.join(' '));
+    }
+
+    cells.forEach((el, key) => {
+      const [u, i] = key.split('-').map(Number);
+      if (u !== NEW_U && i !== NEW_I) return;
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+      el.classList.add('is-edit');
+      const bump = () => {
+        R[u][i] = (R[u][i] + 1) % 6;
+        render();
+      };
+      el.addEventListener('click', bump);
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        bump();
+      });
+    });
+    toggles.forEach((b) =>
+      b.addEventListener('click', () => {
+        on = { ...on, [b.dataset.csdToggle]: !on[b.dataset.csdToggle] };
+        render();
+      }),
+    );
+    root.querySelector('[data-csd-restore]').addEventListener('click', () => {
+      R0.forEach((row, u) => row.forEach((x, i) => (R[u][i] = x)));
+      on = { item: false, user: false };
+      render();
+    });
+
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-cold-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-cold-demo .csd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-cold-demo .csd-head {
+    font-size: 0.95em;
+  }
+  .aas-cold-demo .csd-sub {
+    margin-left: 0.4em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-cold-demo .csd-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+  }
+  .aas-cold-demo .csd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cold-demo .csd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cold-demo .csd-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-cold-demo .csd-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 2em;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  /* 평점 행렬. 새 행과 새 열은 켰을 때만 보인다. */
+  .aas-cold-demo .csd-grid {
+    display: grid;
+    grid-template-columns: auto repeat(var(--csd-cols), minmax(2.6em, 3em));
+    gap: 0.25em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-cold-demo:not(.show-item) .is-new-col,
+  .aas-cold-demo:not(.show-user) .is-new-row {
+    display: none;
+  }
+  .aas-cold-demo .csd-colhead,
+  .aas-cold-demo .csd-rowhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-cold-demo .csd-colhead.is-blank,
+  .aas-cold-demo .csd-rowhead.is-target {
+    color: var(--aas-role-focus);
+  }
+  .aas-cold-demo .csd-rowhead.is-nb {
+    color: var(--aas-role-eval);
+  }
+  .aas-cold-demo .csd-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.9em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    font-weight: 700;
+    transition:
+      background-color 0.25s,
+      border-color 0.25s;
+  }
+  .aas-cold-demo .csd-cell.is-empty {
+    color: var(--aas-muted);
+    font-weight: 400;
+  }
+  .aas-cold-demo .csd-cell.is-nb {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+  }
+  .aas-cold-demo .csd-cell.is-blank {
+    border-style: dashed;
+    border-color: var(--aas-role-focus);
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-cold-demo .csd-cell.is-edit {
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--aas-accent) 55%, var(--aas-border));
+  }
+  .aas-cold-demo .csd-cell.is-edit:hover,
+  .aas-cold-demo .csd-cell.is-edit:focus-visible {
+    border-color: var(--aas-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--aas-accent);
+  }
+
+  /* 결과 두 줄: 빈칸 열 아래에 협업 필터링 예측과 콘텐츠 점수 */
+  .aas-cold-demo .csd-reshead {
+    justify-content: flex-end;
+    padding-right: 0.3em;
+    font-size: 0.75em;
+    white-space: nowrap;
+  }
+  .aas-cold-demo .csd-reshead.is-first,
+  .aas-cold-demo .csd-res.is-first {
+    margin-top: 0.4em;
+  }
+  .aas-cold-demo .csd-res {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.7em;
+    font-size: 0.8em;
+    font-weight: 700;
+    border-top: 1px solid var(--aas-border);
+  }
+  .aas-cold-demo .csd-res.is-none {
+    color: var(--aas-role-guard);
+  }
+  .aas-cold-demo .csd-res.is-top {
+    color: var(--aas-role-focus);
+  }
+  .aas-cold-demo .csd-result {
+    flex: 1 1 14em;
+    max-width: 30em;
+  }
+  .aas-cold-demo .csd-legend {
+    margin: 0;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-cold-demo .csd-meta {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-cold-demo .csd-meta strong {
+    margin-left: 0.3em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-cold-demo .csd-note {
+    margin: 0.8em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-cold-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-cold-demo.is-slide .csd-cell {
+    height: 1.65em;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-cold-demo .csd-cell {
+      transition: none;
+    }
+  }
+</style>
