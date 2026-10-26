@@ -246,6 +246,8 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기: 중국어 마침표 뒤에는 공백을 넣지 않는다(그래야 setLines가 끊는다). */
+    const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
 
     const R0 = JSON.parse(root.dataset.cfdRatings);
     const R = R0.map((row) => row.slice());
@@ -438,7 +440,7 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     const note = root.querySelector('[data-cfd-note]');
     const idleText = () => {
       let text = blanks.length ? fill(mode === 'user' ? S.idleUser : S.idleItem, { t: tName, blanks: blanks.map(iname).join('·') }) : S.noBlank;
-      if (editable) text += ` ${S.editHint}`;
+      if (editable) text = cat(text, S.editHint);
       return text;
     };
 

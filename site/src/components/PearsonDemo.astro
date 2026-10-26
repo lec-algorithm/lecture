@@ -142,6 +142,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기: 중국어 마침표 뒤에는 공백을 넣지 않는다(그래야 setLines가 끊는다). */
+    const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const R = JSON.parse(root.dataset.pdRatings);
     const users = JSON.parse(root.dataset.pdUsers);
     const target = Number(root.dataset.pdTarget);
@@ -270,7 +272,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       else {
         msg = fill(S.centeredNote, { common: p.common.map(iname).join('·') });
         const verdict = p.s > 0.9995 ? S.same : p.s <= 0 ? S.opposite : S.plain;
-        msg += ` ${fill(verdict, { p: p.s.toFixed(3) })}`;
+        msg = cat(msg, fill(verdict, { p: p.s.toFixed(3) }));
       }
       setLines(note, msg);
     }

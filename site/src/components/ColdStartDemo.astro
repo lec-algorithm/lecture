@@ -198,6 +198,8 @@ const items = features.map((_, i) => `M${i + 1}`);
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기: 중국어 마침표 뒤에는 공백을 넣지 않는다(그래야 setLines가 끊는다). */
+    const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const R0 = JSON.parse(root.dataset.csdRatings);
     const R = R0.map((row) => row.slice());
     const users = JSON.parse(root.dataset.csdUsers);
@@ -373,7 +375,7 @@ const items = features.map((_, i) => `M${i + 1}`);
         }
       }
       if (!parts.length) parts.push(S.intro);
-      setLines(note, parts.join(' '));
+      setLines(note, cat(...parts));
     }
 
     cells.forEach((el, key) => {

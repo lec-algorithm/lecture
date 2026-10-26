@@ -145,6 +145,8 @@ const a0 = Math.min(1, Math.max(0, alpha));
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
+    /* 문장 잇기: 중국어 마침표 뒤에는 공백을 넣지 않는다(그래야 setLines가 끊는다). */
+    const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const D = JSON.parse(root.dataset.hdData);
     const S = JSON.parse(root.dataset.hdStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
@@ -278,7 +280,7 @@ const a0 = Math.min(1, Math.max(0, alpha));
       parts.push(fill(S.userOrder, { list: orders[1].map((r) => r.it.name).join(' > ') }));
       const m7 = orders[1].find((r) => r.it.cf === null);
       if (m7) parts.push(fill(S.m7, { s: f3(m7.it.content) }));
-      setLines(note, parts.join(' '));
+      setLines(note, cat(...parts));
     }
     range.addEventListener('input', () => {
       alpha = Number(range.value);
