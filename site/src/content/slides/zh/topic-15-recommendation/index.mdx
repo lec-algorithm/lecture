@@ -9,9 +9,12 @@ toc_open: false
 ---
 
 import Slide from 'stack-site-builder/components/Slide.astro';
-import CosineFigure from '@components/CosineFigure.astro';
+import CosineDemo from '@components/CosineDemo.astro';
+import PearsonDemo from '@components/PearsonDemo.astro';
 import CollabFilterDemo from '@components/CollabFilterDemo.astro';
+import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
+import HybridDemo from '@components/HybridDemo.astro';
 
 {/* 幻灯片写作规则遵循 docs/writing-rules.md 的"幻灯片规则"。
     数字与实验代码（topic-15-recommendation）的运行结果一致。 */}
@@ -106,23 +109,10 @@ $$
 
 <Slide>
 
-#### 用户 A 与 B
-::sub[两人的物品 3、4 都是 0，可以画在物品 1、2 的平面上]
+### 动手试试：用户 A 与 B
+::sub[两人的物品 3、4 都是 0，可以画在物品 1、2 的平面上 · 拖动端点试试]
 
-<div class="aas-split">
-<div>
-
-<CosineFigure slide />
-
-</div>
-<div>
-
-$$
-\frac{5 \cdot 4 + 3 \cdot 0}{\sqrt{5^2 + 3^2} \, \sqrt{4^2}} = \frac{20}{5.831 \times 4} = 0.857
-$$
-
-</div>
-</div>
+<CosineDemo slide />
 
 </Slide>
 
@@ -258,6 +248,15 @@ $$
 
 <Slide>
 
+### 动手试试：减去均值
+::sub[选一位用户，在两种视图间切换 · C 的余弦是 0.820，皮尔逊是 1.000]
+
+<PearsonDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 手算一下
 ::sub[A 与其他四人都看过的电影是 M1、M2、M4、M5]
 
@@ -303,6 +302,15 @@ predict A (k = 3, similarity > 0)
 
 两者都把 M3 预测得很高，差别在 M6（《首尔之春》）。  
 对给剧情片打低分的 A 来说，皮尔逊的 **1.536** 更合理。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：评分与邻居数
+::sub[点击格子即可改评分 · 用余弦时把 k 减到 2，M6 降到 1.495]
+
+<CollabFilterDemo measure="cosine" edit slide />
 
 </Slide>
 
@@ -385,6 +393,15 @@ item-based: movies A rated, by cosine to the blank (k = 2)
 
 - **新用户**：没人和 E 重合，没有邻居也没有推荐。
 - **新物品**：新的复仇者联盟还没人看过，无法推荐给任何人。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：新用户与新电影
+::sub[用按钮加入行和列，再点击新格子输入评分]
+
+<ColdStartDemo content={false} slide />
 
 </Slide>
 
@@ -486,6 +503,15 @@ score = cosine(profile, genres), movies A has not rated
 
 <Slide>
 
+### 动手试试：基于内容能解决什么
+::sub[在同一个演示里加上内容分数 · 新电影解决了，新用户还是不行]
+
+<ColdStartDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 两种方式的差别
 
 | | 协同过滤 | 基于内容的过滤 |
@@ -503,6 +529,15 @@ score = cosine(profile, genres), movies A has not rated
 
 ## 3. 混合过滤
 ::sub[Hybrid Filtering · 把两种方式结合起来]
+
+</Slide>
+
+<Slide>
+
+### 动手试试：权重 α
+::sub[α 是协同过滤分数所占的比例 · 小例子在 α 超过 0.75 后排名翻转]
+
+<HybridDemo slide />
 
 </Slide>
 

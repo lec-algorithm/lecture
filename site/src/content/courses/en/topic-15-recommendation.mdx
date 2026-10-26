@@ -10,9 +10,12 @@ tags: ["Self-study"]
 slides: ["topic-15-recommendation"]
 ---
 
-import CosineFigure from '@components/CosineFigure.astro';
+import CosineDemo from '@components/CosineDemo.astro';
+import PearsonDemo from '@components/PearsonDemo.astro';
 import CollabFilterDemo from '@components/CollabFilterDemo.astro';
+import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
+import HybridDemo from '@components/HybridDemo.astro';
 
 > Bonus material that is not in the syllabus. It is not on the exam.  
 > When Netflix picks your next movie or Spotify your next song, the job is
@@ -99,9 +102,12 @@ means not rated yet.
 | user D | 0 | 0 | 4 | 0 |
 
 A and B both have 0 for items 3 and 4, so we can draw them as they are in
-the item 1–item 2 plane.
+the item 1–item 2 plane. Drag the tips around. Change only the length,
+keeping the direction, and the cosine stays the same; put one vector on an
+axis to make a right angle and it drops to 0. Ratings are never negative, so
+the two vectors can never be more than 90 degrees apart.
 
-<CosineFigure />
+<CosineDemo />
 
 $$
 \text{cos}(A, B) = \frac{5 \cdot 4 + 3 \cdot 0}{\sqrt{5^2 + 3^2} \, \sqrt{4^2}}
@@ -204,8 +210,17 @@ $$
 $$
 
 The sums run only over movies **both have rated**, and $$\bar{a}$$ and
-$$\bar{b}$$ are the means over those movies too. Work it out by hand. The
-movies A and each of the other four have both rated are M1, M2, M4 and M5.
+$$\bar{b}$$ are the means over those movies too.
+
+Look at it as bars first. Pick a user to compare and click **Minus the mean**.
+Only the movies both have rated remain, and each bar drops by its user's mean,
+so a movie rated below one's usual hangs below 0. With C the two sets of bars
+take exactly the same shape; with D and E they point opposite ways.
+
+<PearsonDemo />
+
+Now work it out by hand. The movies A and each of the other four have both
+rated are M1, M2, M4 and M5.
 
 | | M1 | M2 | M4 | M5 | mean | minus mean | Pearson |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -308,6 +323,14 @@ Day*). Cosine lets E in and gets **2.542**; Pearson leaves E out and gets
 **1.536**. Given that A rates dramas low, Pearson's answer is the more
 plausible one.
 
+Now change things yourself. Clicking a cell cycles its rating 0→1→…→5→0, and
+the chips above pick the similarity and $$k$$. Every change recomputes the
+similarities, neighbors and predictions and shows the final step; click
+**Reset** to follow it step by step again. With cosine, lowering $$k$$ to 2
+drops E and brings the M6 prediction down to 1.495.
+
+<CollabFilterDemo measure="cosine" edit />
+
 **Cost**: with $$m$$ users and $$n$$ items, one similarity is $$O(n)$$, and
 the target user against everyone else is $$O(mn)$$. Precomputing every pair
 of users costs $$O(m^2 n)$$. With hundreds of millions of users, that square
@@ -396,6 +419,16 @@ and it happens on both sides, people and items.
 - **New item**: a new Avengers movie has just opened. Nobody has seen it,
   so its column is all blank, and neither user-based nor item-based
   filtering can recommend it to anyone.
+
+Let us create both cases in the Example 1 matrix. **New movie M7** adds a
+column nobody has rated, and **New user F** adds a row with no ratings. Click
+the new cells to enter ratings, and the Pearson ($$k = 3$$) predictions are
+recomputed. Give F just one rating and subtracting the mean leaves only 0, so
+the similarity still cannot be measured; F needs two or more before any
+neighbor can appear. M7 gets a prediction only once one of the neighbors
+rates it.
+
+<ColdStartDemo content={false} />
 
 ## Example 2. Content-based filtering \{#content-based}
 
@@ -548,6 +581,14 @@ other users does not matter.
   taste. Collaborative filtering can make genre-crossing recommendations,
   like the *12.12: The Day* that C watched.
 
+Here is the demo from [cold start](#cold-start) with a row of content scores
+added. Turn on M7 and collaborative filtering cannot predict it, but
+content-based filtering gives it 0.764. Turn on F and the profile is the zero
+vector, so every content score is 0 too. Give F a rating and a profile
+appears at once.
+
+<ColdStartDemo />
+
 ## How the two differ \{#comparison}
 
 | | Collaborative filtering | Content-based filtering |
@@ -574,10 +615,19 @@ $$
 $$
 
 A small example first mixes collaborative scores (0.8, 0.7, 0.3) and
-content scores (0.6, 0.9, 0.4) for three items with $$\alpha = 0.5$$. For A,
+content scores (0.6, 0.9, 0.4) for three items. For A,
 we divide the Pearson predictions from Example 1 by 5 to put them on a 0–1
 scale and mix them with the scores from Example 2. M7 has no collaborative
 score, so it uses its content score as is.
+
+Move $$\alpha$$. Each bar stacks the collaborative share and the content
+share, and the rows swap places by score. In the toy example item 1 overtakes
+item 2 once $$\alpha$$ goes above 0.75. A's order stays M3, M7, M6 whatever
+$$\alpha$$ is.
+
+<HybridDemo />
+
+The practice code mixes them half and half ($$\alpha = 0.5$$).
 
 - Result (`02_content_based_filtering`, continued)
 
