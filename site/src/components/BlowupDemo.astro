@@ -1,0 +1,495 @@
+---
+// 패턴 a*a*…a*b(a*가 n번)와 텍스트 aa…a(a가 n개)에서 백트래킹과 NFA가
+// 얼마나 일하는지 n을 바꿔 가며 견주는 데모.
+//
+// 슬라이더로 n을 고르면 두 절차를 실제로 돌린다.
+//   - 백트래킹: regexMatch의 match를 위치 0에서 부르고, match 호출 수(비교 횟수)와
+//     최대 재귀 깊이를 센다. 깊이는 matchStar도 한 단계로 센다.
+//   - NFA: nfaRegex의 BuildNFA로 그래프를 만들고 상태 집합으로 돌린다.
+//     작업량은 집합에 넣은 상태 수의 합(DFS가 표시한 횟수)이다.
+// 막대는 n = 1부터 지금 n까지다. 눈금은 로그와 선형을 오갈 수 있다.
+// 숫자는 algorithm-code의 regexMatch.c · nfaRegex.c 출력과 같다
+// (n = 10에서 352,716과 232, n = 12에서 5,200,300과 326).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 고른 n */
+  n?: number;
+  /** NFA 작업량도 나란히 그린다. 끄면 백트래킹만(최대 깊이 포함) */
+  compare?: boolean;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { n = 6, compare = false, slide = false } = Astro.props;
+const id = `bu-${Math.random().toString(36).slice(2, 9)}`;
+const MAX_N = 12;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '백트래킹이 폭발하는 입력',
+    nLabel: 'n',
+    log: '로그 눈금',
+    linear: '선형 눈금',
+    pattern: '패턴',
+    text: '텍스트',
+    bt: '백트래킹 비교',
+    depth: '최대 깊이',
+    nfa: 'NFA 작업량',
+    noteBt: 'a 여러 개를 a* {n}개에 나눠 주는 모든 경우를 시도해 {c}번 비교합니다. n이 하나 늘 때 {r}배가 됩니다.',
+    noteBt1: 'a 하나를 a* 하나에 줄지 말지 시도해 {c}번 비교합니다. n을 올려 보세요.',
+    noteCmp: '백트래킹은 {c}번 비교합니다. NFA는 같은 입력에서 집합에 상태를 {w}번 넣고 끝납니다.',
+    noteLinear: '선형 눈금에서는 NFA 막대가 바닥에 붙어 보이지 않습니다.',
+  },
+  en: {
+    title: 'An input that makes backtracking explode',
+    nLabel: 'n',
+    log: 'Log scale',
+    linear: 'Linear scale',
+    pattern: 'pattern',
+    text: 'text',
+    bt: 'backtracking calls',
+    depth: 'max depth',
+    nfa: 'NFA work',
+    noteBt: 'It tries every way to share the a’s among {n} copies of a*, making {c} calls. Each step up in n multiplies it by {r}.',
+    noteBt1: 'It tries giving the single a to the single a* or not, making {c} calls. Raise n.',
+    noteCmp: 'Backtracking makes {c} calls. On the same input the NFA puts a state into its set {w} times and is done.',
+    noteLinear: 'On a linear scale the NFA bars hug the floor and disappear.',
+  },
+  zh: {
+    title: '让回溯爆炸的输入',
+    nLabel: 'n',
+    log: '对数刻度',
+    linear: '线性刻度',
+    pattern: '模式',
+    text: '文本',
+    bt: '回溯比较次数',
+    depth: '最大深度',
+    nfa: 'NFA 工作量',
+    noteBt: '把若干个 a 分给 {n} 个 a* 的所有方式都试一遍，共比较 {c} 次。n 每加 1，次数变为原来的 {r} 倍。',
+    noteBt1: '尝试把唯一的 a 给不给唯一的 a*，共比较 {c} 次。请把 n 调大。',
+    noteCmp: '回溯比较 {c} 次。同样的输入，NFA 只往集合里放了 {w} 次状态就结束了。',
+    noteLinear: '在线性刻度下，NFA 的柱子贴着底部，几乎看不见。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-blowup-demo', slide && 'is-slide', compare && 'is-compare']}
+  id={id}
+  data-bu-n={Math.min(Math.max(1, n), MAX_N)}
+  data-bu-max={MAX_N}
+  data-bu-compare={compare ? '1' : ''}
+  data-bu-strings={JSON.stringify(t)}
+>
+  <div class="bu-bar">
+    <span class="bu-head"><strong>{t.title}</strong></span>
+    <label class="bu-range">
+      {t.nLabel} = <strong data-bu-nval></strong>
+      <input type="range" min="1" max={MAX_N} step="1" data-bu-range />
+    </label>
+    <div class="bu-controls">
+      <button type="button" class="bu-btn" data-bu-scale="log">{t.log}</button>
+      <button type="button" class="bu-btn" data-bu-scale="linear">{t.linear}</button>
+    </div>
+  </div>
+
+  <div class="bu-io">
+    <span class="bu-io-label">{t.pattern}</span><code data-bu-pat></code>
+    <span class="bu-io-label">{t.text}</span><code data-bu-text></code>
+  </div>
+
+  <div class="bu-body">
+    <svg class="bu-chart" data-bu-svg role="img" aria-label={t.title}></svg>
+    <div class="bu-side">
+      <div class="bu-stat is-bt"><span>{t.bt}</span><strong data-bu-c></strong></div>
+      {compare
+        ? <div class="bu-stat is-nfa"><span>{t.nfa}</span><strong data-bu-w></strong></div>
+        : <div class="bu-stat is-depth"><span>{t.depth}</span><strong data-bu-d></strong></div>}
+    </div>
+  </div>
+  <p class="bu-note" data-bu-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.buStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    const MAX_N = Number(root.dataset.buMax);
+    const compare = !!root.dataset.buCompare;
+
+    /* 백트래킹: regexMatch.pseudo의 Match와 MatchStar. 문자열 대신 위치로 들고 다닌다. */
+    function backtrack(n) {
+      const P = 'a*'.repeat(n) + 'b';
+      const T = 'a'.repeat(n);
+      let calls = 0;
+      let depth = 0;
+      let maxDepth = 0;
+      const enter = () => {
+        depth += 1;
+        if (depth > maxDepth) maxDepth = depth;
+      };
+      function match(p, t) {
+        calls += 1;
+        enter();
+        let r;
+        if (p === P.length) r = true;
+        else if (P[p + 1] === '*') r = matchStar(P[p], p + 2, t);
+        else if (t < T.length && (P[p] === '.' || P[p] === T[t])) r = match(p + 1, t + 1);
+        else r = false;
+        depth -= 1;
+        return r;
+      }
+      function matchStar(c, p, t) {
+        enter();
+        let r = match(p, t);
+        while (!r && t < T.length && (T[t] === c || c === '.')) {
+          t += 1;
+          r = match(p, t);
+        }
+        depth -= 1;
+        return r;
+      }
+      match(0, 0);
+      return { calls, maxDepth };
+    }
+
+    /* NFA: nfaRegex.pseudo의 BuildNFA와 Recognizes. 작업량은 DFS가 표시한 상태 수의 합 */
+    function nfaWork(n) {
+      const re = `(${'a*'.repeat(n)}b)`;
+      const M = re.length;
+      const eps = [];
+      const ops = [];
+      for (let i = 0; i < M; i++) {
+        let lp = i;
+        if (re[i] === '(' || re[i] === '|') ops.push(i);
+        else if (re[i] === ')') {
+          const or = ops.pop();
+          if (re[or] === '|') {
+            lp = ops.pop();
+            eps.push([lp, or + 1], [or, i]);
+          } else lp = or;
+        }
+        if (i < M - 1 && re[i + 1] === '*') eps.push([lp, i + 1], [i + 1, lp]);
+        if (re[i] === '(' || re[i] === '*' || re[i] === ')') eps.push([i, i + 1]);
+      }
+      let work = 0;
+      const closure = (set) => {
+        const out = new Set();
+        const dfs = (v) => {
+          out.add(v);
+          work += 1;
+          for (const [a, b] of eps) if (a === v && !out.has(b)) dfs(b);
+        };
+        for (let v = 0; v <= M; v++) if (set.has(v) && !out.has(v)) dfs(v);
+        return out;
+      };
+      const isLiteral = (c) => !'()*|'.includes(c);
+      let pc = closure(new Set([0]));
+      for (const ch of 'a'.repeat(n)) {
+        const match = new Set();
+        for (let i = 0; i < M; i++) {
+          if (pc.has(i) && isLiteral(re[i]) && (re[i] === ch || re[i] === '.')) match.add(i + 1);
+        }
+        pc = closure(match);
+      }
+      return work;
+    }
+
+    /* 결과는 n마다 한 번만 계산해 둔다. n = 12의 백트래킹은 호출이 500만 번을 넘는다. */
+    const cache = [];
+    const get = (k) => {
+      if (!cache[k]) cache[k] = { ...backtrack(k), work: nfaWork(k) };
+      return cache[k];
+    };
+
+    const svg = root.querySelector('[data-bu-svg]');
+    const range = root.querySelector('[data-bu-range]');
+    const nval = root.querySelector('[data-bu-nval]');
+    const patEl = root.querySelector('[data-bu-pat]');
+    const textEl = root.querySelector('[data-bu-text]');
+    const cEl = root.querySelector('[data-bu-c]');
+    const wEl = root.querySelector('[data-bu-w]');
+    const dEl = root.querySelector('[data-bu-d]');
+    const note = root.querySelector('[data-bu-note]');
+    const scaleBtns = [...root.querySelectorAll('[data-bu-scale]')];
+    let N = Number(root.dataset.buN);
+    let scale = 'log';
+    range.value = String(N);
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const short = (v) => (v >= 1e6 ? `${v / 1e6}M` : v >= 1e3 ? `${v / 1e3}k` : String(v));
+
+    function draw() {
+      const W = 640;
+      const H = 280;
+      const L = 52;
+      const B = 30;
+      const top = 14;
+      const ph = H - B - top;
+      const slot = (W - L - 8) / MAX_N;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.replaceChildren();
+      const vals = [];
+      for (let k = 1; k <= N; k++) vals.push(get(k));
+      let yOf;
+      if (scale === 'log') {
+        const maxExp = 7;
+        yOf = (v) => (v <= 0 ? 0 : (Math.log10(v) / maxExp) * ph);
+        for (let e = 0; e <= maxExp; e++) {
+          const y = H - B - (e / maxExp) * ph;
+          el('line', { x1: L, x2: W - 4, y1: y, y2: y, class: 'bu-grid' }, svg);
+          el('text', { x: L - 8, y, class: 'bu-axis is-y' }, svg).textContent = short(10 ** e);
+        }
+      } else {
+        const top1 = Math.max(...vals.map((v) => v.calls));
+        const mag = 10 ** Math.floor(Math.log10(top1));
+        const nice = Math.ceil(top1 / mag) * mag;
+        yOf = (v) => (v / nice) * ph;
+        for (let g = 0; g <= 4; g++) {
+          const v = (nice * g) / 4;
+          const y = H - B - (g / 4) * ph;
+          el('line', { x1: L, x2: W - 4, y1: y, y2: y, class: 'bu-grid' }, svg);
+          el('text', { x: L - 8, y, class: 'bu-axis is-y' }, svg).textContent = short(v);
+        }
+      }
+      for (let k = 1; k <= MAX_N; k++) {
+        const x0 = L + (k - 1) * slot;
+        el('text', { x: x0 + slot / 2, y: H - B + 18, class: `bu-axis is-x${k === N ? ' is-now' : ''}` }, svg)
+          .textContent = String(k);
+        if (k > N) continue;
+        const v = vals[k - 1];
+        const bw = compare ? slot * 0.36 : slot * 0.6;
+        const cls = k === N ? ' is-now' : '';
+        const h1 = yOf(v.calls);
+        const bx = compare ? x0 + slot / 2 - bw - 1 : x0 + (slot - bw) / 2;
+        el('rect', { x: bx, y: H - B - h1, width: bw, height: Math.max(h1, 0.5), class: `bu-col is-bt${cls}` }, svg);
+        if (compare) {
+          const h2 = yOf(v.work);
+          el('rect', { x: x0 + slot / 2 + 1, y: H - B - h2, width: bw, height: Math.max(h2, 0.5), class: `bu-col is-nfa${cls}` }, svg);
+        }
+      }
+      el('line', { x1: L, x2: W - 4, y1: H - B, y2: H - B, class: 'bu-base' }, svg);
+    }
+
+    function render() {
+      const v = get(N);
+      nval.textContent = String(N);
+      patEl.textContent = `${'a*'.repeat(N)}b`;
+      textEl.textContent = 'a'.repeat(N);
+      cEl.textContent = fmt(v.calls);
+      if (wEl) wEl.textContent = fmt(v.work);
+      if (dEl) dEl.textContent = String(v.maxDepth);
+      scaleBtns.forEach((b) => b.classList.toggle('is-on', b.dataset.buScale === scale));
+      draw();
+      let msg;
+      if (compare) {
+        msg = fill(S.noteCmp, { c: fmt(v.calls), w: fmt(v.work) });
+        if (scale === 'linear') msg += ` ${S.noteLinear}`;
+      } else if (N === 1) {
+        msg = fill(S.noteBt1, { c: fmt(v.calls) });
+      } else {
+        const r = (v.calls / get(N - 1).calls).toFixed(1);
+        msg = fill(S.noteBt, { n: N, c: fmt(v.calls), r });
+      }
+      setLines(note, msg);
+    }
+
+    range.addEventListener('input', () => {
+      N = Number(range.value);
+      render();
+    });
+    scaleBtns.forEach((b) =>
+      b.addEventListener('click', () => {
+        scale = b.dataset.buScale;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-blowup-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-blowup-demo .bu-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-blowup-demo .bu-head {
+    font-size: 0.95em;
+  }
+  .aas-blowup-demo .bu-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-blowup-demo .bu-range strong {
+    min-width: 1.5em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-blowup-demo .bu-range input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-blowup-demo .bu-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-blowup-demo .bu-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-blowup-demo .bu-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-blowup-demo .bu-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-blowup-demo .bu-io {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.2em 0.8em;
+    align-items: baseline;
+    font-size: 0.85em;
+  }
+  .aas-blowup-demo .bu-io-label {
+    color: var(--aas-muted);
+  }
+  .aas-blowup-demo .bu-io code {
+    overflow-wrap: anywhere;
+  }
+  .aas-blowup-demo .bu-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+    margin-top: 0.4em;
+  }
+  .aas-blowup-demo .bu-chart {
+    flex: 2 1 22em;
+    min-width: 0;
+    max-height: 18em;
+  }
+  .aas-blowup-demo .bu-side {
+    flex: 1 1 9em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8em;
+  }
+  .aas-blowup-demo .bu-stat {
+    display: flex;
+    flex-direction: column;
+    padding-left: 0.6em;
+    border-left: 0.3em solid var(--aas-border);
+  }
+  .aas-blowup-demo .bu-stat span {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-blowup-demo .bu-stat strong {
+    font-size: 1.6em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-blowup-demo .bu-stat.is-bt {
+    border-color: var(--aas-role-guard);
+  }
+  .aas-blowup-demo .bu-stat.is-nfa {
+    border-color: var(--aas-role-eval);
+  }
+  .aas-blowup-demo .bu-stat.is-depth {
+    border-color: var(--aas-role-model);
+  }
+  .aas-blowup-demo .bu-grid {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .aas-blowup-demo .bu-base {
+    stroke: var(--aas-muted);
+    stroke-width: 1.4;
+  }
+  .aas-blowup-demo .bu-axis {
+    font-size: 13px;
+    fill: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-blowup-demo .bu-axis.is-y {
+    text-anchor: end;
+    dominant-baseline: central;
+  }
+  .aas-blowup-demo .bu-axis.is-x {
+    text-anchor: middle;
+  }
+  .aas-blowup-demo .bu-axis.is-now {
+    fill: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-blowup-demo .bu-col {
+    opacity: 0.45;
+    transition: opacity 0.3s;
+  }
+  .aas-blowup-demo .bu-col.is-now {
+    opacity: 1;
+  }
+  .aas-blowup-demo .bu-col.is-bt {
+    fill: var(--aas-role-guard);
+  }
+  .aas-blowup-demo .bu-col.is-nfa {
+    fill: var(--aas-role-eval);
+  }
+  .aas-blowup-demo .bu-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-blowup-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-blowup-demo.is-slide .bu-chart {
+    max-height: 36vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-blowup-demo * {
+      transition: none !important;
+    }
+  }
+</style>
