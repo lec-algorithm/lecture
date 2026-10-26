@@ -14,6 +14,11 @@
 // collaborative_filtering.py와 같다. 피어슨 k=3이면 이웃 C·B, M3 4.464,
 // M6 1.536. 코사인 k=3이면 이웃 B·C·E, M3 4.354, M6 2.542. 아이템 기반 k=2면
 // M3 4.497, M6 2.811이다.
+//
+// edit를 주면 칸을 눌러 평점을 0→1→…→5→0으로 바꿀 수 있고, 유사도(사용자
+// 기반)와 이웃 수 k도 칩으로 고른다. 바꿀 때마다 단계 배열을 다시 만들고 끝
+// 단계를 보여 준다. 코사인 k=2면 이웃 B·C, M6 1.495다. 기본값(edit 없음)이면
+// 예전과 똑같이 동작한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -29,6 +34,8 @@ interface Props {
   measure?: 'cosine' | 'pearson';
   /** 이웃 수. 기본은 사용자 기반 3, 아이템 기반 2 */
   k?: number;
+  /** 칸을 눌러 평점을 바꾸고, 유사도와 k를 칩으로 고르게 한다. */
+  edit?: boolean;
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
   slide?: boolean;
 }
@@ -44,12 +51,15 @@ const {
   target = 0,
   mode = 'user',
   measure = 'pearson',
+  edit = false,
   slide = false,
 } = Astro.props;
 const k = Astro.props.k ?? (mode === 'user' ? 3 : 2);
 const id = `cfd-${Math.random().toString(36).slice(2, 9)}`;
 const nItems = ratings[0].length;
 const items = Array.from({ length: nItems }, (_, i) => `M${i + 1}`);
+const kMax = Math.min(5, mode === 'user' ? ratings.length - 1 : nItems - 1);
+const kChoices = Array.from({ length: kMax }, (_, i) => i + 1);
 
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
@@ -78,6 +88,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     predictItem: '{item} = {t}가 준 평점을 유사도로 가중 평균: {formula} = {p}',
     noBasis: '{item}: 근거가 없어 예측할 수 없습니다.',
     done: '끝. 예측값이 가장 큰 {item}({p})을 {t}에게 추천합니다.',
+    noneDone: '끝. 어느 빈칸도 예측할 근거가 없습니다.',
+    noBlank: '빈칸이 없습니다. 대상 사용자가 모든 영화를 이미 평가했습니다.',
+    measureLabel: '유사도',
+    kLabel: '이웃 수 k',
+    restore: '원래대로',
+    editHint: '칸을 누르면 평점이 0→1→…→5→0으로 바뀝니다. 0은 안 본 칸입니다.',
   },
   en: {
     titleUser: 'User-based collaborative filtering',
@@ -105,6 +121,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     predictItem: '{item} = {t}’s own ratings, weighted by similarity: {formula} = {p}',
     noBasis: '{item}: nothing to predict from.',
     done: 'Done. Recommend {item} ({p}), the highest prediction, to {t}.',
+    noneDone: 'Done. No blank has anything to predict from.',
+    noBlank: 'There are no blanks. The target user has already rated every movie.',
+    measureLabel: 'similarity',
+    kLabel: 'neighbors k',
+    restore: 'Restore',
+    editHint: 'Click a cell to cycle its rating 0→1→…→5→0. A 0 means not rated.',
   },
   zh: {
     titleUser: '基于用户的协同过滤',
@@ -132,6 +154,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     predictItem: '{item} = {t} 自己的评分按相似度加权平均：{formula} = {p}',
     noBasis: '{item}：没有依据，无法预测。',
     done: '结束。把预测值最高的 {item}（{p}）推荐给 {t}。',
+    noneDone: '结束。没有任何空格有预测依据。',
+    noBlank: '没有空格。目标用户已经评过所有电影。',
+    measureLabel: '相似度',
+    kLabel: '邻居数 k',
+    restore: '还原',
+    editHint: '点击格子，评分按 0→1→…→5→0 变化。0 表示没看过。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -140,7 +168,7 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
 ---
 
 <div
-  class:list={['aas-cf-demo', slide && 'is-slide', `is-${mode}`]}
+  class:list={['aas-cf-demo', slide && 'is-slide', `is-${mode}`, edit && 'is-edit']}
   id={id}
   data-cfd-ratings={JSON.stringify(ratings)}
   data-cfd-users={JSON.stringify(users)}
@@ -148,11 +176,12 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
   data-cfd-mode={mode}
   data-cfd-measure={measure}
   data-cfd-k={k}
+  data-cfd-edit={edit ? '1' : '0'}
   data-cfd-strings={JSON.stringify(t)}
   style={`--cfd-cols: ${nItems}`}
 >
   <div class="cfd-bar">
-    <span class="cfd-head"><strong>{title}</strong> <span class="cfd-k">k = {k}</span></span>
+    <span class="cfd-head"><strong data-cfd-title>{title}</strong> <span class="cfd-k" data-cfd-kval>k = {k}</span></span>
     <div class="cfd-controls">
       <button type="button" data-act="back" class="cfd-btn">{t.back}</button>
       <button type="button" data-act="step" class="cfd-btn">{t.step}</button>
@@ -160,6 +189,23 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
       <button type="button" data-act="reset" class="cfd-btn">{t.reset}</button>
     </div>
   </div>
+
+  {edit && (
+    <div class="cfd-edit">
+      {mode === 'user' && (
+        <span class="cfd-group">
+          <span class="cfd-group-label">{t.measureLabel}</span>
+          <button type="button" class="cfd-chip" data-cfd-measure-btn="cosine">{t.cosine}</button>
+          <button type="button" class="cfd-chip" data-cfd-measure-btn="pearson">{t.pearson}</button>
+        </span>
+      )}
+      <span class="cfd-group">
+        <span class="cfd-group-label">{t.kLabel}</span>
+        {kChoices.map((v) => <button type="button" class="cfd-chip" data-cfd-k-btn={v}>{v}</button>)}
+      </span>
+      <button type="button" class="cfd-chip" data-cfd-restore>{t.restore}</button>
+    </div>
+  )}
 
   <div class="cfd-grid">
     <span class="cfd-corner"></span>
@@ -201,12 +247,16 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
 
-    const R = JSON.parse(root.dataset.cfdRatings);
+    const R0 = JSON.parse(root.dataset.cfdRatings);
+    const R = R0.map((row) => row.slice());
     const users = JSON.parse(root.dataset.cfdUsers);
     const target = Number(root.dataset.cfdTarget);
     const mode = root.dataset.cfdMode;
-    const measure = root.dataset.cfdMeasure;
-    const K = Number(root.dataset.cfdK);
+    const measure0 = root.dataset.cfdMeasure;
+    const K0 = Number(root.dataset.cfdK);
+    const editable = root.dataset.cfdEdit === '1';
+    let measure = measure0;
+    let K = K0;
     const S = JSON.parse(root.dataset.cfdStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const m = R.length;
@@ -262,7 +312,11 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     }
     const col = (j) => R.map((row) => row[j]);
     const blanks = [];
-    for (let i = 0; i < n; i++) if (R[target][i] === 0) blanks.push(i);
+    function findBlanks() {
+      blanks.length = 0;
+      for (let i = 0; i < n; i++) if (R[target][i] === 0) blanks.push(i);
+    }
+    findBlanks();
 
     /* 전체 과정을 미리 단계 배열로 만든다. 절차는 collaborativeFiltering.pseudo와 같다. */
     function plan() {
@@ -354,8 +408,15 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
         }
       }
       const last = steps[steps.length - 1];
+      let doneNote = S.noneDone;
+      if (best) doneNote = fill(S.done, { item: iname(best.item), p: f3(best.p), t: tName });
+      else if (!blanks.length) doneNote = S.noBlank;
+      else if (mode === 'user' && last && last.nb && !last.nb.length) doneNote = S.pickNone;
       steps.push({
         ...last,
+        pred: pred.slice(),
+        usim: last && last.usim ? last.usim : new Array(m).fill(null),
+        isim: last && last.isim ? last.isim : new Array(n).fill(null),
         rows: undefined,
         cols: undefined,
         cells: undefined,
@@ -363,19 +424,23 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
         fresh: undefined,
         done: true,
         best: best ? best.item : null,
-        note: best ? fill(S.done, { item: iname(best.item), p: f3(best.p), t: tName }) : S.pickNone,
+        note: doneNote,
       });
       return steps;
     }
 
-    const steps = plan();
+    let steps = plan();
     const cells = new Map([...root.querySelectorAll('[data-cfd-cell]')].map((el) => [el.dataset.cfdCell, el]));
     const rowHeads = [...root.querySelectorAll('[data-cfd-rowhead]')];
     const colHeads = [...root.querySelectorAll('[data-cfd-colhead]')];
     const usimEls = [...root.querySelectorAll('[data-cfd-usim]')];
     const isimEls = [...root.querySelectorAll('[data-cfd-isim]')];
     const note = root.querySelector('[data-cfd-note]');
-    const idle = fill(mode === 'user' ? S.idleUser : S.idleItem, { t: tName, blanks: blanks.map(iname).join('·') });
+    const idleText = () => {
+      let text = blanks.length ? fill(mode === 'user' ? S.idleUser : S.idleItem, { t: tName, blanks: blanks.map(iname).join('·') }) : S.noBlank;
+      if (editable) text += ` ${S.editHint}`;
+      return text;
+    };
 
     function render(s, animate) {
       const st = s >= 0 ? steps[s] : null;
@@ -421,7 +486,7 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
           el.classList.toggle('is-nb', !!(st && st.picked && st.picked.includes(i)));
         });
       }
-      setLines(note, st ? st.note : idle);
+      setLines(note, st ? st.note : idleText());
       root.classList.toggle('is-done', !!(st && st.done));
     }
 
@@ -462,6 +527,72 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
       playBtn.textContent = S.stop;
       timer = setInterval(step, 1500);
     });
+
+    /* edit: 칸을 누르면 평점이 바뀌고, 단계 배열을 다시 만들어 끝 단계를 보여 준다. */
+    function paint() {
+      for (let u = 0; u < m; u++) {
+        for (let i = 0; i < n; i++) {
+          const el = cells.get(`${u}-${i}`);
+          const x = R[u][i];
+          const blank = u === target && x === 0;
+          el.classList.toggle('is-empty', x === 0);
+          el.classList.toggle('is-blank', blank);
+          if (!blank) {
+            el.textContent = x === 0 ? '·' : String(x);
+            el.classList.remove('is-filled', 'is-fresh', 'is-best');
+          }
+        }
+      }
+      const title = root.querySelector('[data-cfd-title]');
+      if (mode === 'user') title.textContent = `${S.titleUser} · ${measure === 'cosine' ? S.cosine : S.pearson}`;
+      root.querySelector('[data-cfd-kval]').textContent = `k = ${K}`;
+      root.querySelectorAll('[data-cfd-measure-btn]').forEach((b) => b.classList.toggle('is-on', b.dataset.cfdMeasureBtn === measure));
+      root.querySelectorAll('[data-cfd-k-btn]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.cfdKBtn) === K));
+    }
+    function replan(toEnd) {
+      stop();
+      findBlanks();
+      steps = plan();
+      at = toEnd ? steps.length - 1 : -1;
+      paint();
+      render(at, false);
+    }
+    if (editable) {
+      cells.forEach((el, key) => {
+        const [u, i] = key.split('-').map(Number);
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        const bump = () => {
+          R[u][i] = (R[u][i] + 1) % 6;
+          replan(true);
+        };
+        el.addEventListener('click', bump);
+        el.addEventListener('keydown', (ev) => {
+          if (ev.key !== 'Enter' && ev.key !== ' ') return;
+          ev.preventDefault();
+          bump();
+        });
+      });
+      root.querySelectorAll('[data-cfd-measure-btn]').forEach((b) =>
+        b.addEventListener('click', () => {
+          measure = b.dataset.cfdMeasureBtn;
+          replan(true);
+        }),
+      );
+      root.querySelectorAll('[data-cfd-k-btn]').forEach((b) =>
+        b.addEventListener('click', () => {
+          K = Number(b.dataset.cfdKBtn);
+          replan(true);
+        }),
+      );
+      root.querySelector('[data-cfd-restore]').addEventListener('click', () => {
+        R0.forEach((row, u) => row.forEach((x, i) => (R[u][i] = x)));
+        measure = measure0;
+        K = K0;
+        replan(false);
+      });
+      paint();
+    }
 
     render(-1, false);
   })();
@@ -513,6 +644,49 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     background: var(--aas-accent);
     border-color: var(--aas-accent);
     color: #fff;
+  }
+
+  /* edit: 유사도·k 칩과 누를 수 있는 칸 */
+  .aas-cf-demo .cfd-edit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    margin-bottom: 0.8em;
+  }
+  .aas-cf-demo .cfd-group {
+    display: flex;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-cf-demo .cfd-group-label {
+    margin-right: 0.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-cf-demo .cfd-chip {
+    min-width: 2em;
+    padding: 0.2em 0.6em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cf-demo .cfd-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cf-demo .cfd-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-cf-demo.is-edit .cfd-cell {
+    cursor: pointer;
+  }
+  .aas-cf-demo.is-edit .cfd-cell:hover {
+    border-color: var(--aas-accent);
   }
 
   /* 평점 행렬. 사용자 기반이면 오른쪽에 유사도 칸, 아이템 기반이면 아래에 유사도 줄 */
