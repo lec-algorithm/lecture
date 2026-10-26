@@ -1,0 +1,935 @@
+---
+title: "Topic 08. Hash Tables"
+description: "Hash functions that compute a slot straight from the key, two ways to resolve collisions (separate chaining and linear probing), and the performance the load factor decides"
+date: "Topic 08 · v1"
+order: 8
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import HashSlotDemo from '@components/HashSlotDemo.astro';
+import ChainingDemo from '@components/ChainingDemo.astro';
+import ProbingDemo from '@components/ProbingDemo.astro';
+import ClusterFigure from '@components/ClusterFigure.astro';
+
+{/* Slide rules follow the slide rules section of docs/writing-rules.md.
+    Numbers match the practice code (topic-08-hashing) exactly. */}
+
+<Slide class="cover">
+
+# Hash Tables
+
+Topic 08
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## Finding without comparing
+::sub[The binary search tree of Topic 07 searched by comparing]
+
+- **Binary search tree**: goes down comparing keys. Even balanced, $$O(\log n)$$
+- **Hash table**: **computes the slot straight** from the key. $$O(1)$$ on average
+
+<br/>
+
+That computation is the hash function.  
+Everything else is how to resolve collisions, where different keys point to the same slot.
+
+</Slide>
+
+<Slide class="center">
+
+## Keys as array indices
+::sub[Key as an Index]
+
+</Slide>
+
+<Slide class="compact">
+
+#### If the key were the address
+::sub[The item with key i goes in slot i of the array]
+
+```plaintext
+slot  1   2   3   4   5   6   7   8
+     [ ] [ ] [3] [ ] [5] [ ] [ ] [8]
+
+find 3?  -> look at A[3]. It is there.
+find 5?  -> look at A[5]. It is there.
+find 7?  -> look at A[7]. Empty, so it is not there.
+```
+
+Not a single comparison.  
+Any key takes one memory access: $$O(1)$$.
+
+</Slide>
+
+<Slide>
+
+#### Hashing
+::sub[This method extended to keys that are not small integers]
+
+- We want to do the same with **keys that are large or not integers**: ID numbers, names, student IDs, strings.
+- That takes two things.
+  - **Hash function**: a computation that turns a key into an array index
+  - **Collision resolution**: what to do when different keys turn into the same index
+
+</Slide>
+
+<Slide>
+
+#### Between time and memory
+::sub[Hashing finds a balance point between two extremes]
+
+| If memory is | What you can do | The price |
+| --- | --- | --- |
+| unlimited | give every key its own slot | memory ($$10^{13}$$ slots) |
+| very scarce | gather everything in one array and search sequentially | time ($$O(n)$$) |
+| moderate | **hashing**: scatter, then handle only the overlaps | a little of both |
+
+</Slide>
+
+<Slide>
+
+#### The café stamp-card rack
+::sub[There is a slot for each first letter of a customer's name]
+
+- To find a card, you go through **one slot**, not the whole box.
+- **Picking the first letter** is the hash function.
+- **Several cards in one slot** is a collision.
+
+<br/>
+
+There are far fewer slots than customers, so it uses little memory,  
+and you only go through one slot, so it takes little time.
+
+</Slide>
+
+<Slide class="center">
+
+## Hash functions
+::sub[Hash Function]
+
+</Slide>
+
+<Slide>
+
+#### A good hash function
+::sub[It turns a key into an array index]
+
+1. **The result is always an integer in $$[0, M-1]$$.**
+2. **It is easy to compute.**
+3. **It spreads the keys evenly over the whole array.**
+
+<br/>
+
+- **ID numbers**: if it is a number, use the number as it is.
+- **Names**: if it is a string, turn it into a number.
+- **Your own data types**: you have to write the hash function yourself.
+
+</Slide>
+
+<Slide>
+
+#### Modular hashing
+::sub[The most common way to hash integers]
+
+<div class="aas-split">
+<div>
+
+$$
+h(k) = k \bmod M
+$$
+
+- The **remainder** of the key divided by the array size $$M$$
+- The remainder is always in $$[0, M-1]$$
+- A single division, so it is easy to compute.
+
+</div>
+<div>
+
+| Key | Code | Hash ($$M = 8$$) |
+| --- | --- | --- |
+| A | 65 | 1 |
+| B | 66 | 2 |
+| C | 67 | 3 |
+| K | 75 | 3 |
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### One step at a time: A B C K
+::sub[Code mod 8 picks the slot. A key entering an already full slot turns red]
+
+<HashSlotDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Collisions
+::sub[Collision]
+
+`C` (67) and `K` (75) are different keys, yet both point to slot 3.
+
+<br/>
+
+- Ideally, different keys go to different indices.
+- In practice, though, different keys **can map to the same array index.**
+
+</Slide>
+
+<Slide>
+
+### Make M a prime: M = 8
+::sub[What if only multiples of 4 come in?]
+
+<HashSlotDemo keys={[0, 4, 8, 12, 16, 20, 24, 28]} m={8} slide />
+
+</Slide>
+
+<Slide>
+
+### Make M a prime: M = 7
+::sub[Same keys, only the array size changes to a prime]
+
+<HashSlotDemo keys={[0, 4, 8, 12, 16, 20, 24, 28]} m={7} slide />
+
+</Slide>
+
+<Slide>
+
+#### Why a prime
+::sub[It helps spread the resulting indices evenly]
+
+- With $$M = 8$$, only **2 of the eight slots** are used.
+  - The keys and $$M$$ share the common factor 4.
+- With $$M = 7$$, the keys spread over **all 7 slots**.
+  - A prime shares no common factor with any key that is not its multiple.
+- It is not a cure-all, though.
+  - Had every key been a multiple of 7, $$M = 7$$ would also use just one slot.
+
+</Slide>
+
+<Slide>
+
+#### Hashing strings
+::sub[A string is turned into a number first]
+
+- **Adding up the character codes**
+  - `stop`, `pots`, `tops`, `spot`, `opts`, and `post` all get the same value.
+  - It ignores the order of the characters.
+- **Horner's method**
+  - Multiply the value so far by $$R$$ (usually 31) and add the next character.
+  - Taking the remainder mod $$M$$ each time keeps the value from growing.
+
+$$
+h \leftarrow (R \cdot h + \text{code}(c)) \bmod M
+$$
+
+</Slide>
+
+<Slide class="compact">
+
+#### Adding vs. Horner's method
+::sub[`01_hash_function/` · M = 97]
+
+<div class="aas-split">
+<div>
+
+```c
+int hornerHash(const char *s, int m) {
+    const int R = 31;
+    int h = 0;
+    for (int i = 0; s[i] != '\0'; i++) {
+        h = (R * h + (unsigned char)s[i]) % m;
+    }
+    return h;
+}
+```
+
+</div>
+<div>
+
+```console
+string keys, M = 97
+  key   sum  horner
+  stop   66       9
+  pots   66      79
+  tops   66       3
+  spot   66      49
+  opts   66      58
+  post   66      49
+```
+
+</div>
+</div>
+
+Adding puts the six words in **one slot**; Horner's method uses **five slots**.  
+`spot` and `post` still meet. A good hash function only **reduces** collisions.
+
+</Slide>
+
+<Slide class="center">
+
+## Collisions are unavoidable
+::sub[Collisions Are Unavoidable]
+
+</Slide>
+
+<Slide>
+
+#### Two reasons they cannot be avoided
+
+- **The pigeonhole principle**
+  - With more keys than slots ($$N > M$$), some slot gets two or more.
+  - The values a key could take always far outnumber the array size.
+- **The birthday problem**
+  - Even with far fewer keys than slots, collisions come quickly.
+  - In a group of 23 people, the chance that two share a birthday is more than half.
+
+$$
+P(\text{collision}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
+$$
+
+</Slide>
+
+<Slide class="compact">
+
+#### How quickly they come
+::sub[The last block of `01_hash_function/`]
+
+- Run
+
+```console
+chance of at least one collision
+  N =  3, M =  16:  18.0%
+  N =  5, M =  16:  50.0%
+  N = 10, M =  16:  97.4%
+  N = 23, M = 365:  50.7%
+```
+
+Just **5 keys** in 16 slots and the chance of a collision is one half. With 10, it is nearly certain.  
+A hash table must have a way to **handle** collisions, not avoid them.
+
+</Slide>
+
+<Slide>
+
+#### Two ways to resolve collisions
+::sub[Collision Resolution]
+
+1. **Separate chaining**
+   - Keep a linked list in each slot and hang the colliding keys on it.
+2. **Linear probing**
+   - On a collision, go find the next empty slot in the array.
+
+</Slide>
+
+<Slide>
+
+#### Example data for this topic
+::sub[Keys S E A R C H E X A M P L E, values their positions 0 to 12]
+
+| Key | A | C | E | H | L | M | P | R | S | X | Y |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Code | 20 | 69 | 10 | 4 | 38 | 49 | 78 | 14 | 22 | 47 | 52 |
+| mod 5 | 0 | 4 | 0 | 4 | 3 | 4 | 3 | 4 | 2 | 2 | 2 |
+| mod 16 | 4 | 5 | 10 | 4 | 6 | 1 | 14 | 14 | 6 | 15 | 4 |
+
+<br/>
+
+- `E` appears three times and `A` twice. There are **10** distinct keys.
+- In this example the integers for each letter are simply fixed like this.
+- `Y` is a key that is never inserted. It is used to search for a missing key.
+
+</Slide>
+
+<Slide class="center">
+
+## 1) Separate chaining
+::sub[Separate Chaining]
+
+</Slide>
+
+<Slide>
+
+#### A linked list per slot
+::sub[Items with the same hash value are stored in one list]
+
+- Each slot of an array of size $$M$$ holds a **linked list**.
+- Colliding items are kept in a **separate list** for each slot.
+- Finding a key is a **two-step search**.
+  1. **Hash search**: pick the slot with the hash function.
+  2. **List search**: search that slot's list sequentially.
+- The lists must be short, so $$M$$ is chosen large enough.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: insertion
+::sub[Hash to the slot and walk the list. Same key: change only the value; otherwise attach at the front]
+
+<ChainingDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The insertion procedure
+::sub[`02_hash_table_sc/hashTableSC.pseudo`]
+
+```plaintext
+ALGORITHM Put(T, key, value)            // T: array of size M, a linked list per slot
+    i <- Hash(key, M)
+    for node x in T[i] do               // step 1: find the slot by hashing
+        if x.key = key then             // step 2: search that slot's list in order
+            x.value <- value            // same key found: only change the value
+            return
+    T[i] <- new node(key, value, next = T[i])  // not found: attach at the front
+    N <- N + 1
+```
+
+- It walks to the end anyway to check for the same key.
+- Attaching at the front means no need to go find the end of the list.
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`02_hash_table_sc/hashTableSC.c`]
+
+```c
+int put(ChainingTable *t, char key, int value, int *compares) {
+    int i = hashOf(key, t->m);
+    *compares = 0;
+    for (Node *x = t->heads[i]; x != NULL; x = x->next) {
+        (*compares)++;
+        if (x->key == key) {
+            x->value = value;
+            return 0;
+        }
+    }
+    Node *node = malloc(sizeof(Node));
+    node->key = key;  node->value = value;
+    node->next = t->heads[i];   /* attach at the front */
+    t->heads[i] = node;  t->n++;
+    return 1;
+}
+```
+
+</Slide>
+
+<Slide>
+
+### One step at a time: search
+::sub[E is present, Y is not. Even a missing key takes only that slot's list]
+
+<ChainingDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+### One step at a time: deletion
+::sub[Change one link to skip the node found. Other slots are not affected]
+
+<ChainingDemo mode="delete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: insertion
+::sub[`02_hash_table_sc/` · compares is how many comparisons were made in that slot's list]
+
+- Run
+
+```console
+put S=0   hash 2  compares 0  new     [2] S0
+put E=1   hash 0  compares 0  new     [0] E1
+put A=2   hash 0  compares 1  new     [0] A2 -> E1
+put R=3   hash 4  compares 0  new     [4] R3
+put C=4   hash 4  compares 1  new     [4] C4 -> R3
+put H=5   hash 4  compares 2  new     [4] H5 -> C4 -> R3
+put E=6   hash 0  compares 2  update  [0] A2 -> E6
+put X=7   hash 2  compares 1  new     [2] X7 -> S0
+put A=8   hash 0  compares 1  update  [0] A8 -> E6
+put M=9   hash 4  compares 3  new     [4] M9 -> H5 -> C4 -> R3
+put P=10  hash 3  compares 0  new     [3] P10
+put L=11  hash 3  compares 1  new     [3] L11 -> P10
+put E=12  hash 0  compares 2  update  [0] A8 -> E12
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: search and deletion
+::sub[10 keys in 5 slots, N/M = 2.0]
+
+<div class="aas-split">
+<div>
+
+```console
+N = 10, M = 5, N/M = 2.0
+[0] A8 -> E12
+[1] -
+[2] X7 -> S0
+[3] L11 -> P10
+[4] M9 -> H5 -> C4 -> R3
+```
+
+</div>
+<div>
+
+```console
+get E: hash 0, compares 2 -> 12
+get Y: hash 2, compares 2 -> not found
+
+delete E: hash 0, compares 2 -> deleted
+N = 9
+[0] A8
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### The cost of separate chaining
+::sub[The average list length is N/M: this is the load factor α]
+
+| Operation | Average | Worst (every key in one slot) |
+| --- | --- | --- |
+| Search, insert, delete | $$O(1 + N/M)$$ | $$O(N)$$ |
+
+<br/>
+
+- Choose $$M$$ proportional to $$N$$ and it is $$O(1)$$ on average.
+- **If $$M$$ is too large**, there are many empty lists, and memory is wasted.
+- **If $$M$$ is too small**, the lists grow long, and searching slows down.
+
+</Slide>
+
+<Slide class="center">
+
+## 2) Linear probing
+::sub[Linear Probing]
+
+</Slide>
+
+<Slide>
+
+#### Open addressing
+::sub[Open Addressing]
+
+- If the array is larger than the number of keys ($$M > N$$), there is always an empty slot left.
+- A collision is resolved by putting the key into **an empty slot that is already there**.
+- The memory that list links would take goes into a bigger array.
+
+<br/>
+
+**Linear probing** is its simplest form.  
+On a collision, look at the **next slot** of the table and move right until an empty slot turns up.  
+On reaching the end of the array, wrap around to 0.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: insertion
+::sub[A key starts at its hash slot and slides. The orange bar marks a run of full slots]
+
+<ProbingDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Three scenes worth watching
+::sub[The large floating number is how many slots were probed]
+
+- **`H` (hash 4) takes 4 probes**
+  - It bumps into `A` at 4, `C` at 5, and `S` at 6, and goes into 7.
+- **`P` (hash 14) goes to slot 0**
+  - It passes `R` at 14 and `X` at 15 and goes past the end of the array.
+- **`L` (hash 6) also bumps into slot 7, held by `H`.**
+  - `H` was at 7 because of the collision at slot 4.
+  - Collisions breed collisions.
+
+</Slide>
+
+<Slide class="compact">
+
+#### The insertion and search procedures
+::sub[`03_hash_table_lp/hashTableLP.pseudo`]
+
+```plaintext
+ALGORITHM Put(T, key, value)
+    i <- Hash(key, M)
+    while T.keys[i] ≠ EMPTY do          // move right until an empty slot
+        if T.keys[i] = key then
+            T.values[i] <- value        // same key found: only change the value
+            return
+        i <- (i + 1) mod M              // past the end, wrap around to slot 0
+    T.keys[i] <- key, T.values[i] <- value
+
+ALGORITHM Get(T, key)
+    i <- Hash(key, M)
+    while T.keys[i] ≠ EMPTY do
+        if T.keys[i] = key then return T.values[i]
+        i <- (i + 1) mod M
+    return none                         // an empty slot means the key is not there
+```
+
+</Slide>
+
+<Slide>
+
+### One step at a time: search
+::sub[H, which is present, takes 4 probes; Y, which is not, walks the whole cluster in 6]
+
+<ProbingDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+#### Why it is safe to stop at an empty slot
+
+- Had the key been there, it would have gone into **that empty slot** at the latest.
+- So **an empty slot means "nothing beyond here."**
+
+<br/>
+
+The missing key `Y` took 2 comparisons in chaining, but 6 probes in linear probing.  
+That is because of the **cluster** running from 4 to 8.
+
+</Slide>
+
+<Slide>
+
+### What if we just erase?
+::sub[Empty only slot 5, where C was, and search for H]
+
+<ProbingDemo mode="naive" slide />
+
+</Slide>
+
+<Slide>
+
+#### The path is cut
+::sub[You cannot just delete]
+
+- `H` is still sitting in slot 7.
+- The path to `H` starts at 4 and has to pass through 5 and 6 to reach 7.
+- Once 5 is empty, `get` stops there.
+
+<br/>
+
+Deleting `C` cut the path `H` used to take.
+
+</Slide>
+
+<Slide>
+
+### Erase, then put the following keys back in
+::sub[The keys to the right of the erased slot are taken out up to the next empty slot and put back in]
+
+<ProbingDemo mode="delete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The deletion procedure
+::sub[`03_hash_table_lp/hashTableLP.pseudo`]
+
+```plaintext
+ALGORITHM Delete(T, key)
+    i <- Hash(key, M)
+    while T.keys[i] ≠ key do            // find the key first
+        if T.keys[i] = EMPTY then return fail
+        i <- (i + 1) mod M
+    T.keys[i] <- EMPTY, N <- N - 1
+    i <- (i + 1) mod M
+    while T.keys[i] ≠ EMPTY do          // the keys that followed in the same cluster
+        k, v <- T.keys[i], T.values[i]
+        T.keys[i] <- EMPTY, N <- N - 1
+        Put(T, k, v)                    // take out and put back in
+        i <- (i + 1) mod M
+    if 0 < N ≤ M/8 then Resize(T, M/2)  // too empty: halve it
+```
+
+The keys put back amount to one cluster, so when clusters are short, deletion is cheap too.
+
+</Slide>
+
+<Slide>
+
+#### Another way: tombstones
+::sub[Tombstone, lazy deletion]
+
+- Leave only a **marker** in the erased slot and do not actually empty it.
+  - `get` passes a marker **as if the slot were full**.
+  - `put` reuses a marker **as if the slot were empty**.
+- **`put` must not insert into the first marked slot right away.**
+  - A trap implementations often fall into.
+  - The same key may still be alive further along.
+  - Go on to an empty slot, confirm the key is not there, then insert into the first marked slot.
+- **Markers pile up.**
+  - When there are many, rebuild the table to clean it.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Resizing
+::sub[Grow and shrink by the load factor. Hash values change, so every key goes in again]
+
+- **On insert**: double it when at least a certain fraction full (it differs by implementation; this example uses 0.7)
+- **On delete**: halve it when $$0 < N \le M/8$$
+
+```console
+resize to M = 32, N/M = 0.3125
+slot   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+key    -  -  -  -  H  C  L  -  -  -  E  -  -  -  P  R
+value  -  -  -  -  5  4 11  -  -  - 12  -  -  - 10  3
+slot  16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+key    X  M  -  -  A  -  S  -  -  -  -  -  -  -  -  -
+value  7  9  -  -  8  -  0  -  -  -  -  -  -  -  -  -
+hits: 12 probes for 10 keys, 1.20 per key
+```
+
+At size 16 it was `hits: 17 probes`. Lowering the load factor turned 17 probes into 12.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: insertion and search
+::sub[`03_hash_table_lp/` · probes is how many slots were probed]
+
+<div class="aas-split">
+<div>
+
+```console
+put S=0   hash  6  probes 1  slot  6  new
+put E=1   hash 10  probes 1  slot 10  new
+put A=2   hash  4  probes 1  slot  4  new
+put R=3   hash 14  probes 1  slot 14  new
+put C=4   hash  5  probes 1  slot  5  new
+put H=5   hash  4  probes 4  slot  7  new
+put E=6   hash 10  probes 1  slot 10  update
+put X=7   hash 15  probes 1  slot 15  new
+put A=8   hash  4  probes 1  slot  4  update
+put M=9   hash  1  probes 1  slot  1  new
+put P=10  hash 14  probes 3  slot  0  new
+put L=11  hash  6  probes 3  slot  8  new
+put E=12  hash 10  probes 1  slot 10  update
+```
+
+</div>
+<div>
+
+```console
+get H: hash 4, probes 4 -> 5
+get Y: hash 4, probes 6 -> not found
+hits: 17 probes for 10 keys, 1.70 per key
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: deletion
+::sub[Just emptying the slot loses H; putting the following keys back finds it in 2 probes]
+
+- Run
+
+```console
+naive delete C: just empty slot 5
+get H: hash 4, probes 2 -> not found
+
+delete C: hash 5
+  reinsert S: slot 6 -> 6
+  reinsert H: slot 7 -> 5
+  reinsert L: slot 8 -> 7
+get H: hash 4, probes 2 -> 5
+N = 9, M = 16
+slot   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+key    P  M  -  -  A  H  S  L  -  -  E  -  -  -  R  X
+value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
+```
+
+</Slide>
+
+<Slide class="center">
+
+## Clusters and the load factor
+::sub[Clustering and Load Factor]
+
+</Slide>
+
+<Slide>
+
+#### Clusters grow on their own
+::sub[A run of full slots with no empty slot in between]
+
+- In the example, slots 4 to 8 (`A C S H L`) form a cluster of length 5.
+- **Wherever** a new key's hash lands inside a cluster, it goes into the slot just past the cluster's end.
+  - The longer the cluster, the more likely it is to take in a key.
+- Each key that goes in lengthens the cluster, and sometimes joins it to the next one.
+  - When `P` went into 0, slots 14, 15, and 1 became one run.
+- When a cluster is long, a search has to walk to the end of it.
+
+</Slide>
+
+<Slide>
+
+### 256 and 128 keys in 512 slots
+::sub[Left: linear probing. Right, for comparison: any empty slot at random on each collision]
+
+<ClusterFigure slide />
+
+</Slide>
+
+<Slide>
+
+#### What the load factor costs
+::sub[Average number of slots probed when α = N/M (Knuth)]
+
+$$
+\text{success} \approx \frac{1}{2}\left(1 + \frac{1}{1-\alpha}\right) \qquad
+\text{failure} \approx \frac{1}{2}\left(1 + \frac{1}{(1-\alpha)^2}\right)
+$$
+
+| Load factor $$\alpha$$ | Successful search | Failed search |
+| --- | --- | --- |
+| 1/2 | 1.5 | 2.5 |
+| 3/4 | 2.5 | 8.5 |
+| 7/8 | 4.5 | 32.5 |
+
+It gets worse **sharply** as it nears 1. So $$\alpha$$ is kept near 1/2.
+
+</Slide>
+
+<Slide class="center">
+
+## Summary
+::sub[Wrapping up]
+
+</Slide>
+
+<Slide>
+
+#### Comparing the two methods
+
+| | Separate chaining | Linear probing |
+| --- | --- | --- |
+| Where a colliding key goes | that slot's linked list | the next empty slot in the array |
+| Load factor | may exceed 1 | must be below 1 (usually near 1/2) |
+| Extra memory | a link per node | empty slots |
+| Deletion | change just one link | put back, or tombstones |
+| What hurts performance | long lists | long clusters |
+| Memory access | nodes are scattered | neighboring slots in order |
+
+</Slide>
+
+<Slide>
+
+#### Memory
+::sub[By the Java measure of Sedgewick's textbook, with keys and values as reference types]
+
+| Method | Space for $$N$$ keys |
+| --- | --- |
+| Separate chaining | about $$48N + 32M$$ bytes |
+| Linear probing | between about $$32N$$ and $$128N$$ bytes |
+| Binary search tree | about $$56N$$ bytes |
+
+<br/>
+
+- Chaining spends memory on links; linear probing spends it on empty slots.
+- The range for linear probing is because the array is between 1/8 and 1/2 full.
+
+</Slide>
+
+<Slide>
+
+#### Where hash tables fit
+::sub[When you want fast search and do not care about the sorted order of the records]
+
+| | Binary search tree (balanced) | Hash table |
+| --- | --- | --- |
+| Search, insert, delete | $$O(\log N)$$ | $$O(1)$$ on average |
+| Worst case | $$O(\log N)$$ | $$O(N)$$ (bad hash) |
+| Minimum, range search | yes | no |
+| What keys need | comparison | a hash function and an equality test |
+
+</Slide>
+
+<Slide>
+
+#### Hashing is no cure-all
+
+- Every key type needs a **good hash function**.
+- The performance guarantee depends on the **quality** of the hash function.
+- Computing the hash function can be hard and take many operations.
+- **Order-related operations** are not easy.
+  - The smallest key, the next key, range search
+
+<br/>
+
+If you need order, use a binary search tree; if you only want speed, use a hash table.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Change the numbers and make collisions and clusters yourself]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-08-hashing/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Change `R` in `hornerHash` to 1.**
+   - It becomes the same as adding, and the six words pile into one slot again.
+2. **Change the chaining array size to 1 and to 97.**
+   - One becomes a single linked list, and in the other most slots are empty.
+3. **Change the linear-probing array size to 11.**
+   - Clusters join up quickly, and after 8 keys the array grows to 22 slots.
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **Hashing computes an index from the key and finds it without comparisons.**
+   - A good hash function stays in range, is easy to compute, and spreads keys evenly.
+2. **Collisions are unavoidable.**
+   - The pigeonhole principle and the birthday problem
+3. **Separate chaining keeps a list per slot.**
+   - $$O(1 + N/M)$$ on average, and deletion is easy.
+4. **Linear probing moves to the next slot.**
+   - Just erasing cuts the path, so the following keys are put back in.
+5. **As the load factor nears 1, clusters grow and it slows down sharply.**
+   - Resizing keeps it near 1/2.
+
+</Slide>

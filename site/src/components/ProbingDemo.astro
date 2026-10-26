@@ -1,0 +1,708 @@
+---
+// 선형 탐지(linear probing) 해시 테이블을 한 걸음씩 보는 데모.
+//
+// 배열 16칸이 한 줄로 놓인다. 넣거나 찾는 키는 칸 위에 칩으로 떠서, 해시가
+// 가리킨 칸에서 출발해 빈칸이나 같은 키를 만날 때까지 오른쪽으로 미끄러진다.
+// 한 걸음이 칸 하나를 들여다보는 것이고, 이번 연산에서 들여다본 칸 수를
+// 크게 띄운다. 붙어 있는 칸들(키 무리)은 아래에 막대로 표시한다.
+//
+// mode
+//   build  : 빈 배열에 SEARCHEXAMPLE을 차례로 넣는다.
+//   search : 다 넣은 표에서 H(있음)와 Y(없음)를 찾는다.
+//   naive  : C의 칸을 그냥 비운 뒤 H를 찾는다. 길이 끊겨 못 찾는다.
+//   delete : C를 지우고 뒤따르는 S, H, L을 꺼냈다가 다시 넣은 뒤 H를 찾는다.
+//
+// 절차와 숫자는 algorithm-code의 hashTableLP.c · hash_table_lp.py와 같다.
+// 해시 코드 표(CODES)도 같다. 해시값은 이 코드 mod 16이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** build · search · naive · delete */
+  mode?: 'build' | 'search' | 'naive' | 'delete';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { mode = 'build', slide = false } = Astro.props;
+const id = `pd-${Math.random().toString(36).slice(2, 9)}`;
+const m = 16;
+const keys = 'SEARCHEXAMPLE';
+const codes = { A: 20, C: 69, E: 10, H: 4, L: 38, M: 49, P: 78, R: 14, S: 22, X: 47, Y: 52 };
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '선형 탐지',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    probes: '들여다본 칸',
+    load: '적재율',
+    cluster: '가장 긴 무리',
+    cells: '칸',
+    idleBuild: '빈 배열 16칸입니다. S E A R C H E X A M P L E을 차례로 넣습니다. 값은 등장 순서입니다.',
+    idleSearch: 'SEARCHEXAMPLE을 다 넣은 표입니다. H(있음)와 Y(없음)를 찾습니다.',
+    idleNaive: '다 넣은 표에서 C를 그냥 지운 뒤 H를 찾아봅니다.',
+    idleDelete: '다 넣은 표에서 C를 지우고, 같은 무리에서 뒤따르는 키를 다시 넣습니다.',
+    first: '{k}의 해시는 {h}입니다.',
+    wrap: '배열 끝을 지나 0번으로 돌아왔습니다.',
+    putEmpty: '{i}번 칸이 비어 있어 넣습니다. {p}칸을 봤습니다.',
+    putSame: '{i}번 칸에 같은 키가 있습니다. 값만 바꿉니다: {old} → {v}',
+    collide: '{i}번 칸에 {o} 키가 있습니다. 충돌, 다음 칸으로.',
+    pass: '{i}번 칸은 {o} 키입니다. 다음 칸으로.',
+    hit: '{i}번 칸에서 {k} 키를 찾았습니다. 값 {v}, {p}칸을 봤습니다.',
+    miss: '{i}번 칸이 비어 있습니다. {k} 키는 없습니다. {p}칸을 봤습니다.',
+    lost: '{i}번 칸이 비어 있어 멈춥니다. 그런데 {k} 키는 {j}번 칸에 그대로 있습니다. 여기까지 갈 수가 없습니다.',
+    remove: '{k} 키를 {i}번 칸에서 찾아 지웁니다.',
+    naiveRemove: '{k} 키가 있던 {i}번 칸을 그냥 비웁니다.',
+    lift: '{i}번 칸의 {k} 키를 꺼냈다가 다시 넣습니다.',
+    endFix: '{i}번 칸이 비어 있습니다. 무리가 끝났으니 후속 조치도 끝입니다.',
+    done: '끝.',
+  },
+  en: {
+    title: 'Linear probing',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    probes: 'probes',
+    load: 'load',
+    cluster: 'longest cluster',
+    cells: '',
+    idleBuild: 'An empty array of 16 slots. Insert S E A R C H E X A M P L E in order. The value is the position.',
+    idleSearch: 'The table after inserting SEARCHEXAMPLE. Look up H (present) and Y (absent).',
+    idleNaive: 'Take the full table, simply empty C’s slot, then look up H.',
+    idleDelete: 'Take the full table, delete C, then reinsert the keys that follow it in the same cluster.',
+    first: '{k} hashes to {h}.',
+    wrap: 'Past the end, back to slot 0.',
+    putEmpty: 'Slot {i} is empty, so it goes here. {p} probes.',
+    putSame: 'Slot {i} holds the same key. Only the value changes, {old} → {v}.',
+    collide: 'Slot {i} holds {o}. Collision, move on.',
+    pass: 'Slot {i} holds {o}. Move on.',
+    hit: 'Found {k} in slot {i}. Value {v}, {p} probes.',
+    miss: 'Slot {i} is empty, so {k} is not here. {p} probes.',
+    lost: 'Slot {i} is empty, so the search stops. But {k} is still sitting in slot {j}. The search can never get there.',
+    remove: 'Found {k} in slot {i} and removed it.',
+    naiveRemove: 'Just empty slot {i}, where {k} was.',
+    lift: 'Take {k} out of slot {i} and insert it again.',
+    endFix: 'Slot {i} is empty. The cluster has ended, and so has the cleanup.',
+    done: 'Done.',
+  },
+  zh: {
+    title: '线性探测',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    probes: '探测格数',
+    load: '装载因子',
+    cluster: '最长簇',
+    cells: ' 格',
+    idleBuild: '16 格的空数组。依次插入 S E A R C H E X A M P L E，值为出现的顺序。',
+    idleSearch: '插入 SEARCHEXAMPLE 之后的表。查找 H（存在）和 Y（不存在）。',
+    idleNaive: '在插满的表里直接清空 C 的格子，然后查找 H。',
+    idleDelete: '在插满的表里删除 C，再把同一簇中跟在后面的键重新插入。',
+    first: '{k} 的哈希值是 {h}。',
+    wrap: '越过数组末尾，回到 0 号格。',
+    putEmpty: '{i} 号格为空，放在这里。共探测 {p} 格。',
+    putSame: '{i} 号格是同一个键。只把值从 {old} 改成 {v}。',
+    collide: '{i} 号格已有 {o}。冲突，看下一格。',
+    pass: '{i} 号格是 {o}。看下一格。',
+    hit: '在 {i} 号格找到 {k}。值 {v}，共探测 {p} 格。',
+    miss: '{i} 号格为空，{k} 不存在。共探测 {p} 格。',
+    lost: '{i} 号格为空，查找停止。可是 {k} 还在 {j} 号格里。查找永远走不到那里。',
+    remove: '在 {i} 号格找到 {k} 并删除。',
+    naiveRemove: '直接清空 {k} 所在的 {i} 号格。',
+    lift: '把 {i} 号格的 {k} 取出，再重新插入。',
+    endFix: '{i} 号格为空。簇已结束，善后也结束。',
+    done: '结束。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const slots = Array.from({ length: m }, (_, i) => i);
+---
+
+<div
+  class:list={['aas-probing-demo', slide && 'is-slide']}
+  id={id}
+  data-pd-mode={mode}
+  data-pd-strings={JSON.stringify(t)}
+  style={`--pd-m: ${m}`}
+>
+  <div class="pd-bar">
+    <span class="pd-head"><strong>{t.title}</strong></span>
+    <div class="pd-controls">
+      <button type="button" data-act="back" class="pd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="pd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="pd-btn pd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="pd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="pd-stats">
+    <span class="pd-op" data-pd-op></span>
+    <span class="pd-big">
+      <span class="pd-big-label">{t.probes}</span>
+      <strong data-pd-probes>0</strong>
+    </span>
+    <span class="pd-small">
+      <span>{t.load} <b data-pd-load></b></span>
+      <span>{t.cluster} <b data-pd-cluster></b>{t.cells}</span>
+    </span>
+  </div>
+
+  <div class="pd-scroll">
+    <div class="pd-track">
+      <div class="pd-lane">
+        <span class="pd-chip" data-pd-chip><b data-pd-chip-k></b><small data-pd-chip-v></small></span>
+      </div>
+      <div class="pd-row">
+        {
+          slots.map((i) => (
+            <span class="pd-cell" data-pd-cell={i}>
+              <b class="pd-k"></b>
+              <small class="pd-v"></small>
+            </span>
+          ))
+        }
+      </div>
+      <div class="pd-bars">
+        {slots.map((i) => <span class="pd-run" data-pd-run={i}></span>)}
+      </div>
+      <div class="pd-idx">
+        {slots.map((i) => <span>{i}</span>)}
+      </div>
+    </div>
+  </div>
+
+  <p class="pd-note" data-pd-note></p>
+</div>
+
+<script is:inline define:vars={{ id, m, keys, codes }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.pdStrings);
+    const mode = root.dataset.pdMode;
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const hashOf = (k) => (codes[k] ?? k.charCodeAt(0)) % m;
+
+    /* 단계 배열을 미리 만든다. put · get · delete는 hashTableLP.pseudo와 같다.
+       한 걸음이 칸 하나를 들여다보는 것이다. record가 false면 기록하지 않는다
+       (search · naive · delete 모드의 시작 표를 만들 때). */
+    let tk = new Array(m).fill(null);
+    let tv = new Array(m).fill(null);
+    let n = 0;
+    let record = true;
+    const steps = [];
+    const snap = (x) => {
+      if (record) steps.push({ keys: tk.slice(), vals: tv.slice(), n, ...x });
+    };
+    const lead = (k, h, p, i) =>
+      (p === 1 ? fill(S.first, { k, h }) + ' ' : '') + (p > 1 && i === 0 ? S.wrap + ' ' : '');
+
+    function put(k, v, op) {
+      const h = hashOf(k);
+      let i = h;
+      let p = 0;
+      for (;;) {
+        p += 1;
+        const pre = lead(k, h, p, i);
+        if (tk[i] === null) {
+          tk[i] = k;
+          tv[i] = v;
+          n += 1;
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'placed' }, note: pre + fill(S.putEmpty, { i, p }) });
+          return i;
+        }
+        if (tk[i] === k) {
+          const old = tv[i];
+          tv[i] = v;
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'updated' }, note: pre + fill(S.putSame, { i, old, v }) });
+          return i;
+        }
+        snap({ op, p, probe: i, chip: { k, v, i }, mark: null, note: pre + fill(S.collide, { i, o: tk[i] }) });
+        i = (i + 1) % m;
+      }
+    }
+
+    function get(k) {
+      const op = `get ${k}`;
+      const h = hashOf(k);
+      let i = h;
+      let p = 0;
+      for (;;) {
+        p += 1;
+        const pre = lead(k, h, p, i);
+        if (tk[i] === null) {
+          const j = tk.indexOf(k);
+          const body = j >= 0 ? fill(S.lost, { i, k, j }) : fill(S.miss, { i, k, p });
+          snap({ op, p, probe: i, chip: { k, v: '?', i, query: true }, mark: { i, kind: 'stop' }, note: pre + body, bad: true });
+          return;
+        }
+        if (tk[i] === k) {
+          snap({ op, p, probe: i, chip: null, mark: { i, kind: 'hit' }, note: pre + fill(S.hit, { i, k, v: tv[i], p }), good: true });
+          return;
+        }
+        snap({ op, p, probe: i, chip: { k, v: '?', i, query: true }, mark: null, note: pre + fill(S.pass, { i, o: tk[i] }) });
+        i = (i + 1) % m;
+      }
+    }
+
+    function remove(k, naive) {
+      const op = `delete ${k}`;
+      let i = hashOf(k);
+      let p = 1;
+      while (tk[i] !== k) {
+        i = (i + 1) % m;
+        p += 1;
+      }
+      tk[i] = null;
+      tv[i] = null;
+      n -= 1;
+      snap({ op, p, probe: i, chip: null, mark: { i, kind: 'hole' }, note: fill(naive ? S.naiveRemove : S.remove, { k, i }) });
+      if (naive) return;
+      let j = (i + 1) % m;
+      while (tk[j] !== null) {
+        const k2 = tk[j];
+        const v2 = tv[j];
+        tk[j] = null;
+        tv[j] = null;
+        n -= 1;
+        snap({ op: `reinsert ${k2}`, p: 0, probe: -1, chip: { k: k2, v: v2, i: j }, mark: null, note: fill(S.lift, { k: k2, i: j }) });
+        put(k2, v2, `reinsert ${k2}`);
+        j = (j + 1) % m;
+      }
+      snap({ op, p, probe: j, chip: null, mark: { i: j, kind: 'stop' }, note: fill(S.endFix, { i: j }) });
+    }
+
+    record = mode === 'build';
+    [...keys].forEach((k, v) => put(k, v, `put ${k}=${v}`));
+    const initial = { keys: tk.slice(), vals: tv.slice(), n };
+    if (mode === 'build') {
+      initial.keys.fill(null);
+      initial.vals.fill(null);
+      initial.n = 0;
+    }
+    record = true;
+    if (mode === 'search') {
+      get('H');
+      get('Y');
+    } else if (mode === 'naive') {
+      remove('C', true);
+      get('H');
+    } else if (mode === 'delete') {
+      remove('C', false);
+      get('H');
+    }
+    const idle = { build: S.idleBuild, search: S.idleSearch, naive: S.idleNaive, delete: S.idleDelete }[mode];
+
+    const cells = [...root.querySelectorAll('[data-pd-cell]')];
+    const runs = [...root.querySelectorAll('[data-pd-run]')];
+    const chip = root.querySelector('[data-pd-chip]');
+    const chipK = root.querySelector('[data-pd-chip-k]');
+    const chipV = root.querySelector('[data-pd-chip-v]');
+    const opEl = root.querySelector('[data-pd-op]');
+    const probesEl = root.querySelector('[data-pd-probes]');
+    const loadEl = root.querySelector('[data-pd-load]');
+    const clusterEl = root.querySelector('[data-pd-cluster]');
+    const note = root.querySelector('[data-pd-note]');
+
+    /* 원형 배열에서 차 있는 칸이 이어진 덩어리(키 무리)를 찾는다.
+       run[i]는 i가 속한 무리의 길이(빈칸이면 0), 시작·끝 표시도 함께 준다. */
+    function clusters(ks) {
+      const len = new Array(m).fill(0);
+      const startOf = new Array(m).fill(false);
+      const endOf = new Array(m).fill(false);
+      const empty = ks.indexOf(null);
+      if (empty < 0) {
+        len.fill(m);
+        return { len, startOf, endOf, longest: m };
+      }
+      let longest = 0;
+      let i = (empty + 1) % m;
+      for (let c = 0; c < m; ) {
+        if (ks[i] === null) {
+          i = (i + 1) % m;
+          c += 1;
+          continue;
+        }
+        const members = [];
+        while (ks[i] !== null) {
+          members.push(i);
+          i = (i + 1) % m;
+          c += 1;
+        }
+        members.forEach((x) => (len[x] = members.length));
+        startOf[members[0]] = true;
+        endOf[members[members.length - 1]] = true;
+        longest = Math.max(longest, members.length);
+      }
+      return { len, startOf, endOf, longest };
+    }
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : { ...initial, op: '', p: 0, probe: -1, chip: null, mark: null, note: idle };
+      const cl = clusters(st.keys);
+      cells.forEach((cell, i) => {
+        const k = st.keys[i];
+        cell.querySelector('.pd-k').textContent = k ?? '';
+        cell.querySelector('.pd-v').textContent = k === null ? '' : String(st.vals[i]);
+        cell.classList.toggle('is-full', k !== null);
+        cell.classList.toggle('is-probe', st.probe === i);
+        for (const kind of ['placed', 'updated', 'hit', 'stop', 'hole']) {
+          cell.classList.toggle(`is-${kind}`, !!st.mark && st.mark.i === i && st.mark.kind === kind);
+        }
+        const run = runs[i];
+        run.classList.toggle('is-on', cl.len[i] >= 2);
+        run.classList.toggle('is-long', cl.len[i] >= 2 && cl.len[i] === cl.longest);
+        run.classList.toggle('is-start', cl.startOf[i]);
+        run.classList.toggle('is-end', cl.endOf[i]);
+      });
+      if (st.chip) {
+        chip.style.setProperty('--pd-at', String(st.chip.i));
+        chipK.textContent = st.chip.k;
+        chipV.textContent = String(st.chip.v);
+        chip.classList.add('is-on');
+        chip.classList.toggle('is-query', !!st.chip.query);
+      } else {
+        chip.classList.remove('is-on');
+        if (st.probe >= 0) chip.style.setProperty('--pd-at', String(st.probe));
+      }
+      opEl.textContent = st.op;
+      probesEl.textContent = String(st.p);
+      probesEl.classList.toggle('is-bad', !!st.bad);
+      probesEl.classList.toggle('is-good', !!st.good);
+      loadEl.textContent = `${st.n}/${m}`;
+      clusterEl.textContent = String(cl.longest);
+      note.textContent = s >= steps.length - 1 && s >= 0 ? `${st.note} ${S.done}` : st.note;
+      root.classList.toggle('is-done', s >= steps.length - 1);
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-probing-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --pd-cell: 2.45em;
+    --pd-gap: 0.2em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-probing-demo .pd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-probing-demo .pd-head {
+    font-size: 0.95em;
+  }
+  .aas-probing-demo .pd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-probing-demo .pd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-probing-demo .pd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-probing-demo .pd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 이 데모의 요점: 이번 연산에서 들여다본 칸 수 */
+  .aas-probing-demo .pd-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4em 1.4em;
+    margin-bottom: 0.4em;
+  }
+  .aas-probing-demo .pd-op {
+    min-width: 7.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    font-weight: 700;
+  }
+  .aas-probing-demo .pd-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+  }
+  .aas-probing-demo .pd-big-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-probing-demo .pd-big strong {
+    min-width: 1.2em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-probing-demo .pd-big strong.is-good {
+    color: var(--aas-role-eval);
+  }
+  .aas-probing-demo .pd-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-probing-demo .pd-small {
+    display: inline-flex;
+    gap: 1em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-probing-demo .pd-small b {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-probing-demo .pd-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.2em;
+  }
+  .aas-probing-demo .pd-track {
+    width: max-content;
+    margin: 0 auto;
+  }
+  .aas-probing-demo .pd-row,
+  .aas-probing-demo .pd-bars,
+  .aas-probing-demo .pd-idx {
+    display: grid;
+    grid-template-columns: repeat(var(--pd-m), var(--pd-cell));
+    gap: 0 var(--pd-gap);
+  }
+
+  /* 넣거나 찾는 키가 칸 위에 떠서 left 전환으로 미끄러진다. */
+  .aas-probing-demo .pd-lane {
+    position: relative;
+    height: 2.7em;
+  }
+  .aas-probing-demo .pd-chip {
+    --pd-at: 0;
+    position: absolute;
+    top: 0.15em;
+    left: calc(var(--pd-at) * (var(--pd-cell) + var(--pd-gap)));
+    width: var(--pd-cell);
+    height: 2.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1em;
+    border-radius: 0.45em;
+    background: var(--aas-role-focus);
+    color: #fff;
+    opacity: 0;
+    transform: translateY(0.4em);
+    transition:
+      left 0.4s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.25s,
+      transform 0.25s;
+  }
+  .aas-probing-demo .pd-chip.is-on {
+    opacity: 1;
+    transform: none;
+  }
+  .aas-probing-demo .pd-chip.is-query {
+    background: var(--aas-bg);
+    color: var(--aas-role-focus);
+    border: 2px solid var(--aas-role-focus);
+  }
+  .aas-probing-demo .pd-chip b {
+    font-size: 1.05em;
+  }
+  .aas-probing-demo .pd-chip small {
+    font-size: 0.65em;
+    opacity: 0.85;
+  }
+
+  .aas-probing-demo .pd-cell {
+    position: relative;
+    height: 2.6em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.3s,
+      border-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-probing-demo .pd-cell.is-full {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-probing-demo .pd-k {
+    font-size: 1.05em;
+    line-height: 1.1;
+  }
+  .aas-probing-demo .pd-v {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.65em;
+    color: var(--aas-muted);
+    line-height: 1;
+  }
+  .aas-probing-demo .pd-cell.is-probe {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-probing-demo .pd-cell.is-placed,
+  .aas-probing-demo .pd-cell.is-hit {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-probing-demo .pd-cell.is-placed .pd-k,
+  .aas-probing-demo .pd-cell.is-updated .pd-v {
+    animation: pd-pop 0.45s ease-out;
+  }
+  .aas-probing-demo .pd-cell.is-updated {
+    box-shadow: 0 0 0 3px var(--aas-role-trace);
+  }
+  .aas-probing-demo .pd-cell.is-updated .pd-v {
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-probing-demo .pd-cell.is-stop {
+    box-shadow: 0 0 0 3px var(--aas-role-guard);
+  }
+  .aas-probing-demo .pd-cell.is-hole {
+    border-style: dashed;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+  }
+
+  /* 키 무리: 차 있는 칸이 둘 이상 이어지면 아래에 막대. 가장 긴 것은 진하게. */
+  .aas-probing-demo .pd-bars {
+    height: 0.55em;
+    margin-top: 0.3em;
+  }
+  .aas-probing-demo .pd-run {
+    height: 0.35em;
+    margin: 0 calc(var(--pd-gap) / -2);
+    background: transparent;
+    transition: background-color 0.3s;
+  }
+  .aas-probing-demo .pd-run.is-on {
+    background: color-mix(in srgb, var(--aas-role-trace) 45%, transparent);
+  }
+  .aas-probing-demo .pd-run.is-long {
+    background: var(--aas-role-trace);
+  }
+  .aas-probing-demo .pd-run.is-start {
+    margin-left: 0.15em;
+    border-top-left-radius: 0.3em;
+    border-bottom-left-radius: 0.3em;
+  }
+  .aas-probing-demo .pd-run.is-end {
+    margin-right: 0.15em;
+    border-top-right-radius: 0.3em;
+    border-bottom-right-radius: 0.3em;
+  }
+  .aas-probing-demo .pd-idx span {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+
+  .aas-probing-demo .pd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-probing-demo.is-done .pd-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes pd-pop {
+    from {
+      transform: scale(1.6);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-probing-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-probing-demo.is-slide .pd-note {
+    min-height: 2.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-probing-demo .pd-chip,
+    .aas-probing-demo .pd-cell,
+    .aas-probing-demo .pd-run {
+      transition: none;
+    }
+    .aas-probing-demo .pd-cell .pd-k,
+    .aas-probing-demo .pd-cell .pd-v {
+      animation: none !important;
+    }
+  }
+</style>

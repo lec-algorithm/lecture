@@ -1,0 +1,628 @@
+---
+// 개별 체이닝(separate chaining) 해시 테이블을 한 걸음씩 보는 데모.
+//
+// 배열 5칸이 세로로 놓이고, 칸마다 연결 리스트가 오른쪽으로 자란다. 넣거나
+// 찾는 키는 왼쪽에 칩으로 떠서 해시가 가리킨 칸으로 내려간다(1단계). 그다음
+// 그 칸의 리스트를 앞에서부터 하나씩 비교한다(2단계). 이번 연산의 비교 횟수를
+// 크게 띄운다. 새 키는 리스트 맨 앞에 붙고, 이미 있는 키는 값만 바뀐다.
+//
+// mode
+//   build  : 빈 배열에 SEARCHEXAMPLE을 차례로 넣는다.
+//   search : 다 넣은 표에서 E(있음)와 Y(없음)를 찾는다.
+//   delete : 다 넣은 표에서 E를 지운다.
+//
+// 절차와 숫자는 algorithm-code의 hashTableSC.c · hash_table_sc.py와 같다.
+// 해시 코드 표(CODES)도 같다. 해시값은 이 코드 mod 5다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** build · search · delete */
+  mode?: 'build' | 'search' | 'delete';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { mode = 'build', slide = false } = Astro.props;
+const id = `ch-${Math.random().toString(36).slice(2, 9)}`;
+const m = 5;
+const keys = 'SEARCHEXAMPLE';
+const codes = { A: 20, C: 69, E: 10, H: 4, L: 38, M: 49, P: 78, R: 14, S: 22, X: 47, Y: 52 };
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '개별 체이닝',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    compares: '비교',
+    load: 'N/M',
+    longest: '가장 긴 리스트',
+    idleBuild: '빈 배열 5칸입니다. S E A R C H E X A M P L E을 차례로 넣습니다. 값은 등장 순서입니다.',
+    idleSearch: 'SEARCHEXAMPLE을 다 넣은 표입니다. E(있음)와 Y(없음)를 찾습니다.',
+    idleDelete: 'SEARCHEXAMPLE을 다 넣은 표입니다. E를 지웁니다.',
+    hash: '{k}의 해시는 {h}입니다. {h}번 칸의 리스트를 봅니다.',
+    hashEmpty: '{k}의 해시는 {h}입니다. {h}번 칸의 리스트가 비어 있습니다.',
+    differ: '{o} ≠ {k}. 다음 노드로.',
+    same: '{k} 키를 찾았습니다. 비교 {c}번. 값만 바꿉니다: {old} → {v}',
+    insert: '리스트에 {k} 키가 없으니 새 노드를 맨 앞에 붙입니다. 비교 {c}번.',
+    hit: '{k} 키를 찾았습니다. 값 {v}, 비교 {c}번.',
+    miss: '리스트 끝까지 왔습니다. {k} 키는 없습니다. 비교 {c}번.',
+    found: '{k} 키를 찾았습니다. 앞 노드가 이 노드를 건너뛰도록 연결을 바꿉니다. 비교 {c}번.',
+    foundHead: '{k} 키를 찾았습니다. 맨 앞 노드이므로 칸이 다음 노드를 가리키게 합니다. 비교 {c}번.',
+    removed: '{k} 키를 지웠습니다.',
+    done: '끝.',
+  },
+  en: {
+    title: 'Separate chaining',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    compares: 'compares',
+    load: 'N/M',
+    longest: 'longest list',
+    idleBuild: 'An empty array of 5 slots. Insert S E A R C H E X A M P L E in order. The value is the position.',
+    idleSearch: 'The table after inserting SEARCHEXAMPLE. Look up E (present) and Y (absent).',
+    idleDelete: 'The table after inserting SEARCHEXAMPLE. Delete E.',
+    hash: '{k} hashes to {h}. Walk the list in slot {h}.',
+    hashEmpty: '{k} hashes to {h}. The list in slot {h} is empty.',
+    differ: '{o} ≠ {k}. Next node.',
+    same: 'Found {k}. Only the value changes, {old} → {v}. {c} compares.',
+    insert: '{k} is not in the list. Put {k}={v} at the front. {c} compares.',
+    hit: 'Found {k}. Value {v}, {c} compares.',
+    miss: 'End of the list. {k} is not here. {c} compares.',
+    found: 'Found {k}. Relink the previous node past it. {c} compares.',
+    foundHead: 'Found {k}. It is the first node, so the slot now points to the next one. {c} compares.',
+    removed: '{k} is gone.',
+    done: 'Done.',
+  },
+  zh: {
+    title: '拉链法',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    compares: '比较',
+    load: 'N/M',
+    longest: '最长链表',
+    idleBuild: '5 格的空数组。依次插入 S E A R C H E X A M P L E，值为出现的顺序。',
+    idleSearch: '插入 SEARCHEXAMPLE 之后的表。查找 E（存在）和 Y（不存在）。',
+    idleDelete: '插入 SEARCHEXAMPLE 之后的表。删除 E。',
+    hash: '{k} 的哈希值是 {h}。查看 {h} 号格的链表。',
+    hashEmpty: '{k} 的哈希值是 {h}。{h} 号格的链表为空。',
+    differ: '{o} ≠ {k}。看下一个节点。',
+    same: '找到 {k}。只把值从 {old} 改成 {v}。比较 {c} 次。',
+    insert: '链表里没有 {k}。把 {k}={v} 接到最前面。比较 {c} 次。',
+    hit: '找到 {k}。值 {v}，比较 {c} 次。',
+    miss: '到了链表末尾。{k} 不存在。比较 {c} 次。',
+    found: '找到 {k}。让前一个节点跳过它。比较 {c} 次。',
+    foundHead: '找到 {k}。它是第一个节点，所以让格子指向下一个节点。比较 {c} 次。',
+    removed: '{k} 已删除。',
+    done: '结束。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const rows = Array.from({ length: m }, (_, i) => i);
+---
+
+<div
+  class:list={['aas-chaining-demo', slide && 'is-slide']}
+  id={id}
+  data-ch-mode={mode}
+  data-ch-strings={JSON.stringify(t)}
+  style={`--ch-m: ${m}`}
+>
+  <div class="ch-bar">
+    <span class="ch-head"><strong>{t.title}</strong></span>
+    <div class="ch-controls">
+      <button type="button" data-act="back" class="ch-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ch-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ch-btn ch-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ch-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ch-stats">
+    <span class="ch-op" data-ch-op></span>
+    <span class="ch-big">
+      <span class="ch-big-label">{t.compares}</span>
+      <strong data-ch-count>0</strong>
+    </span>
+    <span class="ch-small">
+      <span>{t.load} <b data-ch-load></b></span>
+      <span>{t.longest} <b data-ch-longest></b></span>
+    </span>
+  </div>
+
+  <div class="ch-board">
+    <div class="ch-lane">
+      <span class="ch-chip" data-ch-chip><b data-ch-chip-k></b><small data-ch-chip-v></small></span>
+    </div>
+    <div class="ch-rows">
+      {
+        rows.map((i) => (
+          <div class="ch-row" data-ch-row={i}>
+            <span class="ch-idx">{i}</span>
+            <span class="ch-slot" />
+            <span class="ch-list" data-ch-list={i} />
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <p class="ch-note" data-ch-note></p>
+</div>
+
+<script is:inline define:vars={{ id, m, keys, codes }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.chStrings);
+    const mode = root.dataset.chMode;
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const hashOf = (k) => (codes[k] ?? k.charCodeAt(0)) % m;
+
+    /* 단계 배열을 미리 만든다. put · get · delete는 hashTableSC.pseudo와 같다.
+       리스트는 앞에서부터의 [key, value] 배열이다. 한 걸음은 해시 계산 하나
+       또는 노드 비교 하나다. */
+    let lists = Array.from({ length: m }, () => []);
+    let n = 0;
+    let record = true;
+    const steps = [];
+    const snap = (x) => {
+      if (record) steps.push({ lists: lists.map((l) => l.map((e) => e.slice())), n, ...x });
+    };
+
+    function put(k, v) {
+      const op = `put ${k}=${v}`;
+      const h = hashOf(k);
+      const list = lists[h];
+      const chip = { k, v, row: h };
+      snap({ op, c: 0, row: h, chip, note: fill(list.length ? S.hash : S.hashEmpty, { k, h }) });
+      let c = 0;
+      for (let j = 0; j < list.length; j++) {
+        c += 1;
+        if (list[j][0] === k) {
+          const old = list[j][1];
+          list[j][1] = v;
+          snap({ op, c, row: h, chip: null, mark: { row: h, j, kind: 'upd' }, note: fill(S.same, { k, old, v, c }) });
+          return;
+        }
+        snap({ op, c, row: h, chip, mark: { row: h, j, kind: 'cmp' }, note: fill(S.differ, { o: list[j][0], k }) });
+      }
+      list.unshift([k, v]);
+      n += 1;
+      snap({ op, c, row: h, chip: null, mark: { row: h, j: 0, kind: 'new' }, note: fill(S.insert, { k, v, c }) });
+    }
+
+    function get(k) {
+      const op = `get ${k}`;
+      const h = hashOf(k);
+      const list = lists[h];
+      const chip = { k, v: '?', row: h, query: true };
+      snap({ op, c: 0, row: h, chip, note: fill(list.length ? S.hash : S.hashEmpty, { k, h }) });
+      let c = 0;
+      for (let j = 0; j < list.length; j++) {
+        c += 1;
+        if (list[j][0] === k) {
+          snap({ op, c, row: h, chip: null, mark: { row: h, j, kind: 'hit' }, note: fill(S.hit, { k, v: list[j][1], c }), good: true });
+          return;
+        }
+        snap({ op, c, row: h, chip, mark: { row: h, j, kind: 'cmp' }, note: fill(S.differ, { o: list[j][0], k }) });
+      }
+      snap({ op, c, row: h, chip, mark: { row: h, j: list.length, kind: 'end' }, note: fill(S.miss, { k, c }), bad: true });
+    }
+
+    function remove(k) {
+      const op = `delete ${k}`;
+      const h = hashOf(k);
+      const list = lists[h];
+      const chip = { k, v: '', row: h, query: true };
+      snap({ op, c: 0, row: h, chip, note: fill(S.hash, { k, h }) });
+      let c = 0;
+      for (let j = 0; j < list.length; j++) {
+        c += 1;
+        if (list[j][0] === k) {
+          snap({ op, c, row: h, chip: null, mark: { row: h, j, kind: 'del' }, note: fill(j === 0 ? S.foundHead : S.found, { k, c }) });
+          list.splice(j, 1);
+          n -= 1;
+          snap({ op, c, row: h, chip: null, note: fill(S.removed, { k }), good: true });
+          return;
+        }
+        snap({ op, c, row: h, chip, mark: { row: h, j, kind: 'cmp' }, note: fill(S.differ, { o: list[j][0], k }) });
+      }
+    }
+
+    record = mode === 'build';
+    [...keys].forEach((k, v) => put(k, v));
+    const initial = { lists: lists.map((l) => l.map((e) => e.slice())), n };
+    if (mode === 'build') {
+      initial.lists = Array.from({ length: m }, () => []);
+      initial.n = 0;
+    }
+    record = true;
+    if (mode === 'search') {
+      get('E');
+      get('Y');
+    } else if (mode === 'delete') {
+      remove('E');
+    }
+    const idle = { build: S.idleBuild, search: S.idleSearch, delete: S.idleDelete }[mode];
+
+    const listEls = [...root.querySelectorAll('[data-ch-list]')];
+    const rowEls = [...root.querySelectorAll('[data-ch-row]')];
+    const chip = root.querySelector('[data-ch-chip]');
+    const chipK = root.querySelector('[data-ch-chip-k]');
+    const chipV = root.querySelector('[data-ch-chip-v]');
+    const opEl = root.querySelector('[data-ch-op]');
+    const countEl = root.querySelector('[data-ch-count]');
+    const loadEl = root.querySelector('[data-ch-load]');
+    const longestEl = root.querySelector('[data-ch-longest]');
+    const note = root.querySelector('[data-ch-note]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : { ...initial, op: '', c: 0, row: -1, chip: null, note: idle };
+      listEls.forEach((el, r) => {
+        const list = st.lists[r];
+        const mk = st.mark && st.mark.row === r ? st.mark : null;
+        const parts = list.map(([k, v], j) => {
+          const cls = ['ch-node'];
+          if (mk && mk.j === j) cls.push(`is-${mk.kind}`);
+          return `<span class="${cls.join(' ')}"><b>${k}</b><small>${v}</small></span>`;
+        });
+        const end = mk && mk.kind === 'end' ? ' is-end' : '';
+        el.innerHTML = parts.join('<span class="ch-arrow">→</span>') + `<span class="ch-null${end}">∅</span>`;
+        rowEls[r].classList.toggle('is-now', st.row === r);
+      });
+      if (st.chip) {
+        chip.style.setProperty('--ch-at', String(st.chip.row));
+        chipK.textContent = st.chip.k;
+        chipV.textContent = String(st.chip.v);
+        chip.classList.add('is-on');
+        chip.classList.toggle('is-query', !!st.chip.query);
+      } else {
+        chip.classList.remove('is-on');
+      }
+      opEl.textContent = st.op;
+      countEl.textContent = String(st.c);
+      countEl.classList.toggle('is-good', !!st.good);
+      countEl.classList.toggle('is-bad', !!st.bad);
+      loadEl.textContent = `${st.n}/${m}`;
+      longestEl.textContent = String(Math.max(...st.lists.map((l) => l.length)));
+      note.textContent = s >= 0 && s >= steps.length - 1 ? `${st.note} ${S.done}` : st.note;
+      root.classList.toggle('is-done', s >= steps.length - 1);
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 800);
+    });
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-chaining-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --ch-row: 2.7em;
+    --ch-chipw: 3.4em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-chaining-demo .ch-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-chaining-demo .ch-head {
+    font-size: 0.95em;
+  }
+  .aas-chaining-demo .ch-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-chaining-demo .ch-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-chaining-demo .ch-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-chaining-demo .ch-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 이 데모의 요점: 이번 연산의 비교 횟수 */
+  .aas-chaining-demo .ch-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4em 1.4em;
+    margin-bottom: 0.6em;
+  }
+  .aas-chaining-demo .ch-op {
+    min-width: 6.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    font-weight: 700;
+  }
+  .aas-chaining-demo .ch-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+  }
+  .aas-chaining-demo .ch-big-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-chaining-demo .ch-big strong {
+    min-width: 1.2em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-chaining-demo .ch-big strong.is-good {
+    color: var(--aas-role-eval);
+  }
+  .aas-chaining-demo .ch-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-chaining-demo .ch-small {
+    display: inline-flex;
+    gap: 1em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-chaining-demo .ch-small b {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-chaining-demo .ch-board {
+    display: flex;
+    gap: 0.6em;
+  }
+  /* 넣거나 찾는 키는 왼쪽 칸에서 top 전환으로 해당 줄까지 내려간다. */
+  .aas-chaining-demo .ch-lane {
+    position: relative;
+    flex: 0 0 var(--ch-chipw);
+    height: calc(var(--ch-m) * var(--ch-row));
+  }
+  .aas-chaining-demo .ch-chip {
+    --ch-at: 0;
+    position: absolute;
+    left: 0;
+    top: calc(var(--ch-at) * var(--ch-row) + 0.25em);
+    width: var(--ch-chipw);
+    height: calc(var(--ch-row) - 0.5em);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15em;
+    border-radius: 0.45em;
+    background: var(--aas-role-focus);
+    color: #fff;
+    opacity: 0;
+    transition:
+      top 0.4s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.25s;
+  }
+  .aas-chaining-demo .ch-chip.is-on {
+    opacity: 1;
+  }
+  .aas-chaining-demo .ch-chip.is-query {
+    background: var(--aas-bg);
+    color: var(--aas-role-focus);
+    border: 2px solid var(--aas-role-focus);
+  }
+  .aas-chaining-demo .ch-chip small {
+    font-size: 0.7em;
+    opacity: 0.85;
+  }
+
+  .aas-chaining-demo .ch-rows {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .aas-chaining-demo .ch-row {
+    height: var(--ch-row);
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    white-space: nowrap;
+  }
+  .aas-chaining-demo .ch-idx {
+    flex: 0 0 1.2em;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-chaining-demo .ch-slot {
+    flex: 0 0 1.3em;
+    height: calc(var(--ch-row) - 0.5em);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    position: relative;
+  }
+  .aas-chaining-demo .ch-slot::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.4em;
+    height: 0.4em;
+    border-radius: 50%;
+    background: var(--aas-muted);
+    transform: translate(-50%, -50%);
+  }
+  .aas-chaining-demo .ch-row.is-now .ch-slot {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-chaining-demo .ch-list {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+  }
+  .aas-chaining-demo .ch-list::before {
+    content: '→';
+    color: var(--aas-muted);
+  }
+  .aas-chaining-demo .ch-node {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.15em;
+    padding: 0.3em 0.5em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.45em;
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+    transition:
+      box-shadow 0.3s,
+      background-color 0.3s;
+  }
+  .aas-chaining-demo .ch-node b {
+    font-size: 1.05em;
+  }
+  .aas-chaining-demo .ch-node small {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-chaining-demo .ch-node.is-cmp {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-chaining-demo .ch-node.is-hit,
+  .aas-chaining-demo .ch-node.is-new {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-chaining-demo .ch-node.is-new {
+    animation: ch-pop 0.45s ease-out;
+  }
+  .aas-chaining-demo .ch-node.is-upd {
+    box-shadow: 0 0 0 3px var(--aas-role-trace);
+  }
+  .aas-chaining-demo .ch-node.is-upd small {
+    color: var(--aas-text);
+    font-weight: 700;
+    animation: ch-pop 0.45s ease-out;
+    display: inline-block;
+  }
+  .aas-chaining-demo .ch-node.is-del {
+    border-style: dashed;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 15%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-guard);
+    opacity: 0.7;
+  }
+  .aas-chaining-demo .ch-arrow {
+    color: var(--aas-muted);
+  }
+  .aas-chaining-demo .ch-null {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    padding: 0.1em 0.3em;
+    border-radius: 0.3em;
+  }
+  .aas-chaining-demo .ch-null.is-end {
+    color: var(--aas-role-guard);
+    box-shadow: 0 0 0 2px var(--aas-role-guard);
+  }
+
+  .aas-chaining-demo .ch-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-chaining-demo.is-done .ch-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes ch-pop {
+    from {
+      transform: scale(1.5);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-chaining-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-chaining-demo.is-slide .ch-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-chaining-demo .ch-chip,
+    .aas-chaining-demo .ch-node {
+      transition: none;
+    }
+    .aas-chaining-demo .ch-node,
+    .aas-chaining-demo .ch-node small {
+      animation: none !important;
+    }
+  }
+</style>

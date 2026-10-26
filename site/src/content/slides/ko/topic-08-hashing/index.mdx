@@ -1,0 +1,935 @@
+---
+title: "주제 08. 해시 테이블"
+description: "키에서 곧바로 자리를 계산하는 해시 함수, 충돌을 푸는 두 방식(개별 체이닝과 선형 탐지), 그리고 적재율이 정하는 성능"
+date: "주제 08 · v1"
+order: 8
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import HashSlotDemo from '@components/HashSlotDemo.astro';
+import ChainingDemo from '@components/ChainingDemo.astro';
+import ProbingDemo from '@components/ProbingDemo.astro';
+import ClusterFigure from '@components/ClusterFigure.astro';
+
+{/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
+    수치는 실습 코드(topic-08-hashing)의 실행 결과와 같습니다. */}
+
+<Slide class="cover">
+
+# 해시 테이블
+
+주제 08
+
+*고급알고리즘*
+
+</Slide>
+
+<Slide>
+
+## 비교하지 않고 찾기
+::sub[주제 07의 이진 탐색 트리는 비교하며 찾았습니다]
+
+- **이진 탐색 트리**: 키를 비교하며 내려간다. 균형이 잡혀도 $$O(\log n)$$
+- **해시 테이블**: 키에서 **곧바로 자리를 계산**한다. 평균 $$O(1)$$
+
+<br/>
+
+그 계산이 해시 함수입니다.  
+서로 다른 키가 같은 자리를 가리키는 충돌을 어떻게 푸느냐가 나머지 전부입니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 키를 배열 인덱스로
+::sub[Key as an Index]
+
+</Slide>
+
+<Slide class="compact">
+
+#### 키가 곧 주소라면
+::sub[키 i인 항목을 배열의 i번 칸에]
+
+```plaintext
+칸    1   2   3   4   5   6   7   8
+     [ ] [ ] [3] [ ] [5] [ ] [ ] [8]
+
+find 3?  -> A[3]을 본다. 있다.
+find 5?  -> A[5]를 본다. 있다.
+find 7?  -> A[7]을 본다. 비어 있으니 없다.
+```
+
+비교를 한 번도 하지 않습니다.  
+어떤 키든 메모리 접근 한 번, $$O(1)$$에 끝납니다.
+
+</Slide>
+
+<Slide>
+
+#### 해싱
+::sub[이 방법을 작은 정수가 아닌 키로 넓힌 것]
+
+- 주민등록번호, 이름, 학번, 문자열처럼 **크거나 정수가 아닌 키**에도 같은 일을 하고 싶습니다.
+- 그러려면 두 가지가 필요합니다.
+  - **해시 함수**: 키를 배열 인덱스로 바꾸는 계산
+  - **충돌 해결**: 서로 다른 키가 같은 인덱스로 바뀌었을 때의 처리
+
+</Slide>
+
+<Slide>
+
+#### 시간과 메모리 사이
+::sub[해싱은 두 극단의 중간에서 균형점을 찾습니다]
+
+| 메모리가 | 할 수 있는 일 | 대가 |
+| --- | --- | --- |
+| 무한하다면 | 모든 키에 칸을 하나씩 준다 | 메모리 ($$10^{13}$$칸) |
+| 아주 적다면 | 배열 하나에 모아 순차 탐색한다 | 시간 ($$O(n)$$) |
+| 적당하다면 | **해싱**: 흩어 두고 겹친 것만 처리한다 | 둘 다 조금씩 |
+
+</Slide>
+
+<Slide>
+
+#### 카페의 쿠폰 칸
+::sub[손님 이름의 첫 자음마다 칸이 있습니다]
+
+- 쿠폰을 찾을 때 상자 전체가 아니라 **한 칸만** 뒤집니다.
+- **첫 자음을 고르는 것**이 해시 함수입니다.
+- **한 칸에 여러 장**이 꽂혀 있는 것이 충돌입니다.
+
+<br/>
+
+칸 수가 손님 수보다 훨씬 적으니 메모리를 적게 쓰고,  
+한 칸만 뒤지면 되니 시간도 적게 씁니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 해시 함수
+::sub[Hash Function]
+
+</Slide>
+
+<Slide>
+
+#### 좋은 해시 함수
+::sub[키를 배열의 인덱스 값으로 바꿉니다]
+
+1. **결과가 언제나 정수 $$[0, M-1]$$ 안에 든다.**
+2. **계산하기 쉽다.**
+3. **키를 배열 전체에 고르게 퍼뜨린다.**
+
+<br/>
+
+- **주민등록번호**: 숫자이면 숫자를 그대로 씁니다.
+- **이름**: 문자열이면 숫자로 바꾸어 씁니다.
+- **직접 만든 데이터 타입**: 해시 함수를 직접 만들어야 합니다.
+
+</Slide>
+
+<Slide>
+
+#### 모듈러 해싱
+::sub[정수를 해싱할 때 가장 흔한 방법]
+
+<div class="aas-split">
+<div>
+
+$$
+h(k) = k \bmod M
+$$
+
+- 키를 배열 크기 $$M$$으로 나눈 **나머지**
+- 나머지는 언제나 $$[0, M-1]$$
+- 나눗셈 한 번이니 계산이 쉽습니다.
+
+</div>
+<div>
+
+| 키 | 코드 | 해시 ($$M = 8$$) |
+| --- | --- | --- |
+| A | 65 | 1 |
+| B | 66 | 2 |
+| C | 67 | 3 |
+| K | 75 | 3 |
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: A B C K
+::sub[코드 mod 8로 칸을 정합니다. 이미 차 있는 칸에 또 들어가면 붉어집니다]
+
+<HashSlotDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 충돌
+::sub[Collision]
+
+`C`(67)와 `K`(75)는 다른 키인데 둘 다 3번 칸을 가리킵니다.
+
+<br/>
+
+- 이상적으로는 서로 다른 키가 서로 다른 인덱스로 가야 합니다.
+- 하지만 실제로는 서로 다른 키가 **같은 배열 인덱스에 매핑될 수 있습니다.**
+
+</Slide>
+
+<Slide>
+
+### M은 소수로: M = 8
+::sub[4의 배수만 들어오면 어떻게 될까요]
+
+<HashSlotDemo keys={[0, 4, 8, 12, 16, 20, 24, 28]} m={8} slide />
+
+</Slide>
+
+<Slide>
+
+### M은 소수로: M = 7
+::sub[같은 키, 배열 크기만 소수로 바꿉니다]
+
+<HashSlotDemo keys={[0, 4, 8, 12, 16, 20, 24, 28]} m={7} slide />
+
+</Slide>
+
+<Slide>
+
+#### 왜 소수인가
+::sub[인덱스 변환 결과를 골고루 분산하는 데 도움이 됩니다]
+
+- $$M = 8$$이면 여덟 칸 중 **2칸**만 쓰입니다.
+  - 키와 $$M$$이 공약수 4를 가지기 때문입니다.
+- $$M = 7$$이면 **7칸**에 다 퍼집니다.
+  - 소수는 자기 배수가 아닌 어떤 키와도 공약수가 없습니다.
+- 다만 만능은 아닙니다.
+  - 키가 모두 7의 배수였다면 $$M = 7$$도 한 칸만 씁니다.
+
+</Slide>
+
+<Slide>
+
+#### 문자열 해싱
+::sub[문자열은 먼저 숫자로 바꿉니다]
+
+- **글자 코드를 더하면**
+  - `stop`, `pots`, `tops`, `spot`, `opts`, `post`가 모두 같은 값입니다.
+  - 글자 순서를 보지 않기 때문입니다.
+- **호너 방식**(Horner's method)
+  - 앞까지의 값에 $$R$$(보통 31)을 곱하고 다음 글자를 더합니다.
+  - 매번 $$M$$으로 나눈 나머지를 취해 값이 커지지 않습니다.
+
+$$
+h \leftarrow (R \cdot h + \text{code}(c)) \bmod M
+$$
+
+</Slide>
+
+<Slide class="compact">
+
+#### 더하기와 호너 방식
+::sub[`01_hash_function/` · M = 97]
+
+<div class="aas-split">
+<div>
+
+```c
+int hornerHash(const char *s, int m) {
+    const int R = 31;
+    int h = 0;
+    for (int i = 0; s[i] != '\0'; i++) {
+        h = (R * h + (unsigned char)s[i]) % m;
+    }
+    return h;
+}
+```
+
+</div>
+<div>
+
+```console
+string keys, M = 97
+  key   sum  horner
+  stop   66       9
+  pots   66      79
+  tops   66       3
+  spot   66      49
+  opts   66      58
+  post   66      49
+```
+
+</div>
+</div>
+
+더하기는 여섯 단어가 **한 칸**, 호너 방식은 **다섯 칸**입니다.  
+`spot`과 `post`는 그래도 만납니다. 좋은 해시 함수도 충돌을 **줄일 뿐**입니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 충돌은 반드시 일어난다
+::sub[Collisions Are Unavoidable]
+
+</Slide>
+
+<Slide>
+
+#### 피할 수 없는 두 가지 이유
+
+- **비둘기집 원리**
+  - 키가 칸보다 많으면($$N > M$$) 어떤 칸에는 둘 이상 들어갑니다.
+  - 키가 될 수 있는 값은 언제나 배열 크기보다 훨씬 많습니다.
+- **생일 문제**
+  - 키가 칸보다 훨씬 적어도 충돌은 금방 일어납니다.
+  - 23명이 모이면 생일이 같은 두 사람이 있을 확률이 절반을 넘습니다.
+
+$$
+P(\text{충돌}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
+$$
+
+</Slide>
+
+<Slide class="compact">
+
+#### 얼마나 빨리 일어나나
+::sub[`01_hash_function/`의 마지막 덩어리]
+
+- 실행
+
+```console
+chance of at least one collision
+  N =  3, M =  16:  18.0%
+  N =  5, M =  16:  50.0%
+  N = 10, M =  16:  97.4%
+  N = 23, M = 365:  50.7%
+```
+
+16칸에 키 **5개**만 넣어도 충돌 확률이 절반입니다. 10개면 거의 확실합니다.  
+해시 테이블은 충돌을 피하는 것이 아니라 **처리하는** 방법을 갖고 있어야 합니다.
+
+</Slide>
+
+<Slide>
+
+#### 충돌을 푸는 두 방식
+::sub[Collision Resolution]
+
+1. **개별 체이닝**(separate chaining)
+   - 칸마다 연결 리스트를 두고 충돌한 키를 매답니다.
+2. **선형 탐지**(linear probing)
+   - 충돌하면 배열의 다음 빈칸을 찾아갑니다.
+
+</Slide>
+
+<Slide>
+
+#### 이 주제의 예제 데이터
+::sub[키는 S E A R C H E X A M P L E, 값은 등장 순서 0부터 12]
+
+| 키 | A | C | E | H | L | M | P | R | S | X | Y |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 코드 | 20 | 69 | 10 | 4 | 38 | 49 | 78 | 14 | 22 | 47 | 52 |
+| mod 5 | 0 | 4 | 0 | 4 | 3 | 4 | 3 | 4 | 2 | 2 | 2 |
+| mod 16 | 4 | 5 | 10 | 4 | 6 | 1 | 14 | 14 | 6 | 15 | 4 |
+
+<br/>
+
+- `E`는 세 번, `A`는 두 번 나옵니다. 서로 다른 키는 **10개**입니다.
+- 이 예제에서는 글자마다 정수를 이렇게 정했습니다.
+- `Y`는 넣지 않는 키입니다. 없는 키를 찾을 때 씁니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 1) 개별 체이닝
+::sub[Separate Chaining]
+
+</Slide>
+
+<Slide>
+
+#### 칸마다 연결 리스트
+::sub[해시 값이 같은 항목들을 한 리스트에 저장합니다]
+
+- 크기 $$M$$인 배열의 칸 각각에 **연결 리스트**를 둡니다.
+- 충돌하는 항목들은 칸별로 **별개의 리스트**로 관리합니다.
+- 찾는 일은 **두 단계 탐색**입니다.
+  1. **해시 탐색**: 해시 함수로 칸을 고른다.
+  2. **리스트 탐색**: 그 칸의 리스트를 순차 탐색한다.
+- 리스트가 짧아야 하므로 $$M$$을 충분히 크게 잡습니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 삽입
+::sub[해시로 칸을 찾고 리스트를 훑습니다. 같은 키면 값만 바꾸고, 없으면 맨 앞에 붙입니다]
+
+<ChainingDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 삽입 절차
+::sub[`02_hash_table_sc/hashTableSC.pseudo`]
+
+```plaintext
+ALGORITHM Put(T, key, value)            // T: 크기 M인 배열, 칸마다 연결 리스트
+    i <- Hash(key, M)
+    for 노드 x in T[i] do               // 1단계: 해시로 칸을 찾고
+        if x.key = key then             // 2단계: 그 칸의 리스트를 순차 탐색
+            x.value <- value            // 같은 키가 있으면 값만 바꾼다
+            return
+    T[i] <- 새 노드(key, value, next = T[i])   // 없으면 맨 앞에 붙인다
+    N <- N + 1
+```
+
+- 같은 키가 있는지 보려고 어차피 끝까지 훑습니다.
+- 맨 앞에 붙이면 리스트 끝을 찾아갈 필요가 없습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 코드로 옮기면
+::sub[`02_hash_table_sc/hashTableSC.c`]
+
+```c
+int put(ChainingTable *t, char key, int value, int *compares) {
+    int i = hashOf(key, t->m);
+    *compares = 0;
+    for (Node *x = t->heads[i]; x != NULL; x = x->next) {
+        (*compares)++;
+        if (x->key == key) {
+            x->value = value;
+            return 0;
+        }
+    }
+    Node *node = malloc(sizeof(Node));
+    node->key = key;  node->value = value;
+    node->next = t->heads[i];   /* 맨 앞에 붙인다 */
+    t->heads[i] = node;  t->n++;
+    return 1;
+}
+```
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 검색
+::sub[있는 키 E와 없는 키 Y. 없다는 것도 그 칸의 리스트만 보면 압니다]
+
+<ChainingDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 삭제
+::sub[찾은 노드를 건너뛰도록 연결 하나를 바꿉니다. 다른 칸에는 영향이 없습니다]
+
+<ChainingDemo mode="delete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행: 삽입
+::sub[`02_hash_table_sc/` · compares는 그 칸의 리스트에서 비교한 횟수]
+
+- 실행
+
+```console
+put S=0   hash 2  compares 0  new     [2] S0
+put E=1   hash 0  compares 0  new     [0] E1
+put A=2   hash 0  compares 1  new     [0] A2 -> E1
+put R=3   hash 4  compares 0  new     [4] R3
+put C=4   hash 4  compares 1  new     [4] C4 -> R3
+put H=5   hash 4  compares 2  new     [4] H5 -> C4 -> R3
+put E=6   hash 0  compares 2  update  [0] A2 -> E6
+put X=7   hash 2  compares 1  new     [2] X7 -> S0
+put A=8   hash 0  compares 1  update  [0] A8 -> E6
+put M=9   hash 4  compares 3  new     [4] M9 -> H5 -> C4 -> R3
+put P=10  hash 3  compares 0  new     [3] P10
+put L=11  hash 3  compares 1  new     [3] L11 -> P10
+put E=12  hash 0  compares 2  update  [0] A8 -> E12
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행: 검색과 삭제
+::sub[10개를 5칸에, N/M = 2.0]
+
+<div class="aas-split">
+<div>
+
+```console
+N = 10, M = 5, N/M = 2.0
+[0] A8 -> E12
+[1] -
+[2] X7 -> S0
+[3] L11 -> P10
+[4] M9 -> H5 -> C4 -> R3
+```
+
+</div>
+<div>
+
+```console
+get E: hash 0, compares 2 -> 12
+get Y: hash 2, compares 2 -> not found
+
+delete E: hash 0, compares 2 -> deleted
+N = 9
+[0] A8
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 개별 체이닝의 비용
+::sub[리스트 길이의 평균은 N/M, 이것이 적재율 α입니다]
+
+| 연산 | 평균 | 최악 (모든 키가 한 칸) |
+| --- | --- | --- |
+| 검색·삽입·삭제 | $$O(1 + N/M)$$ | $$O(N)$$ |
+
+<br/>
+
+- $$M$$을 $$N$$에 비례하게 잡으면 평균 $$O(1)$$입니다.
+- **$$M$$이 너무 크면** 빈 리스트가 많아져 메모리를 낭비합니다.
+- **$$M$$이 너무 작으면** 리스트가 길어져 탐색이 느려집니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 2) 선형 탐지
+::sub[Linear Probing]
+
+</Slide>
+
+<Slide>
+
+#### 개방형 주소 지정
+::sub[Open Addressing]
+
+- 배열이 키보다 크면($$M > N$$) 빈칸이 언제나 남아 있습니다.
+- 충돌하면 **이미 있는 빈칸**에 넣어 해소합니다.
+- 리스트의 링크에 쓸 메모리를 배열을 키우는 데 씁니다.
+
+<br/>
+
+**선형 탐지**는 그 가장 단순한 형태입니다.  
+충돌하면 테이블의 **다음 칸**을 보고, 빈칸이 나올 때까지 오른쪽으로 갑니다.  
+배열 끝에 닿으면 0번으로 돌아갑니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 삽입
+::sub[키가 해시 칸에서 출발해 미끄러집니다. 주황 막대는 차 있는 칸이 이어진 덩어리]
+
+<ProbingDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 눈여겨볼 장면 셋
+::sub[크게 뜬 숫자는 들여다본 칸 수입니다]
+
+- **`H`(해시 4)는 4칸**
+  - 4번 `A`, 5번 `C`, 6번 `S`에 부딪히고 7번에 들어갑니다.
+- **`P`(해시 14)는 0번 칸으로**
+  - 14번 `R`, 15번 `X`를 지나 배열 끝을 넘어갑니다.
+- **`L`(해시 6)은 `H`가 차지한 7번에도 부딪힙니다.**
+  - `H`는 4번 자리의 충돌 때문에 7번에 와 있었습니다.
+  - 충돌이 충돌을 부릅니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 삽입과 검색 절차
+::sub[`03_hash_table_lp/hashTableLP.pseudo`]
+
+```plaintext
+ALGORITHM Put(T, key, value)
+    i <- Hash(key, M)
+    while T.keys[i] ≠ 빈칸 do           // 빈칸을 만날 때까지 오른쪽으로
+        if T.keys[i] = key then
+            T.values[i] <- value        // 같은 키가 있으면 값만 바꾼다
+            return
+        i <- (i + 1) mod M              // 끝에 닿으면 0번 칸으로 돌아간다
+    T.keys[i] <- key, T.values[i] <- value
+
+ALGORITHM Get(T, key)
+    i <- Hash(key, M)
+    while T.keys[i] ≠ 빈칸 do
+        if T.keys[i] = key then return T.values[i]
+        i <- (i + 1) mod M
+    return 없음                         // 빈칸을 만나면 그 키는 없다
+```
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 검색
+::sub[있는 H는 4칸, 없는 Y는 무리를 끝까지 지나 6칸]
+
+<ProbingDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+#### 빈칸에서 멈춰도 되는 이유
+
+- 그 키가 있었다면 늦어도 **그 빈칸에** 들어갔을 것입니다.
+- 그래서 **빈칸은 "여기서부터는 없다"는 뜻**입니다.
+
+<br/>
+
+없는 키 `Y`는 체이닝에서 비교 2번이었는데, 선형 탐지에서는 6칸입니다.  
+4번부터 8번까지 이어진 **무리** 때문입니다.
+
+</Slide>
+
+<Slide>
+
+### 그냥 지우면?
+::sub[C가 있던 5번 칸만 비우고 H를 찾아봅니다]
+
+<ProbingDemo mode="naive" slide />
+
+</Slide>
+
+<Slide>
+
+#### 길이 끊겼습니다
+::sub[그냥 삭제하면 안 됩니다]
+
+- `H`는 7번 칸에 그대로 있습니다.
+- `H`를 찾는 길은 4번에서 출발해 5번, 6번을 거쳐 7번에 닿아야 합니다.
+- 5번이 빈칸이 되자 `get`이 거기서 멈춥니다.
+
+<br/>
+
+`C`를 지운 것이 `H`가 다니던 길을 끊었습니다.
+
+</Slide>
+
+<Slide>
+
+### 지우고, 뒤따르는 키를 다시 넣는다
+::sub[삭제한 칸 오른쪽의 키들을 빈칸이 나올 때까지 꺼냈다가 다시 넣습니다]
+
+<ProbingDemo mode="delete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 삭제 절차
+::sub[`03_hash_table_lp/hashTableLP.pseudo`]
+
+```plaintext
+ALGORITHM Delete(T, key)
+    i <- Hash(key, M)
+    while T.keys[i] ≠ key do            // 먼저 키를 찾는다
+        if T.keys[i] = 빈칸 then return 실패
+        i <- (i + 1) mod M
+    T.keys[i] <- 빈칸, N <- N - 1
+    i <- (i + 1) mod M
+    while T.keys[i] ≠ 빈칸 do           // 같은 무리에서 뒤따르던 키들을
+        k, v <- T.keys[i], T.values[i]
+        T.keys[i] <- 빈칸, N <- N - 1
+        Put(T, k, v)                    // 꺼냈다가 다시 넣는다
+        i <- (i + 1) mod M
+    if 0 < N ≤ M/8 then Resize(T, M/2)  // 너무 비면 절반으로 줄인다
+```
+
+다시 넣는 키는 무리 하나만큼이므로, 무리가 짧으면 삭제도 싸게 끝납니다.
+
+</Slide>
+
+<Slide>
+
+#### 다른 방법: 지워짐 표시
+::sub[Tombstone, 게으른 삭제(lazy deletion)]
+
+- 지운 칸에 **표시**만 남기고 실제로 비우지 않습니다.
+  - `get`은 표시를 **차 있는 칸처럼** 지나갑니다.
+  - `put`은 표시를 **빈칸처럼** 다시 씁니다.
+- **`put`은 첫 표시 칸에 바로 넣으면 안 됩니다.**
+  - 구현할 때 흔히 빠지는 함정입니다.
+  - 같은 키가 뒤쪽에 살아 있을 수 있습니다.
+  - 빈칸까지 가서 없음을 확인한 뒤 첫 표시 칸에 넣습니다.
+- **표시는 쌓입니다.**
+  - 많아지면 테이블을 새로 만들어 청소합니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 크기 조정
+::sub[적재율을 보고 늘이고 줄입니다. 해시값이 바뀌므로 모두 다시 넣습니다]
+
+- **넣을 때**: 일정 비율 이상 차면 두 배로 (구현마다 다르고, 이 예제는 0.7)
+- **지울 때**: $$0 < N \le M/8$$이면 절반으로
+
+```console
+resize to M = 32, N/M = 0.3125
+slot   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+key    -  -  -  -  H  C  L  -  -  -  E  -  -  -  P  R
+value  -  -  -  -  5  4 11  -  -  - 12  -  -  - 10  3
+slot  16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+key    X  M  -  -  A  -  S  -  -  -  -  -  -  -  -  -
+value  7  9  -  -  8  -  0  -  -  -  -  -  -  -  -  -
+hits: 12 probes for 10 keys, 1.20 per key
+```
+
+크기 16일 때는 `hits: 17 probes`였습니다. 적재율을 낮추자 17칸이 12칸이 되었습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행: 삽입과 검색
+::sub[`03_hash_table_lp/` · probes는 들여다본 칸 수]
+
+<div class="aas-split">
+<div>
+
+```console
+put S=0   hash  6  probes 1  slot  6  new
+put E=1   hash 10  probes 1  slot 10  new
+put A=2   hash  4  probes 1  slot  4  new
+put R=3   hash 14  probes 1  slot 14  new
+put C=4   hash  5  probes 1  slot  5  new
+put H=5   hash  4  probes 4  slot  7  new
+put E=6   hash 10  probes 1  slot 10  update
+put X=7   hash 15  probes 1  slot 15  new
+put A=8   hash  4  probes 1  slot  4  update
+put M=9   hash  1  probes 1  slot  1  new
+put P=10  hash 14  probes 3  slot  0  new
+put L=11  hash  6  probes 3  slot  8  new
+put E=12  hash 10  probes 1  slot 10  update
+```
+
+</div>
+<div>
+
+```console
+get H: hash 4, probes 4 -> 5
+get Y: hash 4, probes 6 -> not found
+hits: 17 probes for 10 keys, 1.70 per key
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide class="compact">
+
+#### 실행: 삭제
+::sub[그냥 비우면 H를 못 찾고, 뒤따르는 키를 다시 넣으면 2칸 만에 찾습니다]
+
+- 실행
+
+```console
+naive delete C: just empty slot 5
+get H: hash 4, probes 2 -> not found
+
+delete C: hash 5
+  reinsert S: slot 6 -> 6
+  reinsert H: slot 7 -> 5
+  reinsert L: slot 8 -> 7
+get H: hash 4, probes 2 -> 5
+N = 9, M = 16
+slot   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+key    P  M  -  -  A  H  S  L  -  -  E  -  -  -  R  X
+value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
+```
+
+</Slide>
+
+<Slide class="center">
+
+## 키 무리와 적재율
+::sub[Clustering and Load Factor]
+
+</Slide>
+
+<Slide>
+
+#### 키 무리는 스스로 자란다
+::sub[차 있는 칸이 빈칸 없이 이어진 덩어리]
+
+- 예제의 4번부터 8번(`A C S H L`)이 길이 5인 무리입니다.
+- 새 키의 해시가 무리 안 **어디에** 떨어지든 무리 끝 다음 칸에 들어갑니다.
+  - 무리가 길수록 키를 받아들일 확률이 큽니다.
+- 들어간 키는 무리를 늘리고, 가끔은 옆 무리와 이어 붙입니다.
+  - `P`가 0번에 들어가자 14·15번과 1번이 한 덩어리가 되었습니다.
+- 무리가 길면 검색도 무리 끝까지 걸어야 합니다.
+
+</Slide>
+
+<Slide>
+
+### 512칸에 키 256개와 128개
+::sub[왼쪽은 선형 탐지, 오른쪽은 충돌할 때 아무 빈칸이나 고르는 비교용]
+
+<ClusterFigure slide />
+
+</Slide>
+
+<Slide>
+
+#### 적재율이 정하는 비용
+::sub[α = N/M일 때 들여다보는 칸 수의 평균 (Knuth)]
+
+$$
+\text{성공} \approx \frac{1}{2}\left(1 + \frac{1}{1-\alpha}\right) \qquad
+\text{실패} \approx \frac{1}{2}\left(1 + \frac{1}{(1-\alpha)^2}\right)
+$$
+
+| 적재율 $$\alpha$$ | 성공 탐색 | 실패 탐색 |
+| --- | --- | --- |
+| 1/2 | 1.5 | 2.5 |
+| 3/4 | 2.5 | 8.5 |
+| 7/8 | 4.5 | 32.5 |
+
+1에 가까워질수록 **급격히** 나빠집니다. 그래서 $$\alpha$$를 1/2 근처로 지킵니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 정리
+::sub[Summary]
+
+</Slide>
+
+<Slide>
+
+#### 두 방식 비교
+
+| | 개별 체이닝 | 선형 탐지 |
+| --- | --- | --- |
+| 충돌한 키를 두는 곳 | 그 칸의 연결 리스트 | 배열의 다음 빈칸 |
+| 적재율 | 1을 넘어도 된다 | 1보다 작아야 한다 (보통 1/2 근처) |
+| 추가 메모리 | 노드마다 링크 | 빈칸 |
+| 삭제 | 연결 하나만 바꾼다 | 다시 넣거나 지워짐 표시 |
+| 성능을 해치는 것 | 긴 리스트 | 긴 키 무리 |
+| 메모리 접근 | 노드가 흩어져 있다 | 이웃한 칸을 차례로 본다 |
+
+</Slide>
+
+<Slide>
+
+#### 메모리
+::sub[Sedgewick 교재의 Java 기준, 키와 값이 참조 타입일 때]
+
+| 방법 | 키 $$N$$개의 공간 |
+| --- | --- |
+| 개별 체이닝 | 약 $$48N + 32M$$바이트 |
+| 선형 탐지 | 약 $$32N$$에서 $$128N$$바이트 사이 |
+| 이진 탐색 트리 | 약 $$56N$$바이트 |
+
+<br/>
+
+- 체이닝은 링크에, 선형 탐지는 빈칸에 메모리를 씁니다.
+- 선형 탐지의 폭은 배열이 1/8에서 1/2 사이로 차 있기 때문입니다.
+
+</Slide>
+
+<Slide>
+
+#### 해시 테이블의 자리
+::sub[탐색이 빠르기를 원하며, 레코드의 정렬 순서는 고려하지 않습니다]
+
+| | 이진 탐색 트리 (균형) | 해시 테이블 |
+| --- | --- | --- |
+| 검색·삽입·삭제 | $$O(\log N)$$ | 평균 $$O(1)$$ |
+| 최악 | $$O(\log N)$$ | $$O(N)$$ (나쁜 해시) |
+| 최솟값, 범위 검색 | 된다 | 안 된다 |
+| 키에 필요한 것 | 비교 | 해시 함수와 같음 판정 |
+
+</Slide>
+
+<Slide>
+
+#### 해싱은 만병통치약이 아닙니다
+
+- 키 타입마다 **좋은 해시 함수**가 있어야 합니다.
+- 성능 보장이 해시 함수의 **품질**에 달려 있습니다.
+- 해시 함수 계산이 어렵고 많은 연산을 요구할 수도 있습니다.
+- **순서에 관한 연산**이 쉽지 않습니다.
+  - 가장 작은 키, 다음 키, 범위 검색
+
+<br/>
+
+순서가 필요하면 이진 탐색 트리, 빠르기만 하면 해시 테이블입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### 지금 해 볼 것
+::sub[숫자를 바꿔 가며 충돌과 무리를 직접 만들어 보기]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-08-hashing/`  
+파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다.
+
+1. **`hornerHash`의 `R`을 1로 바꿔 봅니다.**
+   - 더하기와 같아져 여섯 단어가 다시 한 칸에 모입니다.
+2. **체이닝의 배열 크기를 1과 97로 바꿔 봅니다.**
+   - 하나는 연결 리스트 하나가 되고, 하나는 칸이 대부분 빕니다.
+3. **선형 탐지의 배열 크기를 11로 바꿔 봅니다.**
+   - 무리가 금방 이어지고, 키 8개 뒤에 배열이 22칸으로 늘어납니다.
+
+</Slide>
+
+<Slide>
+
+## 남길 것
+
+1. **해싱은 키에서 인덱스를 계산해 비교 없이 찾습니다.**
+   - 좋은 해시 함수는 범위 안, 계산이 쉽고, 고르게 퍼뜨립니다.
+2. **충돌은 반드시 일어납니다.**
+   - 비둘기집 원리와 생일 문제
+3. **개별 체이닝은 칸마다 리스트를 둡니다.**
+   - 평균 $$O(1 + N/M)$$, 삭제가 쉽습니다.
+4. **선형 탐지는 다음 칸으로 갑니다.**
+   - 그냥 지우면 길이 끊기므로 뒤따르는 키를 다시 넣습니다.
+5. **적재율이 1에 가까우면 무리가 자라 급격히 느려집니다.**
+   - 크기를 조정해 1/2 근처로 지킵니다.
+
+</Slide>
