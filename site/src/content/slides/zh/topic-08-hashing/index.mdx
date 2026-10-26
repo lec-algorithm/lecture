@@ -12,7 +12,11 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import HashSlotDemo from '@components/HashSlotDemo.astro';
 import ChainingDemo from '@components/ChainingDemo.astro';
 import ProbingDemo from '@components/ProbingDemo.astro';
-import ClusterFigure from '@components/ClusterFigure.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import BirthdayDemo from '@components/BirthdayDemo.astro';
+import ResizeDemo from '@components/ResizeDemo.astro';
+import ClusterDemo from '@components/ClusterDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 中的幻灯片规则一节。
     数字与实践代码（topic-08-hashing）的运行结果一致。 */}
@@ -237,6 +241,15 @@ $$
 
 </Slide>
 
+<Slide>
+
+### 一步一步：六个单词
+::sub[用标签切换哈希函数。由相同字母组成的单词会落在哪一格？]
+
+<StringHashDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 加法与霍纳法
@@ -299,6 +312,15 @@ string keys, M = 97
 $$
 P(\text{冲突}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
 $$
+
+</Slide>
+
+<Slide>
+
+### 多少个键就会冲突
+::sub[拖动 N 看概率，再随机放一放。两个键落进同一格就会变红]
+
+<BirthdayDemo slide />
 
 </Slide>
 
@@ -680,7 +702,16 @@ ALGORITHM Delete(T, key)
 
 <Slide>
 
-#### 另一种方法：删除标记
+### 另一种方法：删除标记
+::sub[不清空 C 的格子，只留下标记（†），再看之后的查找和插入]
+
+<ProbingDemo mode="tombstone" slide />
+
+</Slide>
+
+<Slide>
+
+#### 删除标记的规则
 ::sub[Tombstone（墓碑），惰性删除（lazy deletion）]
 
 - 只在被删的格子里留下**标记**，实际上不清空。
@@ -692,6 +723,15 @@ ALGORITHM Delete(T, key)
   - 走到空位确认没有之后，再放进第一个标记格。
 - **标记会越积越多**。
   - 多了就新建一张表来清理。
+
+</Slide>
+
+<Slide>
+
+### 扩大一倍再重新插入
+::sub[M 变了，哈希值也会变。从 0 号格起逐个取出，放进新数组]
+
+<ResizeDemo slide />
 
 </Slide>
 
@@ -803,10 +843,19 @@ value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
 
 <Slide>
 
-### 512 格里放 256 个和 128 个键
-::sub[左边是线性探测，右边是冲突时随便挑一个空位的对照]
+### 往 512 格里放更多键
+::sub[左边是线性探测，右边是冲突时随便挑一个空位的对照。拖动键数看看]
 
-<ClusterFigure slide />
+<ClusterDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 提高装载因子
+::sub[拖动 α 比较两种方式的平均查找代价。实验值是真的插入键再数出来的]
+
+<LoadCostDemo slide />
 
 </Slide>
 
