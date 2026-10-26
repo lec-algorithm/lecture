@@ -1,0 +1,391 @@
+---
+// 같은 노드 수로 만들 수 있는 가장 낮은 트리와 가장 높은 트리를 견주는 데모.
+//
+// 노드 수 N을 고르고 모양을 바꾼다.
+// - 가장 낮게: 위 레벨부터 빈칸 없이 채운다. 높이 ⌈log₂(N + 1)⌉
+// - 가장 높게: 노드마다 자식이 하나뿐이다. 높이 N, 연결 리스트와 같다.
+// - 무작위: 1부터 N까지를 무작위 순서로 BST에 넣은 모양. 누를 때마다 바뀐다.
+// 옆의 막대가 최소 높이부터 최대 높이까지이고, 점이 지금 모양의 높이다.
+// 높이는 이 과목의 약속대로 레벨의 수로 센다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  n?: number;
+  shape?: 'low' | 'high' | 'random';
+  slide?: boolean;
+}
+const { n = 7, shape = 'high', slide = false } = Astro.props;
+const id = `sh-${Math.random().toString(36).slice(2, 9)}`;
+const MAX_N = 12;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '노드 수와 높이',
+    count: '노드 수',
+    low: '가장 낮게',
+    high: '가장 높게',
+    random: '무작위',
+    height: '높이',
+    min: '최소',
+    max: '최대',
+    noteLow: '가장 낮은 모양: 위 레벨부터 빈칸 없이 채웠습니다. 높이 {h} = ⌈log₂({n1})⌉',
+    noteHigh: '가장 높은 모양: 노드마다 자식이 하나뿐입니다. 높이 {h} = N, 연결 리스트와 같습니다.',
+    noteRandom: '1부터 {n}까지를 무작위 순서로 BST에 넣은 모양입니다. 높이 {h}는 최소 {min}과 최대 {max} 사이에 있습니다. 다시 누르면 새 순서로 넣습니다.',
+  },
+  en: {
+    title: 'Node count and height',
+    count: 'nodes',
+    low: 'Lowest',
+    high: 'Highest',
+    random: 'Random',
+    height: 'height',
+    min: 'min',
+    max: 'max',
+    noteLow: 'The lowest shape fills each level before starting the next. Height {h} = ⌈log₂({n1})⌉',
+    noteHigh: 'The highest shape gives every node only one child. Height {h} = N, the same as a linked list.',
+    noteRandom: 'The shape you get by inserting 1 to {n} into a BST in random order. Height {h} lies between the minimum {min} and the maximum {max}. Click again for a new order.',
+  },
+  zh: {
+    title: '节点数与高度',
+    count: '节点数',
+    low: '最矮',
+    high: '最高',
+    random: '随机',
+    height: '高度',
+    min: '最小',
+    max: '最大',
+    noteLow: '最矮的形状：从上层开始不留空位地填满。高度 {h} = ⌈log₂({n1})⌉',
+    noteHigh: '最高的形状：每个节点只有一个子节点。高度 {h} = N，和链表一样。',
+    noteRandom: '把 1 到 {n} 以随机顺序插入 BST 得到的形状。高度 {h} 介于最小 {min} 与最大 {max} 之间。再点一次会换一个新顺序。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-tree-shape-demo', slide && 'is-slide']}
+  id={id}
+  data-sh-n={Math.min(Math.max(1, n), MAX_N)}
+  data-sh-shape={shape}
+  data-sh-strings={JSON.stringify(t)}
+>
+  <div class="sh-bar">
+    <span class="sh-head"><strong>{t.title}</strong></span>
+    <label class="sh-count">
+      {t.count} <strong data-sh-nval></strong>
+      <input type="range" min="1" max={MAX_N} step="1" data-sh-range />
+    </label>
+    <div class="sh-controls">
+      <button type="button" data-sh-shape-btn="low" class="sh-btn">{t.low}</button>
+      <button type="button" data-sh-shape-btn="high" class="sh-btn">{t.high}</button>
+      <button type="button" data-sh-shape-btn="random" class="sh-btn">{t.random}</button>
+    </div>
+  </div>
+  <div class="sh-body">
+    <svg class="sh-svg" data-sh-svg role="img" aria-label={t.title}></svg>
+    <div class="sh-side">
+      <div class="sh-big">{t.height} <strong data-sh-h></strong></div>
+      <div class="sh-scale">
+        <div class="sh-track"><span class="sh-dot" data-sh-dot></span></div>
+        <div class="sh-ends"><span>{t.min} <strong data-sh-min></strong></span><span>{t.max} <strong data-sh-max></strong></span></div>
+      </div>
+    </div>
+  </div>
+  <p class="sh-note" data-sh-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.shStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    let N = Number(root.dataset.shN);
+    let shape = root.dataset.shShape;
+
+    /* 모양 만들기. 노드는 { l, r } 객체, 이름은 나중에 레벨 순서로 붙인다. */
+    function low(n) {
+      const make = (i) => (i > n ? null : { l: make(2 * i), r: make(2 * i + 1) });
+      return make(1);
+    }
+    function high(n) {
+      const top = { l: null, r: null };
+      let cur = top;
+      for (let k = 1; k < n; k++) {
+        const nx = { l: null, r: null };
+        if (k % 2 === 1) cur.r = nx; // A → B는 오른쪽, B → C는 왼쪽, 번갈아
+        else cur.l = nx;
+        cur = nx;
+      }
+      return top;
+    }
+    function random(n) {
+      const keys = Array.from({ length: n }, (_, i) => i + 1);
+      for (let i = keys.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [keys[i], keys[j]] = [keys[j], keys[i]];
+      }
+      let top = null;
+      for (const k of keys) {
+        const node = { k, l: null, r: null };
+        if (!top) {
+          top = node;
+          continue;
+        }
+        let cur = top;
+        for (;;) {
+          const side = k < cur.k ? 'l' : 'r';
+          if (!cur[side]) {
+            cur[side] = node;
+            break;
+          }
+          cur = cur[side];
+        }
+      }
+      return top;
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const svg = root.querySelector('[data-sh-svg]');
+    const range = root.querySelector('[data-sh-range]');
+    const nval = root.querySelector('[data-sh-nval]');
+    const hEl = root.querySelector('[data-sh-h]');
+    const minEl = root.querySelector('[data-sh-min]');
+    const maxEl = root.querySelector('[data-sh-max]');
+    const dot = root.querySelector('[data-sh-dot]');
+    const note = root.querySelector('[data-sh-note]');
+    const btns = [...root.querySelectorAll('[data-sh-shape-btn]')];
+    range.value = String(N);
+
+    function draw(tree) {
+      /* 배치: x는 중위 순서, y는 깊이 */
+      const placed = [];
+      let order = 0;
+      const walk = (nd, d, parent) => {
+        if (!nd) return;
+        const me = { d, parent, x: 0, nd };
+        walk(nd.l, d + 1, me);
+        me.x = order++;
+        placed.push(me);
+        walk(nd.r, d + 1, me);
+      };
+      walk(tree, 0, null);
+      const h = Math.max(...placed.map((p) => p.d)) + 1;
+      // 이름: 레벨 순서로 A, B, C, ...
+      const byLevel = [...placed].sort((a, b) => a.d - b.d || a.x - b.x);
+      byLevel.forEach((p, i) => (p.name = String.fromCharCode(65 + i)));
+
+      const W = 600;
+      const HMAX = 330;
+      const unit = order > 1 ? Math.min(64, (W - 60) / (order - 1)) : 0;
+      const gap = h > 1 ? Math.min(70, HMAX / (h - 1)) : 0;
+      const R = Math.max(9, Math.min(20, (unit || 40) * 0.42, (gap || 50) * 0.4));
+      const usedW = (order - 1) * unit;
+      const left = (W - usedW) / 2;
+      const top = R + 6;
+      const H = (h - 1) * gap + 2 * R + 12;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.replaceChildren();
+      const X = (p) => left + p.x * unit;
+      const Y = (p) => top + p.d * gap;
+      placed.forEach((p) => {
+        if (p.parent) el('line', { x1: X(p.parent), y1: Y(p.parent), x2: X(p), y2: Y(p), class: 'sh-edge' }, svg);
+      });
+      placed.forEach((p) => {
+        const g = el('g', { class: 'sh-node' }, svg);
+        el('circle', { cx: X(p), cy: Y(p), r: R }, g);
+        const tx = el('text', { x: X(p), y: Y(p), class: 'sh-text', 'font-size': Math.round(R * 0.8) }, g);
+        tx.textContent = p.name;
+      });
+      return h;
+    }
+
+    function render() {
+      const tree = shape === 'low' ? low(N) : shape === 'high' ? high(N) : random(N);
+      const h = draw(tree);
+      const min = Math.ceil(Math.log2(N + 1));
+      const max = N;
+      nval.textContent = String(N);
+      hEl.textContent = String(h);
+      minEl.textContent = String(min);
+      maxEl.textContent = String(max);
+      dot.style.left = max === min ? '0%' : `${((h - min) / (max - min)) * 100}%`;
+      btns.forEach((b) => b.classList.toggle('is-on', b.dataset.shShapeBtn === shape));
+      const msg = shape === 'low' ? S.noteLow : shape === 'high' ? S.noteHigh : S.noteRandom;
+      setLines(note, fill(msg, { h, n: N, n1: N + 1, min, max }));
+    }
+    range.addEventListener('input', () => {
+      N = Number(range.value);
+      render();
+    });
+    btns.forEach((b) =>
+      b.addEventListener('click', () => {
+        shape = b.dataset.shShapeBtn;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-tree-shape-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tree-shape-demo .sh-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-tree-shape-demo .sh-head {
+    font-size: 0.95em;
+  }
+  .aas-tree-shape-demo .sh-count {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-shape-demo .sh-count strong {
+    min-width: 1.5em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-shape-demo .sh-count input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-tree-shape-demo .sh-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-tree-shape-demo .sh-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tree-shape-demo .sh-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tree-shape-demo .sh-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-tree-shape-demo .sh-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+  }
+  .aas-tree-shape-demo .sh-svg {
+    flex: 1.6 1 20em;
+    min-width: 0;
+    max-height: 20em;
+  }
+  .aas-tree-shape-demo .sh-side {
+    flex: 1 1 10em;
+  }
+  .aas-tree-shape-demo .sh-big {
+    font-size: 1.1em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-shape-demo .sh-big strong {
+    font-size: 2em;
+    color: var(--aas-role-focus);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-shape-demo .sh-scale {
+    margin-top: 0.6em;
+  }
+  .aas-tree-shape-demo .sh-track {
+    position: relative;
+    height: 0.55em;
+    margin: 0 0.6em;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--aas-role-eval), var(--aas-role-guard));
+  }
+  .aas-tree-shape-demo .sh-dot {
+    position: absolute;
+    top: 50%;
+    width: 1.2em;
+    height: 1.2em;
+    border: 3px solid var(--aas-bg);
+    border-radius: 50%;
+    background: var(--aas-role-focus);
+    box-shadow: 0 0 0 1px var(--aas-role-focus);
+    transform: translate(-50%, -50%);
+    transition: left 0.35s ease;
+  }
+  .aas-tree-shape-demo .sh-ends {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-shape-demo .sh-ends strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-shape-demo .sh-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+  }
+  .aas-tree-shape-demo .sh-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.8;
+  }
+  .aas-tree-shape-demo .sh-text {
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-shape-demo .sh-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-tree-shape-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tree-shape-demo.is-slide .sh-svg {
+    max-height: 44vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tree-shape-demo * {
+      transition: none !important;
+    }
+  }
+</style>
