@@ -1,0 +1,651 @@
+---
+// 이진 트리의 용어를 눌러 보며 익히는 데모.
+//
+// 위쪽 칩이 용어이고, 칩을 누르면 트리에서 그 용어가 가리키는 부분이 칠해지고
+// 오른쪽에 뜻과 "이 트리에서는 무엇인지"가 나온다. 노드를 누르면 그 노드가
+// 기준이 된다. 부모·자식, 서브트리, 레벨은 고른 노드를 기준으로 보여 준다.
+//
+// 트리는 노드 9개, 높이 4다. 일부러 full tree가 아니게 골랐다. 자식이 하나인
+// 노드(C, F)와 더 얕은 잎(D)이 있어야 잎·레벨·높이·full tree의 차이가 보인다.
+//
+// 노드의 자리는 힙 번호로 정한다. 루트가 1, 번호 i의 왼쪽 자식이 2i, 오른쪽
+// 자식이 2i+1이다. 그러면 full tree에서 비어 있는 자리도 같은 번호로 그릴 수
+// 있다. 높이는 이 과목의 약속대로 레벨의 수로 센다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음에 보여 줄 용어 */
+  term?: 'node' | 'link' | 'root' | 'family' | 'leaf' | 'subtree' | 'level' | 'height' | 'full';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { term = 'family', slide = false } = Astro.props;
+const id = `tt-${Math.random().toString(36).slice(2, 9)}`;
+
+/** 힙 번호 → 노드 이름 */
+const TREE: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E', 7: 'F', 10: 'G', 11: 'H', 15: 'I' };
+const TERMS = ['node', 'link', 'root', 'family', 'leaf', 'subtree', 'level', 'height', 'full'] as const;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '이진 트리의 용어',
+    hint: '용어나 노드를 눌러 보세요.',
+    node: '노드',
+    link: '링크',
+    root: '루트',
+    family: '부모·자식',
+    leaf: '잎',
+    subtree: '서브트리',
+    level: '레벨',
+    height: '높이',
+    full: 'full tree',
+    defNode: '값을 담는 원 하나입니다.',
+    defLink: '노드와 노드를 잇는 선입니다. 간선(edge)이라고도 합니다.',
+    defRoot: '맨 위의 노드입니다. 부모가 없는 유일한 노드입니다.',
+    defFamily: '링크로 바로 이어진 위 노드가 부모, 아래 노드가 자식입니다.',
+    defLeaf: '자식이 없는 노드입니다.',
+    defSubtree: '한 노드와 그 아래 전부입니다. 떼어 내도 그 자체로 이진 트리입니다.',
+    defLevel: '루트에서 링크를 몇 개 내려왔는가입니다. 루트가 레벨 0입니다.',
+    defHeight: '레벨의 수입니다. 루트만 있으면 높이 1입니다.',
+    defFull: '잎이 아닌 노드는 모두 자식이 둘이고, 잎이 모두 같은 레벨에 있는 트리입니다.',
+    factNode: '이 트리의 노드는 {n}개입니다.',
+    factLink: '링크는 {m}개입니다. 루트를 뺀 모든 노드가 부모로 가는 링크를 하나씩 가지므로, 링크 수는 언제나 노드 수 − 1입니다.',
+    factRoot: '{r}: 모든 경로가 여기서 시작합니다. 루트는 트리에 하나뿐입니다.',
+    factFamily: '{v}: 부모 {p} · 자식 {kids}',
+    factFamilyTail: '파랑이 부모, 초록이 자식입니다. 다른 노드를 눌러 보세요.',
+    factLeaf: '잎은 {list}, 모두 {k}개입니다. 잎이 모두 같은 레벨에 있지는 않습니다.',
+    factSubtree: '{v}의 서브트리: {list} · 노드 {k}개, 높이 {h}',
+    factSubtreeLeaf: '{v}: 잎 하나도 노드 하나짜리 서브트리입니다.',
+    factSubtreeRoot: '루트의 서브트리는 트리 전체입니다.',
+    factLevel: '{v}: 레벨 {l}, 루트에서 링크 {l}개를 내려왔습니다. 같은 레벨: {same}',
+    factHeight: '높이 {h}: 레벨 0부터 {last}까지, 레벨이 {h}개입니다. 가장 깊은 잎은 {deep}입니다. 링크 수로 세는 교재에서는 {links}입니다.',
+    factFull: 'full tree가 아닙니다. 자식이 하나뿐인 노드 {one}, 더 얕은 레벨의 잎 {shallow}. 점선 {g}칸을 채우면 노드 {total}개짜리 full tree가 됩니다. 2⁴ − 1 = {total}',
+    card: '고른 노드',
+    cardLine: '{v} · 레벨 {l} · 부모 {p} · 자식 {kids} · 서브트리 {k}개',
+    none: '없음',
+    noneLeaf: '없음(잎)',
+    left: '왼쪽',
+    right: '오른쪽',
+    levelLabel: '레벨',
+  },
+  en: {
+    title: 'Binary tree terms',
+    hint: 'Click a term or a node.',
+    node: 'node',
+    link: 'link',
+    root: 'root',
+    family: 'parent · child',
+    leaf: 'leaf',
+    subtree: 'subtree',
+    level: 'level',
+    height: 'height',
+    full: 'full tree',
+    defNode: 'One circle that holds a value.',
+    defLink: 'A line joining two nodes, also called an edge.',
+    defRoot: 'The top node, and the only node without a parent.',
+    defFamily: 'Across one link, the upper node is the parent and the lower node is the child.',
+    defLeaf: 'A node with no children.',
+    defSubtree: 'A node and everything below it. Cut it off and it is a binary tree on its own.',
+    defLevel: 'How many links down from the root. The root is level 0.',
+    defHeight: 'The number of levels. A root on its own has height 1.',
+    defFull: 'Every non-leaf node has two children, and every leaf is on the same level.',
+    factNode: 'This tree has {n} nodes.',
+    factLink: 'It has {m} links. Every node except the root has exactly one link up to its parent, so there is always one link fewer than there are nodes.',
+    factRoot: '{r}: every path starts here. A tree has exactly one root.',
+    factFamily: '{v}: parent {p} · children {kids}',
+    factFamilyTail: 'Blue is the parent, green the children. Try another node.',
+    factLeaf: 'The leaves are {list}, {k} in all. They are not all on the same level.',
+    factSubtree: 'Subtree of {v}: {list} · {k} nodes, height {h}',
+    factSubtreeLeaf: '{v}: a single leaf is a one-node subtree.',
+    factSubtreeRoot: 'The subtree of the root is the whole tree.',
+    factLevel: '{v}: level {l}, {l} links down from the root. Same level: {same}',
+    factHeight: 'Height {h}: levels 0 through {last}, {h} levels in all. The deepest leaves are {deep}. Books that count links instead would say {links}.',
+    factFull: 'Not a full tree. Nodes with only one child: {one}. Leaves on a shallower level: {shallow}. Fill the {g} dashed spots and it becomes a full tree of {total} nodes. 2⁴ − 1 = {total}',
+    card: 'selected node',
+    cardLine: '{v} · level {l} · parent {p} · children {kids} · subtree of {k}',
+    none: 'none',
+    noneLeaf: 'none (leaf)',
+    left: 'left',
+    right: 'right',
+    levelLabel: 'level',
+  },
+  zh: {
+    title: '二叉树的术语',
+    hint: '点击术语或节点。',
+    node: '节点',
+    link: '链接',
+    root: '根',
+    family: '父 · 子',
+    leaf: '叶子',
+    subtree: '子树',
+    level: '层',
+    height: '高度',
+    full: 'full tree',
+    defNode: '装一个值的圆。',
+    defLink: '连接两个节点的线，也叫边（edge）。',
+    defRoot: '最上面的节点，也是唯一没有父节点的节点。',
+    defFamily: '一条链接直接相连的两个节点，上面的是父节点，下面的是子节点。',
+    defLeaf: '没有子节点的节点。',
+    defSubtree: '一个节点及其下方的全部。单独拿出来也是一棵二叉树。',
+    defLevel: '从根往下走了几条链接。根在第 0 层。',
+    defHeight: '层的个数。只有根时高度为 1。',
+    defFull: '非叶节点都有两个子节点，并且所有叶子都在同一层的树。',
+    factNode: '这棵树有 {n} 个节点。',
+    factLink: '有 {m} 条链接。除根以外的每个节点都恰好有一条通向父节点的链接，所以链接数总是节点数 − 1。',
+    factRoot: '{r}：所有路径都从这里出发。一棵树只有一个根。',
+    factFamily: '{v}：父 {p} · 子 {kids}',
+    factFamilyTail: '蓝色是父节点，绿色是子节点。再点别的节点试试。',
+    factLeaf: '叶子是 {list}，共 {k} 个。它们并不都在同一层。',
+    factSubtree: '{v} 的子树：{list} · {k} 个节点，高度 {h}',
+    factSubtreeLeaf: '{v}：一个叶子也是只有一个节点的子树。',
+    factSubtreeRoot: '根的子树就是整棵树。',
+    factLevel: '{v}：第 {l} 层，从根往下走了 {l} 条链接。同一层：{same}',
+    factHeight: '高度 {h}：从第 0 层到第 {last} 层，共 {h} 层。最深的叶子是 {deep}。按链接数计算的教材会说 {links}。',
+    factFull: '不是 full tree。只有一个子节点的节点：{one}。位于较浅层的叶子：{shallow}。补上 {g} 个虚线位置，就成为 {total} 个节点的 full tree。2⁴ − 1 = {total}',
+    card: '选中的节点',
+    cardLine: '{v} · 第 {l} 层 · 父 {p} · 子 {kids} · 子树 {k} 个',
+    none: '无',
+    noneLeaf: '无（叶子）',
+    left: '左',
+    right: '右',
+    levelLabel: '第 {l} 层',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-tree-terms-demo', slide && 'is-slide']}
+  id={id}
+  data-tt-tree={JSON.stringify(TREE)}
+  data-tt-term={term}
+  data-tt-strings={JSON.stringify(t)}
+>
+  <div class="tt-bar">
+    <span class="tt-head"><strong>{t.title}</strong> <span class="tt-hint">{t.hint}</span></span>
+  </div>
+  <div class="tt-chips" role="tablist">
+    {TERMS.map((k) => (
+      <button type="button" class="tt-chip" data-tt-chip={k} role="tab">{t[k]}</button>
+    ))}
+  </div>
+  <div class="tt-body">
+    <svg class="tt-svg" data-tt-svg role="img" aria-label={t.title}></svg>
+    <div class="tt-panel">
+      <p class="tt-term" data-tt-name></p>
+      <p class="tt-def" data-tt-def></p>
+      <p class="tt-fact" data-tt-fact></p>
+    </div>
+  </div>
+  <p class="tt-card"><span class="tt-card-label">{t.card}</span> <span data-tt-card></span></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const S = JSON.parse(root.dataset.ttStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const TREE = Object.fromEntries(
+      Object.entries(JSON.parse(root.dataset.ttTree)).map(([k, v]) => [Number(k), v]),
+    );
+    const ids = Object.keys(TREE).map(Number).sort((a, b) => a - b);
+    const has = (i) => TREE[i] !== undefined;
+    const levelOf = (i) => Math.floor(Math.log2(i));
+    const kids = (i) => [2 * i, 2 * i + 1].filter(has);
+    const maxLevel = Math.max(...ids.map(levelOf));
+    const H_LEVELS = maxLevel + 1; // 높이 = 레벨의 수
+    const name = (i) => TREE[i];
+    const listOf = (arr) => arr.map(name).join(', ');
+
+    function subtree(i) {
+      const out = [];
+      const walk = (j) => {
+        if (!has(j)) return;
+        out.push(j);
+        walk(2 * j);
+        walk(2 * j + 1);
+      };
+      walk(i);
+      return out;
+    }
+    const heightOf = (i) => {
+      const sub = subtree(i);
+      return Math.max(...sub.map(levelOf)) - levelOf(i) + 1;
+    };
+
+    /* 그림의 좌표. 힙 번호 i의 자리: 레벨 l, 그 레벨에서 k번째 */
+    const W = 640;
+    const LEFT = 78;
+    const RIGHT = 22;
+    const TOP = 34;
+    const GAP = 78;
+    const R = 20;
+    const HGT = TOP + maxLevel * GAP + R + 18;
+    const pos = (i) => {
+      const l = levelOf(i);
+      const k = i - 2 ** l;
+      const x = LEFT + ((2 * k + 1) / 2 ** (l + 1)) * (W - LEFT - RIGHT);
+      return { x, y: TOP + l * GAP };
+    };
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const svg = root.querySelector('[data-tt-svg]');
+    svg.setAttribute('viewBox', `0 0 ${W} ${HGT}`);
+
+    /* 레벨 띠: 레벨 용어에서만 보인다. */
+    const bands = [];
+    for (let l = 0; l <= maxLevel; l++) {
+      const g = el('g', { class: 'tt-band' }, svg);
+      el('rect', { x: 4, y: TOP + l * GAP - R - 7, width: W - 8, height: 2 * R + 14, rx: 12 }, g);
+      const tx = el('text', { x: 14, y: TOP + l * GAP, class: 'tt-band-label' }, g);
+      tx.textContent = S.levelLabel.includes('{l}') ? fill(S.levelLabel, { l }) : `${S.levelLabel} ${l}`;
+      bands.push(g);
+    }
+
+    /* full tree에서 비어 있는 자리 (점선) */
+    const ghosts = [];
+    for (let i = 1; i < 2 ** H_LEVELS; i++) {
+      if (has(i)) continue;
+      // 부모 자리도 비어 있으면 점선끼리 이어진다(번호 6 아래의 12, 13).
+      const parent = Math.floor(i / 2);
+      const p = pos(i);
+      const q = pos(parent);
+      const g = el('g', { class: 'tt-ghost' }, svg);
+      el('line', { x1: q.x, y1: q.y, x2: p.x, y2: p.y, class: 'tt-ghost-edge' }, g);
+      el('circle', { cx: p.x, cy: p.y, r: R - 2 }, g);
+      ghosts.push({ i, g });
+    }
+
+    const edges = new Map();
+    for (const i of ids) {
+      if (i === 1) continue;
+      const p = pos(i);
+      const q = pos(Math.floor(i / 2));
+      edges.set(i, el('line', { x1: q.x, y1: q.y, x2: p.x, y2: p.y, class: 'tt-edge' }, svg));
+    }
+
+    const nodes = new Map();
+    for (const i of ids) {
+      const p = pos(i);
+      const g = el('g', { class: 'tt-node', tabindex: 0, role: 'button', 'aria-label': name(i) }, svg);
+      el('circle', { cx: p.x, cy: p.y, r: R }, g);
+      const tx = el('text', { x: p.x, y: p.y, class: 'tt-label' }, g);
+      tx.textContent = name(i);
+      el('circle', { cx: p.x, cy: p.y, r: R + 6, class: 'tt-ring' }, g);
+      g.addEventListener('click', () => select(i));
+      g.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          select(i);
+        }
+      });
+      nodes.set(i, g);
+    }
+
+    const nameEl = root.querySelector('[data-tt-name]');
+    const defEl = root.querySelector('[data-tt-def]');
+    const factEl = root.querySelector('[data-tt-fact]');
+    const cardEl = root.querySelector('[data-tt-card]');
+    const chips = [...root.querySelectorAll('[data-tt-chip]')];
+
+    let cur = root.dataset.ttTerm;
+    let sel = 2; // 처음 기준 노드는 B
+
+    const kidsText = (i) => {
+      const ks = kids(i);
+      if (!ks.length) return S.noneLeaf;
+      return ks.map((k) => `${name(k)}(${k % 2 === 0 ? S.left : S.right})`).join(', ');
+    };
+    const parentText = (i) => (i === 1 ? S.none : name(Math.floor(i / 2)));
+
+    const DEF = {
+      node: S.defNode, link: S.defLink, root: S.defRoot, family: S.defFamily, leaf: S.defLeaf,
+      subtree: S.defSubtree, level: S.defLevel, height: S.defHeight, full: S.defFull,
+    };
+
+    function render() {
+      const leaves = ids.filter((i) => kids(i).length === 0);
+      const deepest = ids.filter((i) => levelOf(i) === maxLevel);
+      const onDeepPath = new Set();
+      deepest.forEach((d) => {
+        for (let j = d; j >= 1; j = Math.floor(j / 2)) onDeepPath.add(j);
+      });
+      const sub = new Set(subtree(sel));
+      const oneChild = ids.filter((i) => kids(i).length === 1);
+      const shallowLeaves = leaves.filter((i) => levelOf(i) < maxLevel);
+
+      /* 노드마다 칠할 역할: hl(주황), parent(파랑), child(초록), bad(빨강 고리), dim */
+      const role = new Map();
+      const edgeOn = new Set();
+      let fact = '';
+      switch (cur) {
+        case 'node':
+          ids.forEach((i) => role.set(i, 'hl'));
+          fact = fill(S.factNode, { n: ids.length });
+          break;
+        case 'link':
+          ids.forEach((i) => i > 1 && edgeOn.add(i));
+          ids.forEach((i) => role.set(i, 'dim'));
+          fact = fill(S.factLink, { m: ids.length - 1 });
+          break;
+        case 'root':
+          ids.forEach((i) => role.set(i, i === 1 ? 'hl' : 'dim'));
+          fact = fill(S.factRoot, { r: name(1) });
+          break;
+        case 'family': {
+          ids.forEach((i) => role.set(i, 'dim'));
+          role.set(sel, 'hl');
+          if (sel > 1) {
+            role.set(Math.floor(sel / 2), 'parent');
+            edgeOn.add(sel);
+          }
+          kids(sel).forEach((k) => {
+            role.set(k, 'child');
+            edgeOn.add(k);
+          });
+          fact = `${fill(S.factFamily, { v: name(sel), p: parentText(sel), kids: kidsText(sel) })}. ${S.factFamilyTail}`;
+          break;
+        }
+        case 'leaf':
+          ids.forEach((i) => role.set(i, kids(i).length ? 'dim' : 'child'));
+          fact = fill(S.factLeaf, { list: listOf(leaves), k: leaves.length });
+          break;
+        case 'subtree':
+          ids.forEach((i) => role.set(i, sub.has(i) ? 'hl' : 'dim'));
+          sub.forEach((i) => i !== sel && edgeOn.add(i));
+          if (sel === 1) fact = S.factSubtreeRoot;
+          else if (sub.size === 1) fact = fill(S.factSubtreeLeaf, { v: name(sel) });
+          else fact = fill(S.factSubtree, { v: name(sel), list: listOf([...sub].sort((a, b) => a - b)), k: sub.size, h: heightOf(sel) });
+          break;
+        case 'level': {
+          const l = levelOf(sel);
+          ids.forEach((i) => role.set(i, levelOf(i) === l ? 'hl' : 'dim'));
+          const same = ids.filter((i) => levelOf(i) === l && i !== sel);
+          fact = fill(S.factLevel, { v: name(sel), l, same: same.length ? listOf(same) : S.none });
+          break;
+        }
+        case 'height':
+          ids.forEach((i) => role.set(i, onDeepPath.has(i) ? 'hl' : 'dim'));
+          onDeepPath.forEach((i) => i > 1 && edgeOn.add(i));
+          fact = fill(S.factHeight, { h: H_LEVELS, last: maxLevel, deep: listOf(deepest), links: H_LEVELS - 1 });
+          break;
+        case 'full':
+          ids.forEach((i) => role.set(i, oneChild.includes(i) || shallowLeaves.includes(i) ? 'bad' : 'plain'));
+          fact = fill(S.factFull, {
+            one: listOf(oneChild), shallow: listOf(shallowLeaves), g: ghosts.length, total: 2 ** H_LEVELS - 1,
+          });
+          break;
+      }
+
+      nodes.forEach((g, i) => {
+        const r = role.get(i) || 'plain';
+        g.classList.toggle('is-hl', r === 'hl');
+        g.classList.toggle('is-parent', r === 'parent');
+        g.classList.toggle('is-child', r === 'child');
+        g.classList.toggle('is-bad', r === 'bad');
+        g.classList.toggle('is-dim', r === 'dim');
+        g.classList.toggle('is-sel', i === sel && ['family', 'subtree', 'level'].includes(cur));
+      });
+      edges.forEach((line, i) => {
+        line.classList.toggle('is-on', edgeOn.has(i));
+        line.classList.toggle('is-dim', !edgeOn.has(i) && role.get(i) === 'dim');
+      });
+      ghosts.forEach(({ g }) => g.classList.toggle('is-on', cur === 'full'));
+      const selLevel = levelOf(sel);
+      bands.forEach((b, l) => {
+        b.classList.toggle('is-on', cur === 'level' || cur === 'height');
+        b.classList.toggle('is-cur', cur === 'level' && l === selLevel);
+      });
+      chips.forEach((c) => {
+        const on = c.dataset.ttChip === cur;
+        c.classList.toggle('is-on', on);
+        c.setAttribute('aria-selected', String(on));
+      });
+      nameEl.textContent = S[cur];
+      defEl.textContent = DEF[cur];
+      factEl.textContent = fact;
+      cardEl.textContent = fill(S.cardLine, {
+        v: name(sel), l: levelOf(sel), p: parentText(sel), kids: kidsText(sel), k: sub.size,
+      });
+    }
+
+    function select(i) {
+      sel = i;
+      // 노드에 매이지 않는 용어에서 노드를 누르면 부모·자식으로 넘어간다.
+      if (!['family', 'subtree', 'level'].includes(cur)) cur = 'family';
+      render();
+    }
+
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        cur = c.dataset.ttChip;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<!-- 그림은 스크립트가 만들므로 is:global로 두고 선택자를 루트 아래로 한정한다. -->
+<style is:global>
+  .aas-tree-terms-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tree-terms-demo .tt-bar {
+    margin-bottom: 0.6em;
+  }
+  .aas-tree-terms-demo .tt-head {
+    font-size: 0.95em;
+  }
+  .aas-tree-terms-demo .tt-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-terms-demo .tt-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-tree-terms-demo .tt-chip {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tree-terms-demo .tt-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tree-terms-demo .tt-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .aas-tree-terms-demo .tt-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    margin-top: 0.6em;
+  }
+  .aas-tree-terms-demo .tt-svg {
+    flex: 1.5 1 22em;
+    min-width: 0;
+    max-height: 21em;
+  }
+  .aas-tree-terms-demo .tt-panel {
+    flex: 1 1 14em;
+  }
+  .aas-tree-terms-demo .tt-term {
+    margin: 0;
+    font-size: 1.25em;
+    font-weight: 800;
+    color: var(--aas-accent);
+  }
+  .aas-tree-terms-demo .tt-def {
+    margin: 0.35em 0 0;
+    font-size: 0.95em;
+    font-weight: 600;
+  }
+  .aas-tree-terms-demo .tt-fact {
+    margin: 0.6em 0 0;
+    font-size: 0.88em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-terms-demo .tt-card {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-terms-demo .tt-card-label {
+    font-family: inherit;
+    color: var(--aas-muted);
+  }
+
+  /* 그림 */
+  .aas-tree-terms-demo .tt-band rect {
+    fill: color-mix(in srgb, var(--aas-role-model) 7%, transparent);
+    stroke: none;
+    opacity: 0;
+    transition: opacity 0.25s, fill 0.25s;
+  }
+  .aas-tree-terms-demo .tt-band-label {
+    font-size: 13px;
+    fill: var(--aas-muted);
+    dominant-baseline: central;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .aas-tree-terms-demo .tt-band.is-on rect,
+  .aas-tree-terms-demo .tt-band.is-on .tt-band-label {
+    opacity: 1;
+  }
+  .aas-tree-terms-demo .tt-band.is-cur rect {
+    fill: color-mix(in srgb, var(--aas-role-focus) 16%, transparent);
+  }
+  .aas-tree-terms-demo .tt-band.is-cur .tt-band-label {
+    fill: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-tree-terms-demo .tt-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+    transition: stroke 0.2s, opacity 0.2s;
+  }
+  .aas-tree-terms-demo .tt-edge.is-dim {
+    opacity: 0.35;
+  }
+  .aas-tree-terms-demo .tt-edge.is-on {
+    stroke: var(--aas-role-focus);
+    stroke-width: 4;
+  }
+  .aas-tree-terms-demo .tt-ghost {
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .aas-tree-terms-demo .tt-ghost.is-on {
+    opacity: 1;
+  }
+  .aas-tree-terms-demo .tt-ghost circle {
+    fill: none;
+    stroke: var(--aas-role-guard);
+    stroke-width: 1.6;
+    stroke-dasharray: 4 3;
+  }
+  .aas-tree-terms-demo .tt-ghost-edge {
+    stroke: var(--aas-role-guard);
+    stroke-width: 1.4;
+    stroke-dasharray: 4 4;
+  }
+  .aas-tree-terms-demo .tt-node {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-tree-terms-demo .tt-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.8;
+    transition: fill 0.2s, stroke 0.2s, opacity 0.2s;
+  }
+  .aas-tree-terms-demo .tt-label {
+    font-size: 16px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-tree-terms-demo .tt-node .tt-ring {
+    fill: none;
+    stroke: none;
+  }
+  .aas-tree-terms-demo .tt-node:hover > circle:first-child,
+  .aas-tree-terms-demo .tt-node:focus-visible > circle:first-child {
+    stroke: var(--aas-accent);
+    stroke-width: 3;
+  }
+  .aas-tree-terms-demo .tt-node.is-hl > circle:first-child {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-tree-terms-demo .tt-node.is-parent > circle:first-child {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-tree-terms-demo .tt-node.is-child > circle:first-child {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-tree-terms-demo .tt-node.is-hl .tt-label,
+  .aas-tree-terms-demo .tt-node.is-parent .tt-label,
+  .aas-tree-terms-demo .tt-node.is-child .tt-label {
+    fill: #fff;
+  }
+  .aas-tree-terms-demo .tt-node.is-bad .tt-ring {
+    stroke: var(--aas-role-guard);
+    stroke-width: 3;
+  }
+  .aas-tree-terms-demo .tt-node.is-sel .tt-ring {
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    stroke-dasharray: 3 3;
+  }
+  .aas-tree-terms-demo .tt-node.is-dim {
+    opacity: 0.35;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기 */
+  .aas-tree-terms-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tree-terms-demo.is-slide .tt-svg {
+    max-height: 48vh;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tree-terms-demo * {
+      transition: none !important;
+    }
+  }
+</style>
