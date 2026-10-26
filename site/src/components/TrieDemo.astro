@@ -249,6 +249,12 @@ const chip =
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const cfg = JSON.parse(root.dataset.trConfig);
     const S = JSON.parse(root.dataset.trStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
@@ -604,7 +610,7 @@ const chip =
         tr.className = `is-${st}`;
         if (step.results) tr.querySelector('.tr-v').textContent = step.results[j];
       });
-      root.querySelector('[data-tr-note]').textContent = step.note;
+      setLines(root.querySelector('[data-tr-note]'), step.note);
       const count = root.querySelector('[data-tr-count]');
       count.textContent = '';
       step.counters.forEach(([label, value], k) => {
