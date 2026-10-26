@@ -1,0 +1,559 @@
+---
+// 정규식에서 만든 NFA를 상태 집합으로 돌려 보는 데모.
+//
+// 상태 i는 괄호로 감싼 정규식의 i번째 글자이고, 한 줄로 늘어놓는다. 검은
+// 실선은 글자를 읽고 다음 상태로 가는 매치 전이, 파란 점선은 글자 없이
+// 움직이는 ε 전이다(앞으로 가는 것은 위, 뒤로 가는 것은 아래로 돈다).
+// 한 걸음마다 둘 중 하나를 한다.
+//   - 글자 읽기: 지금 집합에서 그 글자와 맞는 상태만 한 칸 앞으로 간다.
+//   - ε 닫힘: 거기서 ε 전이만 따라 갈 수 있는 상태를 모두 더한다.
+// 텍스트를 다 읽었을 때 집합에 수락 상태(맨 오른쪽)가 있으면 수락이다.
+//
+// 그래프 만들기와 시뮬레이션은 algorithm-code의 nfaRegex.c · nfa_regex.py와
+// 같다. 기본 입력 (0|1(01*0)*1)*와 1001은 출력의 집합 여덟 개를 그대로 지난다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 글자, '.', '*', '|', 괄호로 된 정규식. 괄호 한 쌍 안에 '|'는 하나만 */
+  regex?: string;
+  /** 읽을 텍스트 */
+  text?: string;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { regex = '(0|1(01*0)*1)*', text = '1001', slide = false } = Astro.props;
+const id = `nd-${Math.random().toString(36).slice(2, 9)}`;
+
+/* BuildNFA. nfaRegex.pseudo와 같은 순서로 ε 전이를 만든다. */
+const re = `(${regex})`;
+const M = re.length;
+const eps: [number, number][] = [];
+{
+  const ops: number[] = [];
+  for (let i = 0; i < M; i++) {
+    let lp = i;
+    if (re[i] === '(' || re[i] === '|') ops.push(i);
+    else if (re[i] === ')') {
+      const or = ops.pop()!;
+      if (re[or] === '|') {
+        lp = ops.pop()!;
+        eps.push([lp, or + 1]);
+        eps.push([or, i]);
+      } else lp = or;
+    }
+    if (i < M - 1 && re[i + 1] === '*') {
+      eps.push([lp, i + 1]);
+      eps.push([i + 1, lp]);
+    }
+    if (re[i] === '(' || re[i] === '*' || re[i] === ')') eps.push([i, i + 1]);
+  }
+}
+const isLiteral = (c: string) => !'()*|'.includes(c);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'NFA 시뮬레이션',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    setSize: '상태 ',
+    setPost: '개',
+    idle: '정규식 {r}의 NFA로 "{t}"를 읽습니다. 수락 상태는 {m}입니다.',
+    start: '시작: 상태 0에서 ε 전이만 따라 갈 수 있는 곳 {set}',
+    read: "'{c}' 읽기: 이 글자와 맞는 상태만 한 칸 앞으로 → {set}",
+    dead: "'{c}' 읽기: 맞는 상태가 없습니다. 집합이 비었습니다.",
+    close: 'ε 닫힘: ε 전이를 따라 넓히면 {set}',
+    yes: '텍스트를 다 읽었고 집합에 수락 상태 {m}이 있습니다. 수락합니다.',
+    no: '텍스트를 다 읽었는데 집합에 수락 상태 {m}이 없습니다. 거부합니다.',
+  },
+  en: {
+    title: 'NFA simulation',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    setSize: '',
+    setPost: ' states',
+    idle: 'Read "{t}" with the NFA of {r}. The accept state is {m}.',
+    start: 'Start: everything reachable from state 0 by ε-transitions {set}',
+    read: "Read '{c}': only states matching '{c}' move one ahead → {set}",
+    dead: "Read '{c}': no state matches. The set is empty.",
+    close: 'ε-closure: follow ε-transitions to widen it to {set}',
+    yes: 'The text is used up and the set holds the accept state {m}. Accept.',
+    no: 'The text is used up but the set lacks the accept state {m}. Reject.',
+  },
+  zh: {
+    title: 'NFA 模拟',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    setSize: '状态 ',
+    setPost: ' 个',
+    idle: '用 {r} 的 NFA 读入 "{t}"。接受状态是 {m}。',
+    start: '开始：从状态 0 仅经 ε 转移能到达的状态 {set}',
+    read: "读入 '{c}'：只有与 '{c}' 匹配的状态前进一格 → {set}",
+    dead: "读入 '{c}'：没有匹配的状态。集合为空。",
+    close: 'ε 闭包：沿 ε 转移扩展为 {set}',
+    yes: '文本已读完，集合中有接受状态 {m}。接受。',
+    no: '文本已读完，集合中没有接受状态 {m}。拒绝。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 그림 좌표. 상태를 한 줄로 두고, 이웃 사이의 전이는 직선, 나머지 ε 전이는
+   앞으로 가면 위로, 뒤로 가면 아래로 도는 호다. 호의 높이는 건너뛰는 거리에
+   비례한다. */
+const U = 46;
+const R = 15;
+const PAD = 26;
+const spanOf = (v: number, w: number) => Math.abs(w - v);
+const hOf = (v: number, w: number) => 18 + spanOf(v, w) * 7.5;
+const arcs = eps.filter(([v, w]) => !(w === v + 1 && !isLiteral(re[v])));
+const upH = Math.max(30, ...arcs.filter(([v, w]) => w > v).map(([v, w]) => hOf(v, w)));
+const downH = Math.max(30, ...arcs.filter(([v, w]) => w < v).map(([v, w]) => hOf(v, w)));
+const Y = upH + 18;
+const W = 2 * PAD + M * U;
+const H = Y + downH + 26;
+const X = (i: number) => PAD + i * U;
+const arcPath = (v: number, w: number) => {
+  const up = w > v;
+  const sx = X(v) + (up ? 4 : -4);
+  const ex = X(w) + (up ? -4 : 4);
+  const sy = Y + (up ? -R : R);
+  const ey = Y + (up ? -R - 1 : R + 1);
+  const c = (up ? -1 : 1) * hOf(v, w) * 1.3;
+  return `M ${sx} ${sy} C ${sx} ${sy + c}, ${ex} ${ey + c}, ${ex} ${ey}`;
+};
+type Line = { key: string; d: string; kind: 'match' | 'eps' };
+const lines: Line[] = [];
+for (let i = 0; i < M; i++) {
+  if (re[i] === '|') continue;
+  lines.push({
+    key: isLiteral(re[i]) ? `m${i}` : `e${i}-${i + 1}`,
+    d: `M ${X(i) + R} ${Y} L ${X(i + 1) - R - 2} ${Y}`,
+    kind: isLiteral(re[i]) ? 'match' : 'eps',
+  });
+}
+for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kind: 'eps' });
+---
+
+<div
+  class:list={['aas-nfa-demo', slide && 'is-slide']}
+  id={id}
+  data-nd-re={re}
+  data-nd-regex={regex}
+  data-nd-eps={JSON.stringify(eps)}
+  data-nd-text={text}
+  data-nd-strings={JSON.stringify(t)}
+>
+  <div class="nd-bar">
+    <span class="nd-head"><strong>{t.title}</strong> <code>{regex}</code></span>
+    <div class="nd-controls">
+      <button type="button" data-act="back" class="nd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="nd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="nd-btn nd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="nd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="nd-scroll">
+    <svg class="nd-graph" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.title} ${regex}`}>
+      <defs>
+        <marker id={`${id}-m`} class="nd-tip-match" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+        <marker id={`${id}-e`} class="nd-tip-eps" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+        <marker id={`${id}-on`} class="nd-tip-on" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+      </defs>
+      {lines.map((l) => (
+        <path
+          class:list={['nd-edge', `is-${l.kind}`]}
+          d={l.d}
+          data-nd-edge={l.key}
+          data-nd-off={`url(#${id}-${l.kind === 'match' ? 'm' : 'e'})`}
+          data-nd-on={`url(#${id}-on)`}
+          marker-end={`url(#${id}-${l.kind === 'match' ? 'm' : 'e'})`}
+        />
+      ))}
+      {Array.from({ length: M + 1 }, (_, i) => (
+        <g class:list={['nd-state', i === M && 'is-final']} data-nd-state={i}>
+          {i === M && <circle class="nd-ring" cx={X(i)} cy={Y} r={R + 4} />}
+          <circle cx={X(i)} cy={Y} r={R} />
+          <text class="nd-char" x={X(i)} y={Y}>{i < M ? re[i] : ''}</text>
+          <text class="nd-num" x={X(i) + R - 2} y={Y + R + 12}>{i}</text>
+        </g>
+      ))}
+    </svg>
+  </div>
+
+  <div class="nd-tape">
+    {[...text].map((c, i) => (
+      <span class="nd-cell" data-nd-cell={i}>{c}</span>
+    ))}
+  </div>
+
+  <div class="nd-foot">
+    <p class="nd-note" data-nd-note></p>
+    <span class="nd-count">
+      {t.setSize}<strong data-nd-count>0</strong>{t.setPost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const re = root.dataset.ndRe;
+    const M = re.length;
+    const eps = JSON.parse(root.dataset.ndEps);
+    const input = [...root.dataset.ndText];
+    const S = JSON.parse(root.dataset.ndStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const isLiteral = (c) => !'()*|'.includes(c);
+    const show = (set) => `{${[...set].sort((a, b) => a - b).join(' ')}}`;
+
+    /* Closure: set에서 ε 전이만 따라 갈 수 있는 상태 전부 (DFS) */
+    function closure(set) {
+      const out = new Set();
+      const dfs = (v) => {
+        out.add(v);
+        for (const [a, b] of eps) if (a === v && !out.has(b)) dfs(b);
+      };
+      for (let v = 0; v <= M; v++) if (set.has(v) && !out.has(v)) dfs(v);
+      return out;
+    }
+
+    /* Recognizes를 실제로 돌려 단계 배열을 만든다. 글자마다 두 걸음(읽기, 닫힘). */
+    function plan() {
+      const steps = [];
+      let pc = closure(new Set([0]));
+      steps.push({ set: pc, pos: 0, phase: 'close', note: fill(S.start, { set: show(pc) }) });
+      for (let k = 0; k < input.length; k++) {
+        const c = input[k];
+        const match = new Set();
+        const from = [];
+        for (let i = 0; i < M; i++) {
+          if (pc.has(i) && isLiteral(re[i]) && (re[i] === c || re[i] === '.')) {
+            match.add(i + 1);
+            from.push(i);
+          }
+        }
+        steps.push({
+          set: match, pos: k + 1, phase: 'read', from,
+          note: match.size ? fill(S.read, { c, set: show(match) }) : fill(S.dead, { c }),
+        });
+        pc = closure(match);
+        steps.push({ set: pc, pos: k + 1, phase: 'close', note: fill(S.close, { set: show(pc) }) });
+      }
+      const ok = pc.has(M);
+      steps.push({ set: pc, pos: input.length, phase: 'close', done: ok ? 'accept' : 'reject',
+        note: fill(ok ? S.yes : S.no, { m: M }) });
+      return steps;
+    }
+
+    const steps = plan();
+    const states = [...root.querySelectorAll('[data-nd-state]')];
+    const edges = [...root.querySelectorAll('[data-nd-edge]')];
+    const cells = [...root.querySelectorAll('[data-nd-cell]')];
+    const note = root.querySelector('[data-nd-note]');
+    const countEl = root.querySelector('[data-nd-count]');
+
+    function render(s) {
+      const step = s >= 0 ? steps[s] : null;
+      const set = step ? step.set : new Set();
+      states.forEach((g) => {
+        const i = Number(g.dataset.ndState);
+        g.classList.toggle('is-in', set.has(i));
+        g.classList.toggle('is-from', !!step && step.phase === 'read' && step.from.includes(i));
+        g.classList.toggle('is-yes', !!step && step.done === 'accept' && i === M);
+        g.classList.toggle('is-no', !!step && step.done === 'reject' && i === M);
+      });
+      edges.forEach((p) => {
+        const key = p.dataset.ndEdge;
+        let on = false;
+        if (step && step.phase === 'read') {
+          on = key[0] === 'm' && step.from.includes(Number(key.slice(1)));
+        } else if (step && !step.done && key[0] === 'e') {
+          const [a, b] = key.slice(1).split('-').map(Number);
+          on = set.has(a) && set.has(b);
+        }
+        p.classList.toggle('is-on', on);
+        p.setAttribute('marker-end', on ? p.dataset.ndOn : p.dataset.ndOff);
+      });
+      const pos = step ? step.pos : 0;
+      const reading = !!step && step.phase === 'read';
+      cells.forEach((cell, i) => {
+        cell.classList.toggle('is-read', !!step && i < pos && !(reading && i === pos - 1));
+        cell.classList.toggle('is-now', reading && i === pos - 1);
+      });
+      countEl.textContent = String(set.size);
+      note.textContent = step ? step.note
+        : fill(S.idle, { r: root.dataset.ndRegex, t: input.join(''), m: M });
+      root.classList.toggle('is-done', !!(step && step.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-nfa-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-nfa-demo .nd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-nfa-demo .nd-head {
+    font-size: 0.95em;
+  }
+  .aas-nfa-demo .nd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-nfa-demo .nd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-nfa-demo .nd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-nfa-demo .nd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-nfa-demo .nd-scroll {
+    overflow-x: auto;
+  }
+  .aas-nfa-demo .nd-graph {
+    display: block;
+    width: 100%;
+    min-width: 36em;
+    height: auto;
+  }
+  .aas-nfa-demo .nd-tip-match path {
+    fill: var(--aas-text);
+  }
+  .aas-nfa-demo .nd-tip-eps path {
+    fill: var(--aas-role-model);
+  }
+  .aas-nfa-demo .nd-tip-on path {
+    fill: var(--aas-role-focus);
+  }
+  .aas-nfa-demo .nd-edge {
+    fill: none;
+    stroke-width: 1.6;
+    transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+  }
+  .aas-nfa-demo .nd-edge.is-match {
+    stroke: var(--aas-text);
+  }
+  .aas-nfa-demo .nd-edge.is-eps {
+    stroke: var(--aas-role-model);
+    stroke-dasharray: 4 3;
+    opacity: 0.75;
+  }
+  .aas-nfa-demo .nd-edge.is-on {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+    opacity: 1;
+  }
+  .aas-nfa-demo .nd-state circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.6;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .aas-nfa-demo .nd-state .nd-ring {
+    fill: none;
+  }
+  .aas-nfa-demo .nd-char {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-nfa-demo .nd-num {
+    font-size: 11px;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-nfa-demo .nd-state.is-in circle:not(.nd-ring) {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-nfa-demo .nd-state.is-in .nd-char {
+    fill: #fff;
+  }
+  .aas-nfa-demo .nd-state.is-from circle:not(.nd-ring) {
+    fill: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-nfa-demo .nd-state.is-yes circle:not(.nd-ring) {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-nfa-demo .nd-state.is-yes .nd-ring {
+    stroke: var(--aas-role-eval);
+  }
+  .aas-nfa-demo .nd-state.is-yes .nd-ring {
+    fill: none;
+    stroke-width: 3;
+  }
+  .aas-nfa-demo .nd-state.is-no .nd-ring {
+    stroke: var(--aas-role-guard);
+    stroke-width: 3;
+  }
+
+  .aas-nfa-demo .nd-tape {
+    display: flex;
+    justify-content: center;
+    gap: 0.25em;
+    margin-top: 0.4em;
+  }
+  .aas-nfa-demo .nd-cell {
+    width: 1.9em;
+    height: 1.9em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+  }
+  .aas-nfa-demo .nd-cell.is-read {
+    color: var(--aas-muted);
+    background: color-mix(in srgb, var(--aas-muted) 15%, var(--aas-bg));
+  }
+  .aas-nfa-demo .nd-cell.is-now {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+
+  .aas-nfa-demo .nd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-nfa-demo .nd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-nfa-demo.is-done .nd-note {
+    color: var(--aas-text);
+  }
+  .aas-nfa-demo .nd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-nfa-demo .nd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-nfa-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-nfa-demo.is-slide .nd-graph {
+    min-width: 0;
+    max-height: 40vh;
+  }
+  .aas-nfa-demo.is-slide .nd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-nfa-demo .nd-edge,
+    .aas-nfa-demo .nd-state circle,
+    .aas-nfa-demo .nd-cell {
+      transition: none;
+    }
+  }
+</style>

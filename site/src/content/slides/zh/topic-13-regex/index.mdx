@@ -1,0 +1,882 @@
+---
+title: "主题 13. 正则表达式与自动机"
+description: "把要找的字符串写成集合（语言）的正则表达式，用递归去匹配它的回溯法的局限，以及用状态与转移、绝不回头地匹配的有限状态自动机与 NFA"
+date: "主题 13 · v1"
+order: 13
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import RegexMatchDemo from '@components/RegexMatchDemo.astro';
+import FsaDemo from '@components/FsaDemo.astro';
+import NfaDemo from '@components/NfaDemo.astro';
+
+{/* 幻灯片规则见 docs/writing-rules.md。
+    数字与实践代码（topic-13-regex）的运行结果一致。 */}
+
+<Slide class="cover">
+
+# 正则表达式与自动机
+
+主题 13
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 不确切知道要找什么时
+::sub[主题 10 的字典树是确切知道要找的字符串时的工具]
+
+- 看起来像电话号码的东西
+- 以 `.edu` 结尾的电子邮件地址
+- 以 `gcg` 开头、`cgg` 重复、以 `ctg` 结尾的基因片段
+
+<br/>
+
+只知道形状。描述这种形状的语言是**正则表达式**，  
+运行它的机器是**自动机**。
+
+</Slide>
+
+<Slide class="center">
+
+## 正则表达式
+::sub[Regular Expression]
+
+</Slide>
+
+<Slide>
+
+#### 概述
+::sub[在要找的子串模式信息不充分的情况下进行查找]
+
+- 对于非常复杂的 $$M$$ 个字符的模式
+- 在 $$N$$ 个字符的文本中
+- **以与 $$MN$$ 成正比的最坏性能**找出来。
+
+<br/>
+
+本主题结束时，会抵达兑现这个承诺的方法。
+
+</Slide>
+
+<Slide>
+
+#### 模式的表示
+::sub[一个模式指的是字符串的集合]
+
+- 这个集合叫作**语言**（language）。
+- 描述语言的写法是**正则表达式**（regular expressions）。
+- 在网页搜索、编辑器查找、输入校验中普遍使用。
+
+</Slide>
+
+<Slide class="center">
+
+## 正则表达式的三种运算
+::sub[连接 · 或 · 闭包，再加括号]
+
+</Slide>
+
+<Slide>
+
+#### 连接
+::sub[Concatenation]
+
+- `AB`
+  - 表示 `{AB}`。
+- 字符 A 与 B 连接而成、只含一个长度为 2 的字符串的集合。
+- 没有专门的运算符。并排写就是连接。
+
+</Slide>
+
+<Slide>
+
+#### 或
+::sub[Or · 可选的备选项]
+
+- `A|B`
+  - 表示 `{A, B}`。
+- `A|E|I|O|U`
+  - 表示 `{A, E, I, O, U}`。
+
+</Slide>
+
+<Slide>
+
+#### 闭包
+::sub[Closure · 模式的一部分重复任意次]
+
+- `AB*`
+  - A 后面跟着 0 个以上 B 的字符串构成的语言
+  - `{A, AB, ABB, …}`
+- `A*B`
+  - 0 个以上 A 之后接一个 B 的字符串构成的语言
+  - `{B, AB, AAB, …}`
+
+<br/>
+
+`*` **只作用于紧挨着的前一个字符**。
+
+</Slide>
+
+<Slide>
+
+#### 括号
+::sub[Parentheses · 默认优先级依次是闭包、连接、或]
+
+| 正则表达式 | 语言 | 不属于的例子 |
+| --- | --- | --- |
+| `C(AC\|B)D` | `{CACD, CBD}` | `CD`、`CACBD` |
+| `(A\|C)((B\|C)D)` | `{ABD, CBD, ACD, CCD}` | `ABCD` |
+| `(AB)*` | AB 连接任意次 | `ABA`、`BA` |
+
+<br/>
+
+没有括号就成了 `CAC|BD`，也就是 `{CAC, BD}`。
+
+</Slide>
+
+<Slide class="center">
+
+## 缩写
+::sub[为了简明地描述语言而加的扩展规则]
+
+</Slide>
+
+<Slide>
+
+#### 概述
+::sub[只用三种运算也行，但会很长]
+
+- "一个数字"得写成 `0|1|2|3|4|5|6|7|8|9`。
+- 所以要加上针对具体应用的各种**扩展规则**。
+
+<br/>
+
+缩写都能用三种运算展开写出。  
+它们不是新能力，而是**简写**。
+
+</Slide>
+
+<Slide>
+
+#### 字符集表示
+::sub[简洁地表示特定的字符集合]
+
+| 写法 | 含义 | 例子 |
+| --- | --- | --- |
+| `.` | 任意一个字符（通配符） | `A.B` |
+| `[ ]` | 其中列出的字符之一 | `[AEIOU]*` |
+| `[A-Z]` | 范围内的一个字符 | `[A-Z]` `[0-9]` |
+| `[^ ]` | **不是**所列字符的一个字符 | `[^AEIOU]*` |
+
+</Slide>
+
+<Slide>
+
+#### 闭包缩写
+::sub[规定不同的重复次数]
+
+| 写法 | 重复次数 | 例子 | 用三种运算展开 |
+| --- | --- | --- | --- |
+| `+` | 一次以上 | `A+` | `AA*` |
+| `?` | 至多一次（含 0 次） | `AB?` | `A\|AB` |
+| `{n}` | 恰好 n 次 | `[0-9]{3}` | `[0-9][0-9][0-9]` |
+| `{m,n}` | m 次以上 n 次以下 | `A{2,3}` | `AA\|AAA` |
+
+</Slide>
+
+<Slide>
+
+#### 转义序列
+::sub[特殊字符按字面使用，看不见的字符也有名字]
+
+| 写法 | 含义 |
+| --- | --- |
+| `\\` | 反斜杠 `\` 本身 |
+| `\.` `\(` `\*` | 点、括号、星号本身 |
+| `\t` | 制表符 |
+| `\n` | 换行符 |
+| `\s` | 空白字符（空格、制表符、换行等） |
+| `\d` | 一个数字，等同于 `[0-9]` |
+
+</Slide>
+
+<Slide class="center">
+
+## 实用示例
+::sub[查找 · 校验 · 应用 · 局限]
+
+</Slide>
+
+<Slide>
+
+#### 子串查找
+::sub[判断给定字符串是否属于正则表达式所表示的语言的算法]
+
+- 在文本 txt 中查找模式 pat
+  - 问 txt 整体是否属于 `.*pat.*`。
+- 前面的 `.*` 是 pat 之前的任意字符串
+- 后面的 `.*` 是 pat 之后的任意字符串
+
+<br/>
+
+`grep` 之类的查找工具对每一行都提出这个问题。
+
+</Slide>
+
+<Slide>
+
+#### 有效性校验：电话号码
+::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
+
+| 片段 | 含义 |
+| --- | --- |
+| `\(` `\)` | 括号字符本身（转义序列） |
+| `[0-9]` | 数字 0\~9 之一 |
+| `{3}` | 允许重复 3 次 |
+
+<br/>
+
+`(800) 867-5309` 属于它。  
+韩国的手机号是 `\d{3}-\d{3,4}-\d{4}`，例如 `010-1234-5678`
+
+</Slide>
+
+<Slide>
+
+#### 有效性校验：电子邮件地址
+::sub[`[a-z]+@([a-z]+\.)+(edu|com)`]
+
+| 片段 | 含义 |
+| --- | --- |
+| `+` | 重复一次以上 |
+| `\.` | 不是任意字符，而是真正的点 |
+| `(edu\|com)` | 限定为 edu 或 com |
+
+<br/>
+
+`rs@cs.princeton.edu` 属于它。  
+实际会放宽成 `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}` 这样。
+
+</Slide>
+
+<Slide>
+
+#### 有效性校验：URL
+::sub[`https?://[^\s/$.?#].[^\s]*`]
+
+- `https?`
+  - `s` 可有可无。http 和 https 都行
+- `[^\s/$.?#]`
+  - 地址的第一个字符不是空白，也不是 `/ $ . ? #`。
+- `[^\s]*`
+  - 之后一直到出现空白为止
+
+</Slide>
+
+<Slide>
+
+#### 应用
+
+- **程序员的便利工具**
+  - `grep StdIn *.java`：后面的 `*.java` 是 shell 的文件名模式。
+- **基因组学**
+  - `gcg(cgg)*ctg`：与脆性 X 综合征相关的重复区段的形状
+- **网页搜索**
+  - 搜索引擎和日志分析工具的模式查找
+
+</Slide>
+
+<Slide>
+
+#### 可能性
+::sub[`(0|1(01*0)*1)*` 表示用二进制写出的 3 的倍数]
+
+| 属于 | 不属于 |
+| --- | --- |
+| `11` (3) | `10` (2) |
+| `110` (6) | `1011` (11) |
+| `1001` (9) | `10000` (16) |
+| `1100` (12) | |
+
+<br/>
+
+这个正则表达式会在示例 3 中用 NFA 实际运行。
+
+</Slide>
+
+<Slide>
+
+#### 局限
+::sub[也存在无法表示的语言]
+
+- 检查括号是否配对
+  - `(()())` 可以，`(()` 不行。
+- 检查字符串中 A 与 B 的个数是否相同
+
+<br/>
+
+两者都是**需要无限计数**的问题。  
+正则表达式运行在状态有限的机器上，能数的个数有上限。
+
+</Slide>
+
+<Slide class="center">
+
+## 示例 1. 用递归匹配
+::sub[Recursion and Backtracking]
+
+</Slide>
+
+<Slide>
+
+#### 最直接的方法
+::sub[先从只有 `.` 和 `x*` 的正则表达式开始]
+
+- **字符相符时**
+  - 模式和文本各前进一格，匹配剩余部分。
+- **遇到 `x*` 时**
+  - 先吃 0 个 x，试剩余部分。
+  - 不行就 1 个，还不行就 2 个……逐个增加。
+- **模式用完**就成功。
+
+<br/>
+
+不行就退回前一个选择改试别的。这就是**回溯**。
+
+</Slide>
+
+<Slide>
+
+### 单步：在 aabbc 中找 ab\*c
+::sub[下划线是起始位置，橙色是当前查看的位置 · 右侧记录的缩进是递归深度]
+
+<RegexMatchDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 步骤
+::sub[`01_regular_expression/regexMatch.pseudo`]
+
+```plaintext
+ALGORITHM Match(pattern, text)
+    if pattern为空 then return true                 // 模式用完就成功
+    if pattern[1] = '*' then
+        return MatchStar(pattern[0], pattern[2..], text)
+    if text还有剩余 且 (pattern[0] = '.' 或 pattern[0] = text[0]) then
+        return Match(pattern[1..], text[1..])       // 一个字符一个字符地匹配
+    return false
+
+ALGORITHM MatchStar(c, pattern, text)
+    if Match(pattern, text) then return true        // 吃 0 个 c，试剩余部分
+    while text还有剩余 且 (text[0] = c 或 c = '.') do
+        text <- text[1..]                           // 再吃一个 c
+        if Match(pattern, text) then return true    // 剩余部分再从头试
+    return false                                    // 所有情况都失败
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`regexMatch.c` · 统计调用次数和深度的行去掉了]
+
+```c
+bool match(const char *pattern, const char *text) {
+    if (*pattern == '\0') return true;                 /* 模式结束即成功 */
+    if (*(pattern + 1) == '*')                         /* x* 模式 */
+        return matchStar(*pattern, pattern + 2, text);
+    if (*text != '\0' && (*pattern == '.' || *pattern == *text))
+        return match(pattern + 1, text + 1);           /* 匹配一个字符并前进 */
+    return false;
+}
+static bool matchStar(char c, const char *pattern, const char *text) {
+    if (match(pattern, text)) return true;             /* 尝试匹配 0 个 */
+    while (*text != '\0' && (*text == c || c == '.'))  /* 1 个以上 */
+        if (match(pattern, ++text)) return true;       /* 再吃一个后重试 */
+    return false;                                      /* 所有情况都失败 */
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`search("ab*c", "aabbc")` · 在位置 1 找到，调用 match 9 次]
+
+<div class="aas-split">
+<div>
+
+```console
+search("ab*c", "aabbc")
+  start 0
+    match("ab*c", "aabbc")
+      match("b*c", "abbc")
+          match("c", "abbc")
+  start 1
+    match("ab*c", "abbc")
+      match("b*c", "bbc")
+          match("c", "bbc")
+          match("c", "bc")
+          match("c", "c")
+            match("", "")
+  -> found at 1, comparisons = 9
+```
+
+</div>
+<div>
+
+```console
+tests
+  pattern  text        at  comparisons
+  ab*c     ac           0            4
+  ab*c     abbbbc       0            8
+  ab*c     abd         -1            7
+  a.c      xxabcxx      2            6
+  .*ab*c   zzabbbcz     0           10
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 回溯的陷阱
+::sub[模式 `a*a*…a*b`（`a*` 出现 n 次），文本是 n 个 a · 答案显然是"不匹配"]
+
+| $$n$$ | 模式长度 | 比较次数 | 最大深度 |
+| --- | --- | --- | --- |
+| 2 | 5 | 10 | 5 |
+| 4 | 9 | 126 | 9 |
+| 6 | 13 | 1,716 | 13 |
+| 8 | 17 | 24,310 | 17 |
+| 10 | 21 | 352,716 | 21 |
+
+<br/>
+
+把 a 分给哪个 `a*`、各分几个，**所有情况**都要试一遍。  
+$$\binom{2n+1}{n}$$，几乎按 $$4^n$$ 增长的**指数时间**。
+
+</Slide>
+
+<Slide>
+
+#### 问题的根源
+::sub[一次只带着一种可能性走]
+
+- 错了就退回去，从头再追下一种可能性。
+- 确实发生过网络服务因一个正则表达式而停摆的事故。
+  - 这种攻击叫作 ReDoS（正则表达式拒绝服务）。
+- 递归深度随模式长度加深，也是负担。
+
+<br/>
+
+下一个工具把这一点反过来。**绝不回头**。
+
+</Slide>
+
+<Slide class="center">
+
+## 示例 2. 有限状态自动机
+::sub[Finite State Automaton]
+
+</Slide>
+
+<Slide>
+
+#### 概念
+::sub[利用状态与转移进行模式匹配]
+
+- **状态**（State）：匹配过程中当前的位置与情况
+- **转移**（Transition）：随输入字符发生的状态变化
+- **接受状态**（Accept State）：模式匹配成功完成的状态
+- **ε 转移**（ε-transition）：不读输入就发生的状态转移
+
+<br/>
+
+输入结束时处于接受状态就接纳它。  
+能解决递归回溯的低效。
+
+</Slide>
+
+<Slide>
+
+#### 简单的例子：模式 ab\*c
+::sub[状态有五个]
+
+| 状态 | 含义 |
+| --- | --- |
+| S0 | 开始状态 |
+| S1 | 读到 `a` 的状态 |
+| S2 | `b*` 的开始状态（允许 0 个 `b`） |
+| S3 | 读到 1 个以上 `b` 的状态 |
+| S4 | 读到 `c`，模式匹配完成（接受状态） |
+
+<br/>
+
+从 S1 到 S2 不读输入直接过去。这就是 ε 转移。
+
+</Slide>
+
+<Slide>
+
+### 单步：abbbbc
+::sub[橙色是当前状态和刚经过的转移]
+
+<FsaDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 单步：abd
+::sub[遇到无处可去的字符就拒绝]
+
+<FsaDemo input="abd" slide />
+
+</Slide>
+
+<Slide>
+
+#### 在 S3 读到 b 时
+::sub[可以画成回到 S2 吗]
+
+- 在 S3 读到 `b` 就**回到 S2**，接受的字符串也一样。
+  - 但那样 S3 就成了"读到奇数个 b 的状态"。
+  - 与表中的说明"读到 1 个以上 b 的状态"不符。
+- 所以**留在 S3**。
+  - 每个状态只有一个含义。
+
+<br/>
+
+`abbbbc`：S0 → S1 → S2 → S3 → S3 → S3 → S3 → S4
+
+</Slide>
+
+<Slide class="compact">
+
+#### 步骤
+::sub[`02_finite_state_automaton/fsaSimple.pseudo`]
+
+```plaintext
+ALGORITHM Accept(input)
+    state <- S0
+    for 输入字符 ch in input do
+        if state = S0 and ch = 'a' then
+            state <- S1
+            state <- S2                     // ε 转移：不读输入直接到 S2
+        else if state ∈ {S2, S3} and ch = 'b' then
+            state <- S3
+        else if state ∈ {S2, S3} and ch = 'c' then
+            state <- S4
+        else
+            return false                    // 无处可去就拒绝
+    return state = S4                       // 结束时必须在接受状态才接受
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`fsaSimple.c` · 把实践代码的 switch 缩成四行条件，并去掉输出的行]
+
+```c
+bool accept(const char *input) {
+    State s = S0;                                    /* S0~S4 是枚举 */
+    for (const char *p = input; *p != '\0'; p++) {
+        if (s == S0 && *p == 'a') s = S2;            /* 读 'a' 到 S1，经 ε 转移到 S2 */
+        else if ((s == S2 || s == S3) && *p == 'b') s = S3;
+        else if ((s == S2 || s == S3) && *p == 'c') s = S4;
+        else return false;                           /* 无处可去就拒绝 */
+    }
+    return s == S4;                                  /* 检查是否为接受状态 */
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[被拒绝的情形有两种：无处可去时，结束却不在接受状态时]
+
+<div class="aas-split">
+<div>
+
+```console
+input "abd"
+  start S0
+  'a' -> S1
+  eps -> S2
+  'b' -> S3
+  'd' -> no move from S3: reject
+```
+
+</div>
+<div>
+
+```console
+summary
+  abc      accept
+  abbbbc   accept
+  ac       accept
+  ab       reject
+  abd      reject
+  abcc     reject
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[一个字符一次转移]
+
+- 文本长度为 $$N$$ 时在 $$O(N)$$ 内结束。
+  - 不会重复查看同一个字符。
+- 看到下一个字符后，去处**只有一个**。
+  - 确定性有限自动机（DFA）
+- 不过这张图是**手工**画的。
+  - 模式一变，状态就得重新设计。
+
+<br/>
+
+能不能从正则表达式自动造出自动机呢？
+
+</Slide>
+
+<Slide class="center">
+
+## 示例 3. 从正则表达式到 NFA
+::sub[Regular Expression to NFA]
+
+</Slide>
+
+<Slide>
+
+#### 克莱尼定理
+::sub[Kleene's theorem]
+
+- 能用正则表达式描述的语言与有限状态自动机识别的语言**完全相同**。
+- 直接造成 DFA，状态数可能呈指数增长。
+- 所以要造**非确定性有限自动机**（NFA）。
+  - 一个状态可以有多个去处。
+  - ε 转移可以随意使用。
+
+</Slide>
+
+<Slide>
+
+#### 构造方法
+::sub[整个正则表达式包上括号，一个字符一个状态 · 状态 0…M，M 是接受状态]
+
+- **匹配转移**
+  - 字符状态 $$i$$ 读入那个字符（`.` 则任意字符）后去 $$i+1$$。
+- **ε 转移**
+  - `(`、`)`、`*` 不读字符直接去下一个状态。
+  - `x*`、`(…)*`：在块的开头与 `*` 之间双向相连。
+  - `(A|B)`：从 `(` 到 B 的开头，从 `|` 到 `)`。
+
+<br/>
+
+括号的配对用栈来找。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 步骤：构造图
+::sub[`03_nfa_regex/nfaRegex.pseudo` · 扫描一遍正则表达式，O(M)]
+
+```plaintext
+ALGORITHM BuildNFA(re)
+    ops <- 空栈
+    for i <- 0 to M-1 do
+        lp <- i                                  // '*' 所作用的块的开头
+        if re[i] = '(' 或 '|' then 把 i 压入 ops
+        else if re[i] = ')' then
+            or <- 从 ops 弹出
+            if re[or] = '|' then lp <- 从 ops 弹出; 在 G 中加 lp -> or+1, or -> i
+            else lp <- or
+        if re[i+1] = '*' then 在 G 中加 lp -> i+1, i+1 -> lp   // 0 次，再来一次
+        if re[i] ∈ { '(', '*', ')' } then 在 G 中加 i -> i+1   // 不读字符到下一个
+```
+
+</Slide>
+
+<Slide>
+
+#### 用状态集合运行
+::sub["当前状态"不止一个，所以把所有可能处于的状态都带着走]
+
+每个字符分两步。
+
+1. **读字符**
+   - 集合中只有与读入字符相符的字符状态前进一格。
+2. **ε 闭包**（ε-closure）
+   - 从那里加上仅沿 ε 转移能到达的所有状态。这是 DFS。
+
+<br/>
+
+文本读完时，集合里有接受状态就接受。
+
+</Slide>
+
+<Slide>
+
+### 单步：1001 是 3 的倍数吗
+::sub[黑色实线是匹配转移，蓝色虚线是 ε 转移 · 橙色是当前集合]
+
+<NfaDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 步骤：模拟
+::sub[`nfaRegex.pseudo`]
+
+```plaintext
+ALGORITHM Recognizes(re, text)
+    G <- BuildNFA(re)
+    pc <- Closure(G, {0})                    // 当前可能处于的状态
+    for 字符 ch in text do
+        match <- { i+1 : i ∈ pc, re[i]是字符 且
+                         (re[i] = ch 或 re[i] = '.') }
+        pc <- Closure(G, match)
+    return M ∈ pc
+```
+
+<br/>
+
+不只带着一个状态，所以**不需要回头**。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`nfaRegex.c` · 演示中的八个集合与原资料的七个例子]
+
+<div class="aas-split">
+<div>
+
+```console
+text = 1001
+  start      {0 1 2 4 14 15 16}
+  read '1'   {5}
+  closure    {5 6 11 12}
+  read '0'   {7}
+  closure    {7 8 9}
+  read '0'   {10}
+  closure    {5 6 10 11 12}
+  read '1'   {13}
+  closure    {1 2 4 13 14 15 16}
+  -> accept
+```
+
+</div>
+<div>
+
+```console
+  text   value  result
+  11         3  accept
+  110        6  accept
+  1001       9  accept
+  1100      12  accept
+  10         2  reject
+  1011      11  reject
+  10000     16  reject
+```
+
+</div>
+</div>
+
+<br/>
+
+开始集合里就已经有 16，是因为空字符串也代表 0，而 0 是 3 的倍数。
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[抵达了承诺的结果]
+
+- **构造**：状态和转移都是 $$O(M)$$，时间也是 $$O(M)$$
+- **运行**：每读一个字符重新构造一次集合。
+  - 集合里的状态至多 $$M+1$$ 个。
+  - 用邻接表时，ε 闭包的 DFS 对每个状态和转移只看一次。
+  - 每个字符 $$O(M)$$，整体最坏 $$O(MN)$$
+
+</Slide>
+
+<Slide>
+
+#### 与回溯对照
+::sub[同样的输入 `(a*)^n b` 与 n 个 a · NFA 工作量是放进集合的状态数之和]
+
+| $$n$$ | 回溯比较次数 | NFA 工作量 |
+| --- | --- | --- |
+| 2 | 10 | 16 |
+| 4 | 126 | 46 |
+| 6 | 1,716 | 92 |
+| 8 | 24,310 | 154 |
+| 10 | 352,716 | 232 |
+
+<br/>
+
+回溯**一个接一个地**追踪可能性，NFA **同时全部**追踪。  
+即使两条路到达同一个状态，集合里也只算一次。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手
+::sub[确认回溯爆炸的地方和 NFA 撑得住的地方]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-13-regex/`  
+打开文件，按编辑器右上角的 **▶ 按钮**运行。
+
+1. **把 `regexMatch.c` 最后一张表增加到 n = 12**。
+   - 比较次数超过 500 万次。同样的输入下 NFA 工作量是 326。
+2. **修改 `fsaSimple.c`，让它识别 `ab*c*`**。
+   - 要把哪个状态加为接受状态？
+3. **给 `nfaRegex.c` 输入 `((A*B|AC)D)` 和 `AABD`**。
+   - 跟着看状态集合如何变化。
+
+</Slide>
+
+<Slide>
+
+## 要带走的
+
+1. **正则表达式描述字符串的集合（语言）**。
+   - 连接、或、闭包三种运算加括号
+2. **缩写是三种运算的简写**。
+   - 查找等于问是否属于 `.*pat.*`。
+3. **写不出需要无限计数的语言**。
+   - 括号配对、A 与 B 的个数
+4. **递归与回溯可能呈指数爆炸**。
+   - 因为一次只带着一种可能性走。
+5. **自动机绝不回头**。
+   - DFA 是 $$O(N)$$，由正则表达式构造的 NFA 最坏 $$O(MN)$$
+
+</Slide>

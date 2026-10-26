@@ -1,0 +1,882 @@
+---
+title: "Topic 13. Regular Expressions and Automata"
+description: "Regular expressions, which write the strings to find as a set (a language); the limits of matching them by recursion and backtracking; and finite state automata and NFAs, which match through states and transitions without ever backing up"
+date: "Topic 13 · v1"
+order: 13
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import RegexMatchDemo from '@components/RegexMatchDemo.astro';
+import FsaDemo from '@components/FsaDemo.astro';
+import NfaDemo from '@components/NfaDemo.astro';
+
+{/* Slides follow the "Slide rules" in docs/writing-rules.md.
+    Numbers match the output of the practice code (topic-13-regex). */}
+
+<Slide class="cover">
+
+# Regular Expressions and Automata
+
+Topic 13
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## When we do not know exactly what to find
+::sub[The trie of Topic 10 was a tool for when you know the exact string]
+
+- something that looks like a phone number
+- an email address ending in `.edu`
+- a gene fragment that starts with `gcg`, repeats `cgg`, and ends with `ctg`
+
+<br/>
+
+We only know the shape. The language that writes it is the **regular expression**,  
+and the machine that runs it is the **automaton**.
+
+</Slide>
+
+<Slide class="center">
+
+## Regular expressions
+::sub[Regular Expression]
+
+</Slide>
+
+<Slide>
+
+#### Overview
+::sub[Searching with incomplete information about the substring pattern to find]
+
+- a highly complex pattern of $$M$$ characters
+- in a text of $$N$$ characters
+- found with **worst-case performance proportional to $$MN$$**.
+
+<br/>
+
+By the end of this topic we reach a method that keeps this promise.
+
+</Slide>
+
+<Slide>
+
+#### Describing patterns
+::sub[One pattern points to a set of strings]
+
+- That set is called a **language**.
+- The notation for writing languages is the **regular expression**.
+- It is used everywhere: web search, find in an editor, input validation.
+
+</Slide>
+
+<Slide class="center">
+
+## The three operations
+::sub[Concatenation · or · closure, plus parentheses]
+
+</Slide>
+
+<Slide>
+
+#### Concatenation
+::sub[Concatenation]
+
+- `AB`
+  - means `{AB}`.
+- The set holding one string of length 2: A followed by B.
+- There is no operator symbol. Writing things side by side is concatenation.
+
+</Slide>
+
+<Slide>
+
+#### Or
+::sub[Or · an alternative]
+
+- `A|B`
+  - means `{A, B}`.
+- `A|E|I|O|U`
+  - means `{A, E, I, O, U}`.
+
+</Slide>
+
+<Slide>
+
+#### Closure
+::sub[Closure · part of the pattern repeats any number of times]
+
+- `AB*`
+  - the language of strings made of A followed by zero or more Bs
+  - `{A, AB, ABB, …}`
+- `A*B`
+  - the language of strings made of zero or more As with a B at the end
+  - `{B, AB, AAB, …}`
+
+<br/>
+
+`*` binds **only to the single character right before it**.
+
+</Slide>
+
+<Slide>
+
+#### Parentheses
+::sub[Parentheses · the default precedence is closure, then concatenation, then or]
+
+| Regex | Language | Not in the language |
+| --- | --- | --- |
+| `C(AC\|B)D` | `{CACD, CBD}` | `CD`, `CACBD` |
+| `(A\|C)((B\|C)D)` | `{ABD, CBD, ACD, CCD}` | `ABCD` |
+| `(AB)*` | AB concatenated any number of times | `ABA`, `BA` |
+
+<br/>
+
+Without the parentheses it is `CAC|BD`, that is, `{CAC, BD}`.
+
+</Slide>
+
+<Slide class="center">
+
+## Shorthands
+::sub[Extension rules for describing languages concisely]
+
+</Slide>
+
+<Slide>
+
+#### Overview
+::sub[The three operations are enough, but long]
+
+- "One digit" has to be written `0|1|2|3|4|5|6|7|8|9`.
+- So tools add **extension rules** tailored to the application.
+
+<br/>
+
+Every shorthand can be spelled out with the three operations.  
+They are **abbreviations**, not new powers.
+
+</Slide>
+
+<Slide>
+
+#### Character classes
+::sub[A short way to write a particular set of characters]
+
+| Notation | Meaning | Example |
+| --- | --- | --- |
+| `.` | any single character (wildcard) | `A.B` |
+| `[ ]` | one of the listed characters | `[AEIOU]*` |
+| `[A-Z]` | one character in the range | `[A-Z]` `[0-9]` |
+| `[^ ]` | one character that is **not** listed | `[^AEIOU]*` |
+
+</Slide>
+
+<Slide>
+
+#### Closure shorthands
+::sub[A different number of repetitions]
+
+| Notation | Repetitions | Example | With the three operations |
+| --- | --- | --- | --- |
+| `+` | one or more | `A+` | `AA*` |
+| `?` | at most one (including zero) | `AB?` | `A\|AB` |
+| `{n}` | exactly n | `[0-9]{3}` | `[0-9][0-9][0-9]` |
+| `{m,n}` | at least m, at most n | `A{2,3}` | `AA\|AAA` |
+
+</Slide>
+
+<Slide>
+
+#### Escape sequences
+::sub[Special characters taken literally, names for invisible ones]
+
+| Notation | Meaning |
+| --- | --- |
+| `\\` | the backslash `\` itself |
+| `\.` `\(` `\*` | a literal dot, parenthesis, asterisk |
+| `\t` | tab |
+| `\n` | newline |
+| `\s` | whitespace (space, tab, newline, …) |
+| `\d` | one digit, the same as `[0-9]` |
+
+</Slide>
+
+<Slide class="center">
+
+## Practical examples
+::sub[Search · validation · applications · limits]
+
+</Slide>
+
+<Slide>
+
+#### Substring search
+::sub[An algorithm that decides whether a string belongs to the language a regex describes]
+
+- Finding a pattern pat in a text txt
+  - Ask whether the whole txt belongs to `.*pat.*`.
+- The leading `.*`: any string before pat
+- The trailing `.*`: any string after pat
+
+<br/>
+
+Search tools such as `grep` ask this question for every line.
+
+</Slide>
+
+<Slide>
+
+#### Validation: phone numbers
+::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
+
+| Piece | Meaning |
+| --- | --- |
+| `\(` `\)` | literal parentheses (escape sequences) |
+| `[0-9]` | one digit from 0\~9 |
+| `{3}` | repeated exactly 3 times |
+
+<br/>
+
+`(800) 867-5309` belongs to it.  
+A Korean mobile number: `\d{3}-\d{3,4}-\d{4}`, for example `010-1234-5678`
+
+</Slide>
+
+<Slide>
+
+#### Validation: email addresses
+::sub[`[a-z]+@([a-z]+\.)+(edu|com)`]
+
+| Piece | Meaning |
+| --- | --- |
+| `+` | one or more repetitions |
+| `\.` | a real dot, not any character |
+| `(edu\|com)` | restricted to edu or com |
+
+<br/>
+
+`rs@cs.princeton.edu` belongs to it.  
+In practice it is widened, as in `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+
+</Slide>
+
+<Slide>
+
+#### Validation: URLs
+::sub[`https?://[^\s/$.?#].[^\s]*`]
+
+- `https?`
+  - The `s` may or may not be there, so both http and https
+- `[^\s/$.?#]`
+  - The first character of the address is not whitespace or `/ $ . ? #`.
+- `[^\s]*`
+  - then everything up to the next whitespace
+
+</Slide>
+
+<Slide>
+
+#### Applications
+
+- **Convenience tools for programmers**
+  - `grep StdIn *.java`: the trailing `*.java` is a shell filename pattern.
+- **Genomics**
+  - `gcg(cgg)*ctg`: the shape of a repeat region linked to fragile X syndrome
+- **Web search**
+  - pattern search in search engines and log analysis tools
+
+</Slide>
+
+<Slide>
+
+#### What is possible
+::sub[`(0|1(01*0)*1)*` describes the multiples of 3 in binary]
+
+| In the language | Not in the language |
+| --- | --- |
+| `11` (3) | `10` (2) |
+| `110` (6) | `1011` (11) |
+| `1001` (9) | `10000` (16) |
+| `1100` (12) | |
+
+<br/>
+
+We actually run this regex as an NFA in Example 3.
+
+</Slide>
+
+<Slide>
+
+#### Limits
+::sub[Some languages cannot be described]
+
+- checking whether parentheses are balanced
+  - `(()())` yes, `(()` no
+- checking whether a string has as many As as Bs
+
+<br/>
+
+Both require **counting without bound**.  
+A regex runs on a machine with finitely many states, so it can only count so far.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. Matching by recursion
+::sub[Recursion and Backtracking]
+
+</Slide>
+
+<Slide>
+
+#### The most direct way
+::sub[Start with regexes that contain only `.` and `x*`]
+
+- **If the characters match**
+  - Advance both the pattern and the text by one and match the rest.
+- **On `x*`**
+  - Eat zero x's and try the rest.
+  - If that fails, one; if that fails too, two; … one more each time.
+- **When the pattern is used up**, we have succeeded.
+
+<br/>
+
+On failure, go back to an earlier choice and try something else. That is **backtracking**.
+
+</Slide>
+
+<Slide>
+
+### Step by step: ab\*c in aabbc
+::sub[The underline marks the start, orange the spot being checked · indentation in the log is the recursion depth]
+
+<RegexMatchDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`01_regular_expression/regexMatch.pseudo`]
+
+```plaintext
+ALGORITHM Match(pattern, text)
+    if pattern is empty then return true            // pattern used up: success
+    if pattern[1] = '*' then
+        return MatchStar(pattern[0], pattern[2..], text)
+    if text remains and (pattern[0] = '.' or pattern[0] = text[0]) then
+        return Match(pattern[1..], text[1..])       // one character at a time
+    return false
+
+ALGORITHM MatchStar(c, pattern, text)
+    if Match(pattern, text) then return true        // eat zero c's, try the rest
+    while text remains and (text[0] = c or c = '.') do
+        text <- text[1..]                           // eat one more c
+        if Match(pattern, text) then return true    // try the rest from scratch
+    return false                                    // every case failed
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`regexMatch.c` · the lines counting calls and depth are left out]
+
+```c
+bool match(const char *pattern, const char *text) {
+    if (*pattern == '\0') return true;                 /* pattern ended: success */
+    if (*(pattern + 1) == '*')                         /* x* */
+        return matchStar(*pattern, pattern + 2, text);
+    if (*text != '\0' && (*pattern == '.' || *pattern == *text))
+        return match(pattern + 1, text + 1);           /* match one, advance */
+    return false;
+}
+static bool matchStar(char c, const char *pattern, const char *text) {
+    if (match(pattern, text)) return true;             /* try matching zero */
+    while (*text != '\0' && (*text == c || c == '.'))  /* one or more */
+        if (match(pattern, ++text)) return true;       /* eat one more, retry */
+    return false;                                      /* every case failed */
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`search("ab*c", "aabbc")` · found at position 1 after 9 calls to match]
+
+<div class="aas-split">
+<div>
+
+```console
+search("ab*c", "aabbc")
+  start 0
+    match("ab*c", "aabbc")
+      match("b*c", "abbc")
+          match("c", "abbc")
+  start 1
+    match("ab*c", "abbc")
+      match("b*c", "bbc")
+          match("c", "bbc")
+          match("c", "bc")
+          match("c", "c")
+            match("", "")
+  -> found at 1, comparisons = 9
+```
+
+</div>
+<div>
+
+```console
+tests
+  pattern  text        at  comparisons
+  ab*c     ac           0            4
+  ab*c     abbbbc       0            8
+  ab*c     abd         -1            7
+  a.c      xxabcxx      2            6
+  .*ab*c   zzabbbcz     0           10
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### The backtracking trap
+::sub[Pattern `a*a*…a*b` (`a*` n times), text of n as · the answer is obviously "no match"]
+
+| $$n$$ | Pattern length | Comparisons | Max depth |
+| --- | --- | --- | --- |
+| 2 | 5 | 10 | 5 |
+| 4 | 9 | 126 | 9 |
+| 6 | 13 | 1,716 | 13 |
+| 8 | 17 | 24,310 | 17 |
+| 10 | 21 | 352,716 | 21 |
+
+<br/>
+
+It tries **every way** of handing the as out among the `a*`s.  
+$$\binom{2n+1}{n}$$, growing almost like $$4^n$$: **exponential time**.
+
+</Slide>
+
+<Slide>
+
+#### The root of the problem
+::sub[It carries only one possibility at a time]
+
+- On failure it backs up and follows the next possibility from scratch.
+- Web services have ground to a halt over a single regex.
+  - Such attacks are called ReDoS (regular expression denial of service).
+- A recursion depth as deep as the pattern is long is a burden too.
+
+<br/>
+
+The next tool turns this around. **It never backs up.**
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. Finite state automata
+::sub[Finite State Automaton]
+
+</Slide>
+
+<Slide>
+
+#### Concepts
+::sub[Pattern matching with states and transitions]
+
+- **State**: where we are and what the situation is during matching
+- **Transition**: a change of state caused by an input character
+- **Accept State**: a state meaning the pattern was matched successfully
+- **Epsilon transition** (ε-transition): a state change with no input
+
+<br/>
+
+If it is in an accept state when the input ends, the input is accepted.  
+It can remove the inefficiency of recursive backtracking.
+
+</Slide>
+
+<Slide>
+
+#### A simple example: the pattern ab\*c
+::sub[There are five states]
+
+| State | Meaning |
+| --- | --- |
+| S0 | start state |
+| S1 | has read `a` |
+| S2 | start of `b*` (zero `b`s allowed) |
+| S3 | has read one or more `b`s |
+| S4 | has read `c`, pattern matched (accept state) |
+
+<br/>
+
+From S1 to S2 it moves with no input. That is the ε-transition.
+
+</Slide>
+
+<Slide>
+
+### Step by step: abbbbc
+::sub[Orange marks the current state and the transition just taken]
+
+<FsaDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Step by step: abd
+::sub[A character with nowhere to go means reject]
+
+<FsaDemo input="abd" slide />
+
+</Slide>
+
+<Slide>
+
+#### Reading b in S3
+::sub[Could it go back to S2?]
+
+- Sending S3 **back to S2** on `b` accepts the same strings.
+  - But then S3 would mean "has read an odd number of bs."
+  - That does not match the table's "has read one or more bs."
+- So it **stays in S3**.
+  - Each state keeps one meaning.
+
+<br/>
+
+`abbbbc`: S0 → S1 → S2 → S3 → S3 → S3 → S3 → S4
+
+</Slide>
+
+<Slide class="compact">
+
+#### The procedure
+::sub[`02_finite_state_automaton/fsaSimple.pseudo`]
+
+```plaintext
+ALGORITHM Accept(input)
+    state <- S0
+    for each input character ch in input do
+        if state = S0 and ch = 'a' then
+            state <- S1
+            state <- S2                     // ε-transition: straight to S2, no input
+        else if state ∈ {S2, S3} and ch = 'b' then
+            state <- S3
+        else if state ∈ {S2, S3} and ch = 'c' then
+            state <- S4
+        else
+            return false                    // nowhere to go: reject
+    return state = S4                       // accept only if we end in S4
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`fsaSimple.c` · the practice code's switch shortened to four conditions, print lines left out]
+
+```c
+bool accept(const char *input) {
+    State s = S0;                                    /* S0..S4 are an enum */
+    for (const char *p = input; *p != '\0'; p++) {
+        if (s == S0 && *p == 'a') s = S2;            /* 'a' to S1, ε to S2 */
+        else if ((s == S2 || s == S3) && *p == 'b') s = S3;
+        else if ((s == S2 || s == S3) && *p == 'c') s = S4;
+        else return false;                           /* nowhere to go: reject */
+    }
+    return s == S4;                                  /* in the accept state? */
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[Two ways to be rejected: nowhere to go, or ending outside an accept state]
+
+<div class="aas-split">
+<div>
+
+```console
+input "abd"
+  start S0
+  'a' -> S1
+  eps -> S2
+  'b' -> S3
+  'd' -> no move from S3: reject
+```
+
+</div>
+<div>
+
+```console
+summary
+  abc      accept
+  abbbbc   accept
+  ac       accept
+  ab       reject
+  abd      reject
+  abcc     reject
+```
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[One transition per character]
+
+- For a text of length $$N$$ it finishes in $$O(N)$$.
+  - It never looks at the same character twice.
+- The next character leaves **exactly one place to go**.
+  - a deterministic finite automaton (DFA)
+- But this diagram was drawn **by hand**.
+  - Every time the pattern changes, the states must be designed again.
+
+<br/>
+
+Could we build the automaton from the regex automatically?
+
+</Slide>
+
+<Slide class="center">
+
+## Example 3. From regex to NFA
+::sub[Regular Expression to NFA]
+
+</Slide>
+
+<Slide>
+
+#### Kleene's theorem
+::sub[Kleene's theorem]
+
+- The languages a regex can describe and those a finite state automaton recognizes are **exactly the same**.
+- Building a DFA directly can make the number of states exponential.
+- So we build a **nondeterministic finite automaton** (NFA).
+  - A state may have several places to go.
+  - ε-transitions are used freely.
+
+</Slide>
+
+<Slide>
+
+#### How to build it
+::sub[Wrap the regex in parentheses, one state per character · states 0…M, M accepts]
+
+- **Match transitions**
+  - Character state $$i$$ reads its character (any one for `.`) and goes to $$i+1$$.
+- **ε-transitions**
+  - `(`, `)` and `*` go to the next state without a character.
+  - `x*`, `(…)*`: link the start of the group and the `*` both ways.
+  - `(A|B)`: from `(` to the start of B, and from `|` to `)`.
+
+<br/>
+
+Matching parentheses are found with a stack.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Procedure: building the graph
+::sub[`03_nfa_regex/nfaRegex.pseudo` · one pass over the regex, O(M)]
+
+```plaintext
+ALGORITHM BuildNFA(re)
+    ops <- empty stack
+    for i <- 0 to M-1 do
+        lp <- i                                  // start of the group '*' attaches to
+        if re[i] = '(' or '|' then push i onto ops
+        else if re[i] = ')' then
+            or <- pop from ops
+            if re[or] = '|' then lp <- pop from ops; add lp -> or+1, or -> i to G
+            else lp <- or
+        if re[i+1] = '*' then add lp -> i+1, i+1 -> lp to G   // zero times, once more
+        if re[i] ∈ { '(', '*', ')' } then add i -> i+1 to G   // next without reading
+```
+
+</Slide>
+
+<Slide>
+
+#### Running it with state sets
+::sub[There is no single "current state," so carry every state we could be in]
+
+Each character takes two steps.
+
+1. **Read the character**
+   - Of the character states in the set, only those matching move one ahead.
+2. **ε-closure**
+   - Add every state reachable from there by ε-transitions alone. This is a DFS.
+
+<br/>
+
+When the text is used up, accept if the set contains the accept state.
+
+</Slide>
+
+<Slide>
+
+### Step by step: is 1001 a multiple of 3?
+::sub[Solid black: match transitions, dashed blue: ε-transitions · orange is the current set]
+
+<NfaDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Procedure: simulation
+::sub[`nfaRegex.pseudo`]
+
+```plaintext
+ALGORITHM Recognizes(re, text)
+    G <- BuildNFA(re)
+    pc <- Closure(G, {0})                    // the states we could be in now
+    for each character ch in text do
+        match <- { i+1 : i ∈ pc, re[i] is a character and
+                         (re[i] = ch or re[i] = '.') }
+        pc <- Closure(G, match)
+    return M ∈ pc
+```
+
+<br/>
+
+It does not carry just one state, so **there is nothing to back up to**.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`nfaRegex.c` · the demo's eight sets and the seven examples from the original material]
+
+<div class="aas-split">
+<div>
+
+```console
+text = 1001
+  start      {0 1 2 4 14 15 16}
+  read '1'   {5}
+  closure    {5 6 11 12}
+  read '0'   {7}
+  closure    {7 8 9}
+  read '0'   {10}
+  closure    {5 6 10 11 12}
+  read '1'   {13}
+  closure    {1 2 4 13 14 15 16}
+  -> accept
+```
+
+</div>
+<div>
+
+```console
+  text   value  result
+  11         3  accept
+  110        6  accept
+  1001       9  accept
+  1100      12  accept
+  10         2  reject
+  1011      11  reject
+  10000     16  reject
+```
+
+</div>
+</div>
+
+<br/>
+
+The start set already holds 16 because the empty string is 0, a multiple of 3.
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[We have reached the promised result]
+
+- **Building**: states and transitions are $$O(M)$$, and so is the time
+- **Running**: each character builds the set anew once.
+  - A set holds at most $$M+1$$ states.
+  - With adjacency lists, the DFS of an ε-closure sees each state and transition once.
+  - $$O(M)$$ per character, $$O(MN)$$ in the worst case overall
+
+</Slide>
+
+<Slide>
+
+#### Next to backtracking
+::sub[Same input `(a*)^n b` with n as · NFA work is the total number of states put into sets]
+
+| $$n$$ | Backtracking comparisons | NFA work |
+| --- | --- | --- |
+| 2 | 10 | 16 |
+| 4 | 126 | 46 |
+| 6 | 1,716 | 92 |
+| 8 | 24,310 | 154 |
+| 10 | 352,716 | 232 |
+
+<br/>
+
+Backtracking follows possibilities **one after another**; the NFA follows them **all at once**.  
+Even if two paths reach the same state, it enters the set only once.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[See where backtracking blows up and where the NFA holds]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-13-regex/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Extend the last table of `regexMatch.c` up to n = 12.**
+   - The comparisons pass 5 million. On the same input the NFA's work is 326.
+2. **Change `fsaSimple.c` so that it recognizes `ab*c*`.**
+   - Which state should become an accept state?
+3. **Feed `((A*B|AC)D)` and `AABD` to `nfaRegex.c`.**
+   - Follow how the state sets change.
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **A regex writes a set of strings (a language).**
+   - concatenation, or, closure, plus parentheses
+2. **Shorthands abbreviate the three operations.**
+   - Finding is asking whether the text belongs to `.*pat.*`.
+3. **It cannot describe languages that count without bound.**
+   - balanced parentheses, equal numbers of As and Bs
+4. **Recursion and backtracking can blow up exponentially.**
+   - It carries only one possibility at a time.
+5. **Automata never back up.**
+   - A DFA is $$O(N)$$; an NFA built from the regex is $$O(MN)$$ in the worst case
+
+</Slide>
