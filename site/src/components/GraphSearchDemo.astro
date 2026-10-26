@@ -49,15 +49,15 @@ const STRINGS: Record<string, Record<string, string>> = {
     countPost: '',
     empty: '비었음',
     idle: '시작 정점 {s}에서 출발합니다.',
-    bfsStart: '{s}를 표시하고 큐에 넣습니다. 거리는 0입니다.',
-    bfsDeq: '{v}를 꺼냅니다. 이웃 {nb}를 봅니다.',
-    bfsDeqNone: '{v}를 꺼냅니다. 이웃 {nb}는 모두 표시되어 있어 넣을 것이 없습니다.',
-    bfsEnq: '표시 안 된 {list}를 표시하고 큐 뒤에 넣습니다. 거리는 {d}입니다.',
-    dfsStart: '{s}를 스택에 넣습니다.',
-    dfsPop: '{v}를 꺼내 방문합니다. 이웃 {nb}를 봅니다.',
-    dfsPopNone: '{v}를 꺼내 방문합니다. 이웃 {nb}는 모두 방문해서 넣을 것이 없습니다.',
-    dfsPush: '방문 안 한 {list}를 스택 위에 넣습니다. 맨 위 {top}이 다음 차례입니다.',
-    dfsSkip: '{v}를 꺼냈지만 이미 방문했으므로 버립니다.',
+    bfsStart: '{s|을} 표시하고 큐에 넣습니다. 거리는 0입니다.',
+    bfsDeq: '{v|을} 꺼냅니다. 이웃 {nb|을} 봅니다.',
+    bfsDeqNone: '{v|을} 꺼냅니다. 이웃 {nb|은} 모두 표시되어 있어 넣을 것이 없습니다.',
+    bfsEnq: '표시 안 된 {list|을} 표시하고 큐 뒤에 넣습니다. 거리는 {d}입니다.',
+    dfsStart: '{s|을} 스택에 넣습니다.',
+    dfsPop: '{v|을} 꺼내 방문합니다. 이웃 {nb|을} 봅니다.',
+    dfsPopNone: '{v|을} 꺼내 방문합니다. 이웃 {nb|은} 모두 방문해서 넣을 것이 없습니다.',
+    dfsPush: '방문 안 한 {list|을} 스택 위에 넣습니다. 맨 위 {top|이} 다음 차례입니다.',
+    dfsSkip: '{v|을} 꺼냈지만 이미 방문했으므로 버립니다.',
     done: '끝. 방문 순서는 {order}입니다.',
   },
   en: {
@@ -196,7 +196,27 @@ const rows = Array.from({ length: n }, (_, v) => v);
     const edges = JSON.parse(root.dataset.gsEdges);
     const s = Number(root.dataset.gsStart);
     const S = JSON.parse(root.dataset.gsStrings);
-    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    /* 문구의 {v}는 값으로 바꾼다. 한국어 조사는 {v|을}처럼 받침 있는 꼴로 적으면
+       값을 읽은 소리에 맞춰 을/를, 이/가, 은/는, 과/와, 으로/로를 고른다.
+       {~v|을}은 조사만 붙인다(괄호 뒤에 쓴다). 숫자는 끝자리 소리로 정한다. */
+    const JOSA = { 을: '를', 이: '가', 은: '는', 과: '와', 으로: '로' };
+    const batchim = (val) => {
+      const ch = String(val).trim().slice(-1);
+      if (/[0-9]/.test(ch)) return [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][Number(ch)] ? (ch === '1' || ch === '7' || ch === '8' ? 'l' : 'y') : '';
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return '';
+      const fin = code % 28;
+      return fin === 0 ? '' : fin === 8 ? 'l' : 'y';
+    };
+    const josa = (val, p) => {
+      const b = batchim(val);
+      if (p === '으로') return b === 'y' ? '으로' : '로';
+      return b ? p : JOSA[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(~?)(\w+)(?:\|([^}]+))?\}/g, (_, only, k, p) =>
+        p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k],
+      );
 
     /* 인접 목록. 무방향이므로 양쪽에 넣고, 이웃은 작은 번호부터 본다. */
     const adj = Array.from({ length: n }, () => []);

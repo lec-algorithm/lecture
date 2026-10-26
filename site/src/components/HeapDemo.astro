@@ -54,12 +54,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     insert: 'insert {x}: 맨 끝 빈자리 index {i}에 넣습니다.',
     upSwap: '{x}(index {i}) < 부모 {p}(index {j}). 순서가 어긋나서 바꿉니다.',
     upStay: '{x}(index {i}) ≥ 부모 {p}(index {j}). 제자리입니다.',
-    root: '{x}가 루트에 닿았습니다. 더 올라갈 곳이 없습니다.',
-    take: 'extract min: 루트 {x}가 최솟값입니다. 꺼냅니다.',
-    move: '마지막 원소 {x}를 루트로 옮깁니다. 이제 아래로 내려 보냅니다.',
-    downSwap: '{x}(index {i})와 자식 {kids}. 더 작은 {c}와 바꿉니다.',
-    downStay: '{x}(index {i})와 자식 {kids}. 자식보다 크지 않으니 제자리입니다.',
-    leaf: '{x}(index {i})는 자식이 없습니다. 제자리입니다.',
+    root: '{x|이} 루트에 닿았습니다. 더 올라갈 곳이 없습니다.',
+    take: 'extract min: 루트 {x|이} 최솟값입니다. 꺼냅니다.',
+    move: '마지막 원소 {x|을} 루트로 옮깁니다. 이제 아래로 내려 보냅니다.',
+    downSwap: '{x}(index {i})의 자식은 {kids}. 더 작은 {c|과} 바꿉니다.',
+    downStay: '{x}(index {i})의 자식은 {kids}. 자식보다 크지 않으니 제자리입니다.',
+    leaf: '{x}(index {i}){~x|은} 자식이 없습니다. 제자리입니다.',
     done: '끝. 힙 성질이 다시 맞습니다.',
   },
   en: {
@@ -173,7 +173,27 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const ops = JSON.parse(root.dataset.hpOps);
     const pos = JSON.parse(root.dataset.hpPos);
     const S = JSON.parse(root.dataset.hpStrings);
-    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    /* 문구의 {v}는 값으로 바꾼다. 한국어 조사는 {v|을}처럼 받침 있는 꼴로 적으면
+       값을 읽은 소리에 맞춰 을/를, 이/가, 은/는, 과/와, 으로/로를 고른다.
+       {~v|을}은 조사만 붙인다(괄호 뒤에 쓴다). 숫자는 끝자리 소리로 정한다. */
+    const JOSA = { 을: '를', 이: '가', 은: '는', 과: '와', 으로: '로' };
+    const batchim = (val) => {
+      const ch = String(val).trim().slice(-1);
+      if (/[0-9]/.test(ch)) return [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][Number(ch)] ? (ch === '1' || ch === '7' || ch === '8' ? 'l' : 'y') : '';
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return '';
+      const fin = code % 28;
+      return fin === 0 ? '' : fin === 8 ? 'l' : 'y';
+    };
+    const josa = (val, p) => {
+      const b = batchim(val);
+      if (p === '으로') return b === 'y' ? '으로' : '로';
+      return b ? p : JOSA[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(~?)(\w+)(?:\|([^}]+))?\}/g, (_, only, k, p) =>
+        p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k],
+      );
 
     /* 절차는 minHeap.pseudo와 같다. 한 걸음에 비교 한 번. */
     function plan() {
