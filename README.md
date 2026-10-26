@@ -134,12 +134,31 @@ Node 없이 돌립니다. 문서 스타일 검사(`python3 scripts/check-style.p
 돌립니다. 떠 있는 `app`과 같은 `site/`를 쓰게 되므로 `app`이 떠 있으면 실행을
 거부합니다. 먼저 `make down`을 합니다.
 
-`make up`·`make dev`가 `all predefined address pools have been fully subnetted`로
-멈추면 Docker가 새 네트워크에 줄 주소 대역을 다 쓴 것입니다. compose 프로젝트
-하나에 네트워크가 하나씩 생기고 기본 풀은 30개 남짓이라, 다른 프로젝트가 쌓이면
-이렇게 됩니다. `docker network prune`으로 쓰지 않는 네트워크를 지우면 바로 풀립니다.
-다시 막히지 않게 하려면 Docker Desktop 설정의 Docker Engine(`daemon.json`)에
-`default-address-pools`를 넓혀 둡니다. 대역은 집·학교 LAN과 겹치지 않게 고릅니다.
+### 네트워크 주소 풀 에러
+
+`docker compose up`이나 이를 감싼 `make up`·`make dev`·`make check`가
+`all predefined address pools have been fully subnetted`로 멈추면 Docker가 새
+네트워크에 줄 주소 대역을 다 쓴 것입니다. compose 프로젝트 하나에 네트워크가
+하나씩 생기고, `down` 없이 멈춘 프로젝트의 네트워크는 그대로 남습니다. 기본 풀은
+30개 남짓이라 그런 프로젝트가 쌓이면 이렇게 됩니다.
+
+당장은 `docker network prune`으로 실행 중인 컨테이너가 없는 네트워크를 지웁니다.
+멈춰 있는 다른 프로젝트의 네트워크도 함께 지워지므로 `docker network ls`로 목록을
+확인하고 씁니다. 그런 프로젝트는 다음에 `docker compose down` 뒤 `up`으로 띄우면
+네트워크가 다시 생깁니다.
+
+다시 막히지 않게 하려면 주소 풀을 넓힙니다. Docker Desktop은 Settings의 Docker
+Engine 화면에서 `daemon.json`을 고치고 Apply & restart를 누릅니다. Linux는
+`/etc/docker/daemon.json`을 고치고 Docker를 재시작합니다. 대역은 집·학교 LAN과
+겹치지 않게 고릅니다. 아래는 `10.200.0.0/16`을 /24씩 나눠 256개를 쓰는 예입니다.
+
+- `daemon.json`에 더할 항목
+
+```json
+"default-address-pools": [
+  { "base": "10.200.0.0/16", "size": 24 }
+]
+```
 
 ### 로컬 pnpm
 
