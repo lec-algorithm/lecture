@@ -1,0 +1,572 @@
+---
+// 길이가 같은 단어를 LSD로 정렬하는 과정을 한 패스씩 보는 데모.
+//
+// 맨 위 줄이 입력이고, 패스마다 줄이 하나씩 아래에 쌓인다. 패스 k는 마지막
+// 글자부터 한 글자를 키로 카운팅 정렬한다. 새 줄의 단어 칩은 위 줄의 자리에서
+// 출발해 새 자리로 옮겨 가므로, 같은 글자끼리 위 줄의 순서를 지키는지 눈으로
+// 따라갈 수 있다. 단어를 누르면 그 단어가 줄마다 어디 있는지 보라 테두리로
+// 표시한다.
+//
+// 탭 둘은 카운팅 정렬의 3단계(배치)를 어느 쪽부터 하느냐다.
+// - 안정: 뒤에서부터 배치한다. lsdRadixSort.pseudo의 CountingSortByDigit와 같다.
+// - 불안정: 앞에서부터 배치한다. 같은 글자끼리 순서가 뒤집혀, 07_stack_queue의
+//   스택 버킷처럼 결과가 틀린다.
+// 기본 단어 12개와 각 패스의 결과는 교안의 표와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 길이가 모두 같은 단어들 */
+  words?: string[];
+  /** 처음에 고를 탭 */
+  placement?: 'stable' | 'unstable';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  words = ['dab', 'add', 'cab', 'fad', 'fee', 'bad', 'dad', 'bee', 'fed', 'bed', 'ebb', 'ace'],
+  placement = 'stable',
+  slide = false,
+} = Astro.props;
+const id = `ls-${Math.random().toString(36).slice(2, 9)}`;
+const len = words[0]?.length ?? 0;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LSD 문자열 정렬',
+    stable: '안정: 뒤에서부터 배치',
+    unstable: '불안정: 앞에서부터 배치',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    rowInput: '입력',
+    rowPass: '{p}번 글자',
+    passLabel: '패스',
+    readLabel: '읽은 글자',
+    compareLabel: '비교',
+    idle: '{L}글자 단어 {n}개를 마지막 글자부터 한 글자씩 정렬합니다. 단어를 누르면 줄마다 그 단어의 자리를 표시합니다.',
+    key: '패스 {k}: {p}번 글자(주황)를 키로 카운팅 정렬합니다. 단어마다 이 글자 하나만 읽습니다.',
+    placeStable: '{p}번 글자 순으로 섰습니다. 같은 글자끼리는 위 줄의 순서를 그대로 지킵니다.',
+    placeUnstable: '{p}번 글자 순으로 섰지만, 같은 글자끼리는 위 줄과 순서가 거꾸로입니다.',
+    example: ' 같은 글자 {c}: {list}',
+    passOk: ' {p}번 글자부터 끝까지 보면 정렬되어 있습니다.',
+    passBad: ' {p}번 글자부터 끝까지 봐도 {a}, {b} 순서가 틀렸습니다.',
+    doneOk: '사전순으로 정렬되었습니다. 첫 글자가 같은 {list}의 순서는 마지막 패스가 아니라 앞 패스들이 만든 것입니다.',
+    doneBad: '패스를 다 돌았지만 사전순이 아닙니다. {a}, {b} 순서가 틀렸습니다. 앞에서부터 배치하면 앞 패스의 일이 지워집니다.',
+  },
+  en: {
+    title: 'LSD string sort',
+    stable: 'Stable: place from the back',
+    unstable: 'Unstable: place from the front',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    rowInput: 'input',
+    rowPass: 'char {p}',
+    passLabel: 'pass',
+    readLabel: 'chars read',
+    compareLabel: 'compares',
+    idle: 'Sort {n} words of {L} letters one character at a time, starting from the last. Click a word to mark where it is in every row.',
+    key: 'Pass {k}: counting sort with character {p} (orange) as the key. Each word is read at this one character only.',
+    placeStable: 'Now in order of character {p}. Words with the same character keep their order from the row above.',
+    placeUnstable: 'Now in order of character {p}, but words with the same character are reversed from the row above.',
+    example: ' Same character {c}: {list}',
+    passOk: ' From character {p} to the end, the row is sorted.',
+    passBad: ' Even from character {p} to the end, {a} before {b} is wrong.',
+    doneOk: 'Sorted. The order of {list}, which share the first letter, was made by the earlier passes, not the last one.',
+    doneBad: 'All passes ran, but the result is not sorted: {a} before {b} is wrong. Placing from the front erases the work of earlier passes.',
+  },
+  zh: {
+    title: 'LSD 字符串排序',
+    stable: '稳定：从后往前放',
+    unstable: '不稳定：从前往后放',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    rowInput: '输入',
+    rowPass: '字符 {p}',
+    passLabel: '趟',
+    readLabel: '读取字符',
+    compareLabel: '比较',
+    idle: '把 {n} 个长度为 {L} 的单词从最后一个字符开始逐个字符排序。点击单词，可以标出它在每一行的位置。',
+    key: '第 {k} 趟：以第 {p} 个字符（橙色）为键做计数排序。每个单词只读这一个字符。',
+    placeStable: '已按第 {p} 个字符排好。字符相同的单词保持上一行的顺序。',
+    placeUnstable: '已按第 {p} 个字符排好，但字符相同的单词与上一行顺序相反。',
+    example: '同为 {c}：{list}',
+    passOk: '从第 {p} 个字符看到末尾，这一行是有序的。',
+    passBad: '即使从第 {p} 个字符看到末尾，{a} 排在 {b} 前面也是错的。',
+    doneOk: '已按字典序排好。首字母相同的 {list} 的顺序不是最后一趟排的，而是前几趟留下的。',
+    doneBad: '所有趟都已完成，但结果不是字典序：{a} 排在 {b} 前面是错的。从前往后放会抹掉前几趟的成果。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const rowLabels = [t.rowInput, ...Array.from({ length: len }, (_, r) => t.rowPass.replace('{p}', String(len - 1 - r)))];
+---
+
+<div
+  class:list={['aas-lsd-string-demo', slide && 'is-slide']}
+  id={id}
+  data-ls-words={JSON.stringify(words)}
+  data-ls-mode={placement}
+  data-ls-strings={JSON.stringify(t)}
+  style={`--ls-n: ${words.length}; --ls-rows: ${len + 1}; --ls-len: ${len}`}
+>
+  <div class="ls-bar">
+    <div class="ls-tabs" role="tablist">
+      <span class="ls-head"><strong>{t.title}</strong></span>
+      <button type="button" class="ls-tab" data-ls-tab="stable" role="tab">{t.stable}</button>
+      <button type="button" class="ls-tab" data-ls-tab="unstable" role="tab">{t.unstable}</button>
+    </div>
+    <div class="ls-controls">
+      <button type="button" data-act="back" class="ls-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ls-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ls-btn ls-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ls-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ls-scroll">
+    <div class="ls-stage" data-ls-stage>
+      {rowLabels.map((label, r) => (
+        <span class="ls-label" style={`--ls-r: ${r}`} data-ls-label={r}><span>{label}</span></span>
+      ))}
+      {rowLabels.map((_, r) =>
+        words.map((w, i) => (
+          <button type="button" class="ls-chip" data-ls-row={r} data-ls-w={i} tabindex="-1">
+            {w.split('').map((ch, p) => (
+              <span class="ls-ch" data-ls-p={p}>{ch}</span>
+            ))}
+          </button>
+        )),
+      )}
+    </div>
+  </div>
+
+  <div class="ls-foot">
+    <p class="ls-note" data-ls-note></p>
+    <span class="ls-count">
+      {t.passLabel} <strong data-ls-pass>0</strong>/{len} · {t.readLabel} <strong data-ls-read>0</strong> · {t.compareLabel} <strong>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const words = JSON.parse(root.dataset.lsWords);
+    const S = JSON.parse(root.dataset.lsStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = words.length;
+    const L = words[0].length;
+    let mode = root.dataset.lsMode === 'unstable' ? 'unstable' : 'stable';
+
+    /* 한 패스: p번 글자를 키로 카운팅 정렬한다. 세기 → 누적 → 배치.
+       안정이면 배치를 뒤에서부터, 불안정이면 앞에서부터 한다. */
+    function countingPass(order, p, stable) {
+      const count = new Array(257).fill(0);
+      for (const w of order) count[words[w].charCodeAt(p) + 1] += 1;
+      for (let c = 1; c < 257; c++) count[c] += count[c - 1];
+      const out = new Array(order.length);
+      const seq = stable ? order.slice().reverse() : order.slice();
+      for (const w of seq) {
+        const c = words[w].charCodeAt(p) + 1;
+        count[c] -= 1;
+        out[count[c]] = w;
+      }
+      return out;
+    }
+
+    /* 같은 글자로 묶인 무리 중 처음 나오는 둘 이상짜리 하나를 예로 고른다. */
+    function firstGroup(order, p) {
+      for (let k = 0; k < order.length; k++) {
+        const c = words[order[k]][p];
+        const g = order.filter((w) => words[w][p] === c);
+        if (g.length > 1) return { c, g };
+      }
+      return null;
+    }
+
+    /* order가 p번 글자부터 끝까지 사전순인지 본다. 깨진 첫 쌍을 돌려준다. */
+    function firstBad(order, p) {
+      for (let k = 1; k < order.length; k++) {
+        if (words[order[k - 1]].slice(p) > words[order[k]].slice(p)) return [order[k - 1], order[k]];
+      }
+      return null;
+    }
+
+    function plan() {
+      const steps = [];
+      const rows = [words.map((_, i) => i)];
+      let read = 0;
+      for (let k = 1; k <= L; k++) {
+        const p = L - k;
+        steps.push({ shown: k, next: p, pass: k, read, note: fill(S.key, { k, p }) });
+        const order = countingPass(rows[k - 1], p, mode === 'stable');
+        rows.push(order);
+        read += n;
+        const ex = firstGroup(order, p);
+        let note = fill(mode === 'stable' ? S.placeStable : S.placeUnstable, { p });
+        const bad = firstBad(order, p);
+        if (k < L) note += bad ? fill(S.passBad, { p, a: words[bad[0]], b: words[bad[1]] }) : fill(S.passOk, { p });
+        if (ex) note += fill(S.example, { c: ex.c, list: ex.g.map((w) => words[w]).join(' ') });
+        steps.push({ shown: k + 1, next: -1, pass: k, read, group: ex ? ex.g : [], bad: k < L ? bad : null, note });
+      }
+      const last = rows[L];
+      const bad = firstBad(last, 0);
+      let note;
+      if (bad) {
+        note = fill(S.doneBad, { a: words[bad[0]], b: words[bad[1]] });
+      } else {
+        /* 첫 글자가 같은 무리 중 가장 큰 것: 앞 패스들이 정한 순서 */
+        let best = [];
+        for (let k = 0; k < n; k++) {
+          const g = last.filter((w) => words[w][0] === words[last[k]][0]);
+          if (g.length > best.length) best = g;
+        }
+        note = fill(S.doneOk, { list: best.map((w) => words[w]).join(' ') });
+        steps.push({ shown: L + 1, next: -1, pass: L, read, finished: true, group: best, groupAll: true, bad: null, note });
+        return { steps, rows };
+      }
+      steps.push({ shown: L + 1, next: -1, pass: L, read, finished: true, group: [], bad, note });
+      return { steps, rows };
+    }
+
+    const chips = [...root.querySelectorAll('[data-ls-row]')];
+    const labels = [...root.querySelectorAll('[data-ls-label]')];
+    const tabs = [...root.querySelectorAll('[data-ls-tab]')];
+    const note = root.querySelector('[data-ls-note]');
+    const passEl = root.querySelector('[data-ls-pass]');
+    const readEl = root.querySelector('[data-ls-read]');
+    let plan$ = plan();
+    let trace = -1;
+
+    /* 칸의 자리는 CSS 변수로만 준다. 아직 나오지 않은 줄의 칩은 위 줄의 자리에
+       투명하게 숨어 있다가, 줄이 나오면 새 자리로 옮겨 간다. */
+    function render(s) {
+      const st = s >= 0 ? plan$.steps[s] : null;
+      const shown = st ? st.shown : 1;
+      const { rows } = plan$;
+      const pos = rows.map((order) => {
+        const m = new Array(n);
+        order.forEach((w, k) => (m[w] = k));
+        return m;
+      });
+      chips.forEach((chip) => {
+        const r = Number(chip.dataset.lsRow);
+        const w = Number(chip.dataset.lsW);
+        const visible = r < shown;
+        const at = visible ? pos[r][w] : pos[Math.max(0, r - 1)][w];
+        chip.style.setProperty('--ls-r', String(visible ? r : Math.max(0, r - 1)));
+        chip.style.setProperty('--ls-at', String(at));
+        chip.classList.toggle('is-hidden', !visible);
+        chip.tabIndex = visible ? 0 : -1;
+        const newest = st && st.next < 0 && r === shown - 1 && r > 0;
+        /* 예로 든 무리는 새 줄과 바로 위 줄에서, 마지막에는 모든 줄에서 칠한다. */
+        const inGroup = !!(st && st.group && st.group.includes(w));
+        const groupRow = !!(st && (st.groupAll || r >= shown - 2));
+        chip.classList.toggle('is-group', visible && inGroup && groupRow);
+        chip.classList.toggle('is-bad', !!(visible && st && st.bad && r === shown - 1 && st.bad.includes(w)));
+        chip.classList.toggle('is-trace', visible && w === trace);
+        chip.classList.toggle('is-newest', !!newest);
+        const keyP = r > 0 ? L - r : -1;
+        chip.querySelectorAll('[data-ls-p]').forEach((ch) => {
+          const p = Number(ch.dataset.lsP);
+          ch.classList.toggle('is-key', visible && r > 0 && p === keyP);
+          ch.classList.toggle('is-done', visible && r > 0 && p > keyP);
+          ch.classList.toggle('is-next', visible && !!st && st.next === p && r === shown - 1);
+        });
+      });
+      labels.forEach((lb, r) => lb.classList.toggle('is-hidden', r >= shown));
+      passEl.textContent = String(st ? st.pass : 0);
+      readEl.textContent = String(st ? st.read : 0);
+      setLines(note, st ? st.note : fill(S.idle, { n, L }));
+      tabs.forEach((tab) => {
+        const on = tab.dataset.lsTab === mode;
+        tab.classList.toggle('is-on', on);
+        tab.setAttribute('aria-selected', String(on));
+      });
+      root.classList.toggle('is-done', !!(st && st.finished));
+      root.classList.toggle('is-wrong', !!(st && st.finished && st.bad));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= plan$.steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= plan$.steps.length - 1) stop();
+    }
+
+    tabs.forEach((tab) =>
+      tab.addEventListener('click', () => {
+        stop();
+        mode = tab.dataset.lsTab;
+        plan$ = plan();
+        at = -1;
+        render(-1);
+      }),
+    );
+    root.querySelector('[data-ls-stage]').addEventListener('click', (ev) => {
+      const chip = ev.target.closest('[data-ls-w]');
+      if (!chip || chip.classList.contains('is-hidden')) return;
+      const w = Number(chip.dataset.lsW);
+      trace = trace === w ? -1 : w;
+      render(at);
+    });
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= plan$.steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1400);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-lsd-string-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 슬라이드는 font-size만 키운다. */
+    --ls-col: 2.75em;
+    --ls-row: 2.05em;
+    --ls-label-w: 5em;
+    --ls-chip-h: 1.6em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lsd-string-demo .ls-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-lsd-string-demo .ls-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-lsd-string-demo .ls-head {
+    font-size: 0.95em;
+    margin-right: 0.4em;
+  }
+  .aas-lsd-string-demo .ls-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lsd-string-demo .ls-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lsd-string-demo .ls-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-lsd-string-demo .ls-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lsd-string-demo .ls-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lsd-string-demo .ls-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-lsd-string-demo .ls-scroll {
+    overflow-x: auto;
+  }
+  /* 무대: 왼쪽에 줄 이름, 오른쪽에 단어 칩 n개가 줄마다 있다. 칩은 절대 위치로
+     떠 있고 줄(--ls-r)과 자리(--ls-at)만 바꾼다. */
+  .aas-lsd-string-demo .ls-stage {
+    position: relative;
+    width: calc(var(--ls-label-w) + var(--ls-n) * var(--ls-col));
+    height: calc(var(--ls-rows) * var(--ls-row));
+    margin: 0 auto;
+  }
+  .aas-lsd-string-demo .ls-label {
+    position: absolute;
+    left: 0;
+    top: calc(var(--ls-r) * var(--ls-row));
+    width: calc(var(--ls-label-w) - 0.5em);
+    height: var(--ls-chip-h);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    color: var(--aas-muted);
+    white-space: nowrap;
+    transition: opacity 0.4s;
+  }
+  .aas-lsd-string-demo .ls-label > span {
+    font-size: 0.78em;
+  }
+  .aas-lsd-string-demo .ls-label.is-hidden {
+    opacity: 0;
+  }
+  .aas-lsd-string-demo .ls-chip {
+    position: absolute;
+    top: calc(var(--ls-r) * var(--ls-row));
+    left: calc(var(--ls-label-w) + var(--ls-at) * var(--ls-col));
+    width: calc(var(--ls-col) - 0.25em);
+    height: var(--ls-chip-h);
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    cursor: pointer;
+    transition:
+      top 0.6s cubic-bezier(0.65, 0, 0.35, 1),
+      left 0.6s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.4s,
+      box-shadow 0.3s,
+      border-color 0.3s,
+      background-color 0.3s;
+  }
+  .aas-lsd-string-demo .ls-chip.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .aas-lsd-string-demo .ls-chip.is-group {
+    background: color-mix(in srgb, var(--aas-role-source) 16%, var(--aas-bg));
+    border-color: var(--aas-role-source);
+  }
+  .aas-lsd-string-demo .ls-chip.is-bad {
+    border-color: var(--aas-role-guard);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--aas-role-guard) 55%, transparent);
+  }
+  .aas-lsd-string-demo .ls-chip.is-trace {
+    box-shadow: 0 0 0 3px var(--aas-role-tool);
+  }
+  .aas-lsd-string-demo .ls-ch {
+    display: inline-block;
+    width: 0.68em;
+    text-align: center;
+    border-radius: 0.2em;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  .aas-lsd-string-demo .ls-ch.is-done {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-lsd-string-demo .ls-ch.is-key {
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-lsd-string-demo .ls-chip.is-newest .ls-ch.is-key,
+  .aas-lsd-string-demo .ls-ch.is-next {
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .aas-lsd-string-demo .ls-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-lsd-string-demo .ls-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-lsd-string-demo.is-done .ls-note {
+    color: var(--aas-text);
+  }
+  .aas-lsd-string-demo.is-wrong .ls-note {
+    color: var(--aas-role-guard);
+  }
+  .aas-lsd-string-demo .ls-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-lsd-string-demo .ls-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기 */
+  .aas-lsd-string-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-lsd-string-demo .ls-chip,
+    .aas-lsd-string-demo .ls-ch,
+    .aas-lsd-string-demo .ls-label {
+      transition: none;
+    }
+  }
+</style>
