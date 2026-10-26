@@ -1,0 +1,503 @@
+---
+// Kruskal 알고리즘을 한 걸음씩 해 보는 데모.
+//
+// 왼쪽은 그래프, 오른쪽은 간선 목록과 comp 배열이다. 첫 걸음에서 간선
+// 목록이 가중치 순으로 다시 줄 선다. 그다음 가벼운 간선부터 하나씩
+// 보며, 두 끝의 comp(덩어리 번호)가 다르면 넣고(초록) 두 덩어리를 합친다.
+// 같으면 사이클이 생기므로 버린다(빨간 점선). 정점 옆 파란 숫자가 comp다.
+//
+// 절차와 결과는 algorithm-code의 03_mst_kruskal과 같다. 덩어리를 합칠 때는
+// 둘 중 작은 번호를 남긴다. 간선 7개를 넣고 멈추며, 총 가중치는 1.81이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
+  initial?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { initial = -1, slide = false } = Astro.props;
+const g = getGraph('mst');
+const n = g.nodes.length;
+const id = `kr-${Math.random().toString(36).slice(2, 9)}`;
+const PER_COL = Math.ceil(g.edges.length / 2);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'Kruskal 알고리즘',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    edges: '간선',
+    comp: 'comp (덩어리 번호)',
+    countPre: 'MST 간선 ',
+    countPost: '',
+    total: '총 가중치',
+    idle: '간선 {m}개가 입력 순서대로 있습니다. 먼저 가중치 순으로 정렬합니다.',
+    sorted: '가중치 오름차순으로 줄 섰습니다. 정점마다 자기 혼자 한 덩어리입니다.',
+    add: '{e} ({w}): {u|은} 덩어리 {cu}, {v|은} 덩어리 {cv}. 다르므로 넣고 덩어리 {m|으로} 합칩니다.',
+    skip: '{e} ({w}): {u|과} {v|이} 모두 덩어리 {c}에 있습니다. 넣으면 사이클이므로 버립니다.',
+    done: '간선이 V-1 = {k}개가 되어 멈춥니다. 남은 {rest}개는 보지 않습니다. 총 가중치 {total}',
+  },
+  en: {
+    title: "Kruskal's algorithm",
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    edges: 'Edges',
+    comp: 'comp (component id)',
+    countPre: 'MST edges ',
+    countPost: '',
+    total: 'total weight',
+    idle: 'The {m} edges are in input order. First sort them by weight.',
+    sorted: 'Lined up by weight. Every vertex is a component of its own.',
+    add: '{e} ({w}): {u} is in {cu}, {v} is in {cv}. Different, so add it and merge into {m}.',
+    skip: '{e} ({w}): {u} and {v} are both in {c}. Adding it makes a cycle, so drop it.',
+    done: 'V-1 = {k} edges, stop. The other {rest} are never looked at. Total weight {total}',
+  },
+  zh: {
+    title: 'Kruskal 算法',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    edges: '边',
+    comp: 'comp（分量编号）',
+    countPre: 'MST 边 ',
+    countPost: '',
+    total: '总权重',
+    idle: '{m} 条边按输入顺序排列。先按权重排序。',
+    sorted: '已按权重升序排好。每个顶点各自是一个分量。',
+    add: '{e}（{w}）：{u} 在分量 {cu}，{v} 在分量 {cv}。不同，加入并合并为 {m}。',
+    skip: '{e}（{w}）：{u} 和 {v} 都在分量 {c}。加入会成环，丢弃。',
+    done: '边数达到 V-1 = {k}，停止。其余 {rest} 条不再查看。总权重 {total}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
+---
+
+<div
+  class:list={['aas-kruskal-demo', slide && 'is-slide']}
+  id={id}
+  data-kr-n={n}
+  data-kr-edges={JSON.stringify(g.edges)}
+  data-kr-scale={g.scale ?? 1}
+  data-kr-initial={initial}
+  data-kr-strings={JSON.stringify(t)}
+  style={`--kr-rows: ${PER_COL}`}
+>
+  <div class="kr-bar">
+    <span class="kr-head"><strong>{t.title}</strong></span>
+    <div class="kr-controls">
+      <button type="button" data-act="back" class="kr-btn">{t.back}</button>
+      <button type="button" data-act="step" class="kr-btn">{t.step}</button>
+      <button type="button" data-act="play" class="kr-btn kr-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="kr-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="kr-body">
+    <div class="kr-graph">
+      <GraphFigure graph="mst" bare slide={slide} />
+    </div>
+    <div class="kr-panel">
+      <div class="kr-label">{t.edges}</div>
+      <div class="kr-list">
+        {g.edges.map(([u, v, w], i) => (
+          <span class="kr-chip" data-kr-chip={i} style={`--kr-slot: ${i}`}>
+            {u}-{v} <b>{fmt(w)}</b>
+          </span>
+        ))}
+      </div>
+      <div class="kr-label">{t.comp}</div>
+      <div class="kr-comp">
+        {Array.from({ length: n }, (_, v) => (
+          <span class="kr-cell">
+            <i>{v}</i>
+            <b data-kr-comp={v}>{v}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <div class="kr-foot">
+    <p class="kr-note" data-kr-note></p>
+    <span class="kr-count">
+      {t.countPre}<strong data-kr-count>0</strong> / {n - 1} · {t.total} <strong data-kr-total>0.00</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const n = Number(root.dataset.krN);
+    const edges = JSON.parse(root.dataset.krEdges);
+    const scale = Number(root.dataset.krScale);
+    const S = JSON.parse(root.dataset.krStrings);
+    /* 문구의 {v}는 값으로 바꾼다. 한국어 조사는 {v|을}처럼 받침 있는 꼴로 적으면
+       값을 읽은 소리에 맞춰 을/를, 이/가, 은/는, 과/와, 으로/로를 고른다.
+       {~v|을}은 조사만 붙인다(괄호 뒤에 쓴다). 숫자는 끝자리 소리로 정한다. */
+    const JOSA = { 을: '를', 이: '가', 은: '는', 과: '와', 으로: '로' };
+    const batchim = (val) => {
+      const ch = String(val).trim().slice(-1);
+      if (/[0-9]/.test(ch)) return [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][Number(ch)] ? (ch === '1' || ch === '7' || ch === '8' ? 'l' : 'y') : '';
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return '';
+      const fin = code % 28;
+      return fin === 0 ? '' : fin === 8 ? 'l' : 'y';
+    };
+    const josa = (val, p) => {
+      const b = batchim(val);
+      if (p === '으로') return b === 'y' ? '으로' : '로';
+      return b ? p : JOSA[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(~?)(\w+)(?:\|([^}]+))?\}/g, (_, only, k, p) =>
+        p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k],
+      );
+    const fmt = (w) => (w / scale).toFixed(2);
+    const m = edges.length;
+
+    /* 절차는 kruskal.pseudo와 같다. 단계마다 화면 전체의 모습을 담는다. */
+    function plan() {
+      const order = edges.map((_, i) => i).sort((a, b) => edges[a][2] - edges[b][2]);
+      const slot = new Array(m);
+      order.forEach((e, k) => (slot[e] = k));
+      const comp = Array.from({ length: n }, (_, v) => v);
+      const status = new Array(m).fill(null);
+      const steps = [];
+      let total = 0;
+      let k = 0;
+      const push = (extra) =>
+        steps.push({ slot, comp: comp.slice(), status: status.slice(), k, total, cur: null, ...extra });
+
+      push({ note: S.sorted });
+      for (let j = 0; j < m; j++) {
+        const i = order[j];
+        const [u, v, w] = edges[i];
+        const e = `${u}-${v}`;
+        if (comp[u] !== comp[v]) {
+          const cu = comp[u];
+          const cv = comp[v];
+          const small = Math.min(cu, cv);
+          for (let x = 0; x < n; x++) if (comp[x] === cu || comp[x] === cv) comp[x] = small;
+          status[i] = 'add';
+          k += 1;
+          total += w;
+          push({ cur: i, note: fill(S.add, { e, w: fmt(w), u, v, cu, cv, m: small }) });
+          if (k === n - 1) {
+            push({ done: true, note: fill(S.done, { k, rest: m - j - 1, total: fmt(total) }) });
+            break;
+          }
+        } else {
+          status[i] = 'skip';
+          push({ cur: i, note: fill(S.skip, { e, w: fmt(w), u, v, c: comp[u] }) });
+        }
+      }
+      return steps;
+    }
+
+    const steps = plan();
+    const inputSlot = edges.map((_, i) => i);
+    const chips = [...root.querySelectorAll('[data-kr-chip]')];
+    const edgeEls = [...root.querySelectorAll('[data-gf-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const compEls = [...root.querySelectorAll('[data-kr-comp]')];
+    const note = root.querySelector('[data-kr-note]');
+    const countEl = root.querySelector('[data-kr-count]');
+    const totalEl = root.querySelector('[data-kr-total]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const slot = st ? st.slot : inputSlot;
+      chips.forEach((c, i) => {
+        c.style.setProperty('--kr-slot', String(slot[i]));
+        const status = st ? st.status[i] : null;
+        c.classList.toggle('is-add', status === 'add');
+        c.classList.toggle('is-skip', status === 'skip');
+        c.classList.toggle('is-now', !!st && st.cur === i);
+        c.classList.toggle('is-rest', !!st && !!st.done && status === null);
+      });
+      /* GraphFigure의 간선은 입력 순서 그대로 그려져 있다. */
+      const touched = new Array(n).fill(false);
+      edgeEls.forEach((el, i) => {
+        const status = st ? st.status[i] : null;
+        const now = !!st && st.cur === i;
+        el.classList.toggle('is-tree', status === 'add' && !now);
+        el.classList.toggle('is-focus', now);
+        el.classList.toggle('is-reject', status === 'skip' && !now);
+        el.classList.toggle('is-dim', !!st && !!st.done && status !== 'add');
+        if (status === 'add') {
+          touched[edges[i][0]] = true;
+          touched[edges[i][1]] = true;
+        }
+      });
+      nodeEls.forEach((el, v) => el.classList.toggle('is-done', touched[v]));
+      badgeEls.forEach((el, v) => (el.textContent = st ? String(st.comp[v]) : ''));
+      compEls.forEach((el, v) => {
+        const c = st ? st.comp[v] : v;
+        el.textContent = String(c);
+        el.classList.toggle('is-merged', c !== v);
+      });
+      countEl.textContent = String(st ? st.k : 0);
+      totalEl.textContent = fmt(st ? st.total : 0);
+      note.textContent = st ? st.note : fill(S.idle, { m });
+      root.classList.toggle('is-done', !!(st && st.done));
+    }
+
+    let at = Math.min(Number(root.dataset.krInitial), steps.length - 1);
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+    render(at);
+  })();
+</script>
+
+<style is:global>
+  .aas-kruskal-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-kruskal-demo .kr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-kruskal-demo .kr-head {
+    font-size: 0.95em;
+  }
+  .aas-kruskal-demo .kr-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-kruskal-demo .kr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-kruskal-demo .kr-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-kruskal-demo .kr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-kruskal-demo .kr-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-kruskal-demo .kr-graph {
+    flex: 1 1 19em;
+    max-width: 24em;
+  }
+  .aas-kruskal-demo .kr-panel {
+    flex: 0 1 auto;
+  }
+  .aas-kruskal-demo .kr-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin: 0 0 0.3em;
+  }
+  /* 간선 칩은 두 열 grid. 정렬하면 order만 바뀐다. */
+  .aas-kruskal-demo .kr-list {
+    display: grid;
+    grid-template-rows: repeat(var(--kr-rows), auto);
+    grid-auto-flow: column;
+    gap: 0.3em 0.5em;
+    margin-bottom: 0.8em;
+    font-size: 0.8em;
+  }
+  .aas-kruskal-demo .kr-chip {
+    order: var(--kr-slot, 0);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+    padding: 0.2em 0.55em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    transition:
+      background-color 0.3s,
+      opacity 0.3s;
+  }
+  .aas-kruskal-demo .kr-chip b {
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-kruskal-demo .kr-chip.is-add {
+    background: var(--aas-role-eval);
+    border-color: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-kruskal-demo .kr-chip.is-add b {
+    color: #fff;
+  }
+  .aas-kruskal-demo .kr-chip.is-skip {
+    color: var(--aas-role-guard);
+    text-decoration: line-through;
+    opacity: 0.75;
+  }
+  .aas-kruskal-demo .kr-chip.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-kruskal-demo .kr-chip.is-rest {
+    opacity: 0.35;
+  }
+  .aas-kruskal-demo .kr-comp {
+    display: flex;
+    gap: 0.25em;
+  }
+  .aas-kruskal-demo .kr-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-kruskal-demo .kr-cell i {
+    font-style: normal;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-kruskal-demo .kr-cell b {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7em;
+    height: 1.7em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-role-model);
+    transition: background-color 0.3s;
+  }
+  .aas-kruskal-demo .kr-cell b.is-merged {
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-kruskal-demo .kr-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-kruskal-demo .kr-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-kruskal-demo.is-done .kr-note {
+    color: var(--aas-text);
+  }
+  .aas-kruskal-demo .kr-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-kruskal-demo .kr-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-kruskal-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  /* 데모 상자는 슬라이드 폭을 다 쓰고, 그래프는 높이를 정해 그만큼 키운다. */
+  .aas-kruskal-demo.is-slide .kr-body {
+    flex-wrap: nowrap;
+  }
+  .aas-kruskal-demo.is-slide .kr-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+  /* 간선 목록과 comp 칸은 조금 줄여 데모가 슬라이드 높이 안에 들게 한다. */
+  .aas-kruskal-demo.is-slide .kr-list {
+    font-size: 0.66em;
+    gap: 0.2em 0.5em;
+  }
+  .aas-kruskal-demo.is-slide .kr-cell b {
+    width: 1.5em;
+    height: 1.5em;
+    font-size: 0.85em;
+  }
+  .aas-kruskal-demo.is-slide .kr-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-kruskal-demo .kr-chip,
+    .aas-kruskal-demo .kr-cell b {
+      transition: none;
+    }
+  }
+</style>
