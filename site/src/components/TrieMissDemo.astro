@@ -1,0 +1,429 @@
+---
+// 검색 실패가 노드 몇 개에서 끝나는지 세어 보는 데모.
+//
+// 길이 L인 무작위 키 N개로 트라이를 만들고, 같은 길이의 무작위 키로 1000번 찾는다.
+// 찾을 때마다 루트를 포함해 거친 노드 수를 세어 막대그래프로 보이고, 평균을
+// log₂₆ N과 나란히 놓는다. 키 길이를 7에서 20으로 바꿔도 평균은 거의 그대로다.
+// 위에는 처음 몇 번의 검색에서 키의 몇 글자까지 따라갔는지 보인다.
+//
+// 난수와 절차는 algorithm-code의 topic-10-trie/01_trie의 searchMiss와 같다
+// (seed 2026에서 시작하는 선형 합동 생성기, 키를 다 넣은 뒤 같은 수열로 검색).
+// 그래서 L = 7일 때 평균이 실습 코드 출력 2.15 · 2.82 · 3.45와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 고른 키 개수 */
+  n?: number;
+  /** 처음 고른 키 길이 */
+  length?: number;
+  /** 고를 수 있는 키 개수 */
+  sizes?: number[];
+  /** 고를 수 있는 키 길이 */
+  lengths?: number[];
+  /** 검색 횟수 */
+  queries?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { n = 1000, length = 7, sizes = [100, 1000, 10000], lengths = [7, 20], queries = 1000, slide = false } = Astro.props;
+const id = `tm-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '검색 실패는 몇 노드에서 끝나나',
+    keys: '키 개수 N',
+    length: '키 길이',
+    avg: '평균 거친 노드',
+    log: 'log₂₆ N',
+    samples: '처음 여섯 번의 검색',
+    axis: '거친 노드 수 (루트 포함)',
+    note: '{l}글자 무작위 키 {n}개로 만든 트라이에서 무작위 키로 {q}번 찾았습니다. 거친 노드는 평균 {avg}개입니다. 키는 {l}글자인데 평균 {m}글자만 따라가면 빈 링크를 만납니다.',
+  },
+  en: {
+    title: 'How many nodes does a search miss visit?',
+    keys: 'keys N',
+    length: 'key length',
+    avg: 'average nodes visited',
+    log: 'log₂₆ N',
+    samples: 'The first six searches',
+    axis: 'nodes visited (root included)',
+    note: 'A trie built from {n} random keys of length {l}, searched {q} times with random keys. On average a search visits {avg} nodes. The keys have {l} characters, yet on average a search follows only {m} of them before it meets a null link.',
+  },
+  zh: {
+    title: '查找失败在几个节点后结束',
+    keys: '键的个数 N',
+    length: '键长',
+    avg: '平均经过的节点',
+    log: 'log₂₆ N',
+    samples: '前六次查找',
+    axis: '经过的节点数（含根）',
+    note: '用 {n} 个长 {l} 的随机键建字典树，再用随机键查找 {q} 次。平均经过 {avg} 个节点。键有 {l} 个字符，但平均只走 {m} 个字符就遇到空链接。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-trie-miss-demo', slide && 'is-slide']}
+  id={id}
+  data-tm-config={JSON.stringify({ n, length, queries })}
+  data-tm-strings={JSON.stringify(t)}
+>
+  <div class="tm-bar">
+    <span class="tm-head"><strong>{t.title}</strong></span>
+    <div class="tm-controls">
+      <span class="tm-group">
+        <span class="tm-label">{t.keys}</span>
+        {
+          sizes.map((s) => (
+            <button type="button" class="tm-btn" data-tm-n={s}>
+              {s}
+            </button>
+          ))
+        }
+      </span>
+      <span class="tm-group">
+        <span class="tm-label">{t.length}</span>
+        {
+          lengths.map((l) => (
+            <button type="button" class="tm-btn" data-tm-len={l}>
+              {l}
+            </button>
+          ))
+        }
+      </span>
+    </div>
+  </div>
+
+  <div class="tm-body">
+    <div class="tm-chart">
+      <svg class="tm-svg" data-tm-svg role="img" aria-label={t.axis}></svg>
+      <div class="tm-axis">{t.axis}</div>
+    </div>
+    <div class="tm-side">
+      <div class="tm-big">
+        <span>{t.avg}</span>
+        <strong data-tm-avg></strong>
+      </div>
+      <div class="tm-log">{t.log} = <strong data-tm-log></strong></div>
+      <div class="tm-samples">
+        <span class="tm-label">{t.samples}</span>
+        <ol data-tm-samples></ol>
+      </div>
+    </div>
+  </div>
+  <p class="tm-note" data-tm-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const cfg = JSON.parse(root.dataset.tmConfig);
+    const S = JSON.parse(root.dataset.tmStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const R = 26;
+
+    /* plan:start (실습 코드의 searchMiss와 같은 난수와 절차) */
+    /* seed = (seed * 1103515245 + 12345) mod 2^31, 쓰는 값은 seed >> 16.
+       곱이 2^53을 넘으므로 아래 32비트만 정확히 셈하는 Math.imul을 쓴다. */
+    function experiment(n, len, queries) {
+      let seed = 2026;
+      const next = () => {
+        seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
+        return seed >> 16;
+      };
+      const key = () => {
+        let s = '';
+        for (let i = 0; i < len; i++) s += String.fromCharCode(97 + (next() % R));
+        return s;
+      };
+      const top = {};
+      for (let i = 0; i < n; i++) {
+        let cur = top;
+        for (const ch of key()) cur = cur[ch] || (cur[ch] = {});
+        cur.$ = i;
+      }
+      const hist = [];
+      const samples = [];
+      let total = 0;
+      for (let q = 0; q < queries; q++) {
+        const w = key();
+        let cur = top;
+        let visited = 1;
+        for (const ch of w) {
+          if (!cur[ch]) break;
+          cur = cur[ch];
+          visited += 1;
+        }
+        total += visited;
+        hist[visited] = (hist[visited] || 0) + 1;
+        if (samples.length < 6) samples.push([w, visited]);
+      }
+      return { avg: total / queries, hist, samples };
+    }
+    /* plan:end */
+
+    const svg = root.querySelector('[data-tm-svg]');
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const cache = new Map();
+    let N = cfg.n;
+    let L = cfg.length;
+
+    function render() {
+      const k = `${N}:${L}`;
+      if (!cache.has(k)) cache.set(k, experiment(N, L, cfg.queries));
+      const { avg, hist, samples } = cache.get(k);
+      const lg = Math.log(N) / Math.log(R);
+      /* 막대: 1부터 8까지(키 길이가 짧으면 L + 1까지) */
+      const bins = Math.min(L + 1, 8);
+      const counts = [];
+      for (let v = 1; v <= bins; v++) counts.push(hist[v] || 0);
+      const extra = hist.slice(bins + 1).reduce((a, b) => a + (b || 0), 0);
+      counts[bins - 1] += extra;
+      const max = Math.max(...counts, 1);
+      const BW = 44;
+      const GAP = 12;
+      const H = 150;
+      const W = bins * (BW + GAP) - GAP;
+      svg.setAttribute('viewBox', `-6 -22 ${W + 12} ${H + 50}`);
+      svg.replaceChildren();
+      counts.forEach((c, i) => {
+        const h = (c / max) * H;
+        const x = i * (BW + GAP);
+        svg.appendChild(el('rect', { class: 'tm-col', x, y: H - h, width: BW, height: Math.max(h, 0.5), rx: 3 }));
+        if (c > 0) svg.appendChild(el('text', { class: 'tm-num', x: x + BW / 2, y: H - h - 6 }, String(c)));
+        const label = i === bins - 1 && extra > 0 ? `${i + 1}+` : String(i + 1);
+        svg.appendChild(el('text', { class: 'tm-x', x: x + BW / 2, y: H + 18 }, label));
+      });
+      svg.appendChild(el('line', { class: 'tm-base', x1: -4, y1: H, x2: W + 4, y2: H }));
+      /* 평균의 자리: 막대 가운데 사이를 잇는다. */
+      const ax = (avg - 1) * (BW + GAP) + BW / 2;
+      svg.appendChild(el('line', { class: 'tm-avg', x1: ax, y1: -14, x2: ax, y2: H }));
+
+      root.querySelector('[data-tm-avg]').textContent = avg.toFixed(2);
+      root.querySelector('[data-tm-log]').textContent = lg.toFixed(2);
+      const list = root.querySelector('[data-tm-samples]');
+      list.replaceChildren(
+        ...samples.map(([w, v]) => {
+          const li = document.createElement('li');
+          const hit = Object.assign(document.createElement('span'), { className: 'tm-hit', textContent: w.slice(0, v - 1) });
+          const miss = Object.assign(document.createElement('span'), { className: 'tm-miss', textContent: w.slice(v - 1, v) });
+          const rest = Object.assign(document.createElement('span'), { className: 'tm-rest', textContent: w.slice(v) });
+          const num = Object.assign(document.createElement('strong'), { textContent: String(v) });
+          li.append(Object.assign(document.createElement('code'), {}), num);
+          li.firstChild.append(hit, miss, rest);
+          return li;
+        }),
+      );
+      root.querySelectorAll('[data-tm-n]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.tmN) === N));
+      root.querySelectorAll('[data-tm-len]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.tmLen) === L));
+      setLines(root.querySelector('[data-tm-note]'), fill(S.note, { n: N, l: L, q: cfg.queries, avg: avg.toFixed(2), m: (avg - 1).toFixed(2) }));
+    }
+    root.querySelectorAll('[data-tm-n]').forEach((b) =>
+      b.addEventListener('click', () => {
+        N = Number(b.dataset.tmN);
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-tm-len]').forEach((b) =>
+      b.addEventListener('click', () => {
+        L = Number(b.dataset.tmLen);
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-trie-miss-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-miss-demo .tm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-trie-miss-demo .tm-head {
+    font-size: 0.95em;
+  }
+  .aas-trie-miss-demo .tm-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+  }
+  .aas-trie-miss-demo .tm-group {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-trie-miss-demo .tm-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-right: 0.2em;
+  }
+  .aas-trie-miss-demo .tm-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-miss-demo .tm-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-miss-demo .tm-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-trie-miss-demo .tm-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 2em;
+    align-items: center;
+  }
+  .aas-trie-miss-demo .tm-chart {
+    flex: 1.4 1 18em;
+    min-width: 0;
+    text-align: center;
+  }
+  .aas-trie-miss-demo .tm-svg {
+    width: 100%;
+    max-height: 14em;
+  }
+  .aas-trie-miss-demo .tm-axis {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-miss-demo .tm-col {
+    fill: var(--aas-role-model);
+    transition:
+      y 0.3s,
+      height 0.3s;
+  }
+  .aas-trie-miss-demo .tm-num {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-miss-demo .tm-x {
+    font-size: 13px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-miss-demo .tm-base {
+    stroke: var(--aas-border);
+    stroke-width: 1.5;
+  }
+  .aas-trie-miss-demo .tm-avg {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+    stroke-dasharray: 6 4;
+  }
+  .aas-trie-miss-demo .tm-side {
+    flex: 1 1 12em;
+  }
+  .aas-trie-miss-demo .tm-big span {
+    display: block;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-miss-demo .tm-big strong {
+    font-size: 2.2em;
+    color: var(--aas-role-focus);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-miss-demo .tm-log {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    margin-bottom: 0.5em;
+  }
+  .aas-trie-miss-demo .tm-log strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-miss-demo .tm-samples ol {
+    margin: 0.2em 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.85em;
+  }
+  .aas-trie-miss-demo .tm-samples li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1em;
+    margin: 0;
+    line-height: 1.35;
+  }
+  .aas-trie-miss-demo .tm-samples code {
+    background: none;
+    padding: 0;
+    font-size: 1em;
+  }
+  .aas-trie-miss-demo .tm-hit {
+    color: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-trie-miss-demo .tm-miss {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+  .aas-trie-miss-demo .tm-rest {
+    color: var(--aas-muted);
+    opacity: 0.6;
+  }
+  .aas-trie-miss-demo .tm-samples strong {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-miss-demo .tm-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-trie-miss-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-miss-demo.is-slide .tm-body {
+    flex-wrap: nowrap;
+  }
+  .aas-trie-miss-demo.is-slide .tm-svg {
+    max-height: 34vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-miss-demo .tm-col {
+      transition: none;
+    }
+  }
+</style>

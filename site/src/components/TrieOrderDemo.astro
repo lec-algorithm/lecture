@@ -1,0 +1,641 @@
+---
+// 같은 키를 넣는 순서만 바꿔, 트라이와 이진 탐색 트리(BST)의 모양을 견주는 데모.
+//
+// 순서 탭(사전 순 · 역순 · 가운데부터 · 섞기)을 고르고 한 걸음씩 키를 넣는다.
+// 키 하나가 두 구조에 함께 들어간다. 트라이는 순서와 상관없이 마지막 모양이
+// 늘 같고, BST는 순서에 따라 모양과 높이가 바뀐다. 사전 순이나 역순으로 넣으면
+// BST는 한 줄로 늘어선다(주제 07의 최악).
+//
+// 기본 키는 실습 코드(algorithm-code의 topic-10-trie/01_trie)의 여섯 키다.
+// 실습 코드의 넣는 순서 by, sea, sells, she, shells, the가 마침 사전 순이다.
+// 높이는 주제 07의 약속대로 레벨의 수로 센다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+type Order = 'sorted' | 'reverse' | 'middle' | 'shuffle';
+interface Props {
+  /** 넣을 키와 값 */
+  words?: [string, number][];
+  /** 처음 고른 순서 */
+  order?: Order;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  words = [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+  order = 'sorted',
+  slide = false,
+} = Astro.props;
+const id = `to-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '넣는 순서와 모양',
+    sorted: '사전 순',
+    reverse: '역순',
+    middle: '가운데부터',
+    shuffle: '섞기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    trie: '트라이',
+    bst: '이진 탐색 트리',
+    root: '루트',
+    height: '높이',
+    nodes: '노드',
+    idle: '위의 순서대로 키를 하나씩 트라이와 이진 탐색 트리에 함께 넣습니다.',
+    first: '{w} = {v}: 두 구조 모두 비어 있으니 첫 노드가 됩니다. 트라이에는 새 노드 {m}개가 생깁니다.',
+    word: '{w} = {v}: 트라이에는 새 노드 {m}개가 생깁니다. 이진 탐색 트리에서는 키 {c}개와 비교한 뒤 {p}의 {side} 자식이 됩니다.',
+    left: '왼쪽',
+    right: '오른쪽',
+    done: '이진 탐색 트리의 높이는 {h}입니다. 트라이는 어느 순서로 넣어도 이 모양 그대로입니다.',
+    line: '이진 탐색 트리가 높이 {h}의 한 줄입니다. 트라이는 어느 순서로 넣어도 이 모양 그대로입니다.',
+  },
+  en: {
+    title: 'Insertion order and shape',
+    sorted: 'Sorted',
+    reverse: 'Reversed',
+    middle: 'Middle first',
+    shuffle: 'Shuffle',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    trie: 'Trie',
+    bst: 'Binary search tree',
+    root: 'root',
+    height: 'height',
+    nodes: 'nodes',
+    idle: 'Insert the keys in the order shown, each into both the trie and the binary search tree.',
+    first: '{w} = {v}: both structures are empty, so it becomes the first node. The trie gets {m} new nodes.',
+    word: '{w} = {v}: the trie gets {m} new nodes. In the binary search tree it is compared with {c} keys and becomes the {side} child of {p}.',
+    left: 'left',
+    right: 'right',
+    done: 'The binary search tree has height {h}. The trie has this same shape whatever the order.',
+    line: 'The binary search tree is a single line of height {h}. The trie has this same shape whatever the order.',
+  },
+  zh: {
+    title: '插入顺序与形状',
+    sorted: '字典序',
+    reverse: '逆序',
+    middle: '从中间开始',
+    shuffle: '打乱',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    trie: '字典树',
+    bst: '二叉搜索树',
+    root: '根',
+    height: '高度',
+    nodes: '节点',
+    idle: '按上面的顺序，把键逐个同时插入字典树和二叉搜索树。',
+    first: '{w} = {v}：两个结构都是空的，它成为第一个节点。字典树新建 {m} 个节点。',
+    word: '{w} = {v}：字典树新建 {m} 个节点。在二叉搜索树里与 {c} 个键比较后，成为 {p} 的{side}子节点。',
+    left: '左',
+    right: '右',
+    done: '二叉搜索树的高度是 {h}。字典树无论按什么顺序插入都是这个形状。',
+    line: '二叉搜索树成了高度为 {h} 的一条线。字典树无论按什么顺序插入都是这个形状。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const orders: Order[] = ['sorted', 'reverse', 'middle', 'shuffle'];
+---
+
+<div
+  class:list={['aas-trie-order-demo', slide && 'is-slide']}
+  id={id}
+  data-to-words={JSON.stringify(words)}
+  data-to-order={order}
+  data-to-strings={JSON.stringify(t)}
+>
+  <div class="to-bar">
+    <span class="to-head"><strong>{t.title}</strong></span>
+    <div class="to-tabs">
+      {
+        orders.map((o) => (
+          <button type="button" class="to-btn" data-to-tab={o}>
+            {t[o]}
+          </button>
+        ))
+      }
+    </div>
+    <div class="to-controls">
+      <button type="button" data-act="back" class="to-btn">{t.back}</button>
+      <button type="button" data-act="step" class="to-btn">{t.step}</button>
+      <button type="button" data-act="play" class="to-btn to-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="to-btn">{t.reset}</button>
+    </div>
+  </div>
+  <div class="to-seq" data-to-seq></div>
+  <div class="to-body">
+    <figure class="to-panel">
+      <svg class="to-svg" data-to-trie role="img" aria-label={t.trie}></svg>
+      <figcaption>{t.trie} · <span data-to-trie-count></span></figcaption>
+    </figure>
+    <figure class="to-panel">
+      <svg class="to-svg" data-to-bst role="img" aria-label={t.bst}></svg>
+      <figcaption>{t.bst} · <span data-to-bst-count></span></figcaption>
+    </figure>
+  </div>
+  <p class="to-note" data-to-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.toStrings);
+    const words = JSON.parse(root.dataset.toWords);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* 순서 만들기 */
+    const sorted = [...words].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    function middleFirst(list) {
+      if (list.length === 0) return [];
+      const m = Math.floor((list.length - 1) / 2);
+      return [list[m], ...middleFirst(list.slice(0, m)), ...middleFirst(list.slice(m + 1))];
+    }
+    function shuffled() {
+      const a = [...words];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+    const makeOrder = (o) =>
+      o === 'sorted' ? sorted : o === 'reverse' ? [...sorted].reverse() : o === 'middle' ? middleFirst(sorted) : shuffled();
+
+    /* 트라이: 키 집합으로 한 번 만들고 자리를 정한다. 어느 순서든 마지막 모양이 같다. */
+    const trie = new Map([['', { kids: [], ch: '', parent: null }]]);
+    for (const [w] of words) {
+      let cur = '';
+      for (const ch of w) {
+        const next = cur + ch;
+        if (!trie.has(next)) {
+          trie.set(next, { kids: [], ch, parent: cur });
+          trie.get(cur).kids.push(next);
+          trie.get(cur).kids.sort();
+        }
+        cur = next;
+      }
+    }
+    const trieSvg = root.querySelector('[data-to-trie]');
+    const tPos = new Map();
+    {
+      const UNIT = 46;
+      const LEVEL = 44;
+      let slot = 0;
+      let maxD = 0;
+      (function place(nid, d) {
+        const n = trie.get(nid);
+        maxD = Math.max(maxD, d);
+        if (n.kids.length === 0) {
+          tPos.set(nid, { x: slot * UNIT, y: d * LEVEL });
+          slot += 1;
+          return;
+        }
+        n.kids.forEach((k) => place(k, d + 1));
+        tPos.set(nid, { x: (tPos.get(n.kids[0]).x + tPos.get(n.kids[n.kids.length - 1]).x) / 2, y: d * LEVEL });
+      })('', 0);
+      trieSvg.setAttribute('viewBox', `-28 -32 ${(slot - 1) * UNIT + 56} ${maxD * LEVEL + 52}`);
+    }
+    const tEls = new Map();
+    {
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      trieSvg.append(edges, nodes);
+      for (const [nid, n] of trie) {
+        const p = tPos.get(nid);
+        let line = null;
+        if (n.parent !== null) {
+          const q = tPos.get(n.parent);
+          line = el('line', { class: 'to-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+          edges.appendChild(line);
+        }
+        const g = el('g', { class: 'to-tn', transform: `translate(${p.x} ${p.y})` });
+        if (nid === '') {
+          g.classList.add('is-root');
+          g.append(el('circle', { r: 11 }), el('text', { class: 'to-root', y: -18 }, S.root));
+        } else {
+          g.append(el('circle', { r: 14 }), el('text', { class: 'to-ch' }, n.ch));
+        }
+        nodes.appendChild(g);
+        tEls.set(nid, { g, line });
+      }
+    }
+
+    /* BST: 순서대로 넣으며 단계마다 기록한다. 노드는 키 문자열로 부른다. */
+    const bstSvg = root.querySelector('[data-to-bst]');
+    let steps = [];
+    let bstEls = new Map();
+    function plan(list) {
+      const kids = new Map();
+      const parentOf = new Map();
+      let top = null;
+      const present = new Set(['']);
+      const out = [{ trie: [...present], bst: [], note: S.idle, cur: -1 }];
+      list.forEach(([w, v], i) => {
+        const made = [];
+        let cur = '';
+        for (const ch of w) {
+          cur += ch;
+          if (!present.has(cur)) {
+            present.add(cur);
+            made.push(cur);
+          }
+        }
+        let note;
+        const path = [];
+        if (top === null) {
+          top = w;
+          kids.set(w, { l: null, r: null });
+          note = fill(S.first, { w, v, m: made.length });
+        } else {
+          let at = top;
+          let side;
+          for (;;) {
+            path.push(at);
+            side = w < at ? 'l' : 'r';
+            const nx = kids.get(at)[side];
+            if (nx === null) break;
+            at = nx;
+          }
+          kids.get(at)[side] = w;
+          kids.set(w, { l: null, r: null });
+          parentOf.set(w, at);
+          note = fill(S.word, { w, v, m: made.length, c: path.length, p: at, side: side === 'l' ? S.left : S.right });
+        }
+        out.push({ trie: [...present], made, bst: list.slice(0, i + 1).map(([k]) => k), path, cur: i, note, word: w });
+      });
+      /* BST의 자리: x는 중위 순서, y는 깊이 */
+      const pos = new Map();
+      let order = 0;
+      let h = 0;
+      (function walk(k, d) {
+        if (k === null) return;
+        h = Math.max(h, d + 1);
+        walk(kids.get(k).l, d + 1);
+        pos.set(k, { x: order++, d });
+        walk(kids.get(k).r, d + 1);
+      })(top, 0);
+      const last = out[out.length - 1];
+      out.push({ ...last, path: [], made: [], cur: list.length, note: fill(h === list.length ? S.line : S.done, { h }), done: true });
+      return { steps: out, pos, parentOf, h, n: order };
+    }
+
+    let at = 0;
+    let current;
+    function build(o) {
+      const list = makeOrder(o);
+      current = plan(list);
+      steps = current.steps;
+      /* 순서 칩 */
+      const seq = root.querySelector('[data-to-seq]');
+      seq.replaceChildren(
+        ...list.map(([w], i) => {
+          const s = Object.assign(document.createElement('span'), { className: 'to-chip', textContent: w });
+          s.dataset.toI = String(i);
+          return s;
+        }),
+      );
+      /* BST 그림 */
+      const { pos, parentOf, h, n } = current;
+      const UNIT = 74;
+      const LEVEL = Math.min(52, 270 / Math.max(1, h - 1));
+      const BW = 60;
+      const BH = 26;
+      bstSvg.replaceChildren();
+      bstSvg.setAttribute('viewBox', `${-BW / 2 - 6} ${-BH / 2 - 8} ${Math.max(1, n - 1) * UNIT + BW + 12} ${(h - 1) * LEVEL + BH + 16}`);
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      bstSvg.append(edges, nodes);
+      bstEls = new Map();
+      for (const [k, p] of pos) {
+        let line = null;
+        if (parentOf.has(k)) {
+          const q = pos.get(parentOf.get(k));
+          line = el('line', { class: 'to-edge', x1: q.x * UNIT, y1: q.d * LEVEL, x2: p.x * UNIT, y2: p.d * LEVEL });
+          edges.appendChild(line);
+        }
+        const g = el('g', { class: 'to-bn', transform: `translate(${p.x * UNIT} ${p.d * LEVEL})` });
+        g.append(el('rect', { x: -BW / 2, y: -BH / 2, width: BW, height: BH, rx: 8 }), el('text', { class: 'to-key' }, k));
+        nodes.appendChild(g);
+        bstEls.set(k, { g, line });
+      }
+      root.querySelectorAll('[data-to-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.toTab === o));
+      at = 0;
+      render(false);
+    }
+
+    function render(animate) {
+      const s = steps[at];
+      const onT = new Set(s.trie);
+      const made = new Set(s.made || []);
+      const wordPath = new Set();
+      if (s.word) for (let i = 0; i <= s.word.length; i++) wordPath.add(s.word.slice(0, i));
+      let k = 0;
+      for (const [nid, { g, line }] of tEls) {
+        const on = onT.has(nid);
+        const isNew = made.has(nid);
+        g.classList.toggle('is-off', !on);
+        g.classList.toggle('is-new', isNew);
+        g.classList.toggle('is-path', !isNew && !s.done && wordPath.has(nid) && nid !== '');
+        const delay = animate && !reduceMotion && isNew ? `${k++ * 0.08}s` : '0s';
+        g.style.transitionDelay = delay;
+        if (line) {
+          line.classList.toggle('is-off', !on);
+          line.classList.toggle('is-new', isNew);
+          line.classList.toggle('is-path', !isNew && !s.done && wordPath.has(nid));
+          line.style.transitionDelay = delay;
+        }
+      }
+      const onB = new Set(s.bst);
+      const path = new Set(s.path || []);
+      for (const [key, { g, line }] of bstEls) {
+        g.classList.toggle('is-off', !onB.has(key));
+        g.classList.toggle('is-new', !s.done && key === s.word);
+        g.classList.toggle('is-path', path.has(key));
+        if (line) {
+          line.classList.toggle('is-off', !onB.has(key));
+          line.classList.toggle('is-new', !s.done && key === s.word);
+        }
+      }
+      /* 지금 BST의 높이 */
+      let bh = 0;
+      for (const key of s.bst) bh = Math.max(bh, current.pos.get(key).d + 1);
+      root.querySelector('[data-to-bst-count]').textContent = `${S.nodes} ${s.bst.length} · ${S.height} ${bh}`;
+      let th = 0;
+      for (const nid of s.trie) th = Math.max(th, nid.length + 1);
+      root.querySelector('[data-to-trie-count]').textContent = `${S.nodes} ${s.trie.length} · ${S.height} ${th}`;
+      root.querySelectorAll('[data-to-i]').forEach((c) => {
+        const i = Number(c.dataset.toI);
+        c.className = `to-chip${i < s.cur || s.done ? ' is-done' : i === s.cur ? ' is-cur' : ''}`;
+      });
+      setLines(root.querySelector('[data-to-note]'), s.note);
+    }
+
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    };
+    const step = () => {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(true);
+      if (at >= steps.length - 1) stop();
+    };
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(false);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(false);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render(false);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+    root.querySelectorAll('[data-to-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        stop();
+        build(b.dataset.toTab);
+      }),
+    );
+    build(root.dataset.toOrder);
+  })();
+</script>
+
+<style is:global>
+  .aas-trie-order-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-order-demo .to-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-trie-order-demo .to-head {
+    font-size: 0.95em;
+  }
+  .aas-trie-order-demo .to-tabs,
+  .aas-trie-order-demo .to-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-trie-order-demo .to-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-order-demo .to-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-order-demo .to-btn.is-on {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-trie-order-demo .to-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-trie-order-demo .to-seq {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    margin-bottom: 0.4em;
+  }
+  .aas-trie-order-demo .to-chip {
+    padding: 0.1em 0.55em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    color: var(--aas-muted);
+    opacity: 0.6;
+    transition:
+      opacity 0.2s,
+      background 0.2s;
+  }
+  .aas-trie-order-demo .to-chip.is-done {
+    opacity: 1;
+    color: var(--aas-text);
+  }
+  .aas-trie-order-demo .to-chip.is-cur {
+    opacity: 1;
+    color: var(--aas-text);
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, transparent);
+  }
+  .aas-trie-order-demo .to-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    justify-content: center;
+  }
+  .aas-trie-order-demo .to-panel {
+    flex: 1 1 14em;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+  }
+  .aas-trie-order-demo .to-svg {
+    width: 100%;
+    max-height: 18em;
+  }
+  .aas-trie-order-demo .to-panel figcaption {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-order-demo .to-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    transition:
+      opacity 0.35s,
+      stroke 0.2s;
+  }
+  .aas-trie-order-demo .to-edge.is-new {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-trie-order-demo .to-edge.is-path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-trie-order-demo .is-off {
+    opacity: 0;
+  }
+  .aas-trie-order-demo .to-tn,
+  .aas-trie-order-demo .to-bn {
+    transition: opacity 0.35s;
+  }
+  .aas-trie-order-demo .to-tn circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+  }
+  .aas-trie-order-demo .to-tn.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .aas-trie-order-demo .to-tn.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-trie-order-demo .to-tn.is-new circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-trie-order-demo .to-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-order-demo .to-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-trie-order-demo .to-bn rect {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+  }
+  .aas-trie-order-demo .to-bn.is-path rect {
+    stroke: var(--aas-role-model);
+    fill: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-trie-order-demo .to-bn.is-new rect {
+    stroke: var(--aas-role-eval);
+    fill: color-mix(in srgb, var(--aas-role-eval) 25%, var(--aas-bg));
+  }
+  .aas-trie-order-demo .to-key {
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-order-demo .to-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-trie-order-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-order-demo.is-slide .to-body {
+    flex-wrap: nowrap;
+  }
+  .aas-trie-order-demo.is-slide .to-svg {
+    max-height: 40vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-order-demo * {
+      transition: none !important;
+    }
+  }
+</style>

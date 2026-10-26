@@ -12,7 +12,11 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
 import TrieFigure from '@components/TrieFigure.astro';
-import TreeFigure from '@components/TreeFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-10-trie) exactly. */}
@@ -86,8 +90,6 @@ Finding every key with a given prefix comes for free.
 - **hasValue**: whether some key ends at this node
 - **value**: that key's value
 
-<TrieFigure kind="node" chars="bst" caption="Root of the trie with six keys: only b, s and t of the 26 slots are used" slide />
-
 </Slide>
 
 <Slide class="compact">
@@ -111,10 +113,10 @@ A missing link is NULL; a new node starts with all 26 slots set to NULL.
 
 <Slide>
 
-#### A trie with six keys
-::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5]
+### A trie with six keys
+::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · click a node to see its link array]
 
-<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+<TrieNodeDemo slide />
 
 </Slide>
 
@@ -289,6 +291,15 @@ Children are visited from a to z, so the results are in **alphabetical order**.
 
 </Slide>
 
+<Slide>
+
+### Try it: autocomplete
+::sub[Type a prefix and the keys below it appear in alphabetical order]
+
+<TrieNodeDemo mode="complete" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Collecting in code
@@ -404,12 +415,10 @@ nodes = 17
 
 <Slide>
 
-#### A binary search tree follows the order
-::sub[The tree built by inserting 5, 3, 9, 4, 7, 12, 6, 8, 20]
+### Step by step: insertion order
+::sub[Insert the same six keys in another order and only the binary search tree changes shape]
 
-<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} slide />
-
-Insert the same numbers as 3, 4, 5, …, 20 and you get a single line leaning right.
+<TrieOrderDemo slide />
 
 </Slide>
 
@@ -440,6 +449,15 @@ From the output: `shells` (6 letters) gives `visited 7`
   - Look up `xmcwkeicowalcoeks` in an English dictionary and three or four letters tell you it is not there.
 - In a trie holding a million random keys
   - 7-character plates or 20-digit account numbers alike, a miss ends after four or five nodes.
+
+</Slide>
+
+<Slide>
+
+### Count it yourself: search misses
+::sub[A trie of N random keys, searched 1000 times with random keys]
+
+<TrieMissDemo slide />
 
 </Slide>
 
@@ -478,19 +496,10 @@ $$\log_{26} 10 \approx 0.71$$, so it grows like $$\log_R N$$.
 
 <Slide>
 
-#### The RN end: everything shared
-::sub[s · she · sh · shells · shel · shell]
+### Try it: between RN and RNw
+::sub[chain shares every prefix, spread shares none · you can type your own keys]
 
-<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts slide />
-
-</Slide>
-
-<Slide>
-
-#### The RNw end: nothing shared
-::sub[shells · an · bat · the · yell · ear]
-
-<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts slide />
+<TrieSpaceDemo set="chain" slide />
 
 </Slide>
 
@@ -517,21 +526,10 @@ Each node has only one incoming link, so all the rest are NULL.
 
 <Slide>
 
-#### One-way branching
+### Step by step: folding one-way branches
 ::sub[The biggest cause of wasted space is nodes that use only one link]
 
-<div class="aas-split">
-<div>
-
-<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts caption="Standard trie" slide />
-
-</div>
-<div>
-
-<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts caption="Trie without one-way branches" slide />
-
-</div>
-</div>
+<TrieCompressDemo slide />
 
 </Slide>
 
@@ -780,6 +778,15 @@ space (3 links per node)
 
 ## Tries and TSTs
 ::sub[Trie vs. TST]
+
+</Slide>
+
+<Slide>
+
+### Try it: same keys, three structures
+::sub[Nodes and links of a trie, a TST and a binary search tree · you can type your own keys]
+
+<TrieSpaceDemo set="apple" compare slide />
 
 </Slide>
 

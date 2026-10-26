@@ -12,7 +12,11 @@ slides: ["topic-10-trie"]
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
 import TrieFigure from '@components/TrieFigure.astro';
-import TreeFigure from '@components/TreeFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
 
 > The binary search tree of Topic 07 and the hash table of Topic 08 handled
 > keys **as a whole**: they compare the entire key, or hash the entire key.  
@@ -59,11 +63,7 @@ A node holds three things.
 - **value**: that key's value, an integer in this topic's examples
 
 A link is found by turning the character directly into an array index: `b`
-is slot 1, `s` is slot 18. Below is the root of the trie holding the keys
-`by`, `sea`, `sells`, `she`, `shells` and `the`. Only three of the 26 slots,
-`b`, `s` and `t`, are used; the other 23 are NULL.
-
-<TrieFigure kind="node" chars="bst" />
+is slot 1, `s` is slot 18.
 
 ```c
 typedef struct TrieNode {
@@ -81,7 +81,11 @@ This example runs through the whole topic.
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | 4 | 2 | 1 | 0 | 3 | 5 |
 
-<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts />
+Click a node in the demo below and its 26-slot link array opens up. The root,
+shown first, uses only the three slots `b`, `s` and `t`; the other 23 are NULL.
+Click a filled slot to move down to that child.
+
+<TrieNodeDemo />
 
 Three things to know when reading the picture:
 
@@ -198,6 +202,13 @@ We search for `sh` in the trie with `shore = 7` added.
 Children are visited from a to z, so the results come out in **alphabetical
 order**. A node's value is checked before its children, so `she` comes
 before `shells`.
+
+Type a prefix yourself. Each letter moves the prefix node one level down, and
+the keys in the subtrie below show up like an autocomplete list. A missing
+prefix such as `shx` stops at once, because the `x` link of the `sh` node is
+null.
+
+<TrieNodeDemo mode="complete" />
 
 ```plaintext
 ALGORITHM GetWordsWithPrefix(root, prefix)
@@ -351,12 +362,18 @@ The link structure (the shape) of a trie **does not depend on the order** in
 which keys were inserted or deleted. Once the key set is fixed, the trie is
 fixed. The six keys above give the same picture in any insertion order.
 
-A binary search tree is different. The tree below was built by inserting 5,
-3, 9, 4, 7, 12, 6, 8, 20 in that order. Insert the same numbers in sorted
-order, 3, 4, 5, …, 20, and you get a single line leaning right: the worst
-shape we saw in Topic 07.
+A binary search tree is different. The demo below inserts the same six keys
+into both a trie and a binary search tree, changing only the order.
 
-<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} />
+<TrieOrderDemo />
+
+- **Sorted**: the practice code's order by, sea, sells, she, shells, the
+  happens to be sorted. The binary search tree becomes a single line of
+  height 6 leaning right, the worst shape we saw in Topic 07. Reversed order
+  gives a single line leaning left.
+- **Middle first**: inserting the middle key first brings the height down to 3.
+- **Trie**: it ends in the same shape whatever the order. Press Shuffle a few
+  times.
 
 ### Worst case for search and insertion \{#worst-case}
 
@@ -385,7 +402,12 @@ average.
 
 The practice code builds a trie from $$N$$ random 7-letter keys, searches
 1000 times with random keys, and averages the number of nodes passed (root
-included).
+included). The demo below runs the same experiment with the same random
+numbers and shows, as bars, how many nodes each of the 1000 searches visited.
+The list at the lower right shows how far into the key the first six searches
+got. The link for the red underlined letter was null.
+
+<TrieMissDemo />
 
 - Output (last part)
 
@@ -398,7 +420,9 @@ search miss, random keys of length 7, 1000 searches
 
 Each tenfold increase in keys adds about 0.6\~0.7 nodes. Since
 $$\log_{26} 10 \approx 0.71$$, it grows like $$\log_R N$$. The keys have 7
-letters, yet a miss ends after three or four nodes on average.
+letters, yet a miss ends after three or four nodes on average. Switch the key
+length to 20 in the demo and the averages stay almost the same: 2.13, 2.83
+and 3.44.
 
 ### Space \{#space}
 
@@ -410,15 +434,15 @@ $$R$$ links are counted separately.
 - **Short keys, or keys sharing many prefixes**: close to $$RN$$.
 - **Long keys that differ from each other**: close to $$RNw$$.
 
-Here are two key sets, six keys each.
+Switch between the key sets in the demo below. Both have six keys.
 
-- Keys that share almost all their prefixes (`s`, `she`, `sh`, `shells`, `shel`, `shell`)
+- **chain**: keys that share almost all their prefixes (`s`, `she`, `sh`, `shells`, `shel`, `shell`)
+- **spread**: keys that share nothing (`shells`, `an`, `bat`, `the`, `yell`, `ear`)
 
-<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts />
+The bar shows where the number of links below the root falls between $$RN$$
+and $$RNw$$. You can also type your own words.
 
-- Keys that share nothing (`shells`, `an`, `bat`, `the`, `yell`, `ear`)
-
-<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts />
+<TrieSpaceDemo set="chain" />
 
 The table in the practice code does the same count.
 
@@ -443,14 +467,15 @@ up next, starts.
 
 The biggest reason a trie uses so much space is long runs of **nodes that
 use only one link**. Just the two keys `shells` (1) and `shellfish` (2)
-create more than ten nodes, most of them with a single child.
+create 11 nodes, and 7 of them have no value and only one child. The demo
+draws them with dashed outlines.
 
-<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts />
+Merge those nodes into the node below, one per step.
 
-Merge each node that has no value and only one child into the node below,
-and only the branching points remain.
+<TrieCompressDemo />
 
-<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts />
+Once everything is merged, only the branching points and the nodes with values
+remain, and 11 nodes become 4 (the root, `shell`, `fish` and `s`).
 
 A trie with one-way branches removed like this is called a compressed trie
 (radix tree, Patricia trie). Its nodes carry string fragments instead of
@@ -688,6 +713,14 @@ space (3 links per node)
   TST changes shape with the insertion order.
 
 ## Tries and TSTs \{#trie-vs-tst}
+
+Build the three structures from the same keys and count their nodes and links.
+Switch tabs or type your own words. A TST always has one node fewer than the
+trie (the root), and its links drop from 26 to 3 per node. A binary search tree
+has one node per key and so the fewest links, but each node holds a whole key,
+and a comparison matches two keys from the front.
+
+<TrieSpaceDemo set="apple" compare />
 
 | Property | Trie | TST |
 | --- | --- | --- |

@@ -12,7 +12,11 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
 import TrieFigure from '@components/TrieFigure.astro';
-import TreeFigure from '@components/TreeFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-10-trie)의 실행 결과와 같습니다. */}
@@ -86,8 +90,6 @@ import TreeFigure from '@components/TreeFigure.astro';
 - **hasValue**: 이 노드에서 끝나는 키가 있는지
 - **value**: 그 키의 값
 
-<TrieFigure kind="node" chars="bst" caption="여섯 키를 넣은 트라이의 루트: 26칸 중 b, s, t 세 칸만 씁니다" slide />
-
 </Slide>
 
 <Slide class="compact">
@@ -111,10 +113,10 @@ typedef struct TrieNode {
 
 <Slide>
 
-#### 키 여섯 개를 담은 트라이
-::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5]
+### 키 여섯 개를 담은 트라이
+::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · 노드를 누르면 그 노드의 링크 배열]
 
-<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+<TrieNodeDemo slide />
 
 </Slide>
 
@@ -289,6 +291,15 @@ ALGORITHM Search(root, word)
 
 </Slide>
 
+<Slide>
+
+### 직접 쳐 보기: 자동 완성
+::sub[접두사를 바꿔 치면 그 아래 키가 사전 순으로 뜹니다]
+
+<TrieNodeDemo mode="complete" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 모으기를 코드로
@@ -404,12 +415,10 @@ nodes = 17
 
 <Slide>
 
-#### 이진 탐색 트리는 순서를 탄다
-::sub[5, 3, 9, 4, 7, 12, 6, 8, 20 순서로 넣은 트리]
+### 한 걸음씩: 넣는 순서
+::sub[같은 여섯 키를 순서만 바꿔 넣으면 이진 탐색 트리만 모양이 바뀝니다]
 
-<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} slide />
-
-같은 수를 3, 4, 5, …, 20 순서로 넣으면 오른쪽으로만 뻗은 한 줄이 됩니다.
+<TrieOrderDemo slide />
 
 </Slide>
 
@@ -440,6 +449,15 @@ nodes = 17
   - 영어 사전에서 `xmcwkeicowalcoeks`를 찾으면 서너 글자에서 없다는 것을 압니다.
 - 백만 개의 무작위 키가 든 트라이라면
   - 7자리 번호판이든 20자리 계좌번호든 노드 네댓 개에서 끝납니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 세어 보기: 검색 실패
+::sub[무작위 키 N개로 만든 트라이를 무작위 키로 1000번 찾기]
+
+<TrieMissDemo slide />
 
 </Slide>
 
@@ -478,19 +496,10 @@ $$\log_{26} 10 \approx 0.71$$, 곧 $$\log_R N$$을 따라 자랍니다.
 
 <Slide>
 
-#### RN 쪽: 접두사를 다 공유
-::sub[s · she · sh · shells · shel · shell]
+### 직접 바꿔 보기: RN과 RNw 사이
+::sub[chain은 접두사를 다 공유하고, spread는 하나도 공유하지 않습니다 · 키를 직접 쳐도 됩니다]
 
-<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts slide />
-
-</Slide>
-
-<Slide>
-
-#### RNw 쪽: 서로 공유하지 않음
-::sub[shells · an · bat · the · yell · ear]
-
-<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts slide />
+<TrieSpaceDemo set="chain" slide />
 
 </Slide>
 
@@ -517,21 +526,10 @@ space (R = 26, w = average key length)
 
 <Slide>
 
-#### 단일 분기
+### 한 걸음씩: 단일 분기 접기
 ::sub[과도한 공간 사용의 가장 큰 이유는 링크를 하나만 쓰는 노드입니다]
 
-<div class="aas-split">
-<div>
-
-<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts caption="표준 트라이" slide />
-
-</div>
-<div>
-
-<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts caption="단일 분기를 없앤 트라이" slide />
-
-</div>
-</div>
+<TrieCompressDemo slide />
 
 </Slide>
 
@@ -780,6 +778,15 @@ space (3 links per node)
 
 ## 트라이와 TST
 ::sub[Trie vs. TST]
+
+</Slide>
+
+<Slide>
+
+### 직접 바꿔 보기: 같은 키, 세 구조
+::sub[트라이 · TST · 이진 탐색 트리의 노드와 링크 · 키를 직접 쳐도 됩니다]
+
+<TrieSpaceDemo set="apple" compare slide />
 
 </Slide>
 

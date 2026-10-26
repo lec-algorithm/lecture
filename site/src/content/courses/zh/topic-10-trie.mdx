@@ -12,7 +12,11 @@ slides: ["topic-10-trie"]
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
 import TrieFigure from '@components/TrieFigure.astro';
-import TreeFigure from '@components/TreeFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
 
 > 主题 07 的二叉搜索树和主题 08 的哈希表都是把键**整个**拿来处理。
 > 要么比较整个键，要么用整个键算哈希值。  
@@ -54,10 +58,6 @@ import TreeFigure from '@components/TreeFigure.astro';
 - **value**：那个键的值。本主题的例子中是整数
 
 链接直接把字符换成数组下标来找。`b` 是第 1 格，`s` 是第 18 格。
-下面是放入键 `by`、`sea`、`sells`、`she`、`shells`、`the` 的字典树的根。
-26 格中只用了 `b`、`s`、`t` 三格，其余 23 格都是 NULL。
-
-<TrieFigure kind="node" chars="bst" />
 
 ```c
 typedef struct TrieNode {
@@ -75,7 +75,10 @@ typedef struct TrieNode {
 | --- | --- | --- | --- | --- | --- | --- |
 | 值 | 4 | 2 | 1 | 0 | 3 | 5 |
 
-<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts />
+在下面的演示里点一个节点，它的 26 格链接数组就会展开。一开始显示的根只用了
+`b`、`s`、`t` 三格，其余 23 格都是 NULL。点涂色的格子，就走到那个子节点。
+
+<TrieNodeDemo />
 
 看图有三点。
 
@@ -178,6 +181,12 @@ ALGORITHM Search(root, word)
 
 因为按 a 到 z 的顺序遍历子节点，结果是**字典序**。先看值再往子节点走，
 所以 `she` 排在 `shells` 前面。
+
+自己输入前缀试试。每输入一个字母，前缀的节点就往下走一层，它下面子树里的键像
+自动补全列表一样列出来。`shx` 这样不存在的前缀，因为 `sh` 节点的 `x` 链接是
+空的，马上就结束。
+
+<TrieNodeDemo mode="complete" />
 
 ```plaintext
 ALGORITHM GetWordsWithPrefix(root, prefix)
@@ -325,11 +334,16 @@ nodes = 17
 字典树的链接结构（形状）与键插入、删除的**顺序无关**。键集合一定，字典树就
 唯一确定。前面的六个键无论按什么顺序放入，得到的都是同一张图。
 
-二叉搜索树则不然。下面这棵树是按 5, 3, 9, 4, 7, 12, 6, 8, 20 的顺序插入的。
-同样的数按 3, 4, 5, …, 20 这样排好的顺序插入，就成了只往右伸的一条线。
-这是主题 07 中见过的最坏形状。
+二叉搜索树则不然。下面的演示把同样六个键只换插入顺序，同时放进字典树和
+二叉搜索树。
 
-<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} />
+<TrieOrderDemo />
+
+- **字典序**：实践代码的顺序 by, sea, sells, she, shells, the 恰好是字典序。
+  二叉搜索树成了只往右伸、高度为 6 的一条线，这是主题 07 中见过的最坏形状。
+  逆序则是往左伸的一条线。
+- **从中间开始**：先放中间的键，高度降到 3。
+- **字典树**：无论什么顺序，最后的形状都一样。多按几次打乱试试。
 
 ### 查找与插入的最坏情况 \{#worst-case}
 
@@ -351,7 +365,11 @@ nodes = 17
   查找失败都在四五个节点内结束。因为 $$\log_{26} 10^6 \approx 4.2$$。
 
 实践代码用 $$N$$ 个 7 字母随机键建字典树，再用随机键查 1000 次，求经过节点数
-（含根）的平均值。
+（含根）的平均值。下面的演示用同样的随机数做同样的实验，用柱子表示 1000 次查找
+各自在几个节点结束。右下的列表是前六次查找沿键走到了第几个字母，红色下划线
+字母的链接是空的。
+
+<TrieMissDemo />
 
 - 结果（末尾）
 
@@ -364,6 +382,7 @@ search miss, random keys of length 7, 1000 searches
 
 键每多十倍，平均增加 0.6\~0.7 个。$$\log_{26} 10 \approx 0.71$$，所以它是随
 $$\log_R N$$ 增长的。键有 7 个字母，平均却在三四个节点内结束。
+在演示里把键长换成 20，平均值是 2.13、2.83、3.44，几乎不变。
 
 ### 空间 \{#space}
 
@@ -374,15 +393,14 @@ $$\log_R N$$ 增长的。键有 7 个字母，平均却在三四个节点内结�
 - **键短，或者大量共享前缀时**，接近 $$RN$$。
 - **键长且彼此不同时**，接近 $$RNw$$。
 
-画出两组键。两组都是 6 个键。
+在下面的演示里切换键集合。两组都是 6 个键。
 
-- 几乎完全共享前缀的情况（`s`、`she`、`sh`、`shells`、`shel`、`shell`）
+- **chain**：几乎完全共享前缀的情况（`s`、`she`、`sh`、`shells`、`shel`、`shell`）
+- **spread**：彼此不共享的情况（`shells`、`an`、`bat`、`the`、`yell`、`ear`）
 
-<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts />
+横条显示根以外的链接数落在 $$RN$$ 与 $$RNw$$ 之间的哪个位置。也可以自己输入单词。
 
-- 彼此不共享的情况（`shells`、`an`、`bat`、`the`、`yell`、`ear`）
-
-<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts />
+<TrieSpaceDemo set="chain" />
 
 实践代码的表做的是同样的计算。
 
@@ -404,14 +422,15 @@ $$RNw$$ = 546。无论哪种，大多数链接都是 NULL。每个节点进来�
 ### 单分支 \{#one-way-branching}
 
 字典树过度占用空间的最大原因，是**只用一个链接的节点**连成长串。只放
-`shells`（1）和 `shellfish`（2）两个键，就会产生十多个节点，其中大多数只有
-一个子节点。
+`shells`（1）和 `shellfish`（2）两个键，就会产生 11 个节点，其中 7 个没有值、
+只有一个子节点。演示里用虚线画出它们。
 
-<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts />
+把这些节点每步一个地与下面的节点合并。
 
-把没有值、只有一个子节点的节点与下面的节点合并，就只剩下分叉的地方。
+<TrieCompressDemo />
 
-<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts />
+全部合并后，只剩下分叉处和存值的节点，11 个节点变成 4 个（根、`shell`、`fish`、
+`s`）。
 
 这样去掉单分支的字典树叫压缩字典树（radix tree、Patricia trie）。节点上挂的
 不是一个字符，而是一段字符串。本主题不实现它，而是转向直接减少链接数的 TST。
@@ -629,6 +648,12 @@ space (3 links per node)
   TST 和二叉搜索树一样，形状随插入顺序而变。
 
 ## 字典树与 TST \{#trie-vs-tst}
+
+用同样的键建三种结构，数一数节点和链接。切换标签或自己输入单词试试。TST 的节点
+总比字典树少一个（根），链接从每个节点 26 个减到 3 个。二叉搜索树一个键一个
+节点，链接最少，但每个节点存整个键，比较时要从头逐字比对两个键。
+
+<TrieSpaceDemo set="apple" compare />
 
 | 特性 | 字典树 | TST |
 | --- | --- | --- |
