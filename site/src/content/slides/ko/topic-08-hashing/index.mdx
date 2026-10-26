@@ -12,7 +12,11 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import HashSlotDemo from '@components/HashSlotDemo.astro';
 import ChainingDemo from '@components/ChainingDemo.astro';
 import ProbingDemo from '@components/ProbingDemo.astro';
-import ClusterFigure from '@components/ClusterFigure.astro';
+import ClusterDemo from '@components/ClusterDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import BirthdayDemo from '@components/BirthdayDemo.astro';
+import ResizeDemo from '@components/ResizeDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-08-hashing)의 실행 결과와 같습니다. */}
@@ -237,6 +241,15 @@ $$
 
 </Slide>
 
+<Slide>
+
+### 한 걸음씩: 여섯 단어
+::sub[탭으로 해시 함수를 바꿉니다. 같은 글자로 된 단어들이 어느 칸에 떨어질까요]
+
+<StringHashDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 더하기와 호너 방식
@@ -299,6 +312,15 @@ string keys, M = 97
 $$
 P(\text{충돌}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
 $$
+
+</Slide>
+
+<Slide>
+
+### 키 몇 개면 충돌할까
+::sub[N을 움직여 확률을 보고, 무작위로 넣어 봅니다. 두 키가 같은 칸에 떨어지면 붉어집니다]
+
+<BirthdayDemo slide />
 
 </Slide>
 
@@ -680,7 +702,16 @@ ALGORITHM Delete(T, key)
 
 <Slide>
 
-#### 다른 방법: 지워짐 표시
+### 다른 방법: 지워짐 표시
+::sub[C의 칸을 비우지 않고 표시(†)만 남깁니다. 그 뒤의 검색과 삽입을 봅니다]
+
+<ProbingDemo mode="tombstone" slide />
+
+</Slide>
+
+<Slide>
+
+#### 지워짐 표시의 규칙
 ::sub[Tombstone, 게으른 삭제(lazy deletion)]
 
 - 지운 칸에 **표시**만 남기고 실제로 비우지 않습니다.
@@ -692,6 +723,15 @@ ALGORITHM Delete(T, key)
   - 빈칸까지 가서 없음을 확인한 뒤 첫 표시 칸에 넣습니다.
 - **표시는 쌓입니다.**
   - 많아지면 테이블을 새로 만들어 청소합니다.
+
+</Slide>
+
+<Slide>
+
+### 두 배로 늘리고 다시 넣기
+::sub[M이 바뀌면 해시값도 바뀝니다. 0번 칸부터 하나씩 꺼내 새 배열에 넣습니다]
+
+<ResizeDemo slide />
 
 </Slide>
 
@@ -803,10 +843,19 @@ value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
 
 <Slide>
 
-### 512칸에 키 256개와 128개
-::sub[왼쪽은 선형 탐지, 오른쪽은 충돌할 때 아무 빈칸이나 고르는 비교용]
+### 512칸에 키를 더 넣으면
+::sub[왼쪽은 선형 탐지, 오른쪽은 충돌할 때 아무 빈칸이나 고르는 비교용. 키 수를 움직여 봅니다]
 
-<ClusterFigure slide />
+<ClusterDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 적재율을 올리면
+::sub[α를 움직여 두 방식의 평균 탐색 비용을 견줍니다. 실험은 실제로 키를 넣고 센 값입니다]
+
+<LoadCostDemo slide />
 
 </Slide>
 

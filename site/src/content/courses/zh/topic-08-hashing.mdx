@@ -12,7 +12,11 @@ slides: ["topic-08-hashing"]
 import HashSlotDemo from '@components/HashSlotDemo.astro';
 import ChainingDemo from '@components/ChainingDemo.astro';
 import ProbingDemo from '@components/ProbingDemo.astro';
-import ClusterFigure from '@components/ClusterFigure.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import BirthdayDemo from '@components/BirthdayDemo.astro';
+import ResizeDemo from '@components/ResizeDemo.astro';
+import ClusterDemo from '@components/ClusterDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
 
 > 主题 07 的二叉搜索树是**一边比较一边**找键。即使平衡得很好，也要比较
 > $$O(\log n)$$ 次。  
@@ -129,6 +133,11 @@ $$
 h \leftarrow (R \cdot h + \text{code}(c)) \bmod M
 $$
 
+把六个单词放进大小为 97 的数组。每一步处理一个字母、更新 $$h$$，算完最后一个
+字母，单词就落进下方长条上的那一格。用标签在相加和霍纳法之间切换。
+
+<StringHashDemo />
+
 - 伪代码
 
 ```plaintext
@@ -190,6 +199,11 @@ string keys, M = 97
 $$
 P(\text{至少冲突一次}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
 $$
+
+拖动键数 $$N$$，看这个概率涨得多快。曲线上的空心点是下面运行结果打印的值。
+多按几次**随机放一次**，实际发生冲突的比例会向曲线上的值靠拢。
+
+<BirthdayDemo />
 
 - 运行
 
@@ -604,6 +618,14 @@ int delete(ProbingTable *t, char key, int *probes) {
 也可以不重新插入键，而是在被删的格子里留下**删除标记**（tombstone，墓碑）。
 格子实际上没有清空，所以路不会断。这叫作惰性删除（lazy deletion）。
 
+用删除标记删除 `C`，再查找 `H`，然后插入 `H` 和 `Y`。
+
+<ProbingDemo mode="tombstone" />
+
+`get H` 像走过被占的格子一样越过 5 号格的标记，在 7 号格找到 `H`。`put H` 也越过
+标记，更新 7 号格的 `H`。`put Y` 一直走到 9 号空位，确认 `Y` 不存在之后，才放进
+记住的 5 号标记格。实践代码不用这种方法，所以这个演示里的数字只出自演示。
+
 - `get` 把有标记的格子**当作被占的格子**走过去。只在空位停下。
 - `put` 可以把有标记的格子**当作空位**重新使用。
 - 删除只要留一个标记就结束，所以很快。
@@ -629,8 +651,12 @@ int delete(ProbingTable *t, char key, int *probes) {
 重新插入新数组**。一次要花 $$O(N)$$，但因为每次扩大一倍，把这个代价分摊到此前的
 各次插入上，每次插入是常数。
 
-实践代码把示例的表重新插入大小为 32 的数组来比较。下面是运行结果中的
-`resize` 部分。
+把示例的表搬到大小为 32 的数组。从旧数组的 0 号格开始逐个取出键，用新的哈希值
+重新插入。格子角上的小数字是查找该键时要看的格数。
+
+<ResizeDemo />
+
+实践代码也按同样的顺序重新插入。下面是运行结果中的 `resize` 部分。
 
 ```console
 hits: 17 probes for 10 keys, 1.70 per key
@@ -713,15 +739,22 @@ value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
   0 号，14·15 号的 `R X` 和 1 号的 `M` 就连成了一片。
 - 簇一长，哈希到簇里的键的查找、不存在的键的查找，都得走到簇的末尾。
 
-用同样的随机哈希值，把 256 个和 128 个键放进大小为 512 的数组。左边是
-线性探测，右边作为对照，是冲突时随便重新挑一个空位的情形。
+用同样的随机哈希值，把键放进大小为 512 的数组。左边是线性探测，右边作为对照，
+是冲突时随便重新挑一个空位的情形。把键数换成 128、256、384，或者按**播放**
+一点点增加。
 
-<ClusterFigure />
+<ClusterDemo />
 
-装载因子为 1/2 时，线性探测一侧经常出现橙色的长簇。把装载因子降到 1/4，
-簇就变短了。簇越短，性能越好。
+装载因子为 1/2（256 个键）时，线性探测一侧经常出现橙色的长簇。降到 1/4
+（128 个）簇就变短，升到 3/4（384 个）簇会连成数组里的大块。簇越短，性能越好。
 
 ### 装载因子决定的代价 \{#load-factor}
+
+拖动装载因子，比较两种方式的平均查找代价。曲线是下面公式的理论值，表里的小数字
+是把随机哈希值的键真的插入大小为 4096 的数组再数出来的实验值。计数单位和前面的
+演示相同：线性探测数看过的格数，拉链法数比较过的节点数。
+
+<LoadCostDemo />
 
 假设哈希是均匀的，在装载因子 $$\alpha = N/M$$ 的线性探测表中，查看格数的平均值
 服从高德纳（Knuth）求出的近似值。
@@ -743,6 +776,10 @@ $$
   所以越接近 1 就**急剧**变差。
 - 把表的空间用得太省，就要在时间上付出代价。所以线性探测通过调整大小，
   把装载因子保持在 1/2 附近。
+
+装载因子接近 1 时，实验值会比近似值小一点。7/8 时约为 30，而不是 32.5。高德纳的
+公式是数组非常大时的近似值，大小固定的数组里，未命中的平均值会稍小一些。数组
+越大，实验值越接近近似值。
 
 拉链法情况不同。链表只是变长，没有溢出的地方，所以 $$\alpha$$ 超过 1 也能工作
 （示例是 2），代价也随 $$\alpha$$ 成比例地平缓增长。

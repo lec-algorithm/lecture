@@ -12,7 +12,11 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import HashSlotDemo from '@components/HashSlotDemo.astro';
 import ChainingDemo from '@components/ChainingDemo.astro';
 import ProbingDemo from '@components/ProbingDemo.astro';
-import ClusterFigure from '@components/ClusterFigure.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import BirthdayDemo from '@components/BirthdayDemo.astro';
+import ResizeDemo from '@components/ResizeDemo.astro';
+import ClusterDemo from '@components/ClusterDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
 
 {/* Slide rules follow the slide rules section of docs/writing-rules.md.
     Numbers match the practice code (topic-08-hashing) exactly. */}
@@ -237,6 +241,15 @@ $$
 
 </Slide>
 
+<Slide>
+
+### One step at a time: six words
+::sub[Switch the hash function with the tabs. Where do words made of the same letters land?]
+
+<StringHashDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Adding vs. Horner's method
@@ -299,6 +312,15 @@ Adding puts the six words in **one slot**; Horner's method uses **five slots**.
 $$
 P(\text{collision}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
 $$
+
+</Slide>
+
+<Slide>
+
+### How many keys until a collision?
+::sub[Move N to see the chance, then throw keys at random. Two keys in one slot turn red]
+
+<BirthdayDemo slide />
 
 </Slide>
 
@@ -680,7 +702,16 @@ The keys put back amount to one cluster, so when clusters are short, deletion is
 
 <Slide>
 
-#### Another way: tombstones
+### Another way: tombstones
+::sub[Leave a mark (†) in C's slot instead of emptying it, then watch the searches and inserts that follow]
+
+<ProbingDemo mode="tombstone" slide />
+
+</Slide>
+
+<Slide>
+
+#### The rules for tombstones
 ::sub[Tombstone, lazy deletion]
 
 - Leave only a **marker** in the erased slot and do not actually empty it.
@@ -692,6 +723,15 @@ The keys put back amount to one cluster, so when clusters are short, deletion is
   - Go on to an empty slot, confirm the key is not there, then insert into the first marked slot.
 - **Markers pile up.**
   - When there are many, rebuild the table to clean it.
+
+</Slide>
+
+<Slide>
+
+### Double the array and insert again
+::sub[A new M means new hash values. Take the keys out from slot 0 one by one into the new array]
+
+<ResizeDemo slide />
 
 </Slide>
 
@@ -803,10 +843,19 @@ value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
 
 <Slide>
 
-### 256 and 128 keys in 512 slots
-::sub[Left: linear probing. Right, for comparison: any empty slot at random on each collision]
+### More keys into 512 slots
+::sub[Left: linear probing. Right, for comparison: any empty slot at random on each collision. Move the key count]
 
-<ClusterFigure slide />
+<ClusterDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Raising the load factor
+::sub[Move α to compare the average search cost of the two methods. The runs actually insert keys and count]
+
+<LoadCostDemo slide />
 
 </Slide>
 

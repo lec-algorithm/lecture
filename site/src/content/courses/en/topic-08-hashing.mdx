@@ -12,7 +12,11 @@ slides: ["topic-08-hashing"]
 import HashSlotDemo from '@components/HashSlotDemo.astro';
 import ChainingDemo from '@components/ChainingDemo.astro';
 import ProbingDemo from '@components/ProbingDemo.astro';
-import ClusterFigure from '@components/ClusterFigure.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import BirthdayDemo from '@components/BirthdayDemo.astro';
+import ResizeDemo from '@components/ResizeDemo.astro';
+import ClusterDemo from '@components/ClusterDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
 
 > The binary search tree of Topic 07 found keys by **comparing** them. Even
 > when it is well balanced, it needs $$O(\log n)$$ comparisons.  
@@ -142,6 +146,12 @@ $$
 h \leftarrow (R \cdot h + \text{code}(c)) \bmod M
 $$
 
+Put the six words into an array of size 97. Each step updates $$h$$ by one
+letter, and once the last letter is done the word drops into its slot on the
+strip below. Switch between summing and Horner's method with the tabs.
+
+<StringHashDemo />
+
 - Pseudocode
 
 ```plaintext
@@ -208,6 +218,12 @@ the two before it, and so on.
 $$
 P(\text{at least one collision}) = 1 - \frac{M}{M} \cdot \frac{M-1}{M} \cdots \frac{M-N+1}{M}
 $$
+
+Move the key count $$N$$ to see how fast this chance climbs. The hollow dots on
+the curve are the values the run below prints. Click **Throw at random** a few
+times and the share of throws that collided closes in on the curve.
+
+<BirthdayDemo />
 
 - Run
 
@@ -658,6 +674,16 @@ Instead of putting keys back, you can leave a **deletion marker** (a
 tombstone) in the erased slot. The slot is never actually emptied, so the
 path is not cut. This is called lazy deletion.
 
+Delete `C` with a tombstone, then look up `H` and put `H` and `Y`.
+
+<ProbingDemo mode="tombstone" />
+
+`get H` passes the marker in slot 5 like a full slot and finds `H` in slot 7.
+`put H` also passes the marker and updates the `H` in slot 7. `put Y` walks all
+the way to the empty slot 9 to make sure `Y` is absent, and only then goes into
+the remembered marker in slot 5. The practice code does not use this method, so
+the numbers in this demo come from the demo alone.
+
 - `get` passes a marked slot **as if it were full**. It stops only at empty
   slots.
 - `put` can reuse a marked slot **as if it were empty**.
@@ -690,8 +716,14 @@ moved over as they are; **every key is put into the new array again.** That
 costs $$O(N)$$ at once, but since the array doubles each time, spreading the
 cost over the insertions in between makes it a constant per insertion.
 
-The practice code puts the example table into an array of size 32 and
-compares. Here is the `resize` part of the output.
+Move the example table into an array of size 32. Starting at slot 0 of the old
+array, take each key out and insert it again with its new hash. The small
+number in a corner is how many slots a search for that key looks at.
+
+<ResizeDemo />
+
+The practice code reinserts in the same order. Here is the `resize` part of the
+output.
 
 ```console
 hits: 17 probes for 10 keys, 1.70 per key
@@ -779,17 +811,27 @@ Clusters grow on their own.
 - When a cluster is long, searching for a key hashed into it, and searching
   for a missing key, both have to walk to the end of the cluster.
 
-Insert 256 keys and 128 keys, with the same random hash values, into an array
-of size 512. The left side is linear probing; the right side, for comparison,
-picks a fresh empty slot at random on each collision.
+Insert keys with the same random hash values into an array of size 512. The
+left side is linear probing; the right side, for comparison, picks a fresh
+empty slot at random on each collision. Set the key count to 128, 256, or 384,
+or let **Play** add keys a few at a time.
 
-<ClusterFigure />
+<ClusterDemo />
 
-At a load factor of 1/2, long orange clusters show up often on the linear
-probing side. Lower the load factor to 1/4 and the clusters get shorter. The
+At a load factor of 1/2 (256 keys), long orange clusters show up often on the
+linear probing side. Lower it to 1/4 (128 keys) and the clusters get shorter;
+raise it to 3/4 (384 keys) and they merge into large blocks of the array. The
 shorter the clusters, the better the performance.
 
 ### What the load factor costs \{#load-factor}
+
+Move the load factor and compare the average search cost of the two methods.
+The curves are the theory from the formulas below; the small numbers in the
+table are runs that actually insert keys with random hash values into an array
+of size 4096 and count. The units are those of the earlier demos: slots looked
+at for linear probing, nodes compared for chaining.
+
+<LoadCostDemo />
 
 Assuming an even hash, the average number of slots probed in a linear probing
 table with load factor $$\alpha = N/M$$ follows the approximations Knuth
@@ -814,6 +856,11 @@ $$
   nears 1.
 - Use table space too thriftily and you pay for it in time. So linear probing
   resizes to keep the load factor near 1/2.
+
+As the load factor nears 1, the runs come out a little below the approximation.
+At 7/8 they give about 30 instead of 32.5. Knuth's formulas are approximations
+for a very large array, and in an array of fixed size the average miss is a bit
+smaller. The larger the array, the closer the runs get.
 
 Chaining is a different story. The lists just get longer and there is nowhere
 to overflow, so it works even with $$\alpha$$ above 1 (the example had 2),
