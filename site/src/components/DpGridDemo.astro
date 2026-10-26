@@ -1,0 +1,666 @@
+---
+// 2차원 DP 표를 한 칸씩 채워 보는 데모. 격자 경로와 0/1 배낭 두 문제를 받는다.
+//
+// 칸 하나를 채울 때 참조하는 칸(격자는 위·왼쪽, 배낭은 위·위 줄의 왼쪽)을
+// 파랑으로 칠하고 그 칸에서 지금 칸으로 오는 화살표를 그린다. 값을 준 칸의
+// 화살표는 진하게 그린다. 배낭은 표를 다 채운 뒤 오른쪽 아래에서 위로 거꾸로
+// 올라가며 담은 물건을 복원한다(분홍 화살표).
+//
+// 단계는 스크립트가 알고리즘을 실제로 돌려 만든다. 절차는 algorithm-code
+// topic-14의 04_grid_paths(pathsTab), 06_knapsack(knapsack)과 같다.
+//
+// 배낭의 unit은 표시용이다. 무게가 모두 unit의 배수이면 dp[i][c]는 c를 unit의
+// 배수로 내림한 칸과 같으므로, 그 칸들만 보여도 값과 복원이 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  problem?: 'grid' | 'knapsack';
+  /** grid: 목표 칸 (tx, ty) */
+  target?: [number, number];
+  /** grid: 장애물 칸 */
+  obstacles?: [number, number][];
+  /** knapsack: 물건마다 [무게, 가치] */
+  items?: [number, number][];
+  /** knapsack: 배낭 용량 */
+  capacity?: number;
+  /** knapsack: 이 간격의 용량만 열로 보인다. 모든 무게가 이 값의 배수여야 한다. */
+  unit?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  problem = 'grid',
+  target = [5, 5],
+  obstacles = [
+    [2, 2],
+    [3, 3],
+    [4, 4],
+  ],
+  items = [
+    [10, 60],
+    [20, 100],
+    [30, 120],
+  ],
+  capacity = 50,
+  unit: unitProp = 10,
+  slide = false,
+} = Astro.props;
+const unit =
+  items.every(([w]) => w % unitProp === 0) && capacity % unitProp === 0 ? unitProp : 1;
+const id = `dg-${Math.random().toString(36).slice(2, 9)}`;
+
+const nRows = problem === 'grid' ? target[0] + 1 : items.length + 1;
+const nCols = problem === 'grid' ? target[1] + 1 : capacity / unit + 1;
+const colHead =
+  problem === 'grid'
+    ? Array.from({ length: nCols }, (_, j) => String(j))
+    : Array.from({ length: nCols }, (_, k) => String(k * unit));
+const rowHead =
+  problem === 'grid'
+    ? Array.from({ length: nRows }, (_, i) => ({ main: String(i), sub: '' }))
+    : Array.from({ length: nRows }, (_, i) => ({
+        main: String(i),
+        sub: i === 0 ? '' : `(${items[i - 1][0]}, ${items[i - 1][1]})`,
+      }));
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title_grid: '격자 경로 타뷸레이션',
+    title_knapsack: '0/1 배낭 타뷸레이션',
+    corner_grid: 'x \\ y',
+    corner_knapsack: 'i \\ c',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    filled: '채운 칸',
+    idle: '한 걸음을 누르면 표를 채우기 시작합니다.',
+    grid_start: '({i}, {j})은 출발점입니다. 길 1가지',
+    grid_block: '({i}, {j})은 장애물입니다. 이 칸으로 오는 길은 0',
+    grid_fill: '({i}, {j}) = 위 {u} + 왼쪽 {l} = {v}',
+    grid_done: '끝. ({i}, {j})까지 가는 길은 {v}가지',
+    ks_init: '물건이 없으면(0번 줄) 어떤 용량이든 가치 0입니다.',
+    ks_fit: '물건 {i}(무게 {w}, 가치 {v}), 용량 {c}: 안 담음 {x} · 담음 dp[{p}][{r}] + {v} = {y} ⇒ {z}',
+    ks_nofit: '물건 {i}(무게 {w}), 용량 {c}: 들어가지 않습니다. 위 칸 그대로 {z}',
+    ks_take: 'dp[{i}][{c}] = {z}가 위 칸 {x}와 다릅니다. 물건 {i}를 담았습니다. 용량 {r}으로 올라갑니다.',
+    ks_skip: 'dp[{i}][{c}] = {z}가 위 칸과 같습니다. 물건 {i}는 담지 않았습니다.',
+    ks_done: '끝. 담은 물건 {list}, 가치 {z}',
+  },
+  en: {
+    title_grid: 'Grid path tabulation',
+    title_knapsack: '0/1 knapsack tabulation',
+    corner_grid: 'x \\ y',
+    corner_knapsack: 'i \\ c',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    filled: 'filled',
+    idle: 'Press step to start filling the table.',
+    grid_start: '({i}, {j}) is the start. 1 path',
+    grid_block: '({i}, {j}) is an obstacle. 0 paths come into it',
+    grid_fill: '({i}, {j}) = up {u} + left {l} = {v}',
+    grid_done: 'Done. {v} paths reach ({i}, {j})',
+    ks_init: 'With no items (row 0), every capacity holds value 0.',
+    ks_fit: 'Item {i} (weight {w}, value {v}), capacity {c}: skip {x} · take dp[{p}][{r}] + {v} = {y} ⇒ {z}',
+    ks_nofit: 'Item {i} (weight {w}), capacity {c}: it does not fit. Copy the cell above, {z}',
+    ks_take: 'dp[{i}][{c}] = {z} differs from the cell above, {x}. Item {i} was taken. Move up to capacity {r}.',
+    ks_skip: 'dp[{i}][{c}] = {z} equals the cell above. Item {i} was not taken.',
+    ks_done: 'Done. Items taken: {list}, value {z}',
+  },
+  zh: {
+    title_grid: '网格路径递推填表',
+    title_knapsack: '0/1 背包递推填表',
+    corner_grid: 'x \\ y',
+    corner_knapsack: 'i \\ c',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    filled: '已填',
+    idle: '按单步开始填表。',
+    grid_start: '({i}, {j}) 是起点。路径 1 条',
+    grid_block: '({i}, {j}) 是障碍。走进这一格的路径为 0',
+    grid_fill: '({i}, {j}) = 上 {u} + 左 {l} = {v}',
+    grid_done: '结束。到 ({i}, {j}) 的路径共 {v} 条',
+    ks_init: '没有物品（第 0 行）时，任何容量的价值都是 0。',
+    ks_fit: '物品 {i}（重 {w}，价值 {v}），容量 {c}：不放 {x} · 放 dp[{p}][{r}] + {v} = {y} ⇒ {z}',
+    ks_nofit: '物品 {i}（重 {w}），容量 {c}：放不下。照抄上一格 {z}',
+    ks_take: 'dp[{i}][{c}] = {z} 与上一格 {x} 不同。放了物品 {i}。上移到容量 {r}。',
+    ks_skip: 'dp[{i}][{c}] = {z} 与上一格相同。没有放物品 {i}。',
+    ks_done: '结束。放入的物品 {list}，价值 {z}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const title = t[`title_${problem}`];
+const corner = t[`corner_${problem}`];
+const config = { problem, target, obstacles, items, capacity, unit, nRows, nCols };
+const VX = 100;
+const VY = 75;
+---
+
+<div
+  class:list={['aas-dp-grid-demo', slide && 'is-slide', `is-${problem}`]}
+  id={id}
+  data-dg-strings={JSON.stringify(t)}
+  data-dg-config={JSON.stringify(config)}
+  style={`--dg-cols: ${nCols}; --dg-rows: ${nRows}`}
+>
+  <div class="dg-bar">
+    <span class="dg-head"><strong>{title}</strong></span>
+    <span class="dg-controls">
+      <button type="button" class="dg-btn" data-dg-back>{t.back}</button>
+      <button type="button" class="dg-btn" data-dg-step>{t.step}</button>
+      <button type="button" class="dg-btn dg-btn-primary" data-dg-play>{t.play}</button>
+      <button type="button" class="dg-btn" data-dg-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="dg-scroll">
+    <div class="dg-frame">
+      <span class="dg-corner">{corner}</span>
+      <div class="dg-colhead">
+        {colHead.map((h) => <span>{h}</span>)}
+      </div>
+      <div class="dg-rowhead">
+        {
+          rowHead.map((r) => (
+            <span>
+              {r.main}
+              {r.sub && <small>{r.sub}</small>}
+            </span>
+          ))
+        }
+      </div>
+      <div class="dg-cells">
+        {
+          Array.from({ length: nRows }, (_, i) =>
+            Array.from({ length: nCols }, (_, j) => (
+              <span class="dg-cell" data-dg-i={i} data-dg-j={j} />
+            )),
+          )
+        }
+        <svg
+          class="dg-arrows"
+          data-dg-svg
+          viewBox={`0 0 ${nCols * VX} ${nRows * VY}`}
+          aria-hidden="true"
+        ></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="dg-foot">
+    <p class="dg-note" data-dg-note></p>
+    <span class="dg-count">{t.filled} <strong data-dg-count>0</strong> / {nRows * nCols}</span>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const SVG = 'http://www.w3.org/2000/svg';
+    const VX = 100;
+    const VY = 75;
+    const fill = (tpl: string, vars: Record<string, string | number>) =>
+      tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+
+    type Cell = [number, number];
+    type Step = {
+      dp: (number | null)[][];
+      cur: Cell | null;
+      refs: Cell[];
+      best: Cell | null;
+      path: Cell[];
+      note: string;
+      done?: boolean;
+    };
+
+    /* 단계를 만든다. 절차는 algorithm-code의 pathsTab, knapsack과 같다. */
+    function plan(cfg: any, S: Record<string, string>): Step[] {
+      const R: number = cfg.nRows;
+      const C: number = cfg.nCols;
+      const dp: (number | null)[][] = Array.from({ length: R }, () => new Array(C).fill(null));
+      const steps: Step[] = [];
+      const push = (s: Partial<Step>) =>
+        steps.push({ dp: dp.map((r) => r.slice()), cur: null, refs: [], best: null, path: [], note: '', ...s });
+
+      if (cfg.problem === 'grid') {
+        const blocked = (i: number, j: number) =>
+          (cfg.obstacles as Cell[]).some(([x, y]) => x === i && y === j);
+        for (let i = 0; i < R; i++) {
+          for (let j = 0; j < C; j++) {
+            if (blocked(i, j)) {
+              dp[i][j] = 0;
+              push({ cur: [i, j], note: fill(S.grid_block, { i, j }) });
+            } else if (i === 0 && j === 0) {
+              dp[i][j] = 1;
+              push({ cur: [i, j], note: fill(S.grid_start, { i, j }) });
+            } else {
+              const u = i > 0 ? (dp[i - 1][j] as number) : 0;
+              const l = j > 0 ? (dp[i][j - 1] as number) : 0;
+              dp[i][j] = u + l;
+              const refs: Cell[] = [];
+              if (i > 0) refs.push([i - 1, j]);
+              if (j > 0) refs.push([i, j - 1]);
+              push({ cur: [i, j], refs, note: fill(S.grid_fill, { i, j, u, l, v: u + l }) });
+            }
+          }
+        }
+        const last = steps[steps.length - 1];
+        last.done = true;
+        last.note += '  ' + fill(S.grid_done, { i: R - 1, j: C - 1, v: dp[R - 1][C - 1]! });
+        return steps;
+      }
+
+      /* knapsack */
+      const unit: number = cfg.unit;
+      const items: Cell[] = cfg.items;
+      for (let k = 0; k < C; k++) dp[0][k] = 0;
+      push({ note: S.ks_init });
+      for (let i = 1; i < R; i++) {
+        const [w, v] = items[i - 1];
+        const dw = w / unit;
+        for (let k = 0; k < C; k++) {
+          const c = k * unit;
+          const x = dp[i - 1][k] as number;
+          dp[i][k] = x;
+          const refs: Cell[] = [[i - 1, k]];
+          let best: Cell = [i - 1, k];
+          let note: string;
+          if (w <= c) {
+            const y = (dp[i - 1][k - dw] as number) + v;
+            refs.push([i - 1, k - dw]);
+            if (y > x) {
+              dp[i][k] = y;
+              best = [i - 1, k - dw];
+            }
+            note = fill(S.ks_fit, { i, w, v, c, x, p: i - 1, r: c - w, y, z: dp[i][k]! });
+          } else {
+            note = fill(S.ks_nofit, { i, w, c, z: x });
+          }
+          push({ cur: [i, k], refs, best, note });
+        }
+      }
+      /* 복원: 오른쪽 아래에서 위로 */
+      let k = C - 1;
+      const path: Cell[] = [[R - 1, k]];
+      const taken: number[] = [];
+      for (let i = R - 1; i >= 1; i--) {
+        const z = dp[i][k] as number;
+        const x = dp[i - 1][k] as number;
+        if (z !== x) {
+          const nk = k - items[i - 1][0] / unit;
+          taken.push(i);
+          path.push([i - 1, nk]);
+          push({ cur: [i, k], path: path.slice(), note: fill(S.ks_take, { i, c: k * unit, z, x, r: nk * unit }) });
+          k = nk;
+        } else {
+          path.push([i - 1, k]);
+          push({ cur: [i, k], path: path.slice(), note: fill(S.ks_skip, { i, c: k * unit, z }) });
+        }
+      }
+      push({
+        path,
+        done: true,
+        note: fill(S.ks_done, { list: taken.join(', '), z: dp[R - 1][C - 1]! }),
+      });
+      return steps;
+    }
+
+    const ctr = ([i, j]: Cell) => [j * VX + VX / 2, i * VY + VY / 2];
+
+    function arrow(svg: SVGSVGElement, from: Cell, to: Cell, cls: string) {
+      const [x0, y0] = ctr(from);
+      const [x1, y1] = ctr(to);
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      const a = 18; // 칸 가운데를 비워 글자를 가리지 않게 양 끝을 줄인다
+      const b = 24;
+      const sx = x0 + ux * a;
+      const sy = y0 + uy * a;
+      const ex = x1 - ux * b;
+      const ey = y1 - uy * b;
+      const line = document.createElementNS(SVG, 'line');
+      line.setAttribute('x1', String(sx));
+      line.setAttribute('y1', String(sy));
+      line.setAttribute('x2', String(ex));
+      line.setAttribute('y2', String(ey));
+      line.setAttribute('class', `dg-line ${cls}`);
+      svg.appendChild(line);
+      const s = 14;
+      const head = document.createElementNS(SVG, 'path');
+      head.setAttribute(
+        'd',
+        `M ${ex + ux * 4} ${ey + uy * 4} L ${ex - ux * s - uy * s * 0.55} ${ey - uy * s + ux * s * 0.55} L ${ex - ux * s + uy * s * 0.55} ${ey - uy * s - ux * s * 0.55} Z`,
+      );
+      head.setAttribute('class', `dg-tip ${cls}`);
+      svg.appendChild(head);
+    }
+
+    document.querySelectorAll<HTMLElement>('.aas-dp-grid-demo').forEach((root) => {
+      if (root.dataset.dgWired) return;
+      root.dataset.dgWired = '1';
+
+      const S = JSON.parse(root.dataset.dgStrings || '{}');
+      const cfg = JSON.parse(root.dataset.dgConfig || '{}');
+      const steps = plan(cfg, S);
+      const cells = [...root.querySelectorAll<HTMLElement>('[data-dg-i]')];
+      const svg = root.querySelector<SVGSVGElement>('[data-dg-svg]')!;
+      const note = root.querySelector<HTMLElement>('[data-dg-note]')!;
+      const count = root.querySelector<HTMLElement>('[data-dg-count]')!;
+      const stepBtn = root.querySelector<HTMLButtonElement>('[data-dg-step]')!;
+      const playBtn = root.querySelector<HTMLButtonElement>('[data-dg-play]')!;
+      const blocked = (i: number, j: number) =>
+        cfg.problem === 'grid' && (cfg.obstacles as Cell[]).some(([x, y]) => x === i && y === j);
+      const has = (list: Cell[], i: number, j: number) => list.some(([a, b]) => a === i && b === j);
+
+      let at = -1;
+      let timer: number | null = null;
+
+      function render() {
+        const s = at >= 0 ? steps[at] : null;
+        svg.replaceChildren();
+        let filled = 0;
+        cells.forEach((el) => {
+          const i = Number(el.dataset.dgI);
+          const j = Number(el.dataset.dgJ);
+          const v = s ? s.dp[i][j] : null;
+          if (v !== null) filled++;
+          el.textContent = blocked(i, j) ? '#' : v === null ? '' : String(v);
+          el.classList.toggle('is-block', blocked(i, j));
+          el.classList.toggle('is-filled', v !== null);
+          el.classList.toggle('is-cur', !!s && !!s.cur && s.cur[0] === i && s.cur[1] === j);
+          el.classList.toggle('is-ref', !!s && has(s.refs, i, j));
+          el.classList.toggle('is-best', !!s && !!s.best && s.best[0] === i && s.best[1] === j);
+          el.classList.toggle('is-path', !!s && has(s.path, i, j));
+        });
+        if (s && s.cur) {
+          const strong = s.best !== null || cfg.problem === 'grid';
+          for (const r of s.refs) {
+            const isBest = cfg.problem === 'grid' || (s.best && r[0] === s.best[0] && r[1] === s.best[1]);
+            arrow(svg, r, s.cur, strong && isBest ? 'is-best' : 'is-ref');
+          }
+        }
+        if (s) {
+          for (let k = 0; k + 1 < s.path.length; k++) arrow(svg, s.path[k], s.path[k + 1], 'is-path');
+        }
+        count.textContent = String(filled);
+        note.textContent = s ? s.note : S.idle;
+        const last = at === steps.length - 1;
+        root.classList.toggle('is-done', last);
+        stepBtn.disabled = last;
+        if (last) stop();
+      }
+
+      function stop() {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+          playBtn.textContent = S.play;
+        }
+      }
+      function step() {
+        if (at < steps.length - 1) at++;
+        render();
+      }
+
+      root.querySelector('[data-dg-back]')!.addEventListener('click', () => {
+        stop();
+        if (at > -1) at--;
+        render();
+      });
+      stepBtn.addEventListener('click', () => {
+        stop();
+        step();
+      });
+      playBtn.addEventListener('click', () => {
+        if (timer !== null) {
+          stop();
+          return;
+        }
+        if (at >= steps.length - 1) at = -1;
+        playBtn.textContent = S.stop;
+        timer = window.setInterval(step, cfg.problem === 'grid' ? 700 : 1300);
+      });
+      root.querySelector('[data-dg-reset]')!.addEventListener('click', () => {
+        stop();
+        at = -1;
+        render();
+      });
+
+      render();
+    });
+  })();
+</script>
+
+<style is:global>
+  .aas-dp-grid-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 칸 크기가 em으로 고정이라 화살표 SVG가
+       칸과 같은 비율로 커진다(가로 100 : 세로 75). */
+    --dg-w: 3.2em;
+    --dg-h: 2.4em;
+    --dg-label: 2.6em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-dp-grid-demo.is-knapsack {
+    --dg-w: 3.8em;
+    --dg-h: 2.85em;
+    --dg-label: 5.4em;
+  }
+  .aas-dp-grid-demo .dg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-dp-grid-demo .dg-head {
+    font-size: 0.95em;
+  }
+  .aas-dp-grid-demo .dg-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-dp-grid-demo .dg-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-dp-grid-demo .dg-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-dp-grid-demo .dg-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-dp-grid-demo .dg-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-dp-grid-demo .dg-scroll {
+    overflow-x: auto;
+  }
+  .aas-dp-grid-demo .dg-frame {
+    display: grid;
+    grid-template-columns: var(--dg-label) auto;
+    grid-template-rows: auto auto;
+    width: max-content;
+    margin: 0 auto;
+    gap: 0.2em;
+  }
+  .aas-dp-grid-demo .dg-corner {
+    align-self: end;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-grid-demo .dg-colhead {
+    display: grid;
+    grid-template-columns: repeat(var(--dg-cols), var(--dg-w));
+  }
+  .aas-dp-grid-demo .dg-colhead span {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-grid-demo .dg-rowhead {
+    display: grid;
+    grid-template-rows: repeat(var(--dg-rows), var(--dg-h));
+  }
+  .aas-dp-grid-demo .dg-rowhead span {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.15;
+    color: var(--aas-muted);
+  }
+  .aas-dp-grid-demo .dg-rowhead small {
+    font-size: 0.85em;
+  }
+  .aas-dp-grid-demo .dg-cells {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(var(--dg-cols), var(--dg-w));
+    grid-template-rows: repeat(var(--dg-rows), var(--dg-h));
+  }
+  .aas-dp-grid-demo .dg-arrows {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .aas-dp-grid-demo .dg-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0.12em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    color: var(--aas-text);
+    transition:
+      background-color 0.25s,
+      border-color 0.25s,
+      box-shadow 0.25s;
+  }
+  .aas-dp-grid-demo .dg-cell.is-filled {
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-dp-grid-demo .dg-cell.is-block {
+    background: color-mix(in srgb, var(--aas-muted) 45%, var(--aas-bg));
+    color: var(--aas-bg);
+    font-weight: 700;
+  }
+  .aas-dp-grid-demo .dg-cell.is-ref {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-dp-grid-demo .dg-cell.is-best {
+    background: color-mix(in srgb, var(--aas-role-model) 32%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-dp-grid-demo .dg-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-dp-grid-demo .dg-cell.is-path {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+
+  .aas-dp-grid-demo .dg-line {
+    stroke-width: 5;
+    stroke-linecap: round;
+  }
+  .aas-dp-grid-demo .dg-line.is-ref {
+    stroke: color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    stroke-dasharray: 9 7;
+  }
+  .aas-dp-grid-demo .dg-line.is-best {
+    stroke: var(--aas-role-model);
+  }
+  .aas-dp-grid-demo .dg-line.is-path {
+    stroke: var(--aas-role-guard);
+    stroke-width: 6;
+  }
+  .aas-dp-grid-demo .dg-tip.is-ref {
+    fill: color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+  }
+  .aas-dp-grid-demo .dg-tip.is-best {
+    fill: var(--aas-role-model);
+  }
+  .aas-dp-grid-demo .dg-tip.is-path {
+    fill: var(--aas-role-guard);
+  }
+
+  .aas-dp-grid-demo .dg-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-dp-grid-demo .dg-note {
+    flex: 1 1 20em;
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-dp-grid-demo.is-done .dg-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-dp-grid-demo .dg-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-dp-grid-demo .dg-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
+  .aas-dp-grid-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-dp-grid-demo.is-slide .dg-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-dp-grid-demo .dg-cell {
+      transition: none;
+    }
+  }
+</style>

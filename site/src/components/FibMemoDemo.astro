@@ -1,0 +1,614 @@
+---
+// 피보나치 메모이제이션을 한 걸음씩 돌려 보는 데모.
+//
+// RecursionDemo(주제 01)와 같은 F(n) 호출 트리를 통째로 그려 두고, 그 위에서
+// fibMemo를 실제로 돌린다. 메모에 이미 있는 값을 만나면(노랑) 그 아래 가지가
+// 통째로 잘린다(점선). 왼쪽의 memo 표는 값이 적히는 순간과 읽히는 순간을
+// 보여 준다. 끝나면 "재귀였다면 15번, 메모로는 9번"이 남는다.
+//
+// 절차는 algorithm-code의 topic-14 01_fibonacci/fibMemo와 같다.
+// n <= 1은 메모를 보기 전에 돌려주므로 memo[0], memo[1]은 -1로 남는다.
+//
+// 트리와 표는 서버에서 다 그리고, 스크립트는 class와 글자만 바꾼다.
+// 표식은 전부 data-fm-* 접두를 쓴다(덱 크롬과 이름이 겹치지 않게).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 펼칠 항. 5면 트리 노드 15개, 메모 호출 9번이다. */
+  n?: number;
+  /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춰 키운다. */
+  slide?: boolean;
+}
+const { n = 5, slide = false }: Props = Astro.props;
+const id = `fm-${Math.random().toString(36).slice(2, 9)}`;
+
+type Node = { id: number; n: number; depth: number; children: Node[]; x: number; parent: number };
+
+// 1. 순수 재귀의 호출 트리를 통째로 만든다.
+let nextId = 0;
+const all: Node[] = [];
+const build = (k: number, depth: number, parent: number): Node => {
+  const node: Node = { id: nextId++, n: k, depth, children: [], x: 0, parent };
+  all.push(node);
+  if (k > 1) {
+    node.children.push(build(k - 1, depth + 1, node.id));
+    node.children.push(build(k - 2, depth + 1, node.id));
+  }
+  return node;
+};
+const root = build(n, 0, -1);
+
+let leafSlot = 0;
+const layout = (node: Node): number => {
+  if (node.children.length === 0) {
+    node.x = leafSlot++;
+  } else {
+    const xs = node.children.map(layout);
+    node.x = (xs[0] + xs[xs.length - 1]) / 2;
+  }
+  return node.x;
+};
+layout(root);
+
+const subtree = (node: Node): number[] => [node.id, ...node.children.flatMap(subtree)];
+
+// 2. 그 트리 위에서 fibMemo를 실제로 돌려 사건 목록을 만든다.
+type Ev = {
+  kind: 'call' | 'base' | 'hit' | 'store';
+  id: number;
+  n: number;
+  v: number;
+  a?: number;
+  b?: number;
+  cut?: number[];
+  depth: number;
+};
+const events: Ev[] = [];
+const memo: number[] = new Array(n + 1).fill(-1);
+const run = (node: Node, depth: number): number => {
+  if (node.n <= 1) {
+    events.push({ kind: 'base', id: node.id, n: node.n, v: node.n, depth });
+    return node.n;
+  }
+  if (memo[node.n] !== -1) {
+    const cut = node.children.flatMap(subtree);
+    events.push({ kind: 'hit', id: node.id, n: node.n, v: memo[node.n], cut, depth });
+    return memo[node.n];
+  }
+  events.push({ kind: 'call', id: node.id, n: node.n, v: -1, depth });
+  const a = run(node.children[0], depth + 1);
+  const b = run(node.children[1], depth + 1);
+  memo[node.n] = a + b;
+  events.push({ kind: 'store', id: node.id, n: node.n, v: a + b, a, b, depth });
+  return a + b;
+};
+run(root, 0);
+
+const memoCalls = events.filter((e) => e.kind !== 'store').length;
+const plainCalls = all.length;
+
+const leaves = leafSlot;
+const levels = Math.max(...all.map((d) => d.depth)) + 1;
+// 슬라이드에서는 노드를 키우고 층 간격을 줄여, 같은 높이에서 글자가 크게 보이게 한다.
+const COL = 64;
+const ROW = slide ? 58 : 62;
+const NW = slide ? 56 : 46;
+const NH = slide ? 36 : 28;
+const cx = (d: Node) => (d.x + 0.5) * COL;
+const cy = (d: Node) => d.depth * ROW + NH / 2 + 4;
+const viewW = leaves * COL;
+const viewH = levels * ROW;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    memo: 'memo',
+    tree: '호출 트리',
+    index: 'n',
+    value: '값',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    calls: '호출',
+    unit: '회',
+    plain: '재귀였다면',
+    start: 'F({n})을 메모와 함께 구합니다. memo는 전부 -1(아직 모름)입니다.',
+    call: 'F({n}) 호출. memo[{n}]이 -1이라 아직 모릅니다. 아래로 내려갑니다.',
+    base: 'F({n}) = {v}. 기저라서 memo를 보지 않고 바로 돌려줍니다.',
+    hit: 'F({n}): memo[{n}] = {v}, 이미 적어 둔 값입니다. 다시 갈라지지 않고 바로 돌려줍니다. 그 아래 호출 {c}개가 잘립니다.',
+    store: 'F({n}) = {a} + {b} = {v}. 돌려주기 전에 memo[{n}] ← {v}',
+    done: '끝. 호출 {m}회, 재귀였다면 {p}회. 잘린 호출 {c}개는 한 번도 불리지 않았습니다.',
+  },
+  en: {
+    memo: 'memo',
+    tree: 'Call tree',
+    index: 'n',
+    value: 'value',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    calls: 'calls',
+    unit: '',
+    plain: 'plain recursion',
+    start: 'Computing F({n}) with a memo. Every memo cell starts at -1 (unknown).',
+    call: 'Call F({n}). memo[{n}] is -1, so it is not known yet. Go down.',
+    base: 'F({n}) = {v}. A base case returns at once without looking at the memo.',
+    hit: 'F({n}): memo[{n}] = {v} is already there. Return it without branching. The {c} calls below are cut off.',
+    store: 'F({n}) = {a} + {b} = {v}. Before returning, memo[{n}] ← {v}',
+    done: 'Done. {m} calls, against {p} for plain recursion. The {c} cut-off calls never ran.',
+  },
+  zh: {
+    memo: 'memo',
+    tree: '调用树',
+    index: 'n',
+    value: '值',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    calls: '调用',
+    unit: '次',
+    plain: '纯递归',
+    start: '带记忆地计算 F({n})。memo 全部为 -1（尚未知道）。',
+    call: '调用 F({n})。memo[{n}] 为 -1，还不知道。继续向下。',
+    base: 'F({n}) = {v}。基本情况，不看 memo 直接返回。',
+    hit: 'F({n})：memo[{n}] = {v} 已经存在。不再分叉，直接返回。下面的 {c} 次调用被剪掉。',
+    store: 'F({n}) = {a} + {b} = {v}。返回前写入 memo[{n}] ← {v}',
+    done: '结束。调用 {m} 次，纯递归需要 {p} 次。被剪掉的 {c} 次调用从未执行。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-fib-memo-demo', slide && 'is-slide']}
+  id={id}
+  data-fm-strings={JSON.stringify(t)}
+  data-fm-events={JSON.stringify(events)}
+  data-fm-n={n}
+  data-fm-plain={plainCalls}
+  data-fm-memo-calls={memoCalls}
+>
+  <div class="fm-bar">
+    <span class="fm-counts">
+      <span>{t.calls} <strong data-fm-calls>0</strong>{t.unit}</span>
+      <span class="fm-plain">{t.plain} {plainCalls}{t.unit}</span>
+    </span>
+    <span class="fm-controls">
+      <button type="button" class="fm-btn" data-fm-back>{t.back}</button>
+      <button type="button" class="fm-btn" data-fm-step>{t.step}</button>
+      <button type="button" class="fm-btn fm-btn-primary" data-fm-play>{t.play}</button>
+      <button type="button" class="fm-btn" data-fm-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="fm-body">
+    <div class="fm-memo-col">
+      <h4>{t.memo}</h4>
+      <table class="fm-memo">
+        <thead>
+          <tr><th>{t.index}</th><th>{t.value}</th></tr>
+        </thead>
+        <tbody>
+          {
+            Array.from({ length: n + 1 }, (_, i) => (
+              <tr data-fm-row={i}>
+                <th>{i}</th>
+                <td data-fm-cell={i}>-1</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="fm-tree-col">
+      <h4>{t.tree}</h4>
+      <svg class="fm-tree" viewBox={`0 0 ${viewW} ${viewH}`} role="img" aria-label={t.tree}>
+        {
+          all.flatMap((p) =>
+            p.children.map((c) => (
+              <path
+                class="fm-edge"
+                data-fm-edge={c.id}
+                d={`M ${cx(p)} ${cy(p) + NH / 2} C ${cx(p)} ${cy(p) + ROW / 2}, ${cx(c)} ${cy(c) - ROW / 2}, ${cx(c)} ${cy(c) - NH / 2}`}
+              />
+            )),
+          )
+        }
+        {
+          all.map((d) => (
+            <g class="fm-node" data-fm-node={d.id} data-fm-label={`F(${d.n})`}>
+              <rect x={cx(d) - NW / 2} y={cy(d) - NH / 2} width={NW} height={NH} rx="6" />
+              <text x={cx(d)} y={cy(d)} text-anchor="middle" dominant-baseline="central">
+                {`F(${d.n})`}
+              </text>
+            </g>
+          ))
+        }
+      </svg>
+    </div>
+  </div>
+
+  <p class="fm-note" data-fm-note></p>
+</div>
+
+<script>
+  (() => {
+    const fill = (tpl: string, vars: Record<string, string | number>) =>
+      tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+
+    document.querySelectorAll<HTMLElement>('.aas-fib-memo-demo').forEach((root) => {
+      if (root.dataset.fmWired) return;
+      root.dataset.fmWired = '1';
+
+      const t = JSON.parse(root.dataset.fmStrings || '{}');
+      type Ev = {
+        kind: 'call' | 'base' | 'hit' | 'store';
+        id: number;
+        n: number;
+        v: number;
+        a?: number;
+        b?: number;
+        cut?: number[];
+      };
+      const events: Ev[] = JSON.parse(root.dataset.fmEvents || '[]');
+      const n = Number(root.dataset.fmN || 0);
+      const plain = Number(root.dataset.fmPlain || 0);
+      const memoCalls = Number(root.dataset.fmMemoCalls || 0);
+
+      const nodes = new Map<number, SVGGElement>();
+      root.querySelectorAll<SVGGElement>('[data-fm-node]').forEach((el) =>
+        nodes.set(Number(el.dataset.fmNode), el),
+      );
+      const edges = new Map<number, SVGPathElement>();
+      root.querySelectorAll<SVGPathElement>('[data-fm-edge]').forEach((el) =>
+        edges.set(Number(el.dataset.fmEdge), el),
+      );
+      const cells = [...root.querySelectorAll<HTMLElement>('[data-fm-cell]')];
+      const rows = [...root.querySelectorAll<HTMLElement>('[data-fm-row]')];
+      const noteEl = root.querySelector<HTMLElement>('[data-fm-note]')!;
+      const callsEl = root.querySelector<HTMLElement>('[data-fm-calls]')!;
+      const stepBtn = root.querySelector<HTMLButtonElement>('[data-fm-step]')!;
+      const playBtn = root.querySelector<HTMLButtonElement>('[data-fm-play]')!;
+
+      let at = -1;
+      let timer: number | null = null;
+
+      // 상태는 매번 처음부터 다시 쌓는다. 되감기가 공짜이고 그림과 숫자가 어긋날 수 없다.
+      const render = () => {
+        const seen = new Set<number>();
+        const done = new Map<number, number>();
+        const hit = new Set<number>();
+        const cut = new Set<number>();
+        const stack: number[] = [];
+        const memo = new Array(n + 1).fill(-1);
+        let calls = 0;
+        for (let i = 0; i <= at; i++) {
+          const e = events[i];
+          if (e.kind === 'call') {
+            seen.add(e.id);
+            stack.push(e.id);
+            calls++;
+          } else if (e.kind === 'base') {
+            seen.add(e.id);
+            done.set(e.id, e.v);
+            calls++;
+          } else if (e.kind === 'hit') {
+            seen.add(e.id);
+            done.set(e.id, e.v);
+            hit.add(e.id);
+            (e.cut ?? []).forEach((c) => cut.add(c));
+            calls++;
+          } else {
+            stack.pop();
+            done.set(e.id, e.v);
+            memo[e.n] = e.v;
+          }
+        }
+        const cur = at >= 0 ? events[at] : null;
+        const live = stack[stack.length - 1];
+
+        nodes.forEach((el, nodeId) => {
+          const v = done.get(nodeId);
+          el.classList.toggle('is-seen', seen.has(nodeId));
+          el.classList.toggle('is-live', nodeId === live && !done.has(nodeId));
+          el.classList.toggle('is-now', !!cur && cur.id === nodeId);
+          el.classList.toggle('is-done', v !== undefined);
+          el.classList.toggle('is-hit', hit.has(nodeId));
+          el.classList.toggle('is-cut', cut.has(nodeId));
+          el.querySelector('text')!.textContent = v !== undefined ? String(v) : el.dataset.fmLabel!;
+        });
+        edges.forEach((el, childId) => {
+          el.classList.toggle('is-seen', seen.has(childId));
+          el.classList.toggle('is-cut', cut.has(childId));
+        });
+        cells.forEach((c, i) => {
+          c.textContent = String(memo[i]);
+          c.classList.toggle('is-set', memo[i] !== -1);
+        });
+        rows.forEach((r, i) => {
+          r.classList.toggle('is-write', !!cur && cur.kind === 'store' && cur.n === i);
+          r.classList.toggle('is-read', !!cur && cur.kind === 'hit' && cur.n === i);
+        });
+        callsEl.textContent = String(calls);
+
+        const last = at === events.length - 1;
+        if (!cur) {
+          noteEl.textContent = fill(t.start, { n });
+        } else if (last) {
+          noteEl.textContent = fill(t.done, { m: memoCalls, p: plain, c: plain - memoCalls });
+        } else {
+          noteEl.textContent = fill(t[cur.kind], {
+            n: cur.n,
+            v: cur.v,
+            a: cur.a ?? '',
+            b: cur.b ?? '',
+            c: (cur.cut ?? []).length,
+          });
+        }
+        noteEl.classList.toggle('is-done', last);
+        stepBtn.disabled = last;
+        if (last) stop();
+      };
+
+      const stop = () => {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+          playBtn.textContent = t.play;
+        }
+      };
+      const step = () => {
+        if (at < events.length - 1) at++;
+        render();
+      };
+
+      root.querySelector('[data-fm-back]')!.addEventListener('click', () => {
+        stop();
+        if (at > -1) at--;
+        render();
+      });
+      stepBtn.addEventListener('click', () => {
+        stop();
+        step();
+      });
+      playBtn.addEventListener('click', () => {
+        if (timer !== null) {
+          stop();
+          return;
+        }
+        if (at >= events.length - 1) at = -1;
+        playBtn.textContent = t.stop;
+        timer = window.setInterval(step, 1000);
+      });
+      root.querySelector('[data-fm-reset]')!.addEventListener('click', () => {
+        stop();
+        at = -1;
+        render();
+      });
+
+      render();
+    });
+  })();
+</script>
+
+<style is:global>
+  .aas-fib-memo-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 루트 하나로 전체가 함께 커진다. */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-fib-memo-demo .fm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-fib-memo-demo .fm-counts {
+    display: flex;
+    gap: 1em;
+    font-size: 0.9em;
+    color: var(--aas-muted);
+  }
+  .aas-fib-memo-demo .fm-counts strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-fib-memo-demo .fm-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-fib-memo-demo .fm-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-fib-memo-demo .fm-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-fib-memo-demo .fm-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-fib-memo-demo .fm-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-fib-memo-demo .fm-body {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.25em;
+    align-items: start;
+  }
+  .aas-fib-memo-demo h4 {
+    margin: 0 0 0.4em;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+
+  .aas-fib-memo-demo .fm-memo {
+    border-collapse: collapse;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    margin: 0;
+  }
+  .aas-fib-memo-demo .fm-memo th,
+  .aas-fib-memo-demo .fm-memo td {
+    padding: 0.25em 0.7em;
+    border: 1px solid var(--aas-border);
+    text-align: center;
+    min-width: 2.2em;
+  }
+  .aas-fib-memo-demo .fm-memo thead th {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-fib-memo-demo .fm-memo td {
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+    transition:
+      background-color 0.25s,
+      color 0.25s;
+  }
+  .aas-fib-memo-demo .fm-memo td.is-set {
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-fib-memo-demo .fm-memo tr.is-write td {
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+  }
+  .aas-fib-memo-demo .fm-memo tr.is-read td {
+    background: color-mix(in srgb, var(--aas-role-trace) 45%, var(--aas-bg));
+  }
+
+  .aas-fib-memo-demo .fm-tree {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .aas-fib-memo-demo .fm-edge {
+    fill: none;
+    stroke: var(--aas-border);
+    stroke-width: 1.5;
+    opacity: 0.25;
+    transition: opacity 0.2s;
+  }
+  .aas-fib-memo-demo .fm-edge.is-seen {
+    opacity: 1;
+  }
+  .aas-fib-memo-demo .fm-edge.is-cut {
+    opacity: 0.5;
+    stroke-dasharray: 4 4;
+  }
+  .aas-fib-memo-demo .fm-node rect {
+    fill: var(--aas-bg);
+    stroke: var(--aas-border);
+    stroke-width: 1;
+    transition:
+      fill 0.2s,
+      stroke 0.2s,
+      opacity 0.2s;
+  }
+  .aas-fib-memo-demo .fm-node text {
+    fill: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 13px;
+  }
+  .aas-fib-memo-demo .fm-node:not(.is-seen) {
+    opacity: 0.28;
+  }
+  .aas-fib-memo-demo .fm-node.is-live rect {
+    fill: color-mix(in srgb, var(--aas-role-focus) 18%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+  }
+  .aas-fib-memo-demo .fm-node.is-done rect {
+    fill: color-mix(in srgb, var(--aas-role-eval) 26%, var(--aas-bg));
+    stroke: var(--aas-role-eval);
+  }
+  /* 메모에서 꺼낸 노드 */
+  .aas-fib-memo-demo .fm-node.is-hit rect {
+    fill: color-mix(in srgb, var(--aas-role-trace) 45%, var(--aas-bg));
+    stroke: var(--aas-role-trace);
+  }
+  .aas-fib-memo-demo .fm-node.is-now rect {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  /* 잘린 가지: 재귀였다면 불렸겠지만 메모 덕에 불리지 않는 호출 */
+  .aas-fib-memo-demo .fm-node.is-cut {
+    opacity: 0.45;
+  }
+  .aas-fib-memo-demo .fm-node.is-cut rect {
+    fill: transparent;
+    stroke-dasharray: 4 3;
+  }
+  .aas-fib-memo-demo .fm-node.is-cut text {
+    fill: var(--aas-muted);
+  }
+
+  .aas-fib-memo-demo .fm-note {
+    margin: 0.8em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-fib-memo-demo .fm-note.is-done {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
+  .aas-fib-memo-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  /* 트리는 높이로 묶어 슬라이드를 넘지 않게 하고, 노드 글자는 viewBox 안에서 키운다. */
+  .aas-fib-memo-demo.is-slide .fm-tree {
+    height: 52vh;
+  }
+  .aas-fib-memo-demo.is-slide .fm-node text {
+    font-size: 17px;
+    font-weight: 600;
+  }
+  /* 강의실 뒤에서도 앞으로 부를 노드가 읽히도록 덜 흐리게 */
+  .aas-fib-memo-demo.is-slide .fm-node:not(.is-seen) {
+    opacity: 0.5;
+  }
+  .aas-fib-memo-demo.is-slide .fm-memo {
+    font-size: 1em;
+  }
+  .aas-fib-memo-demo.is-slide .fm-memo th,
+  .aas-fib-memo-demo.is-slide .fm-memo td {
+    padding: 0.3em 0.8em;
+  }
+  .aas-fib-memo-demo.is-slide .fm-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-fib-memo-demo .fm-memo td,
+    .aas-fib-memo-demo .fm-edge,
+    .aas-fib-memo-demo .fm-node rect {
+      transition: none;
+    }
+  }
+</style>

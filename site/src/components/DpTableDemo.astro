@@ -1,0 +1,708 @@
+---
+// 1차원 DP 표를 한 칸씩 채워 보는 데모. 피보나치·거스름돈·LIS 세 문제를 받는다.
+//
+// 칸 하나를 채울 때 그 칸이 참조하는 앞 칸들을 파랑으로 칠하고, 표 위에
+// 참조 칸에서 지금 칸으로 오는 화살표를 그린다. 고른 칸(최소·최대를 준 칸)의
+// 화살표는 진하게 그린다. 표를 다 채우면 표 아래로 경로 복원 화살표가
+// 거꾸로 이어진다(거스름돈은 choice, LIS는 prev를 따라간다).
+//
+// 단계는 스크립트가 알고리즘을 실제로 돌려 만든다. 절차와 동점 처리는
+// algorithm-code topic-14의 01_fibonacci(fibTabulation), 02_coin_change
+// (coinChangeTab), 03_lis(lisTab)와 같다.
+//
+// 거스름돈의 unit은 표시용이다. 동전이 모두 unit의 배수이면 unit의 배수가
+// 아닌 금액은 만들 수 없고 참조되지도 않으므로, 그 칸을 빼고 보여 줘도
+// 값이 같다. {50, 40, 10}과 80원을 9칸으로 보이는 데 쓴다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  problem?: 'fib' | 'coin' | 'lis';
+  /** fib: 구할 항 */
+  n?: number;
+  /** coin: 동전 단위 (코드와 같은 순서) */
+  coins?: number[];
+  /** coin: 만들 금액 */
+  amount?: number;
+  /** coin: 이 간격의 금액만 칸으로 보인다. 모든 동전이 이 값의 배수여야 한다. */
+  unit?: number;
+  /** lis: 입력 배열 */
+  arr?: number[];
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  problem = 'fib',
+  n = 5,
+  coins = [2, 3, 5],
+  amount = 6,
+  unit: unitProp = 1,
+  arr = [10, 9, 2, 5, 3, 7, 101, 18],
+  slide = false,
+} = Astro.props;
+const unit = coins.every((c) => c % unitProp === 0) && amount % unitProp === 0 ? unitProp : 1;
+const id = `dt-${Math.random().toString(36).slice(2, 9)}`;
+
+const cols = problem === 'fib' ? n + 1 : problem === 'coin' ? amount / unit + 1 : arr.length;
+const header =
+  problem === 'coin'
+    ? Array.from({ length: cols }, (_, k) => k * unit)
+    : Array.from({ length: cols }, (_, k) => k);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title_fib: '피보나치 타뷸레이션',
+    title_coin: '거스름돈 타뷸레이션',
+    title_lis: 'LIS 타뷸레이션',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    filled: '채운 칸',
+    head_fib: 'i',
+    head_coin: '금액',
+    head_lis: 'i',
+    row_dp: 'dp',
+    row_arr: 'arr',
+    row_prev: 'prev',
+    row_choice: '동전',
+    idle: '한 걸음을 누르면 표를 채우기 시작합니다.',
+    fib_init: 'dp[0] = 0, dp[1] = 1로 시작합니다.',
+    fib_fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}',
+    fib_done: '끝. F({n}) = {v}. 칸마다 바로 앞 두 칸만 봤습니다.',
+    coin_init: 'dp[0] = 0. 나머지 금액은 아직 INF(만들 수 없음)입니다.',
+    coin_try: '동전 {c} → dp[{r}]+1 = {v}',
+    coin_no: '동전 {c} → 불가',
+    coin_fill: '{a}원: {list} ⇒ dp[{a}] = {v}',
+    coin_restore: '{a}원에서 마지막에 낸 동전은 {c}입니다. {b}원 칸으로 거꾸로 갑니다.',
+    coin_done: '끝. {a}원 = {list}, 동전 {k}개',
+    coin_inf: '끝. {a}원은 만들 수 없습니다.',
+    lis_init: '원소 하나만으로도 길이 1입니다. dp를 모두 1로 시작합니다.',
+    lis_fill: 'arr[{i}] = {x}: 앞에서 {x}보다 작은 것은 {list}. 그중 dp가 가장 큰 {bx}(dp {bd}) 뒤에 잇습니다 ⇒ dp[{i}] = {v}',
+    lis_none: 'arr[{i}] = {x}: 앞에 {x}보다 작은 것이 없습니다. dp[{i}] = 1',
+    lis_end: 'dp의 최댓값 {v}는 arr[{i}] = {x}에서 끝납니다. prev를 거꾸로 따라갑니다.',
+    lis_restore: 'prev[{i}] = {j} → arr[{j}] = {x}',
+    lis_done: '끝. 복원한 수열은 {list}, 길이 {v}',
+  },
+  en: {
+    title_fib: 'Fibonacci tabulation',
+    title_coin: 'Coin change tabulation',
+    title_lis: 'LIS tabulation',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    filled: 'filled',
+    head_fib: 'i',
+    head_coin: 'amount',
+    head_lis: 'i',
+    row_dp: 'dp',
+    row_arr: 'arr',
+    row_prev: 'prev',
+    row_choice: 'coin',
+    idle: 'Press step to start filling the table.',
+    fib_init: 'Start with dp[0] = 0 and dp[1] = 1.',
+    fib_fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}',
+    fib_done: 'Done. F({n}) = {v}. Each cell looked only at the two cells before it.',
+    coin_init: 'dp[0] = 0. Every other amount starts at INF (cannot be made).',
+    coin_try: 'coin {c} → dp[{r}]+1 = {v}',
+    coin_no: 'coin {c} → no',
+    coin_fill: 'amount {a}: {list} ⇒ dp[{a}] = {v}',
+    coin_restore: 'The last coin paid at {a} is {c}. Walk back to the cell for {b}.',
+    coin_done: 'Done. {a} = {list}, {k} coins',
+    coin_inf: 'Done. {a} cannot be made.',
+    lis_init: 'A single element is already length 1. Every dp cell starts at 1.',
+    lis_fill: 'arr[{i}] = {x}: the earlier values below {x} are {list}. Extend the one with the largest dp, {bx} (dp {bd}) ⇒ dp[{i}] = {v}',
+    lis_none: 'arr[{i}] = {x}: nothing earlier is below {x}. dp[{i}] = 1',
+    lis_end: 'The largest dp, {v}, ends at arr[{i}] = {x}. Follow prev backwards.',
+    lis_restore: 'prev[{i}] = {j} → arr[{j}] = {x}',
+    lis_done: 'Done. The restored sequence is {list}, length {v}',
+  },
+  zh: {
+    title_fib: '斐波那契递推填表',
+    title_coin: '找零递推填表',
+    title_lis: 'LIS 递推填表',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    filled: '已填',
+    head_fib: 'i',
+    head_coin: '金额',
+    head_lis: 'i',
+    row_dp: 'dp',
+    row_arr: 'arr',
+    row_prev: 'prev',
+    row_choice: '硬币',
+    idle: '按单步开始填表。',
+    fib_init: '从 dp[0] = 0、dp[1] = 1 开始。',
+    fib_fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}',
+    fib_done: '结束。F({n}) = {v}。每格只看前面两格。',
+    coin_init: 'dp[0] = 0。其余金额先为 INF（凑不出）。',
+    coin_try: '硬币 {c} → dp[{r}]+1 = {v}',
+    coin_no: '硬币 {c} → 不行',
+    coin_fill: '{a} 韩元：{list} ⇒ dp[{a}] = {v}',
+    coin_restore: '{a} 韩元最后付的硬币是 {c}。倒退到 {b} 韩元那一格。',
+    coin_done: '结束。{a} 韩元 = {list}，共 {k} 枚',
+    coin_inf: '结束。{a} 韩元凑不出。',
+    lis_init: '单个元素本身长度就是 1。dp 全部从 1 开始。',
+    lis_fill: 'arr[{i}] = {x}：前面比 {x} 小的有 {list}。接在其中 dp 最大的 {bx}（dp {bd}）后面 ⇒ dp[{i}] = {v}',
+    lis_none: 'arr[{i}] = {x}：前面没有比 {x} 小的。dp[{i}] = 1',
+    lis_end: 'dp 的最大值 {v} 结束于 arr[{i}] = {x}。沿 prev 倒着走。',
+    lis_restore: 'prev[{i}] = {j} → arr[{j}] = {x}',
+    lis_done: '结束。还原出的序列是 {list}，长度 {v}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+const rows: { key: string; label: string }[] =
+  problem === 'fib'
+    ? [{ key: 'dp', label: t.row_dp }]
+    : problem === 'coin'
+      ? [
+          { key: 'dp', label: t.row_dp },
+          { key: 'aux', label: t.row_choice },
+        ]
+      : [
+          { key: 'arr', label: t.row_arr },
+          { key: 'dp', label: t.row_dp },
+          { key: 'aux', label: t.row_prev },
+        ];
+const title = t[`title_${problem}`];
+const headLabel = t[`head_${problem}`];
+const config = { problem, n, coins, amount, unit, arr, cols };
+---
+
+<div
+  class:list={['aas-dp-table-demo', slide && 'is-slide']}
+  id={id}
+  data-dt-strings={JSON.stringify(t)}
+  data-dt-config={JSON.stringify(config)}
+  style={`--dt-cols: ${cols}`}
+>
+  <div class="dt-bar">
+    <span class="dt-head"><strong>{title}</strong></span>
+    <span class="dt-controls">
+      <button type="button" class="dt-btn" data-dt-back>{t.back}</button>
+      <button type="button" class="dt-btn" data-dt-step>{t.step}</button>
+      <button type="button" class="dt-btn dt-btn-primary" data-dt-play>{t.play}</button>
+      <button type="button" class="dt-btn" data-dt-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="dt-scroll">
+    <div class="dt-grid">
+      <svg class="dt-arcs dt-arcs-top" data-dt-top viewBox={`0 0 ${cols * 100} 90`} aria-hidden="true"></svg>
+      <span class="dt-label dt-label-head">{headLabel}</span>
+      {header.map((h) => <span class="dt-index">{h}</span>)}
+      {
+        rows.map((r) => (
+          <>
+            <span class="dt-label">{r.label}</span>
+            {header.map((_, k) => (
+              <span class="dt-cell" data-dt-row={r.key} data-dt-col={k} />
+            ))}
+          </>
+        ))
+      }
+      <svg class="dt-arcs dt-arcs-bottom" data-dt-bottom viewBox={`0 0 ${cols * 100} 90`} aria-hidden="true"></svg>
+    </div>
+  </div>
+
+  <div class="dt-foot">
+    <p class="dt-note" data-dt-note></p>
+    <span class="dt-count">{t.filled} <strong data-dt-count>0</strong> / {cols}</span>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const SVG = 'http://www.w3.org/2000/svg';
+    const INF = Infinity;
+    const fill = (tpl: string, vars: Record<string, string | number>) =>
+      tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+    const show = (v: number | null | undefined) =>
+      v === null || v === undefined ? '' : v === INF ? 'INF' : String(v);
+
+    type Step = {
+      dp: (number | null)[];
+      aux: (number | null)[];
+      cur: number | null;
+      refs: number[];
+      best: number | null;
+      path: number[];
+      note: string;
+      done?: boolean;
+    };
+
+    /* 단계를 만든다. 절차는 algorithm-code의 세 tab 함수와 같다. */
+    function plan(cfg: any, S: Record<string, string>): Step[] {
+      const steps: Step[] = [];
+      const cols: number = cfg.cols;
+      const dp: (number | null)[] = new Array(cols).fill(null);
+      const aux: (number | null)[] = new Array(cols).fill(null);
+      const push = (s: Partial<Step>) =>
+        steps.push({ dp: dp.slice(), aux: aux.slice(), cur: null, refs: [], best: null, path: [], note: '', ...s });
+
+      if (cfg.problem === 'fib') {
+        dp[0] = 0;
+        if (cols > 1) dp[1] = 1;
+        push({ note: S.fib_init });
+        for (let i = 2; i < cols; i++) {
+          dp[i] = (dp[i - 1] as number) + (dp[i - 2] as number);
+          push({
+            cur: i,
+            refs: [i - 1, i - 2],
+            note: fill(S.fib_fill, { i, a: i - 1, b: i - 2, x: dp[i - 1]!, y: dp[i - 2]!, v: dp[i]! }),
+          });
+        }
+        steps[steps.length - 1].done = true;
+        steps[steps.length - 1].note += '  ' + fill(S.fib_done, { n: cols - 1, v: dp[cols - 1]! });
+        return steps;
+      }
+
+      if (cfg.problem === 'coin') {
+        const unit: number = cfg.unit;
+        dp[0] = 0;
+        for (let k = 1; k < cols; k++) dp[k] = INF;
+        push({ note: S.coin_init });
+        for (let k = 1; k < cols; k++) {
+          const a = k * unit;
+          const parts: string[] = [];
+          const refs: number[] = [];
+          let best: number | null = null;
+          for (const c of cfg.coins as number[]) {
+            const r = k - c / unit;
+            if (c <= a && dp[r] !== INF) {
+              const v = (dp[r] as number) + 1;
+              refs.push(r);
+              parts.push(fill(S.coin_try, { c, r: r * unit, v }));
+              if (v < (dp[k] as number)) {
+                dp[k] = v;
+                aux[k] = c;
+                best = r;
+              }
+            } else {
+              parts.push(fill(S.coin_no, { c }));
+            }
+          }
+          push({
+            cur: k,
+            refs,
+            best,
+            note: fill(S.coin_fill, { a, list: parts.join(' · '), v: show(dp[k]) }),
+          });
+        }
+        const last = cols - 1;
+        if (dp[last] === INF) {
+          steps[steps.length - 1].done = true;
+          steps[steps.length - 1].note += '  ' + fill(S.coin_inf, { a: last * unit });
+          return steps;
+        }
+        const path = [last];
+        const used: number[] = [];
+        let k = last;
+        while (k > 0) {
+          const c = aux[k] as number;
+          const nk = k - c / unit;
+          used.push(c);
+          path.push(nk);
+          push({ cur: k, path: path.slice(), note: fill(S.coin_restore, { a: k * unit, c, b: nk * unit }) });
+          k = nk;
+        }
+        push({
+          path,
+          done: true,
+          note: fill(S.coin_done, { a: last * unit, list: used.join(' + '), k: used.length }),
+        });
+        return steps;
+      }
+
+      /* lis */
+      const arr: number[] = cfg.arr;
+      for (let i = 0; i < cols; i++) {
+        dp[i] = 1;
+        aux[i] = -1;
+      }
+      push({ note: S.lis_init });
+      for (let i = 1; i < cols; i++) {
+        const refs: number[] = [];
+        let best: number | null = null;
+        for (let j = 0; j < i; j++) {
+          if (arr[j] < arr[i]) {
+            refs.push(j);
+            if ((dp[j] as number) + 1 > (dp[i] as number)) {
+              dp[i] = (dp[j] as number) + 1;
+              aux[i] = j;
+              best = j;
+            }
+          }
+        }
+        const note =
+          best === null
+            ? fill(S.lis_none, { i, x: arr[i] })
+            : fill(S.lis_fill, {
+                i,
+                x: arr[i],
+                list: refs.map((j) => arr[j]).join(', '),
+                bx: arr[best],
+                bd: dp[best]!,
+                v: dp[i]!,
+              });
+        push({ cur: i, refs, best, note });
+      }
+      let end = 0;
+      for (let i = 1; i < cols; i++) if ((dp[i] as number) > (dp[end] as number)) end = i;
+      const path = [end];
+      push({ cur: end, path: path.slice(), note: fill(S.lis_end, { v: dp[end]!, i: end, x: arr[end] }) });
+      let k = end;
+      while ((aux[k] as number) !== -1) {
+        const j = aux[k] as number;
+        path.push(j);
+        push({ cur: j, path: path.slice(), note: fill(S.lis_restore, { i: k, j, x: arr[j] }) });
+        k = j;
+      }
+      push({
+        path,
+        done: true,
+        note: fill(S.lis_done, { list: path.slice().reverse().map((j) => arr[j]).join(' '), v: dp[end]! }),
+      });
+      return steps;
+    }
+
+    /* 열 j의 가운데 x (viewBox 단위). 칸 하나가 100이다. */
+    const cx = (j: number) => j * 100 + 50;
+
+    function arc(svg: SVGSVGElement, from: number, to: number, cls: string, down: boolean) {
+      const y0 = down ? 4 : 86;
+      const span = Math.abs(to - from);
+      const h = Math.min(78, 26 + span * 14);
+      const yc = down ? y0 + h : y0 - h;
+      const x0 = cx(from) + (to > from ? 12 : -12);
+      const x1 = cx(to) + (to > from ? -12 : 12);
+      const p = document.createElementNS(SVG, 'path');
+      p.setAttribute('d', `M ${x0} ${y0} Q ${(x0 + x1) / 2} ${yc} ${x1} ${y0}`);
+      p.setAttribute('class', `dt-arc ${cls}`);
+      svg.appendChild(p);
+      // 화살촉: 끝점에서 조절점 쪽으로 되짚은 방향으로 작은 삼각형
+      const dx = x1 - (x0 + x1) / 2;
+      const dy = y0 - yc;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      const s = 13;
+      const head = document.createElementNS(SVG, 'path');
+      head.setAttribute(
+        'd',
+        `M ${x1} ${y0} L ${x1 - ux * s - uy * s * 0.6} ${y0 - uy * s + ux * s * 0.6} L ${x1 - ux * s + uy * s * 0.6} ${y0 - uy * s - ux * s * 0.6} Z`,
+      );
+      head.setAttribute('class', `dt-head-arrow ${cls}`);
+      svg.appendChild(head);
+    }
+
+    document.querySelectorAll<HTMLElement>('.aas-dp-table-demo').forEach((root) => {
+      if (root.dataset.dtWired) return;
+      root.dataset.dtWired = '1';
+
+      const S = JSON.parse(root.dataset.dtStrings || '{}');
+      const cfg = JSON.parse(root.dataset.dtConfig || '{}');
+      const steps = plan(cfg, S);
+      const cells = [...root.querySelectorAll<HTMLElement>('[data-dt-row]')];
+      const top = root.querySelector<SVGSVGElement>('[data-dt-top]')!;
+      const bottom = root.querySelector<SVGSVGElement>('[data-dt-bottom]')!;
+      const note = root.querySelector<HTMLElement>('[data-dt-note]')!;
+      const count = root.querySelector<HTMLElement>('[data-dt-count]')!;
+      const stepBtn = root.querySelector<HTMLButtonElement>('[data-dt-step]')!;
+      const playBtn = root.querySelector<HTMLButtonElement>('[data-dt-play]')!;
+
+      let at = -1;
+      let timer: number | null = null;
+
+      function render() {
+        const s = at >= 0 ? steps[at] : null;
+        top.replaceChildren();
+        bottom.replaceChildren();
+        const filled = s ? s.dp.filter((v) => v !== null).length : 0;
+        cells.forEach((el) => {
+          const row = el.dataset.dtRow!;
+          const k = Number(el.dataset.dtCol);
+          let text = '';
+          if (row === 'arr') text = String(cfg.arr[k]);
+          else if (s && row === 'dp') text = show(s.dp[k]);
+          else if (s && row === 'aux') {
+            const v = s.aux[k];
+            text = v === null ? '' : cfg.problem === 'coin' && v === 0 ? '' : String(v);
+          }
+          el.textContent = text;
+          const isMain = row === 'dp';
+          el.classList.toggle('is-filled', isMain && !!s && s.dp[k] !== null);
+          el.classList.toggle('is-inf', isMain && !!s && s.dp[k] === INF);
+          el.classList.toggle('is-cur', !!s && s.cur === k && (isMain || row === 'arr'));
+          el.classList.toggle('is-ref', !!s && s.refs.includes(k) && (isMain || row === 'arr'));
+          el.classList.toggle('is-best', !!s && s.best === k && (isMain || row === 'arr'));
+          el.classList.toggle('is-path', !!s && s.path.includes(k) && (isMain || row === 'arr'));
+        });
+        if (s && s.cur !== null) {
+          for (const r of s.refs) arc(top, r, s.cur, r === s.best ? 'is-best' : 'is-ref', false);
+        }
+        if (s) {
+          for (let i = 0; i + 1 < s.path.length; i++) arc(bottom, s.path[i], s.path[i + 1], 'is-path', true);
+        }
+        count.textContent = String(filled);
+        note.textContent = s ? s.note : S.idle;
+        const last = at === steps.length - 1;
+        root.classList.toggle('is-done', last);
+        stepBtn.disabled = last;
+        if (last) stop();
+      }
+
+      function stop() {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+          playBtn.textContent = S.play;
+        }
+      }
+      function step() {
+        if (at < steps.length - 1) at++;
+        render();
+      }
+
+      root.querySelector('[data-dt-back]')!.addEventListener('click', () => {
+        stop();
+        if (at > -1) at--;
+        render();
+      });
+      stepBtn.addEventListener('click', () => {
+        stop();
+        step();
+      });
+      playBtn.addEventListener('click', () => {
+        if (timer !== null) {
+          stop();
+          return;
+        }
+        if (at >= steps.length - 1) at = -1;
+        playBtn.textContent = S.stop;
+        timer = window.setInterval(step, 1400);
+      });
+      root.querySelector('[data-dt-reset]')!.addEventListener('click', () => {
+        stop();
+        at = -1;
+        render();
+      });
+
+      render();
+    });
+  })();
+</script>
+
+<style is:global>
+  .aas-dp-table-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 칸 폭이 em으로 고정이라 화살표 SVG가
+       칸과 같은 비율로 커진다. */
+    --dt-cell: 3.4em;
+    --dt-label: 3.6em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-dp-table-demo .dt-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.4em;
+  }
+  .aas-dp-table-demo .dt-head {
+    font-size: 0.95em;
+  }
+  .aas-dp-table-demo .dt-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-dp-table-demo .dt-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-dp-table-demo .dt-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-dp-table-demo .dt-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-dp-table-demo .dt-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-dp-table-demo .dt-scroll {
+    overflow-x: auto;
+  }
+  .aas-dp-table-demo .dt-grid {
+    display: grid;
+    grid-template-columns: var(--dt-label) repeat(var(--dt-cols), var(--dt-cell));
+    width: max-content;
+    margin: 0 auto;
+    row-gap: 0.25em;
+  }
+  .aas-dp-table-demo .dt-arcs {
+    grid-column: 2 / -1;
+    display: block;
+    width: 100%;
+    height: calc(var(--dt-cell) * 0.9);
+    overflow: visible;
+  }
+  .aas-dp-table-demo .dt-label {
+    grid-column: 1;
+    align-self: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-table-demo .dt-index {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-table-demo .dt-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.2em;
+    margin: 0 0.12em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    color: var(--aas-text);
+    transition:
+      background-color 0.25s,
+      border-color 0.25s,
+      box-shadow 0.25s;
+  }
+  .aas-dp-table-demo .dt-cell[data-dt-row='arr'] {
+    background: transparent;
+    border-style: dashed;
+  }
+  .aas-dp-table-demo .dt-cell[data-dt-row='aux'] {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    border-style: dotted;
+  }
+  .aas-dp-table-demo .dt-cell.is-filled {
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-dp-table-demo .dt-cell.is-inf {
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+  }
+  /* 참조하는 칸: 파랑. 그중 답을 준 칸은 진하게 */
+  .aas-dp-table-demo .dt-cell.is-ref {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-dp-table-demo .dt-cell.is-best {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 32%, var(--aas-bg));
+    font-weight: 700;
+  }
+  /* 지금 채우는 칸: 주황 */
+  .aas-dp-table-demo .dt-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  /* 경로 복원: 분홍 */
+  .aas-dp-table-demo .dt-cell.is-path {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+
+  .aas-dp-table-demo .dt-arc {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+  .aas-dp-table-demo .dt-arc.is-ref {
+    stroke: color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    stroke-dasharray: 10 8;
+  }
+  .aas-dp-table-demo .dt-arc.is-best {
+    stroke: var(--aas-role-model);
+    stroke-width: 6;
+  }
+  .aas-dp-table-demo .dt-arc.is-path {
+    stroke: var(--aas-role-guard);
+    stroke-width: 6;
+  }
+  .aas-dp-table-demo .dt-head-arrow.is-ref {
+    fill: color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+  }
+  .aas-dp-table-demo .dt-head-arrow.is-best {
+    fill: var(--aas-role-model);
+  }
+  .aas-dp-table-demo .dt-head-arrow.is-path {
+    fill: var(--aas-role-guard);
+  }
+
+  .aas-dp-table-demo .dt-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-dp-table-demo .dt-note {
+    flex: 1 1 20em;
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-dp-table-demo.is-done .dt-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-dp-table-demo .dt-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-dp-table-demo .dt-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
+  .aas-dp-table-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-dp-table-demo.is-slide .dt-note {
+    min-height: 2.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-dp-table-demo .dt-cell {
+      transition: none;
+    }
+  }
+</style>
