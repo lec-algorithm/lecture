@@ -14,6 +14,9 @@ import FibMemoDemo from '@components/FibMemoDemo.astro';
 import DpTableDemo from '@components/DpTableDemo.astro';
 import DpGridDemo from '@components/DpGridDemo.astro';
 import PathDpDemo from '@components/PathDpDemo.astro';
+import FibCountDemo from '@components/FibCountDemo.astro';
+import CoinMemoDemo from '@components/CoinMemoDemo.astro';
+import CoinCompareDemo from '@components/CoinCompareDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-14-dynamic-programming）的运行结果一致。 */}
@@ -253,6 +256,15 @@ ALGORITHM FibTabulation(n)
 
 </Slide>
 
+<Slide>
+
+### 动手数一数：三种方式的计算量
+::sub[拖动 n。点击下面的柱子，可以看到纯递归调用该项的次数]
+
+<FibCountDemo n={5} slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 三种方式并排
@@ -464,29 +476,12 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 记忆化往下走的路
-::sub[coinChangeMemo(6)]
+### 单步：记忆化往下走的路
+::sub[coinChangeMemo(6) · 黄色是从 memo 取出的调用，虚线是负数金额，粗边是给出最小值的硬币]
 
-```plaintext
-solve 6
-├─ 硬币 2: 6-2 = 4 → solve 4
-│  ├─ 硬币 2: 4-2 = 2 → solve 2
-│  │  ├─ 硬币 2: 2-2 = 0 → 0 枚
-│  │  ├─ 硬币 3, 5: 负数 → 不行
-│  │  └─ 结果: 1 枚 (2)
-│  ├─ 硬币 3: 4-3 = 1 → solve 1
-│  │  └─ 结果: 不行 (INF)
-│  ├─ 硬币 5: 负数 → 不行
-│  └─ 结果: 2 枚 (2 + 2)
-├─ 硬币 3: 6-3 = 3 → solve 3
-│  ├─ 硬币 2: 3-2 = 1 → 取出 memo[1] = INF
-│  ├─ 硬币 3: 3-3 = 0 → 0 枚
-│  └─ 结果: 1 枚 (3)
-├─ 硬币 5: 6-5 = 1 → 取出 memo[1] = INF
-└─ 最终: min(2+1, 1+1) = 2 枚 (3 + 3)
-```
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
 
 </Slide>
 
@@ -569,6 +564,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 - 贪心在拿起 50 韩元的那一刻，就再也没看 40 韩元那条路。
 - 记忆化只解了 10 韩元为单位的 **8 个**金额，表格填满了 **80 格**。
 - 时间 $$O(Am)$$ · 空间 $$O(A)$$（金额 $$A$$，硬币 $$m$$ 种）
+
+</Slide>
+
+<Slide>
+
+### 动手试试：贪心答错的金额
+::sub[选一组硬币或自己输入，再点击金额格子比较两种答案]
+
+<CoinCompareDemo coins={[50, 40, 10]} amount={80} slide />
 
 </Slide>
 
@@ -760,6 +764,15 @@ tab             = 48
 ```
 
 没有障碍时是 $$\binom{10}{5} = 252$$，对角线上的三个障碍挡住了 204 条。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：障碍
+::sub[点击格子放置或移除障碍，表格会从头重新填写]
+
+<DpGridDemo problem="grid" editable slide />
 
 </Slide>
 
@@ -973,6 +986,15 @@ best = 220
 
 - 220 = max(上面一格 160, `dp[2][20]` + 120)
 - 贪心错过的"丢掉物品 1、装 2 和 3"就藏在 `dp[2][20] = 100` 里。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：容量与物品
+::sub[把容量降到 40，或改动重量、价值，表格、还原结果和贪心的答案会一起改变]
+
+<DpGridDemo problem="knapsack" editable slide />
 
 </Slide>
 

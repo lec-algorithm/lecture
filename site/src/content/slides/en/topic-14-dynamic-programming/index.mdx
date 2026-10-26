@@ -14,6 +14,9 @@ import FibMemoDemo from '@components/FibMemoDemo.astro';
 import DpTableDemo from '@components/DpTableDemo.astro';
 import DpGridDemo from '@components/DpGridDemo.astro';
 import PathDpDemo from '@components/PathDpDemo.astro';
+import FibCountDemo from '@components/FibCountDemo.astro';
+import CoinMemoDemo from '@components/CoinMemoDemo.astro';
+import CoinCompareDemo from '@components/CoinCompareDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-14-dynamic-programming) exactly. */}
@@ -254,6 +257,15 @@ ALGORITHM FibTabulation(n)
 
 </Slide>
 
+<Slide>
+
+### Count it yourself: the work of the three methods
+::sub[Move n. Click a bar below to see how many times recursion called that term]
+
+<FibCountDemo n={5} slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### The three side by side
@@ -465,29 +477,12 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### The path the memo takes down
-::sub[coinChangeMemo(6)]
+### One step at a time: the path the memo takes down
+::sub[coinChangeMemo(6) · yellow is read from memo, dashed is a negative amount, bold edges gave the minimum]
 
-```plaintext
-solve 6
-├─ coin 2: 6-2 = 4 → solve 4
-│  ├─ coin 2: 4-2 = 2 → solve 2
-│  │  ├─ coin 2: 2-2 = 0 → 0 coins
-│  │  ├─ coins 3, 5: negative → impossible
-│  │  └─ result: 1 coin (2)
-│  ├─ coin 3: 4-3 = 1 → solve 1
-│  │  └─ result: impossible (INF)
-│  ├─ coin 5: negative → impossible
-│  └─ result: 2 coins (2 + 2)
-├─ coin 3: 6-3 = 3 → solve 3
-│  ├─ coin 2: 3-2 = 1 → memo[1] = INF, read back
-│  ├─ coin 3: 3-3 = 0 → 0 coins
-│  └─ result: 1 coin (3)
-├─ coin 5: 6-5 = 1 → memo[1] = INF, read back
-└─ final: min(2+1, 1+1) = 2 coins (3 + 3)
-```
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
 
 </Slide>
 
@@ -570,6 +565,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 - Once greedy picked 50 won, it never looked at the 40-won option again.
 - The memo solved only **8** amounts, all multiples of 10; the table filled all **80** cells.
 - Time $$O(Am)$$ · space $$O(A)$$ (amount $$A$$, $$m$$ coins)
+
+</Slide>
+
+<Slide>
+
+### Try it yourself: amounts where greedy differs
+::sub[Pick a coin set or type one in, then click an amount to compare the two answers]
+
+<CoinCompareDemo coins={[50, 40, 10]} amount={80} slide />
 
 </Slide>
 
@@ -761,6 +765,15 @@ tab             = 48
 ```
 
 Without obstacles there are $$\binom{10}{5} = 252$$; the three diagonal obstacles block 204.
+
+</Slide>
+
+<Slide>
+
+### Try it yourself: obstacles
+::sub[Click a cell to place or remove an obstacle; the table is filled again from the start]
+
+<DpGridDemo problem="grid" editable slide />
 
 </Slide>
 
@@ -974,6 +987,15 @@ best = 220
 
 - 220 = max(the cell above, 160; `dp[2][20]` + 120)
 - The "drop item 1, take 2 and 3" that greedy missed was already inside `dp[2][20] = 100`.
+
+</Slide>
+
+<Slide>
+
+### Try it yourself: capacity and items
+::sub[Lower the capacity to 40 or change a weight or value; the table, the restored items and the greedy answer change together]
+
+<DpGridDemo problem="knapsack" editable slide />
 
 </Slide>
 

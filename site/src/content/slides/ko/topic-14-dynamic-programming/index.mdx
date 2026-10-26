@@ -14,6 +14,9 @@ import FibMemoDemo from '@components/FibMemoDemo.astro';
 import DpTableDemo from '@components/DpTableDemo.astro';
 import DpGridDemo from '@components/DpGridDemo.astro';
 import PathDpDemo from '@components/PathDpDemo.astro';
+import FibCountDemo from '@components/FibCountDemo.astro';
+import CoinMemoDemo from '@components/CoinMemoDemo.astro';
+import CoinCompareDemo from '@components/CoinCompareDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-14-dynamic-programming)의 실행 결과와 같습니다. */}
@@ -253,6 +256,15 @@ ALGORITHM FibTabulation(n)
 
 </Slide>
 
+<Slide>
+
+### 직접 세기: 세 방식의 계산량
+::sub[n을 움직여 봅니다. 아래 막대를 누르면 그 항을 재귀가 몇 번 불렀는지 보입니다]
+
+<FibCountDemo n={5} slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 세 방식을 나란히
@@ -464,29 +476,12 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 메모가 내려가는 길
-::sub[coinChangeMemo(6)]
+### 한 걸음씩: 메모가 내려가는 길
+::sub[coinChangeMemo(6) · 노랑은 memo에서 꺼낸 호출, 점선은 음수 금액, 진한 간선은 최솟값을 준 동전입니다]
 
-```plaintext
-solve 6
-├─ 동전 2: 6-2 = 4 → solve 4
-│  ├─ 동전 2: 4-2 = 2 → solve 2
-│  │  ├─ 동전 2: 2-2 = 0 → 0개
-│  │  ├─ 동전 3, 5: 음수 → 불가
-│  │  └─ 결과: 1개 (2)
-│  ├─ 동전 3: 4-3 = 1 → solve 1
-│  │  └─ 결과: 불가 (INF)
-│  ├─ 동전 5: 음수 → 불가
-│  └─ 결과: 2개 (2 + 2)
-├─ 동전 3: 6-3 = 3 → solve 3
-│  ├─ 동전 2: 3-2 = 1 → memo[1] = INF 꺼냄
-│  ├─ 동전 3: 3-3 = 0 → 0개
-│  └─ 결과: 1개 (3)
-├─ 동전 5: 6-5 = 1 → memo[1] = INF 꺼냄
-└─ 최종: min(2+1, 1+1) = 2개 (3 + 3)
-```
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
 
 </Slide>
 
@@ -569,6 +564,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 - 그리디는 50원을 고른 순간 40원 쪽을 다시 보지 않았습니다.
 - 메모는 10원 단위 금액 **8개**만, 표는 **80칸** 전부를 채웠습니다.
 - 시간 $$O(Am)$$ · 공간 $$O(A)$$ (금액 $$A$$, 동전 $$m$$개)
+
+</Slide>
+
+<Slide>
+
+### 직접 바꿔 보기: 그리디와 갈리는 금액
+::sub[동전 묶음을 고르거나 직접 적고, 금액 칸을 눌러 두 방법의 답을 견줍니다]
+
+<CoinCompareDemo coins={[50, 40, 10]} amount={80} slide />
 
 </Slide>
 
@@ -760,6 +764,15 @@ tab             = 48
 ```
 
 장애물이 없으면 $$\binom{10}{5} = 252$$, 대각선 장애물 셋이 204개를 막았습니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 바꿔 보기: 장애물
+::sub[칸을 누르면 장애물을 놓거나 빼고, 표를 처음부터 다시 채웁니다]
+
+<DpGridDemo problem="grid" editable slide />
 
 </Slide>
 
@@ -973,6 +986,15 @@ best = 220
 
 - 220 = max(위 칸 160, `dp[2][20]` + 120)
 - 그리디가 놓친 "물건 1을 버리고 2, 3"이 `dp[2][20] = 100`에 들어 있었습니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 바꿔 보기: 용량과 물건
+::sub[용량을 40으로 줄이거나 무게·가치를 바꾸면 표와 복원, 그리디의 답이 함께 바뀝니다]
+
+<DpGridDemo problem="knapsack" editable slide />
 
 </Slide>
 

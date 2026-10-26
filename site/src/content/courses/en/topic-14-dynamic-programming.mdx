@@ -14,6 +14,9 @@ import FibMemoDemo from '@components/FibMemoDemo.astro';
 import DpTableDemo from '@components/DpTableDemo.astro';
 import DpGridDemo from '@components/DpGridDemo.astro';
 import PathDpDemo from '@components/PathDpDemo.astro';
+import FibCountDemo from '@components/FibCountDemo.astro';
+import CoinMemoDemo from '@components/CoinMemoDemo.astro';
+import CoinCompareDemo from '@components/CoinCompareDemo.astro';
 
 > In Topic 01 we saw why recursive Fibonacci is slow. The culprit was not
 > recursion but **computing the same value over and over**.  
@@ -194,6 +197,17 @@ version. **Iteration is tabulation with the space trimmed down.**
 
 ### The three side by side \{#fib-run}
 
+Move $$n$$ and count the work of the three methods yourself. The bars take the
+recursive call count for the current $$n$$ as their full length. The strip below
+shows how many times plain recursion calls each $$F(k)$$; click a bar to see the
+recursive and memo call counts for that term.
+
+<FibCountDemo n={5} />
+
+Past $$n = 20$$ the memo and table bars are barely visible. The number of times
+recursion calls $$F(k)$$ is itself a Fibonacci number; $$F(1)$$ is called $$F(n)$$
+times.
+
 - Run
 
 ```sh
@@ -347,6 +361,14 @@ An amount that cannot be made is $$\infty$$ (`INF` in the code).
 
 Transcribe the recurrence as a recursion and add a memo. The steps are the same
 as for Fibonacci.
+Step through how `coinChangeMemo(6)` actually descends. The upper number in a
+node is the amount, the lower one its answer (the fewest coins). Yellow is a call
+read from the memo, dashed is a negative amount, and bold edges are the coins that
+gave the minimum.
+
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} />
+
+Written as pseudocode, the procedure is this.
 
 ```plaintext
 ALGORITHM CoinChangeMemo(amount, coins, m, memo)
@@ -361,27 +383,6 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
             best <- r + 1
     memo[amount] <- best                 // 4. write it down and return
     return best
-```
-
-Following how `coinChangeMemo(6)` actually descends gives this.
-
-```plaintext
-solve 6
-├─ coin 2: 6-2 = 4 → solve 4
-│  ├─ coin 2: 4-2 = 2 → solve 2
-│  │  ├─ coin 2: 2-2 = 0 → 0 coins
-│  │  ├─ coins 3, 5: negative → impossible
-│  │  └─ result: 1 coin (2)
-│  ├─ coin 3: 4-3 = 1 → solve 1
-│  │  └─ result: impossible (INF)
-│  ├─ coin 5: negative → impossible
-│  └─ result: 2 coins (2 + 2)
-├─ coin 3: 6-3 = 3 → solve 3
-│  ├─ coin 2: 3-2 = 1 → memo[1] = INF, read back
-│  ├─ coin 3: 3-3 = 0 → 0 coins
-│  └─ result: 1 coin (3)
-├─ coin 5: 6-5 = 1 → memo[1] = INF, read back
-└─ final: min(2+1, 1+1) = 2 coins (3 + 3)
 ```
 
 `memo[1]` was computed once and read back twice. The `memo` array in the output
@@ -493,6 +494,13 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 For 80 won, the memo solved only **8** amounts, all multiples of 10, while the
 table filled all **80** cells from 1 won up. Both answer 2 coins, 40 + 40.
+
+80 won is not the only amount where greedy and DP disagree. Pick a coin set or
+type one in, then click an amount to compare the coins the two methods pay. Some
+sets, like `{100, 50, 10}`, are always right for greedy; others, like `{2, 3, 5}`,
+make greedy get stuck.
+
+<CoinCompareDemo coins={[50, 40, 10]} amount={80} />
 
 ## Example 2. Longest increasing subsequence \{#lis}
 
@@ -718,6 +726,12 @@ of size $$X \times Y$$, time and space are both $$O(XY)$$.
 
 With the target at `(5, 5)`, the answer is the same even on a 10 × 10 grid.
 Since moves go only right and down, cells beyond the target are never used.
+
+Move the obstacles yourself. Clicking a cell places or removes an obstacle, and the
+table is filled again from the start. Remove all three and the count becomes 252.
+Blocking a single cell removes every path that used to pass through it at once.
+
+<DpGridDemo problem="grid" editable />
 
 ## Example 4. Path finding: shortest path with k edges \{#shortest-path}
 
@@ -949,6 +963,12 @@ Restoration goes from the bottom up. `dp[3][50] = 220` differs from the cell
 above, so item 3 was taken, and we move to capacity 20. `dp[2][20] = 100` also
 differs from the 60 above it, so item 2 was taken. `dp[1][0] = 0` equals the
 cell above, so item 1 was not taken.
+
+Change the capacity and the items. Lower the capacity to 40 and the answer becomes
+180 (items 1 and 3). The line under the table shows what greedy (by value per
+weight) gets under the same conditions.
+
+<DpGridDemo problem="knapsack" editable />
 
 The table is $$(n+1) \times (W+1)$$, so time and space are both $$O(nW)$$. Note
 that $$W$$ is a **value** in the input. With a capacity of a billion, the table

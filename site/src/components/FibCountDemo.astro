@@ -1,0 +1,369 @@
+---
+// 피보나치를 세 방식으로 구할 때 일의 양을 n에 따라 나란히 세는 데모.
+//
+// n 슬라이더를 움직이면 세 막대가 바뀐다.
+// - 재귀 호출: 정의를 그대로 옮긴 재귀(fibRecursive)가 불린 횟수
+// - 메모 호출: 메모이제이션(fibMemo)이 불린 횟수
+// - 표 칸: 타뷸레이션이 채우는 dp 칸 수 (n + 1)
+// 막대는 지금 n의 재귀 호출 수를 길이 전체로 잡는 선형 눈금이다. n이 커지면
+// 메모와 표의 막대가 거의 보이지 않게 되는 것이 요점이다.
+//
+// 아래 띠는 재귀가 F(k) 하나를 몇 번 불렀는지를 k마다 막대로 보인다. 막대를
+// 누르면 그 k의 재귀·메모 호출 수가 위에 나온다.
+//
+// 호출 수는 스크립트가 두 함수를 실제로 돌려 센다. 절차와 세는 법은
+// algorithm-code topic-14 01_fibonacci와 같다(n = 10, 20, 30에서 177, 21891,
+// 2692537과 19, 39, 59).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 n */
+  n?: number;
+  /** 슬라이더 최댓값. 30이면 재귀를 270만 번 돌린다. */
+  max?: number;
+  /** k 띠에서 처음 고른 항 */
+  pick?: number;
+  slide?: boolean;
+}
+const { n = 5, max = 30, pick = 2, slide = false } = Astro.props;
+const id = `fc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '세 방식의 계산량',
+    plain: '재귀 호출',
+    memo: '메모 호출',
+    tab: '표 칸',
+    strip: '재귀가 F(k)를 부른 횟수',
+    pick: 'F({k}): 재귀 {x}번 · 메모 {y}번',
+    note: 'F({n}) 하나에 재귀는 {p}번 호출합니다. 서로 다른 값은 {d}개뿐이라 메모는 {m}번, 표는 {t}칸이면 됩니다.',
+  },
+  en: {
+    title: 'Work done by three methods',
+    plain: 'recursive calls',
+    memo: 'memo calls',
+    tab: 'table cells',
+    strip: 'Times plain recursion calls F(k)',
+    pick: 'F({k}): recursion {x} · memo {y}',
+    note: 'Plain recursion makes {p} calls for a single F({n}). There are only {d} distinct values, so the memo needs {m} calls and the table {t} cells.',
+  },
+  zh: {
+    title: '三种方式的计算量',
+    plain: '递归调用',
+    memo: '记忆调用',
+    tab: '表格格数',
+    strip: '纯递归调用 F(k) 的次数',
+    pick: 'F({k})：递归 {x} 次 · 记忆 {y} 次',
+    note: '仅一个 F({n})，纯递归就调用 {p} 次。不同的值只有 {d} 个，所以记忆化调用 {m} 次、填表 {t} 格就够了。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const top = Math.max(2, Math.min(max, 32));
+---
+
+<div
+  class:list={['aas-fib-count-demo', slide && 'is-slide']}
+  id={id}
+  data-fc-n={Math.min(Math.max(1, n), top)}
+  data-fc-pick={pick}
+  data-fc-strings={JSON.stringify(t)}
+>
+  <div class="fc-bar">
+    <span class="fc-head"><strong>{t.title}</strong></span>
+    <label class="fc-range">
+      n <strong data-fc-nval></strong>
+      <input type="range" min="1" max={top} step="1" data-fc-range />
+    </label>
+  </div>
+
+  <div class="fc-rows">
+    <span class="fc-label">{t.plain}</span>
+    <span class="fc-track"><span class="fc-fill is-plain" data-fc-fill="plain"></span></span>
+    <strong class="fc-num" data-fc-num="plain"></strong>
+    <span class="fc-label">{t.memo}</span>
+    <span class="fc-track"><span class="fc-fill is-memo" data-fc-fill="memo"></span></span>
+    <strong class="fc-num" data-fc-num="memo"></strong>
+    <span class="fc-label">{t.tab}</span>
+    <span class="fc-track"><span class="fc-fill is-tab" data-fc-fill="tab"></span></span>
+    <strong class="fc-num" data-fc-num="tab"></strong>
+  </div>
+
+  <div class="fc-strip-head">
+    <span>{t.strip}</span>
+    <strong data-fc-pickline></strong>
+  </div>
+  <svg class="fc-strip" data-fc-svg viewBox="0 0 640 150" role="img" aria-label={t.strip}></svg>
+
+  <p class="fc-note" data-fc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.fcStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    let N = Number(root.dataset.fcN);
+    let pick = Number(root.dataset.fcPick);
+
+    /* 정의 그대로의 재귀. k마다 불린 횟수를 센다. */
+    function countPlain(n) {
+      const cnt = new Array(n + 1).fill(0);
+      const go = (k) => {
+        cnt[k]++;
+        if (k <= 1) return k;
+        return go(k - 1) + go(k - 2);
+      };
+      go(n);
+      return cnt;
+    }
+    /* fibMemo: n <= 1은 메모를 보기 전에 돌려준다. */
+    function countMemo(n) {
+      const cnt = new Array(n + 1).fill(0);
+      const memo = new Array(n + 1).fill(-1);
+      const go = (k) => {
+        cnt[k]++;
+        if (k <= 1) return k;
+        if (memo[k] !== -1) return memo[k];
+        memo[k] = go(k - 1) + go(k - 2);
+        return memo[k];
+      };
+      go(n);
+      return cnt;
+    }
+    const sum = (a) => a.reduce((x, y) => x + y, 0);
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const svg = root.querySelector('[data-fc-svg]');
+    const range = root.querySelector('[data-fc-range]');
+    const nval = root.querySelector('[data-fc-nval]');
+    const note = root.querySelector('[data-fc-note]');
+    const pickLine = root.querySelector('[data-fc-pickline]');
+    const fills = Object.fromEntries([...root.querySelectorAll('[data-fc-fill]')].map((e) => [e.dataset.fcFill, e]));
+    const nums = Object.fromEntries([...root.querySelectorAll('[data-fc-num]')].map((e) => [e.dataset.fcNum, e]));
+    range.value = String(N);
+
+    let plain = [];
+    let memo = [];
+    function drawStrip() {
+      svg.replaceChildren();
+      const W = 640;
+      const top = 22;
+      const base = 118;
+      const slot = W / (N + 1);
+      const bw = Math.max(4, Math.min(44, slot * 0.7));
+      const most = Math.max(...plain);
+      const showNum = N <= 12;
+      const showLabel = (k) => N <= 15 || k % 5 === 0 || k === N;
+      el('line', { x1: 0, y1: base, x2: W, y2: base, class: 'fc-axis' }, svg);
+      for (let k = 0; k <= N; k++) {
+        const x = slot * (k + 0.5);
+        const h = Math.max(2, ((base - top) * plain[k]) / most);
+        const g = el('g', { class: `fc-col${k === pick ? ' is-pick' : ''}`, 'data-fc-k': k }, svg);
+        el('rect', { x: x - slot / 2, y: 0, width: slot, height: 150, class: 'fc-hit' }, g);
+        el('rect', { x: x - bw / 2, y: base - h, width: bw, height: h, rx: 3, class: 'fc-colbar' }, g);
+        if (showNum || k === pick) {
+          const tx = el('text', { x, y: base - h - 6, class: 'fc-colnum' }, g);
+          tx.textContent = fmt(plain[k]);
+        }
+        if (showLabel(k)) {
+          const lb = el('text', { x, y: base + 20, class: 'fc-collabel' }, g);
+          lb.textContent = String(k);
+        }
+      }
+    }
+
+    function render() {
+      plain = countPlain(N);
+      memo = countMemo(N);
+      if (pick > N) pick = Math.min(2, N);
+      const p = sum(plain);
+      const m = sum(memo);
+      const tcells = N + 1;
+      nval.textContent = String(N);
+      const val = { plain: p, memo: m, tab: tcells };
+      for (const key of Object.keys(val)) {
+        fills[key].style.width = `${Math.max(0.4, (100 * val[key]) / p)}%`;
+        nums[key].textContent = fmt(val[key]);
+      }
+      drawStrip();
+      pickLine.textContent = fill(S.pick, { k: pick, x: fmt(plain[pick]), y: memo[pick] });
+      setLines(note, fill(S.note, { n: N, p: fmt(p), d: N + 1, m, t: tcells }));
+    }
+
+    range.addEventListener('input', () => {
+      N = Number(range.value);
+      render();
+    });
+    svg.addEventListener('click', (ev) => {
+      const g = ev.target.closest('[data-fc-k]');
+      if (!g) return;
+      pick = Number(g.dataset.fcK);
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-fib-count-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-fib-count-demo .fc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-fib-count-demo .fc-head {
+    font-size: 0.95em;
+  }
+  .aas-fib-count-demo .fc-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-fib-count-demo .fc-range strong {
+    min-width: 1.6em;
+    color: var(--aas-text);
+  }
+  .aas-fib-count-demo .fc-range input {
+    width: 12em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-fib-count-demo .fc-rows {
+    display: grid;
+    grid-template-columns: max-content 1fr 6.5em;
+    gap: 0.45em 0.8em;
+    align-items: center;
+  }
+  .aas-fib-count-demo .fc-label {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-fib-count-demo .fc-track {
+    height: 1.2em;
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--aas-border) 45%, transparent);
+    overflow: hidden;
+  }
+  .aas-fib-count-demo .fc-fill {
+    display: block;
+    height: 100%;
+    border-radius: 0.3em;
+    transition: width 0.3s ease;
+  }
+  .aas-fib-count-demo .fc-fill.is-plain {
+    background: var(--aas-role-guard);
+  }
+  .aas-fib-count-demo .fc-fill.is-memo {
+    background: var(--aas-role-trace);
+  }
+  .aas-fib-count-demo .fc-fill.is-tab {
+    background: var(--aas-role-eval);
+  }
+  .aas-fib-count-demo .fc-num {
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+  }
+  .aas-fib-count-demo .fc-strip-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    justify-content: space-between;
+    margin-top: 0.9em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-fib-count-demo .fc-strip-head strong {
+    color: var(--aas-role-focus);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-fib-count-demo .fc-strip {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 11em;
+    overflow: visible;
+  }
+  .aas-fib-count-demo .fc-axis {
+    stroke: var(--aas-border);
+    stroke-width: 1.5;
+  }
+  .aas-fib-count-demo .fc-hit {
+    fill: transparent;
+    cursor: pointer;
+  }
+  .aas-fib-count-demo .fc-colbar {
+    fill: color-mix(in srgb, var(--aas-role-guard) 55%, var(--aas-bg));
+    pointer-events: none;
+  }
+  .aas-fib-count-demo .fc-col:hover .fc-colbar {
+    fill: var(--aas-role-guard);
+  }
+  .aas-fib-count-demo .fc-col.is-pick .fc-colbar {
+    fill: var(--aas-role-focus);
+  }
+  .aas-fib-count-demo .fc-colnum,
+  .aas-fib-count-demo .fc-collabel {
+    font-family: var(--aas-mono, monospace);
+    font-size: 15px;
+    text-anchor: middle;
+    fill: var(--aas-text);
+    pointer-events: none;
+  }
+  .aas-fib-count-demo .fc-collabel {
+    fill: var(--aas-muted);
+  }
+  .aas-fib-count-demo .fc-col.is-pick text {
+    fill: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-fib-count-demo .fc-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-fib-count-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-fib-count-demo.is-slide .fc-strip {
+    max-height: 22vh;
+  }
+  .aas-fib-count-demo.is-slide .fc-colnum,
+  .aas-fib-count-demo.is-slide .fc-collabel {
+    font-size: 18px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-fib-count-demo .fc-fill {
+      transition: none;
+    }
+  }
+</style>

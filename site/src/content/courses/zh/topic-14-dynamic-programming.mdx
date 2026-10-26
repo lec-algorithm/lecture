@@ -14,6 +14,9 @@ import FibMemoDemo from '@components/FibMemoDemo.astro';
 import DpTableDemo from '@components/DpTableDemo.astro';
 import DpGridDemo from '@components/DpGridDemo.astro';
 import PathDpDemo from '@components/PathDpDemo.astro';
+import FibCountDemo from '@components/FibCountDemo.astro';
+import CoinMemoDemo from '@components/CoinMemoDemo.astro';
+import CoinCompareDemo from '@components/CoinCompareDemo.astro';
 
 > 在主题 01 里我们看到了斐波那契递归为什么慢。原因不在递归，而在于
 > **把同一个值一遍又一遍地重新计算**。  
@@ -175,6 +178,15 @@ ALGORITHM FibTabulation(n)
 
 ### 三种方式并排比较 \{#fib-run}
 
+拖动 $$n$$，亲手数一数三种方式各做了多少事。柱子以当前 $$n$$ 的纯递归调用次数
+为全长。下面一行是纯递归调用每个 $$F(k)$$ 的次数，点击柱子就能看到该项的递归与
+记忆化调用次数。
+
+<FibCountDemo n={5} />
+
+$$n$$ 超过 20 以后，记忆化和填表的柱子几乎看不见。纯递归调用 $$F(k)$$ 的次数本身
+就是斐波那契数，$$F(1)$$ 被调用 $$F(n)$$ 次。
+
 - 运行
 
 ```sh
@@ -319,6 +331,13 @@ $$
 ### 记忆化 \{#coin-memo}
 
 把递推式原样写成递归，再加上 memo。步骤和斐波那契一样。
+单步跟着 `coinChangeMemo(6)` 实际往下走一遍。节点上面的数是金额，下面的数是该金额
+的答案（最少硬币数）。黄色是从 memo 取出的调用，虚线是负数金额，粗边是给出最小值的
+硬币。
+
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} />
+
+把这个过程写成伪代码是这样：
 
 ```plaintext
 ALGORITHM CoinChangeMemo(amount, coins, m, memo)
@@ -333,27 +352,6 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
             best <- r + 1
     memo[amount] <- best                 // 4. 记下再返回
     return best
-```
-
-跟着 `coinChangeMemo(6)` 实际往下走一遍：
-
-```plaintext
-solve 6
-├─ 硬币 2: 6-2 = 4 → solve 4
-│  ├─ 硬币 2: 4-2 = 2 → solve 2
-│  │  ├─ 硬币 2: 2-2 = 0 → 0 枚
-│  │  ├─ 硬币 3, 5: 负数 → 不行
-│  │  └─ 结果: 1 枚 (2)
-│  ├─ 硬币 3: 4-3 = 1 → solve 1
-│  │  └─ 结果: 不行 (INF)
-│  ├─ 硬币 5: 负数 → 不行
-│  └─ 结果: 2 枚 (2 + 2)
-├─ 硬币 3: 6-3 = 3 → solve 3
-│  ├─ 硬币 2: 3-2 = 1 → 取出 memo[1] = INF
-│  ├─ 硬币 3: 3-3 = 0 → 0 枚
-│  └─ 结果: 1 枚 (3)
-├─ 硬币 5: 6-5 = 1 → 取出 memo[1] = INF
-└─ 最终: min(2+1, 1+1) = 2 枚 (3 + 3)
 ```
 
 `memo[1]` 求过一次后又被取出用了两次。运行结果里的 `memo` 数组原样留下了
@@ -460,6 +458,12 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 在 80 韩元里，记忆化只解了 10 韩元为单位的 **8 个**金额，表格则从 1 韩元起
 把 **80 格**全部填满。两者的答案都是 2 枚，40 + 40。
+
+贪心与动态规划答案不同的金额不只 80 韩元。选一组硬币或自己输入，再点击金额格子，
+比较两种方法付出的硬币。有的组合像 `{100, 50, 10}` 那样贪心总是对的，也有像
+`{2, 3, 5}` 那样会让贪心卡住的组合。
+
+<CoinCompareDemo coins={[50, 40, 10]} amount={80} />
 
 ## 例 2. 最长递增子序列 \{#lis}
 
@@ -668,6 +672,11 @@ tab             = 48
 
 终点是 `(5, 5)` 时，即使网格是 10 × 10，答案也一样。因为只能向右、向下走，
 越过终点的格子用不上。
+
+亲手挪动障碍。点击格子会放置或移除障碍，表格从头重新填写。三个障碍全部移除后
+答案变成 252。只挡住一格，经过那一格的路径也会一下子全部消失。
+
+<DpGridDemo problem="grid" editable />
 
 ## 例 4. 寻路：恰好 k 条边的最短路径 \{#shortest-path}
 
@@ -883,6 +892,11 @@ best = 220
 还原从下往上走。`dp[3][50] = 220` 与上面一格不同，所以装了物品 3，容量移到 20。
 `dp[2][20] = 100` 也与上面一格的 60 不同，所以装了物品 2。`dp[1][0] = 0` 与上面
 一格相同，所以没有装物品 1。
+
+改一改容量和物品。把容量降到 40，答案变成 180（物品 1、3）。表格下面一行会显示
+同样条件下贪心（按单位重量价值）得到的答案。
+
+<DpGridDemo problem="knapsack" editable />
 
 表的大小是 $$(n+1) \times (W+1)$$，所以时间和空间都是 $$O(nW)$$。请注意 $$W$$ 是
 输入的**数值**。容量是 10 亿，表就有 10 亿格。所以这个算法看起来像多项式时间，
