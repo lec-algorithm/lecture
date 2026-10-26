@@ -1,30 +1,756 @@
 ---
 title: "주제 10. 트라이와 TST"
-description: "문자열을 문자 단위로 저장하는 트리, 그리고 공간을 줄인 변형"
+description: "문자열 키를 문자 하나씩 경로로 저장하는 트라이, 그 탐색·삽입·접두사 검색·삭제와 공간 비용, 그리고 링크를 셋으로 줄인 TST"
 date: 2026-08-25
 category: data-structures
 order: "9090"
 level: 4
 hours: "2:00"
+slides: ["topic-10-trie"]
 ---
 
-> 자료는 준비 중입니다. 이 주제를 다루기 전에 이 페이지가 채워집니다.
+import TrieDemo from '@components/TrieDemo.astro';
+import TstDemo from '@components/TstDemo.astro';
+import TrieFigure from '@components/TrieFigure.astro';
+import TreeFigure from '@components/TreeFigure.astro';
 
-## 다룰 내용
+> 주제 07의 이진 탐색 트리와 주제 08의 해시 테이블은 키를 **통째로** 다뤘습니다.
+> 키 전체를 비교하거나, 키 전체로 해시값을 셉니다.  
+> 이번 주제는 문자열 키를 **문자 하나씩 쪼개** 트리의 경로로 저장합니다.  
+> 그러면 찾는 데 드는 시간이 키가 몇 개 있는지가 아니라 **키가 몇 글자인지**로
+> 정해지고, 없는 키는 몇 글자만 보고도 없다는 것을 압니다. 접두사로 시작하는
+> 키를 모두 찾는 일도 덤으로 얻습니다.
 
-- 트라이(trie)의 노드 구조와 링크
-- 탐색, 삽입, 접두사로 모두 찾기, 삭제
-- 탐색·삽입의 최악 시간과 공간 비용
-- 단일 분기 문제와 TST(ternary search tree)
-- TST의 삽입과 접두사 검색
+## 조금 더 효율적으로 \{#motivation}
 
-## 실습 코드
+키와 값을 짝지어 담고, 키로 값을 찾는 자료구조를 심볼 테이블(symbol table)이라고
+합니다. 지금까지 두 가지를 보았습니다.
 
-`algorithm-code` 저장소의 `src/topic-10-trie/` 폴더에 들어갑니다.
-예제마다 의사코드 하나에 C와 Python 구현이 붙습니다.
+- **이진 탐색 트리**(주제 07): 키를 비교해 왼쪽·오른쪽으로 내려갑니다.
+  비교 한 번은 키 두 개를 앞에서부터 맞춰 보는 일이라, 문자열 키라면 그
+  자체가 키 길이만큼 걸릴 수 있습니다.
+- **해시 테이블**(주제 08): 키 전체로 해시값을 셉니다. 해시를 세는 데 키 길이만큼
+  걸리고, 충돌이 나면 더 봅니다.
+
+키가 문자열이라면 더 나은 방법이 있습니다. 이 주제에서 볼 방법은 다음 성질을
+갖습니다. 테이블이 아주 커도 마찬가지입니다.
+
+- **검색이 성공하면**: 걸리는 시간이 찾는 키의 길이에 비례합니다.
+- **검색이 실패하면**: 문자 몇 개만 검사하고 끝납니다.
+
+## 트라이 \{#trie}
+
+[[trie|트라이]]는 문자열 검색을 위한 트리입니다. 영어로 trie이고, 접두사
+트리(prefix tree), 디지털 트리(digital tree)라고도 부릅니다. 이름은
+검색(re**trie**val)에서 왔습니다.
+
+- 문자열의 집합을 저장하고 검색하는 데 맞춘 트리 구조입니다.
+- 각 노드는 문자 하나를 나타내고, 루트에서 어떤 노드까지의 경로가 문자열 하나가
+  됩니다.
+- 키의 마지막 문자에 해당하는 노드에 그 키의 값을 둡니다.
+
+### 노드 \{#node}
+
+노드 하나에는 세 가지가 들어 있습니다.
+
+- **children[26]**: 다음 노드를 가리키는 링크 배열. 알파벳 a\~z 하나에 칸 하나다.
+- **hasValue**: 이 노드에서 끝나는 키가 있는지
+- **value**: 그 키의 값. 이 주제의 예제에서는 정수
+
+링크는 문자를 직접 배열 인덱스로 바꿔 찾습니다. `b`는 1번 칸, `s`는 18번 칸입니다.
+아래는 키 `by`, `sea`, `sells`, `she`, `shells`, `the`를 넣은 트라이의 루트입니다.
+26칸 중 `b`, `s`, `t` 세 칸만 쓰고 나머지 23칸은 NULL입니다.
+
+<TrieFigure kind="node" chars="bst" />
+
+```c
+typedef struct TrieNode {
+    struct TrieNode *children[ALPHABET_SIZE]; /* a-z 링크. 비어 있으면 NULL */
+    bool hasValue;                            /* 이 노드에서 끝나는 키가 있는가 */
+    int value;                                /* 그 키의 값 */
+} TrieNode;
+```
+
+### 키 여섯 개를 담은 트라이 \{#example-keys}
+
+예전 강의의 예를 그대로 씁니다.
+
+| 키 | by | sea | sells | she | shells | the |
+| --- | --- | --- | --- | --- | --- | --- |
+| 값 | 4 | 2 | 1 | 0 | 3 | 5 |
+
+<TrieFigure words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts />
+
+그림을 읽는 법은 셋입니다.
+
+- 노드 안의 글자는 **그 노드로 들어오는 링크의 문자**입니다. 노드가 글자를
+  저장하는 것이 아니라, 부모의 몇 번 칸에서 왔는지가 곧 글자입니다.
+- 노드 옆의 파란 숫자는 값입니다. `she`의 마지막 문자 `e`에 0이 붙어 있습니다.
+- 루트에서 `s`로 가는 링크 아래에는 **s로 시작하는 모든 키**가 있습니다.
+  `sh`로 가면 sh로 시작하는 키 전부가 있습니다.
+
+`sea`와 `sells`는 `se`를, `she`와 `shells`는 `she`를 함께 씁니다. 공통 접두사를 가진
+키들은 그 경로를 공유합니다. 대신 노드마다 링크가 26개라서, 링크 442개 가운데
+쓰는 것은 16개뿐입니다. 이 값은 [공간](#space)에서 다시 봅니다.
+
+## 예제 1. 트라이 \{#example-trie}
+
+### 삽입 \{#trie-insert}
+
+키의 문자들을 길잡이 삼아 루트에서 내려갑니다.
+
+- **NULL 링크를 만나면**: 키의 마지막 문자에 닿기 전에 링크가 비어 있으면 새
+  노드를 만들어 답니다.
+- **마지막 문자의 노드에 닿으면**: 그 노드에 값을 둡니다. 이미 값이 있었다면
+  새 값으로 바꿉니다.
+
+키 여섯 개를 차례로 넣어 봅니다. 이미 있는 노드를 지나는 길은 파랑, 새로 만든
+노드는 초록입니다.
+
+<TrieDemo />
+
+`sells`는 `s`, `e`를 지나고 `l l s`를 새로 만듭니다. `she`는 `s`만 지나고, `shells`는
+`she`까지 지난 뒤 `l l s`를 만듭니다. 오른쪽 아래의 링크 수가 노드 수의 26배로
+불어나는 것도 보세요.
+
+```plaintext
+ALGORITHM Insert(root, word, value)
+    current <- root
+    for i <- 0 to length(word)-1 do
+        index <- word[i] - 'a'          // 문자를 배열 인덱스로 (a=0, b=1, ...)
+        if current.children[index] = NULL then
+            current.children[index] <- CreateTrieNode()   // 링크가 없으면 새 노드
+        current <- current.children[index]
+    current.hasValue <- true            // 키의 마지막 문자에 해당하는 노드에 값
+    current.value <- value
+```
+
+- C 구현
+
+```c
+void insert(TrieNode *root, const char *word, int value) {
+    TrieNode *current = root;
+    for (const char *p = word; *p; p++) {
+        int index = *p - 'a'; /* 문자를 배열 인덱스로 (a=0, b=1, ...) */
+        if (current->children[index] == NULL) {
+            current->children[index] = createTrieNode();
+        }
+        current = current->children[index];
+    }
+    current->hasValue = true; /* 키의 마지막 문자에 해당하는 노드에 값 */
+    current->value = value;
+}
+```
+
+### 검색 \{#trie-search}
+
+루트에서 시작해 키의 문자를 차례로 따라갑니다. NULL 링크를 만나거나 키의 마지막
+문자에 닿을 때까지 되풀이합니다. 예전 강의의 네 가지 검색을 그대로 돌립니다.
+
+<TrieDemo mode="search" />
+
+- **get("shells")**: 마지막 문자 `s`의 노드에 값 3이 있습니다. 성공입니다.
+- **get("shell")**: 마지막 문자 `l`까지 갔지만 그 노드에는 값이 없습니다.
+  `shell`은 `shells`의 접두사일 뿐 키가 아닙니다. 실패입니다.
+- **get("she")**: 중간 노드에서 끝나도 값이 있으면 성공입니다. 0을 돌려줍니다.
+- **get("shore")**: `sh` 다음에 `o` 링크가 없습니다. 세 노드만 보고 실패입니다.
+
+실패는 두 가지입니다. 링크가 없어서 내려가지 못하거나, 끝까지 갔는데 값이 없는
+경우입니다.
+
+```plaintext
+ALGORITHM Search(root, word)
+    current <- root
+    for i <- 0 to length(word)-1 do
+        index <- word[i] - 'a'
+        if current.children[index] = NULL then
+            return -1                   // 링크가 없다: 실패
+        current <- current.children[index]
+    if current.hasValue then
+        return current.value
+    return -1                           // 노드는 있지만 값이 없다: 실패
+```
+
+실습 코드는 값이 없을 때 -1을 돌려줍니다. 예전 강의 그림의 NULL과 같은 뜻입니다.
+
+### 접두사로 모두 찾기 \{#trie-prefix}
+
+검색창에 `sh`까지 치면 `she`, `shells`, `shore`가 뜨는 자동 완성을 생각해 봅시다.
+트라이에서는 이 일이 자연스럽습니다. `sh` 노드 아래에 **sh로 시작하는 키가 전부**
+있기 때문입니다.
+
+1. 접두사를 따라 그 마지막 문자의 노드까지 내려갑니다.
+2. 그 노드 아래 서브트라이를 돌며 값이 있는 노드의 키를 모읍니다.
+
+예전 강의처럼 `shore = 7`을 더 넣은 트라이에서 `sh`로 찾습니다.
+
+<TrieDemo mode="prefix" />
+
+자식을 a부터 z 순서로 돌기 때문에 결과가 **사전 순**으로 나옵니다. 값을 먼저
+확인하고 자식으로 내려가므로 `she`가 `shells`보다 앞섭니다.
+
+```plaintext
+ALGORITHM GetWordsWithPrefix(root, prefix)
+    current <- root
+    for i <- 0 to length(prefix)-1 do   // 1. 접두사의 마지막 문자 노드로 간다
+        index <- prefix[i] - 'a'
+        if current.children[index] = NULL then
+            return 빈 목록
+        current <- current.children[index]
+    results <- 빈 목록
+    GetAllWordsHelper(current, prefix, results)   // 2. 그 아래 키를 모두 모은다
+    return results
+
+ALGORITHM GetAllWordsHelper(node, prefix, results)
+    if node = NULL then return
+    if node.hasValue then
+        results에 (prefix, node.value) 추가
+    for i <- 0 to 25 do                 // a부터 z 순서라 결과가 사전 순
+        if node.children[i] != NULL then
+            GetAllWordsHelper(node.children[i], prefix + ('a' + i), results)
+```
+
+- C 구현 (모으기)
+
+```c
+void getAllWordsHelper(TrieNode *node, char *prefix, int prefixLen,
+                       WordValuePair results[], int *count) {
+    if (node == NULL) {
+        return;
+    }
+    if (node->hasValue && *count < MAX_RESULTS) {
+        prefix[prefixLen] = '\0';
+        strcpy(results[*count].word, prefix);
+        results[*count].value = node->value;
+        (*count)++;
+    }
+    for (int i = 0; i < ALPHABET_SIZE; i++) {
+        if (node->children[i] != NULL) {
+            prefix[prefixLen] = (char)('a' + i);
+            getAllWordsHelper(node->children[i], prefix, prefixLen + 1, results, count);
+        }
+    }
+    prefix[prefixLen] = '\0'; /* 되돌린다 */
+}
+```
+
+C에서는 접두사를 버퍼 하나에 이어 붙였다가 돌아올 때 되돌립니다. 재귀가 한 단계
+내려갈 때마다 한 글자를 쓰고, 올라올 때 지웁니다.
+
+### 삭제 \{#trie-delete}
+
+키를 지우는 일은 두 단계입니다.
+
+1. 일반적인 탐색으로 키의 마지막 문자 노드를 찾아 그 값을 NULL로 바꿉니다.
+2. 돌아 올라오면서 노드를 정리합니다.
+   - 자식 링크 중 NULL이 아닌 것이 있다면 아무것도 지우지 않습니다.
+   - 값도 없고 자식 링크도 모두 NULL이면 그 노드를 지웁니다.
+   - 지운 탓에 부모의 자식 링크가 모두 NULL이 되면 부모도 지웁니다. 이것이 연쇄적으로
+     이어집니다.
+
+`shore`까지 일곱 개가 든 트라이에서 `shells`를 지웁니다.
+
+<TrieDemo mode="delete" />
+
+`shells`의 `s`는 값을 잃자 값도 자식도 없으니 지워집니다. 그러면 위의 `l`이 자식을
+잃어 지워지고, 그 위의 `l`도 지워집니다. 그 위의 `e`에는 `she`의 값 0이 있으므로
+남습니다. 여기서 멈추고 더 위는 보지 않습니다.
+
+```plaintext
+ALGORITHM DeleteHelper(node, word, index)
+    OUTPUT  node를 부모에서 떼어 내도 되면 true
+    if index = length(word) then        // 키의 마지막 문자 노드에 도착
+        if not node.hasValue then return false    // 없는 키
+        node.hasValue <- false
+        node.value <- 0
+        return node에 자식이 하나도 없는가
+    child <- node.children[word[index] - 'a']
+    if child = NULL then return false   // 없는 키
+    if DeleteHelper(child, word, index + 1) then
+        child를 해제하고 node.children[word[index] - 'a'] <- NULL
+        return (not node.hasValue) and node에 자식이 하나도 없는가
+    return false
+```
+
+`DeleteWord(root, word)`는 `DeleteHelper(root, word, 0)`을 부르기만 합니다. 루트는
+비어도 지우지 않습니다.
+
+### 실행 \{#trie-run}
+
+- 실행
+
+```sh
+cd src/topic-10-trie/01_trie
+make -f /work/Makefile trie.out && ./trie.out
+```
+
+- 결과 (앞부분)
+
+```console
+insert by=4 sea=2 sells=1 she=0 shells=3 the=5
+  b
+    y = 4
+  s
+    e
+      a = 2
+      l
+        l
+          s = 1
+    h
+      e = 0
+        l
+          l
+            s = 3
+  t
+    h
+      e = 5
+nodes = 17 (with root), links = 17 x 26 = 442, non-null = 16
+
+search
+  shells -> 3      visited 7: root s h e l l s
+  shell  -> none   visited 6: root s h e l l (no value)
+  she    -> 0      visited 4: root s h e
+  shore  -> none   visited 3: root s h (no link 'o')
+
+insert shore=7
+getWordsWithPrefix(sh): she(0) shells(3) shore(7)
+getWordsWithPrefix(se): sea(2) sells(1)
+getWordsWithPrefix(t): the(5)
+getWordsWithPrefix(x): (none)
+
+delete shells: removed s l l
+  shells -> none   visited 4: root s h e (no link 'l')
+  she    -> 0      visited 4: root s h e
+  shore  -> 7      visited 6: root s h o r e
+nodes = 17
+```
+
+트리 출력의 들여쓰기가 깊이입니다. 데모의 네 장면이 그대로 나옵니다. `visited`는
+루트를 포함해 거친 노드 수이고, 성공한 `shells`는 키 길이 6에 1을 더한 7입니다.
+`shells`를 지운 뒤에 `shells`를 찾으면 이제 `e` 다음의 `l` 링크가 없어서 실패합니다.
+
+## 트라이 분석 \{#trie-analysis}
+
+### 모양은 키 집합이 정한다 \{#shape}
+
+트라이의 링크 구조(모양)는 키를 넣고 지운 **순서와 상관이 없습니다**. 키 집합이
+정해지면 트라이는 하나로 정해집니다. 앞의 여섯 키를 어떤 순서로 넣어도 같은
+그림이 나옵니다.
+
+이진 탐색 트리는 그렇지 않습니다. 아래 트리는 5, 3, 9, 4, 7, 12, 6, 8, 20 순서로
+넣은 것입니다. 같은 수를 3, 4, 5, …, 20처럼 정렬된 순서로 넣으면 오른쪽으로만
+뻗은 한 줄이 됩니다. 주제 07에서 본 최악의 모양입니다.
+
+<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "4" } }, r: { v: "9", l: { v: "7", l: { v: "6" }, r: { v: "8" } }, r: { v: "12", r: { v: "20" } } } }} />
+
+### 탐색과 삽입의 최악 \{#worst-case}
+
+트라이에서 키를 찾거나 넣을 때 루트를 포함해 거치는 노드는 **키의 길이에 1을
+더한 값**이 최대입니다. 문자 하나에 링크 하나를 따라가고, 키의 끝에 닿으면 멈추기
+때문입니다. 재귀로 쓰면 깊이를 0에서 시작해 호출마다 하나씩 늘리다가 키의 길이에
+닿으면 멈춥니다.
+
+키 길이를 $$m$$, 키 개수를 $$n$$이라 하면 검색과 삽입은 $$O(m)$$이고, **$$n$$이
+얼마든 상관없습니다.** 실행 결과의 `visited 7`이 `shells`(6글자) + 1입니다.
+
+### 탐색 실패의 기댓값 \{#search-miss}
+
+검색 실패는 더 빠릅니다. 크기 $$R$$인 알파벳 위의 무작위 키 $$N$$개로 만든
+트라이에서 검색 실패가 검사하는 노드는 평균 약 $$\log_R N$$개입니다.
+
+- **탐색 실패의 소요 시간은 키의 길이와 무관합니다.**
+- 영어 사전에서 `xmcwkeicowalcoeks`를 찾는다고 해 봅시다. 서너 글자만 가도 그렇게
+  시작하는 단어가 없다는 것을 압니다.
+- 백만 개의 무작위 키가 든 트라이라면 키가 7자리 자동차 번호판이든 20자리
+  계좌번호든, 검색 실패는 노드 네댓 개에서 끝납니다. $$\log_{26} 10^6 \approx 4.2$$이기
+  때문입니다.
+
+실습 코드는 7글자 무작위 키 $$N$$개로 트라이를 만들고 무작위 키로 1000번 찾아,
+거친 노드 수(루트 포함)의 평균을 냅니다.
+
+- 결과 (끝부분)
+
+```console
+search miss, random keys of length 7, 1000 searches
+  N = 100    average visited = 2.15
+  N = 1000   average visited = 2.82
+  N = 10000  average visited = 3.45
+```
+
+키가 열 배가 될 때마다 0.6\~0.7개씩 늘어납니다. $$\log_{26} 10 \approx 0.71$$이므로
+$$\log_R N$$을 따라 자라는 것입니다. 키는 7글자인데 평균 서너 노드에서 끝납니다.
+
+### 공간 \{#space}
+
+모든 키에는 값을 가진 노드가 하나씩 있고, 노드마다 링크가 $$R$$개입니다. 크기
+$$R$$인 알파벳 위의 키 $$N$$개, 키의 평균 길이를 $$w$$라 하면 트라이의 링크
+수는 **$$RN$$에서 $$RNw$$ 사이**입니다. 루트의 $$R$$개는 따로 셉니다.
+
+- **키가 짧거나 접두사를 많이 공유하면** $$RN$$에 가깝습니다.
+- **키가 길고 서로 다르면** $$RNw$$에 가깝습니다.
+
+예전 강의의 두 키 집합을 그려 봅니다. 둘 다 키가 6개입니다.
+
+- 접두사를 거의 다 공유하는 경우 (`s`, `she`, `sh`, `shells`, `shel`, `shell`)
+
+<TrieFigure words={[["s", 5], ["she", 0], ["sh", 4], ["shells", 3], ["shel", 7], ["shell", 6]]} counts />
+
+- 서로 공유하지 않는 경우 (`shells`, `an`, `bat`, `the`, `yell`, `ear`)
+
+<TrieFigure words={[["shells", 3], ["an", 2], ["bat", 5], ["the", 3], ["yell", 1], ["ear", 7]]} counts />
+
+실습 코드의 표가 같은 셈을 합니다.
+
+```console
+space (R = 26, w = average key length)
+  keys      N      w  nodes  links   null     RN    RNw
+  by..the   6   3.67     17    442    426    156    572
+  chain     6   3.50      7    182    176    156    546
+  spread    6   3.50     22    572    551    156    546
+  apple..   7   7.57     25    650    626    182   1378
+```
+
+루트의 26개를 빼면 `chain`은 $$RN$$ = 156에, `spread`는 $$RNw$$ = 546에 딱 붙습니다.
+어느 쪽이든 링크 대부분은 NULL입니다. 노드마다 들어오는 링크는 하나뿐이므로 쓰는
+링크는 노드 수보다 하나 적고, 나머지는 전부 빈칸입니다.
+
+$$R$$을 줄이면 공간을 상당히 아낄 수 있습니다. 이것이 뒤에서 볼 TST의 출발점입니다.
+
+### 단일 분기 \{#one-way-branching}
+
+트라이가 공간을 지나치게 쓰는 가장 큰 이유는 **링크를 단 하나만 쓰는 노드**가
+길게 이어지기 때문입니다. `shells`(1)와 `shellfish`(2) 두 키만 넣어도 노드가
+열 개 넘게 생기고, 그중 대부분은 자식이 하나뿐입니다.
+
+<TrieFigure words={[["shells", 1], ["shellfish", 2]]} counts />
+
+값이 없고 자식이 하나뿐인 노드를 아래 노드와 합치면 갈라지는 곳만 남습니다.
+
+<TrieFigure kind="compressed" words={[["shells", 1], ["shellfish", 2]]} counts />
+
+이렇게 단일 분기를 없앤 트라이를 압축 트라이(radix tree, Patricia trie)라고
+부릅니다. 노드에 문자 하나가 아니라 문자열 조각이 붙습니다. 이 주제에서는 구현하지
+않고, 대신 링크 수 자체를 줄이는 TST로 갑니다.
+
+## TST \{#tst}
+
+TST(ternary search tree, 삼진 탐색 트리)는 트라이의 메모리 효율적인 변형입니다.
+
+- 각 노드가 자식 링크를 **3개만** 갖습니다. left, middle, right
+- 트라이에서 생기는 지나친 공간 소모를 피할 수 있습니다.
+- 이진 탐색 트리와 비슷한 구조로 문자를 저장합니다. 트라이에서는 링크의
+  위치가 문자를 나타냈지만, TST에서는 **노드가 문자를 직접** 갖습니다.
+
+세 링크의 뜻은 이렇습니다.
+
+- **left**: 같은 자리에서 이 노드의 문자보다 작은 문자
+- **middle**: 이 문자가 맞았을 때, 다음 자리의 문자
+- **right**: 같은 자리에서 이 노드의 문자보다 큰 문자
+
+트라이의 노드 하나(링크 $$R$$개)가 TST에서는 **같은 자리의 문자들로 된 작은 이진
+탐색 트리**가 된다고 보면 됩니다. 앞의 여섯 키를 TST에 넣으면 이렇습니다. 작은
+점은 비어 있는 링크입니다.
+
+<TrieFigure kind="tst" words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts />
+
+루트 `b`의 오른쪽에 `s`, 그 오른쪽에 `t`가 있습니다. 첫 자리의 문자 b, s, t가
+이진 탐색 트리를 이룹니다. 트라이로는 노드 17개에 링크 442개였던 것이 노드 16개에
+링크 48개가 되었습니다. 노드 수는 트라이의 루트 하나만큼 줄었을 뿐이고,
+노드마다 링크가 26개에서 3개로 줄었습니다.
+
+```c
+typedef struct TSTNode {
+    char data;               /* 이 노드가 나타내는 문자 */
+    bool hasValue;           /* 이 노드에서 끝나는 키가 있는가 */
+    int value;               /* 그 키의 값 */
+    struct TSTNode *left;    /* data보다 작은 문자 (같은 자리) */
+    struct TSTNode *middle;  /* 다음 자리의 문자 */
+    struct TSTNode *right;   /* data보다 큰 문자 (같은 자리) */
+} TSTNode;
+```
+
+## 예제 2. TST \{#example-tst}
+
+예전 강의의 키 일곱 개를 이 순서로 넣습니다. 모두 `appl`로 시작해서 트라이였다면
+같은 길을 한참 함께 갑니다.
+
+| 키 | apple | application | apply | applaud | applet | appliance | applicable |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 값 | 10 | 20 | 30 | 40 | 50 | 60 | 70 |
+
+### 삽입 \{#tst-insert}
+
+지금 문자와 노드의 문자를 비교합니다.
+
+- **아무것도 없으면** 새 노드를 만듭니다.
+- **작으면 왼쪽, 크면 오른쪽**으로 갑니다. 이때는 같은 자리의 문자를 계속 찾습니다.
+- **같으면 가운데**로 내려갑니다. 이때만 다음 문자로 넘어갑니다.
+  - 마지막 문자였다면 그 노드에 값을 두고 끝냅니다.
+
+먼저 키 하나를 한 걸음에 넣어 봅니다. 비교한 노드는 파랑, 새 노드는 초록입니다.
+
+<TstDemo />
+
+`application`은 `appl`까지 같고, `i`가 `e`보다 커서 `e`의 오른쪽에 `i c a t i o n`을
+답니다. `applaud`는 `a`가 `e`보다 작아 왼쪽으로 갑니다. `applet`은 `e`까지 같고
+`e`가 이미 `apple`의 끝이므로 그 가운데에 `t`를 답니다.
+
+`appliance`를 비교 한 번씩 넣어 봅니다. 앞의 다섯 키는 넣어 둔 상태입니다.
+
+<TstDemo prefill={5} detail />
+
+예전 강의가 한 장씩 넘기며 보인 장면이 이것입니다.
+
+- `i`를 넣으려는데 `e`가 이미 있고 `e < i`이므로 오른쪽으로 갑니다.
+- `i`를 넣으려는데 `i`가 이미 있고 `i == i`이므로 여기서 다음 문자로 넘어갑니다.
+- `a`를 넣으려는데 `c`가 이미 있고 `a < c`이므로 왼쪽으로 갑니다.
+- 그 자리가 비어 있으므로 `a n c e`를 새 노드로 만들어 채웁니다.
+
+```plaintext
+ALGORITHM Insert(root, word, value, index)
+    c <- word[index]
+    if root = NULL then
+        root <- CreateTSTNode(c)        // 아무것도 없으면 새 노드
+    if c < root.data then
+        root.left <- Insert(root.left, word, value, index)        // 작으면 왼쪽, 같은 자리
+    else if c > root.data then
+        root.right <- Insert(root.right, word, value, index)      // 크면 오른쪽, 같은 자리
+    else if index < length(word)-1 then
+        root.middle <- Insert(root.middle, word, value, index+1)  // 같으면 가운데, 다음 자리
+    else
+        root.hasValue <- true           // 키의 마지막 문자: 값을 둔다
+        root.value <- value
+    return root
+```
+
+왼쪽·오른쪽으로 갈 때는 `index`가 그대로이고, 가운데로 갈 때만 하나 늘어납니다.
+이 한 줄의 차이가 TST의 전부입니다.
+
+### 검색 \{#tst-search}
+
+검색도 같은 규칙으로 내려갑니다. 마지막 문자에서 같은 문자를 만났을 때 그 노드에
+값이 있으면 성공입니다.
+
+<TstDemo mode="search" />
+
+- **applaud**: `e`에서 왼쪽으로 한 번 비켜 갑니다. 노드 8개
+- **apply**: `e`와 `i`에서 오른쪽으로 두 번 비켜 갑니다. 노드 7개
+- **apples**: `apple`의 `e`까지 같은 뒤, `s`가 `t`보다 작아 왼쪽으로 가려는데 링크가
+  비어 있습니다. 실패
+
+### 접두사 검색 \{#tst-prefix}
+
+가령 접두사 `app`로 검색하면, 먼저 `app`의 맨 마지막 글자 `p`의 노드로 옵니다.
+`app`로 시작하는 키는 전부 **이 노드의 가운데 링크 아래**에 있습니다. 왼쪽·오른쪽은
+같은 자리의 다른 문자이므로 보지 않습니다.
+
+<TstDemo mode="prefix" />
+
+```plaintext
+ALGORITHM GetWordsWithPrefix(root, prefix)
+    results <- 빈 목록
+    prefixNode <- GetNode(root, prefix)           // 1. 접두사의 마지막 문자 노드
+    if prefixNode = NULL then return results
+    if prefixNode.hasValue then
+        results에 (prefix, prefixNode.value) 추가 // 접두사 자체가 키인 경우
+    GetAllWordsHelper(prefixNode.middle, prefix, results)   // 2. 가운데 아래만 모은다
+    return results
+
+ALGORITHM GetAllWordsHelper(node, prefix, results)
+    if node = NULL then return
+    GetAllWordsHelper(node.left, prefix, results)            // 같은 자리, 작은 문자
+    if node.hasValue then
+        results에 (prefix + node.data, node.value) 추가
+    GetAllWordsHelper(node.middle, prefix + node.data, results)   // 다음 자리
+    GetAllWordsHelper(node.right, prefix, results)           // 같은 자리, 큰 문자
+```
+
+- **찾은 노드에 값이 있으면** 먼저 넣습니다. `apple`로 찾으면 `apple` 자체가 키입니다.
+- **모으는 순서**는 왼쪽, 자기, 가운데, 오른쪽입니다. 이진 탐색 트리의 중위 순회와
+  같은 생각이라서 결과가 사전 순으로 나옵니다.
+- 왼쪽·오른쪽으로 갈 때는 접두사를 그대로 넘기고, 가운데로 갈 때만 자기 문자를
+  붙여 넘깁니다.
+
+### 실행 \{#tst-run}
+
+- 실행
+
+```sh
+cd src/topic-10-trie/02_tst
+make -f /work/Makefile tst.out && ./tst.out
+```
+
+- 결과
+
+```console
+insert apple=10 application=20 apply=30 applaud=40 applet=50 appliance=60 applicable=70
+insert appliance=60
+  a = a   middle
+  p = p   middle
+  p = p   middle
+  l = l   middle
+  i > e   right
+  i = i   middle
+  a < c   left
+  a       new node
+  n       new node
+  c       new node
+  e       new node = 60
+
+a
+  M p
+    M p
+      M l
+        M e = 10
+          L a
+            M u
+              M d = 40
+          M t = 50
+          R i
+            M c
+              L a
+                M n
+                  M c
+                    M e = 60
+              M a
+                M t
+                  L b
+                    M l
+                      M e = 70
+                  M i
+                    M o
+                      M n = 20
+            R y = 30
+
+search
+  applaud     -> 40     visited 8
+  apply       -> 30     visited 7
+  application -> 20     visited 12
+  app         -> none   visited 3
+  apples      -> none   visited 6
+
+getWordsWithPrefix(app): applaud(40) apple(10) applet(50) appliance(60) applicable(70) application(20) apply(30)
+getWordsWithPrefix(appli): appliance(60) applicable(70) application(20)
+getWordsWithPrefix(apple): apple(10) applet(50)
+getWordsWithPrefix(b): (none)
+
+space (3 links per node)
+  keys      N  nodes  links   null  height
+  apple..   7     24     72     49      12
+  sorted    7     24     72     49      15
+  by..the   6     16     48     33       8
+```
+
+- **트리 출력**: `L`·`R`은 같은 자리의 다른 문자, `M`은 다음 자리입니다. 데모의
+  그림을 글자로 적은 것입니다.
+- **app**: `app`의 `p` 노드까지는 가지만 값이 없어서 실패입니다. 접두사는 키가 아닙니다.
+- **공간**: 같은 일곱 키가 트라이에서는 노드 25개에 링크 650개였습니다. `01_trie`
+  출력의 `apple..` 줄입니다. TST는 노드 24개에 링크 72개입니다.
+- **넣는 순서**: 같은 키를 사전 순으로 넣으면(`sorted`) 높이가 12에서 15로 늘어납니다.
+  이진 탐색 트리처럼 TST도 넣는 순서에 따라 모양이 바뀝니다.
+
+## 트라이와 TST \{#trie-vs-tst}
+
+| 특성 | 트라이 | TST |
+| --- | --- | --- |
+| 노드당 링크 | $$R$$개 (영어 소문자면 26) | 3개 |
+| 같은 키 7개(apple..)의 링크 | 650 | 72 |
+| 다음 노드를 찾는 법 | 문자를 배열 인덱스로 바꿔 바로 접근 | 같은 자리의 문자들 사이를 이진 탐색 |
+| 검색 (성공) | 노드 $$m + 1$$개, $$O(m)$$ | 가운데 $$m$$번 + 옆으로 비켜 가는 횟수 |
+| 검색 (실패) | 평균 약 $$\log_R n$$개 노드 | 평균 약 $$\ln n$$번 비교 |
+| 모양 | 넣는 순서와 무관 | 넣는 순서에 따라 다름 |
+| 구현 | 단순 | 중간 |
+
+`cat`을 찾는다고 해 봅시다.
+
+- **트라이**: 문자마다 배열 칸 하나를 바로 봅니다. $$O(1)$$짜리 접근 세 번입니다.
+- **TST**: 문자마다 같은 자리의 문자들로 된 작은 이진 탐색 트리를 내려갑니다. 그
+  자리에 문자가 $$k$$종 있고 균형이 잡혀 있다면 한 자리에 $$O(\log k)$$ 비교입니다.
+
+예전 강의는 TST의 검색 시간을 $$O(m \log n)$$으로 적었는데, 이것은 넉넉하게 잡은
+값입니다. 옆으로 비켜 가는 몫은 문자마다 $$\log n$$씩 붙지 않습니다. 첫 몇 자리에서
+키들이 갈라지고 나면 같은 자리에 남는 문자가 몇 개 안 되기 때문입니다. Sedgewick의
+분석에 따르면 무작위 키에서 성공한 검색의 비교 횟수는 평균 약 $$m + \ln n$$입니다.
+실행 결과에서도 `applaud`(7글자)는 노드 8개, `application`(11글자)은 노드 12개에서 끝났습니다.
+다만 최악에는 한 자리에서 알파벳 크기만큼 옆으로 갈 수 있습니다.
+
+정리하면 [[trade-off|트레이드오프]]입니다.
+
+- **트라이**: 빠른 검색 $$O(m)$$, 그 대가로 많은 메모리
+- **TST**: 적은 메모리, 그 대가로 약간 느린 검색
+
+예전 강의 표에는 "캐시 효율성: 트라이 낮음, TST 높음"이라는 칸도 있었습니다. 이것은
+구현에 따라 달라서 이 자료에서는 뺐습니다. 트라이 노드는 포인터 26개짜리라 크고
+대부분 비어 있지만, TST는 노드가 작은 대신 포인터를 더 여러 번 따라갑니다.
+
+## 심볼 테이블로 나란히 \{#symbol-tables}
+
+주제 07, 08과 함께 놓아 봅니다. $$n$$은 키 개수, $$m$$은 찾는 키의 길이입니다.
+
+| | 이진 탐색 트리 | 해시 테이블 | 트라이 | TST |
+| --- | --- | --- | --- | --- |
+| 키를 다루는 단위 | 키 전체를 비교 | 키 전체로 해시 | 문자 하나씩 | 문자 하나씩 |
+| 검색 (평균) | 비교 $$O(\log n)$$번 | $$O(m)$$ (해시 계산) | $$O(m)$$ | 약 $$m + \ln n$$ 비교 |
+| 사전 순으로 꺼내기 | 중위 순회 | 안 됨 | a부터 z 순회 | 중위 순회 |
+| 접두사로 모두 찾기 | 범위 검색으로 | 안 됨 | 자연스럽다 | 자연스럽다 |
+| 공간 | 노드 $$n$$개 | 표 + 충돌 처리 | 노드마다 $$R$$개 링크 | 노드마다 3개 링크 |
+
+이진 탐색 트리의 비교 한 번은 문자열 두 개를 앞에서부터 맞춰 보는 일이라 그 자체가
+최대 $$m$$글자입니다. 해시 테이블은 정렬된 순서를 버리고 속도를 얻었습니다. 트라이와
+TST는 문자열 키에 맞춰 둘의 장점을 함께 가집니다.
+
+다른 주제와 이어지는 곳도 있습니다.
+
+- 주제 06의 **허프만 코드 트리**는 알파벳이 0과 1 둘뿐인 트라이입니다. 루트에서
+  잎까지의 경로가 코드이고, 접두사가 없으니 문자가 잎에만 있습니다.
+- 주제 09의 **MSD 기수 정렬**은 첫 문자로 나누고, 같은 묶음 안에서 다음 문자로
+  나눕니다. 트라이를 위에서부터 만드는 것과 같은 모양입니다.
+
+## 이 주제에서 남길 것 \{#takeaway}
+
+- **트라이**: 키를 문자 하나씩 경로로 저장한다. 노드마다 링크 $$R$$개, 키의 마지막
+  문자 노드에 값을 둔다.
+- 검색과 삽입은 키 길이 $$m$$에 대해 $$O(m)$$이고, 키가 몇 개 있는지와 상관없다.
+  검색 실패는 평균 약 $$\log_R n$$개 노드에서 끝난다.
+- 검색 실패는 두 가지다. 링크가 없거나, 끝까지 갔는데 값이 없거나
+- 접두사의 노드 아래에 그 접두사로 시작하는 키가 전부 있다. 자동 완성이 자연스럽다.
+- 삭제는 값을 지운 뒤, 값도 자식도 없는 노드를 아래에서부터 떼어 낸다.
+- 트라이의 모양은 키 집합이 정한다. 대신 링크 대부분이 NULL이라 공간이 $$RN$$에서
+  $$RNw$$ 사이로 크다.
+- **TST**: 노드마다 링크 3개. 작으면 왼쪽, 크면 오른쪽으로 같은 자리에서 옮겨 가고,
+  같으면 가운데로 다음 자리에 간다. 공간이 크게 줄고 검색은 조금 느려진다. 모양은
+  넣는 순서에 따라 다르다.
+
+## 실습 코드 \{#code}
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) 저장소의 `src/topic-10-trie/`
+폴더에 들어 있습니다. 예제마다 의사코드 하나에 C와 Python 구현이 붙습니다.
 
 ```plaintext
 src/topic-10-trie/
-├── 01_trie/
-└── 02_tst/
+├── 01_trie/    # 삽입, 검색, 접두사, 삭제, 링크 수와 검색 실패 실험
+└── 02_tst/     # 삽입(appliance 한 걸음씩), 검색, 접두사, 링크 수와 높이
 ```
+
+파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다. 실행 방법은
+[실습 환경 준비](/article/setup-guide/)를 참고하세요.
+
+**직접 해 볼 것**
+
+- `01_trie`의 `words`에 자기 이름이나 좋아하는 단어 몇 개를 넣고
+  `getWordsWithPrefix`로 접두사 검색을 해 보세요.
+- `01_trie`의 `searchMiss`에서 키 길이 7을 20으로 바꿔 보세요. 검색 실패의 평균은
+  거의 그대로입니다.
+- `02_tst`의 `words` 순서를 섞어 보세요. 노드 수는 그대로인데 트리 모양과 높이가
+  바뀝니다. 같은 일을 `01_trie`에서 하면 트리 출력이 그대로입니다.
+- `02_tst`에 삭제를 직접 넣어 보세요. 트라이의 `deleteHelper`와 같은 생각으로,
+  값도 없고 링크 셋이 모두 NULL인 노드를 떼어 내면 됩니다.
+
+## 자료 이력 \{#changelog}
+
+슬라이드와 이 자료는 함께 버전을 올립니다. 현재 **v1**이고, 슬라이드
+왼쪽 아래에서 같은 버전을 확인할 수 있습니다.
+
+| 버전 | 날짜 | 내용 |
+| --- | --- | --- |
+| v1 | 2026-10-26 | 최초 공개 |
