@@ -141,6 +141,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const P = root.dataset.rmPattern;
     const T = root.dataset.rmText;
     const S = JSON.parse(root.dataset.rmStrings);
@@ -278,7 +284,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       });
       countEl.textContent = String(step ? step.calls : 0);
       depthEl.textContent = String(step && !step.done ? step.depth : 0);
-      note.textContent = step ? step.note : fill(S.idle, { p: P, t: T });
+      setLines(note, step ? step.note : fill(S.idle, { p: P, t: T }));
       root.classList.toggle('is-done', !!(step && step.done));
     }
 
