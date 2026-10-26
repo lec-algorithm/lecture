@@ -10,10 +10,14 @@ slides: ["topic-09-radix-sort"]
 ---
 
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
+import LrsBruteDemo from '@components/LrsBruteDemo.astro';
+import StackQueueDemo from '@components/StackQueueDemo.astro';
 
 > Topic 03's counting sort sorted in $$O(n + k)$$ without comparisons, but
 > it was unusable when the value range $$k$$ was large.  
@@ -58,26 +62,15 @@ sort.
 
 Strings work the same way. Sort twelve three-letter words three times, by
 the last character (ch 2), the middle character (ch 1), and the first
-character (ch 0), and they end up in dictionary order. Each column below is
-the result of one sort by that character.
+character (ch 0), and they end up in dictionary order. In the demo below,
+each row is one pass. The words in a new row start from their places in the
+row above and move to their new places. The key character of this pass is
+orange, and the later characters already used are green. Click a word to
+mark where it is in every row.
 
-```plaintext
-      input ch2   ch1   ch0
-   0  dab   dab   dab   ace
-   1  add   cab   cab   add
-   2  cab   ebb   fad   bad
-   3  fad   add   bad   bed
-   4  fee   fad   dad   bee
-   5  bad   bad   ebb   cab
-   6  dad   dad   ace   dab
-   7  bee   fed   add   dad
-   8  fed   bed   fed   ebb
-   9  bed   fee   bed   fad
-  10  ebb   bee   fee   fed
-  11  ace   ace   bee   fee
-```
+<LsdStringDemo />
 
-Look at `bad bed bee`, the words starting with `b` in the last column. Their
+Look at `bad bed bee`, the words starting with `b` in the last row. Their
 first characters are equal, so the last pass does not touch their order.
 That order was already set by the earlier passes (the middle character and
 the last character).
@@ -203,10 +196,16 @@ their original order preserves the work of the earlier passes. When the
 last pass finishes, the array is sorted by every digit, and that is what
 sorted means.
 
-If you change step 3 of counting sort to read from the front, equal digits
-come out reversed and the property breaks. In bucket terms, it is the same
-as using each bucket as a **stack**. We will see that as a demo in
-[Example 7](#stack-queue).
+If you change step 3 of counting sort to place from the front, equal keys
+come out reversed and the property breaks. The demo below sorts the same
+twelve words that way. After the second pass, `dad` stands ahead of `dab`
+even from the middle character on, and the final result is not in
+dictionary order either. Switch the tab to compare with the stable version.
+
+<LsdStringDemo placement="unstable" />
+
+In bucket terms, it is the same as using each bucket as a **stack**. The
+same thing with numbers is in [Example 7](#stack-queue).
 
 ### Analysis \{#lsd-analysis}
 
@@ -443,6 +442,19 @@ string processing.
 Try `banana$`. The `$` at the end marks the end of the string, and we agree
 that it is smaller than every other character. In ASCII, `$` is 36 and
 lowercase letters are 97 and up, so this holds as is.
+
+Cut the suffixes one at a time from $$i = 0$$ and insert each into the
+already sorted list. Put the new suffix at the bottom, compare it in
+dictionary order with the suffix just above, and move it up one row if it is
+smaller. This is insertion sort. Orange is the new suffix and blue the one it
+is compared with; green characters match and red is the first difference.
+
+<SuffixInsertDemo />
+
+It finishes after 18 suffix compares and 25 character compares. Suffixes
+that share a long front, like `ana$` and `anana$`, read several characters
+in one compare. The table below lays the result next to the list in
+start-position order.
 
 | Start | Suffix | | Sorted order $$j$$ | $$SA[j]$$ | Suffix |
 | --- | --- | --- | --- | --- | --- |
@@ -812,13 +824,17 @@ finds it in one go.
 ### Brute force \{#lrs-brute}
 
 Try every pair of starting positions $$i < j$$ for the repeat, and count the
-common prefix length of each pair.
+common prefix length of each pair. The demo below uses the first 15
+characters of the sequence, `aacaagtttacaagc`, plus `$`: 16 characters. The
+left side lines up the two suffixes of the current pair, and in the triangle
+on the right each cell is one pair. A checked pair's cell shows its common
+prefix length. Click a cell to jump to that pair.
 
-```plaintext
-a a c a a g t t t a c a a g c
-  ↑               ↑
-  i               j        T[i..] and T[j..] agree through "acaag"
-```
+<LrsBruteDemo />
+
+It checks all 120 pairs with 161 character compares and finds `acaag`,
+starting at positions 1 and 9. The cost of this method is that it is not
+done until the whole triangle is filled.
 
 - There are $$\dfrac{n(n-1)}{2}$$ position pairs.
 - Each pair compares up to $$D$$ characters, where $$D$$ is the length of the
@@ -1056,6 +1072,14 @@ into this topic.
   - **The first one in comes out first.** This is called FIFO (first in,
     first out).
   - Putting in is enqueue, taking out is dequeue.
+
+Press the buttons to put items in and take them out yourself. The letters go
+in as A, B, C, and so on. Play empties both, puts in A B C D, and takes
+everything out.
+
+<StackQueueDemo />
+
+The same order in gives different orders out.
 
 | Order in | Order out of a stack | Order out of a queue |
 | --- | --- | --- |

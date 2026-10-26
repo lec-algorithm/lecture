@@ -46,7 +46,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     pickSkip: ' 앞 {h}글자는 비교하지 않습니다.',
     cmp: '{m}글자 더 일치하고 {a} ≠ {b}. LCP[{r}] = {h}. 다음 위치는 h = {next}에서 시작합니다.',
     first: 'i = {i}: {s}는 정렬에서 맨 앞이라 이웃이 없습니다. LCP[0]은 정의하지 않고 h = 0으로 둡니다.',
-    done: '끝. LCP = {lcp}. 글자 비교 {k}번 (이웃마다 처음부터 비교하면 {naive}번)',
+    done: '끝, LCP = {lcp}. 글자 비교 {k}번 (이웃마다 처음부터 비교하면 {naive}번)',
   },
   en: {
     title: 'LCP array: Kasai',
@@ -69,7 +69,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     pickSkip: ' The first {h} characters are skipped.',
     cmp: '{m} more match, then {a} ≠ {b}. LCP[{r}] = {h}. The next position starts at h = {next}.',
     first: 'i = {i}: {s} is first in sorted order and has no neighbor. LCP[0] is undefined; set h = 0.',
-    done: 'Done. LCP = {lcp}. {k} char compares (comparing each neighbor pair from scratch: {naive})',
+    done: 'Done, LCP = {lcp}. {k} char compares (comparing each neighbor pair from scratch: {naive})',
   },
   zh: {
     title: 'LCP 数组：Kasai 算法',
@@ -92,7 +92,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     pickSkip: '前 {h} 个字符不再比较。',
     cmp: '又匹配了 {m} 个字符，然后 {a} ≠ {b}。LCP[{r}] = {h}。下一个位置从 h = {next} 开始。',
     first: 'i = {i}：{s} 在排序中排第一，没有前邻。LCP[0] 不定义，令 h = 0。',
-    done: '结束。LCP = {lcp}。字符比较 {k} 次（每对相邻后缀从头比较需要 {naive} 次）',
+    done: '结束，LCP = {lcp}。字符比较 {k} 次（每对相邻后缀从头比较需要 {naive} 次）',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -170,6 +170,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
 
     const text = root.dataset.ksText;
     const S = JSON.parse(root.dataset.ksStrings);
@@ -259,7 +265,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       });
       hEl.textContent = String(st ? st.h : 0);
       cmpEl.textContent = String(st ? st.compares : 0);
-      note.textContent = st ? st.note : S.idle;
+      setLines(note, st ? st.note : S.idle);
       root.classList.toggle('is-done', !!(st && st.finished));
     }
 

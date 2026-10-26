@@ -65,10 +65,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     gatherQueue: '버킷 {d}를 넣은 순서대로 꺼냅니다: {list}',
     gatherStack: '버킷 {d}를 나중에 넣은 것부터 꺼냅니다: {list}',
     flipped: ' 같은 숫자끼리 순서가 뒤집혔습니다.',
-    passOk: '패스 {k} 끝. 아래 {k}자리만 보면 정렬되어 있습니다.',
-    passBad: '패스 {k} 끝. 아래 {k}자리로 봐도 {a}가 {b}보다 앞에 있어 정렬이 깨졌습니다.',
-    doneOk: '끝. 패스 {k}번, 원소끼리 비교 0번으로 정렬했습니다.',
-    doneBad: '끝. {a}가 {b}보다 앞에 있습니다. 버킷이 불안정해서 앞 패스의 순서가 깨졌습니다.',
+    passOk: '패스 {k} 끝, 아래 {k}자리만 보면 정렬되어 있습니다.',
+    passBad: '패스 {k} 끝, 아래 {k}자리로 봐도 {a}가 {b}보다 앞에 있어 정렬이 깨졌습니다.',
+    doneOk: '패스 {k}번, 원소끼리 비교 0번으로 정렬을 마쳤습니다.',
+    doneBad: '패스를 다 돌았지만 {a}가 {b}보다 앞에 있습니다. 버킷이 불안정해서 앞 패스의 순서가 깨졌습니다.',
   },
   en: {
     titleQueue: 'LSD radix sort (queue buckets)',
@@ -95,10 +95,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     gatherQueue: 'Take bucket {d} out in the order it went in: {list}',
     gatherStack: 'Take bucket {d} out last-in first: {list}',
     flipped: ' Equal digits came out reversed.',
-    passOk: 'Pass {k} done. Looking at the lowest {k} digit(s) only, the array is sorted.',
-    passBad: 'Pass {k} done. Even on the lowest {k} digit(s), {a} is ahead of {b}: the order broke.',
-    doneOk: 'Done. Sorted in {k} passes with 0 comparisons between elements.',
-    doneBad: 'Done. {a} is ahead of {b}. Unstable buckets broke the order of earlier passes.',
+    passOk: 'Pass {k} done: looking at the lowest {k} digit(s) only, the array is sorted.',
+    passBad: 'Pass {k} done: even on the lowest {k} digit(s), {a} is ahead of {b}: the order broke.',
+    doneOk: 'Sorted in {k} passes with 0 comparisons between elements.',
+    doneBad: 'All passes ran, but {a} is ahead of {b}. Unstable buckets broke the order of earlier passes.',
   },
   zh: {
     titleQueue: 'LSD 基数排序（队列桶）',
@@ -125,10 +125,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     gatherQueue: '按放入顺序取出 {d} 号桶：{list}',
     gatherStack: '从后放入的开始取出 {d} 号桶：{list}',
     flipped: '相同数字的顺序被颠倒了。',
-    passOk: '第 {k} 趟结束。只看最低 {k} 位，数组已经有序。',
-    passBad: '第 {k} 趟结束。即使只看最低 {k} 位，{a} 也排在 {b} 前面，顺序被破坏了。',
-    doneOk: '结束。共 {k} 趟，元素之间比较 0 次，排序完成。',
-    doneBad: '结束。{a} 排在 {b} 前面。桶不稳定，破坏了前几趟的顺序。',
+    passOk: '第 {k} 趟结束，只看最低 {k} 位，数组已经有序。',
+    passBad: '第 {k} 趟结束，即使只看最低 {k} 位，{a} 也排在 {b} 前面，顺序被破坏了。',
+    doneOk: '共 {k} 趟，元素之间比较 0 次，排序完成。',
+    doneBad: '所有趟都已完成，但 {a} 排在 {b} 前面。桶不稳定，破坏了前几趟的顺序。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -192,6 +192,12 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
 
     const vals = JSON.parse(root.dataset.lrValues);
     const S = JSON.parse(root.dataset.lrStrings);
@@ -290,7 +296,7 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
       const active = st && st.cur && st.loc[st.cur[0]].b >= 0 ? st.loc[st.cur[0]].b : -1;
       cols.forEach((c, d) => c.classList.toggle('is-now', d === active));
       passEl.textContent = String(st ? st.pass : 0);
-      note.textContent = st ? st.note : S.idle;
+      setLines(note, st ? st.note : S.idle);
       root.classList.toggle('is-done', !!(st && st.finished));
     }
 

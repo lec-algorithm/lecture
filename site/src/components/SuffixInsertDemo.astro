@@ -1,0 +1,546 @@
+---
+// 접미사를 하나씩 잘라 정렬된 목록에 꽂아 가며 접미사 배열을 만드는 데모.
+//
+// 왼쪽 띠가 텍스트, 오른쪽이 지금까지 정렬된 접미사 목록이다. i = 0부터
+// 접미사 T[i..]를 잘라 목록 맨 아래에 두고, 바로 위 접미사와 사전순으로
+// 비교해 작으면 한 칸 올린다(삽입 정렬). 비교마다 공통 접두사를 초록,
+// 처음 갈린 글자를 빨강으로 칠하고, 접미사 비교 수와 글자 비교 수를 센다.
+// 끝난 순서가 접미사 배열이고, 03_suffix_array의 naive SA와 같다.
+// 실습 코드는 qsort를 쓰므로 비교 횟수는 이 데모만의 값이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 끝 글자($)를 포함한 텍스트 */
+  text?: string;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { text = 'banana$', slide = false } = Astro.props;
+const id = `si-${Math.random().toString(36).slice(2, 9)}`;
+const n = text.length;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '접미사 배열: 하나씩 꽂기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    rowI: 'i',
+    rowT: 'T[i]',
+    colJ: 'j',
+    colSa: 'SA[j]',
+    colSuffix: '접미사',
+    cmpLabel: '접미사 비교',
+    charLabel: '글자 비교',
+    idle: '접미사를 i = 0부터 하나씩 잘라, 정렬된 목록의 맨 아래에서 위로 비교하며 제자리에 꽂습니다. 삽입 정렬과 같은 방법입니다.',
+    first: 'i = 0: 접미사 {s}. 목록이 비어 있으니 비교 없이 j = 0에 둡니다.',
+    cut: 'i = {i}: 위치 {i}부터 끝까지 자른 접미사 {s}. 맨 아래 j = {k}에 두고 위로 비교해 올라갑니다.',
+    whySame: '앞 {l}글자가 같고 {a} {op} {b}',
+    whyFirst: '첫 글자부터 {a} {op} {b}',
+    cmp: '{s} 대 {t}: {why}입니다.',
+    up: ' 새 접미사가 앞이므로 한 칸 올립니다.',
+    stay: ' 새 접미사가 뒤이므로 j = {k}에 멈춥니다.',
+    top: '맨 위까지 올라왔습니다. 자리는 j = 0',
+    done: '모든 접미사를 꽂았습니다. 접미사 배열 SA = {sa}',
+  },
+  en: {
+    title: 'Suffix array: insert one by one',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    rowI: 'i',
+    rowT: 'T[i]',
+    colJ: 'j',
+    colSa: 'SA[j]',
+    colSuffix: 'suffix',
+    cmpLabel: 'suffix compares',
+    charLabel: 'char compares',
+    idle: 'Cut out the suffixes from i = 0 and insert each into the sorted list from the bottom up. This is insertion sort.',
+    first: 'i = 0: the suffix {s}. The list is empty, so it goes to j = 0 with no comparison.',
+    cut: 'i = {i}: the suffix {s} from position {i} to the end. Put it at the bottom, j = {k}, and compare upward.',
+    whySame: 'the first {l} characters match, then {a} {op} {b}',
+    whyFirst: 'the first characters differ: {a} {op} {b}',
+    cmp: '{s} vs {t}: {why}.',
+    up: ' The new suffix comes first, so move it up one row.',
+    stay: ' The new suffix comes after, so it stops at j = {k}.',
+    top: 'It reached the top: j = 0',
+    done: 'All suffixes are in place: SA = {sa}',
+  },
+  zh: {
+    title: '后缀数组：逐个插入',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    rowI: 'i',
+    rowT: 'T[i]',
+    colJ: 'j',
+    colSa: 'SA[j]',
+    colSuffix: '后缀',
+    cmpLabel: '后缀比较',
+    charLabel: '字符比较',
+    idle: '从 i = 0 开始逐个切出后缀，从已排序列表的底部向上比较，插入到正确位置。这就是插入排序。',
+    first: 'i = 0：后缀 {s}。列表为空，不比较，直接放在 j = 0。',
+    cut: 'i = {i}：从位置 {i} 到末尾的后缀 {s}。先放在最下面 j = {k}，再向上比较。',
+    whySame: '前 {l} 个字符相同，然后 {a} {op} {b}',
+    whyFirst: '第一个字符就不同：{a} {op} {b}',
+    cmp: '{s} 对 {t}：{why}。',
+    up: '新后缀在前，上移一行。',
+    stay: '新后缀在后，停在 j = {k}。',
+    top: '已到最上面：j = 0',
+    done: '所有后缀都已就位。后缀数组 SA = {sa}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-suffix-insert-demo', slide && 'is-slide']}
+  id={id}
+  data-si-text={text}
+  data-si-strings={JSON.stringify(t)}
+  style={`--si-n: ${n}`}
+>
+  <div class="si-bar">
+    <span class="si-head"><strong>{t.title}</strong></span>
+    <div class="si-controls">
+      <button type="button" data-act="back" class="si-btn">{t.back}</button>
+      <button type="button" data-act="step" class="si-btn">{t.step}</button>
+      <button type="button" data-act="play" class="si-btn si-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="si-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="si-body">
+    <table class="si-strip">
+      <tbody>
+        <tr>
+          <th>{t.rowI}</th>
+          {[...text].map((_, i) => <td data-si-pos={i}>{i}</td>)}
+        </tr>
+        <tr class="si-chars">
+          <th>{t.rowT}</th>
+          {[...text].map((ch, i) => <td data-si-pos={i}>{ch}</td>)}
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="si-list">
+      <div class="si-headrow">
+        <span class="si-j">{t.colJ}</span>
+        <span class="si-sa">{t.colSa}</span>
+        <span class="si-suf">{t.colSuffix}</span>
+      </div>
+      <div class="si-rows">
+        {Array.from({ length: n }, (_, j) => (
+          <span class="si-slot" style={`--si-at: ${j}`} data-si-slot={j}>
+            <span class="si-j">{j}</span>
+          </span>
+        ))}
+        {Array.from({ length: n }, (_, i) => (
+          <div class="si-row" data-si-row={i}>
+            <span class="si-sa">{i}</span>
+            <span class="si-suf">
+              {text.slice(i).split('').map((ch, k) => <span class="si-ch" data-si-k={k}>{ch}</span>)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <div class="si-foot">
+    <p class="si-note" data-si-note></p>
+    <span class="si-count">
+      {t.cmpLabel} <strong data-si-cmp>0</strong> · {t.charLabel} <strong data-si-chars>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const T = root.dataset.siText;
+    const S = JSON.parse(root.dataset.siStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = T.length;
+    const suf = (i) => T.slice(i);
+
+    /* 두 접미사를 앞에서부터 글자 단위로 비교한다(strcmp와 같다).
+       공통 접두사 길이 l, 비교한 글자 수, 부호를 돌려준다. */
+    function compare(a, b) {
+      let l = 0;
+      while (a + l < n && b + l < n && T[a + l] === T[b + l]) l += 1;
+      const endA = a + l >= n;
+      const endB = b + l >= n;
+      const chars = endA || endB ? l : l + 1;
+      const sign = endA && endB ? 0 : endA ? -1 : endB ? 1 : T[a + l] < T[b + l] ? -1 : 1;
+      return { l, chars, sign };
+    }
+
+    function plan() {
+      const steps = [];
+      const list = [];
+      let cmps = 0;
+      let chars = 0;
+      const snap = (extra) => steps.push({ list: list.slice(), cmps, chars, ...extra });
+      for (let i = 0; i < n; i++) {
+        let pos = list.length;
+        list.push(i);
+        snap({ cur: i, other: -1, note: pos === 0 ? fill(S.first, { s: suf(i) }) : fill(S.cut, { i, s: suf(i), k: pos }) });
+        if (pos === 0) continue;
+        while (pos > 0) {
+          const other = list[pos - 1];
+          const r = compare(i, other);
+          cmps += 1;
+          chars += r.chars;
+          const less = r.sign < 0;
+          const a = i + r.l < n ? T[i + r.l] : '∅';
+          const b = other + r.l < n ? T[other + r.l] : '∅';
+          const why = fill(r.l > 0 ? S.whySame : S.whyFirst, { l: r.l, a, b, op: less ? '<' : '>' });
+          const note = fill(S.cmp, { s: suf(i), t: suf(other), why }) + (less ? S.up : fill(S.stay, { k: pos }));
+          snap({ cur: i, other, l: r.l, note });
+          if (!less) break;
+          list[pos] = other;
+          list[pos - 1] = i;
+          pos -= 1;
+        }
+        if (pos === 0) snap({ cur: i, other: -1, note: S.top });
+      }
+      snap({ cur: -1, other: -1, finished: true, note: fill(S.done, { sa: `[${list.join(', ')}]`, c: cmps, ch: chars }) });
+      return steps;
+    }
+
+    const steps = plan();
+    const rows = [...root.querySelectorAll('[data-si-row]')];
+    const slots = [...root.querySelectorAll('[data-si-slot]')];
+    const strip = [...root.querySelectorAll('.si-strip td')];
+    const note = root.querySelector('[data-si-note]');
+    const cmpEl = root.querySelector('[data-si-cmp]');
+    const charEl = root.querySelector('[data-si-chars]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const list = st ? st.list : [];
+      rows.forEach((row, i) => {
+        const at = list.indexOf(i);
+        row.classList.toggle('is-hidden', at < 0);
+        if (at >= 0) row.style.setProperty('--si-at', String(at));
+        else row.style.setProperty('--si-at', String(Math.max(0, list.length)));
+        const isCur = !!st && st.cur === i;
+        const isOther = !!st && st.other === i;
+        row.classList.toggle('is-cur', isCur);
+        row.classList.toggle('is-other', isOther);
+        row.querySelectorAll('[data-si-k]').forEach((ch) => {
+          const k = Number(ch.dataset.siK);
+          const comparing = st && st.other >= 0 && (isCur || isOther);
+          ch.classList.toggle('is-match', !!(comparing && k < st.l));
+          ch.classList.toggle('is-miss', !!(comparing && k === st.l));
+        });
+      });
+      slots.forEach((slot, j) => slot.classList.toggle('is-filled', j < list.length));
+      strip.forEach((td) => {
+        const p = Number(td.dataset.siPos);
+        td.classList.toggle('is-cur', !!st && st.cur >= 0 && p >= st.cur);
+        td.classList.toggle('is-other', !!st && st.other >= 0 && p === st.other);
+      });
+      cmpEl.textContent = String(st ? st.cmps : 0);
+      charEl.textContent = String(st ? st.chars : 0);
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', !!(st && st.finished));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-suffix-insert-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 슬라이드는 font-size만 키운다. */
+    --si-row: 1.5em;
+    --si-j-w: 2em;
+    --si-sa-w: 3.6em;
+    --si-ch-w: 0.85em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-suffix-insert-demo .si-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-suffix-insert-demo .si-head {
+    font-size: 0.95em;
+  }
+  .aas-suffix-insert-demo .si-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-suffix-insert-demo .si-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-suffix-insert-demo .si-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-suffix-insert-demo .si-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-suffix-insert-demo .si-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 2.5em;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-x: auto;
+  }
+  /* 테마의 표 스타일을 덮어쓴다. 데모 안의 표는 칸이 작고 테두리가 없다. */
+  .aas-suffix-insert-demo.aas-suffix-insert-demo table {
+    width: auto;
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    margin: 0;
+    border-collapse: collapse;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo :is(th, td) {
+    padding: 0.15em 0.45em;
+    border: none;
+    background: none;
+    text-align: center;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo .si-strip td {
+    min-width: 1.4em;
+    border-radius: 0.3em;
+    transition: background-color 0.3s;
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo .si-strip tr:first-child td {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo .si-strip .si-chars td {
+    font-weight: 700;
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo .si-strip td.is-cur {
+    background: color-mix(in srgb, var(--aas-role-focus) 30%, transparent);
+  }
+  .aas-suffix-insert-demo.aas-suffix-insert-demo .si-strip td.is-other {
+    background: color-mix(in srgb, var(--aas-role-model) 40%, transparent);
+  }
+
+  /* 목록: 칸(slot) n개가 고정되어 있고, 접미사 줄은 절대 위치로 떠서
+     --si-at번째 칸으로 옮겨 간다. */
+  .aas-suffix-insert-demo .si-list {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-suffix-insert-demo .si-headrow {
+    display: flex;
+    border-bottom: 1px solid var(--aas-border);
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+    font-weight: 600;
+    height: 1.4em;
+    align-items: center;
+  }
+  .aas-suffix-insert-demo .si-headrow > span {
+    font-size: 0.75em;
+  }
+  .aas-suffix-insert-demo .si-j,
+  .aas-suffix-insert-demo .si-sa {
+    display: inline-block;
+    text-align: center;
+  }
+  .aas-suffix-insert-demo .si-headrow .si-j {
+    width: calc(var(--si-j-w) / 0.75);
+  }
+  .aas-suffix-insert-demo .si-headrow .si-sa {
+    width: calc(var(--si-sa-w) / 0.75);
+  }
+  .aas-suffix-insert-demo .si-rows {
+    position: relative;
+    height: calc(var(--si-n) * var(--si-row));
+    width: calc(var(--si-j-w) + var(--si-sa-w) + var(--si-n) * var(--si-ch-w) + 0.6em);
+    margin-top: 0.15em;
+  }
+  .aas-suffix-insert-demo .si-slot {
+    position: absolute;
+    left: 0;
+    top: calc(var(--si-at) * var(--si-row));
+    width: 100%;
+    height: var(--si-row);
+    display: flex;
+    align-items: center;
+    color: var(--aas-muted);
+  }
+  .aas-suffix-insert-demo .si-slot .si-j {
+    width: var(--si-j-w);
+    opacity: 0.35;
+    transition: opacity 0.3s;
+  }
+  .aas-suffix-insert-demo .si-slot.is-filled .si-j {
+    opacity: 1;
+  }
+  .aas-suffix-insert-demo .si-row {
+    position: absolute;
+    left: var(--si-j-w);
+    top: calc(var(--si-at) * var(--si-row));
+    height: var(--si-row);
+    width: calc(var(--si-sa-w) + var(--si-n) * var(--si-ch-w) + 0.6em);
+    display: flex;
+    align-items: center;
+    border-radius: 0.3em;
+    transition:
+      top 0.5s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.35s,
+      background-color 0.3s;
+  }
+  .aas-suffix-insert-demo .si-row.is-hidden {
+    opacity: 0;
+  }
+  .aas-suffix-insert-demo .si-row .si-sa {
+    width: var(--si-sa-w);
+  }
+  .aas-suffix-insert-demo .si-row.is-cur {
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, transparent);
+  }
+  .aas-suffix-insert-demo .si-row.is-other {
+    background: color-mix(in srgb, var(--aas-role-model) 18%, transparent);
+  }
+  .aas-suffix-insert-demo .si-ch {
+    display: inline-block;
+    width: var(--si-ch-w);
+    text-align: center;
+    border-radius: 0.15em;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  .aas-suffix-insert-demo .si-ch.is-match {
+    background: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-suffix-insert-demo .si-ch.is-miss {
+    background: var(--aas-role-guard);
+    color: #fff;
+  }
+
+  .aas-suffix-insert-demo .si-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-suffix-insert-demo .si-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-suffix-insert-demo.is-done .si-note {
+    color: var(--aas-text);
+  }
+  .aas-suffix-insert-demo .si-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-suffix-insert-demo .si-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-suffix-insert-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-suffix-insert-demo .si-strip td,
+    .aas-suffix-insert-demo .si-row,
+    .aas-suffix-insert-demo .si-ch,
+    .aas-suffix-insert-demo .si-slot .si-j {
+      transition: none;
+    }
+  }
+</style>

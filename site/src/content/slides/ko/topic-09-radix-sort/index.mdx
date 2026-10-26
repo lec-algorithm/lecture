@@ -10,10 +10,14 @@ toc_open: false
 
 import Slide from 'stack-site-builder/components/Slide.astro';
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
+import LrsBruteDemo from '@components/LrsBruteDemo.astro';
+import StackQueueDemo from '@components/StackQueueDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-09-radix-sort)의 실행 결과와 같습니다. */}
@@ -104,28 +108,12 @@ import LcpScanDemo from '@components/LcpScanDemo.astro';
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 문자열도 같습니다
-::sub[세 글자 단어 12개를 마지막 글자, 가운데 글자, 첫 글자 순으로]
+### 한 걸음씩: 문자열도 같습니다
+::sub[세 글자 단어 12개를 마지막 글자, 가운데 글자, 첫 글자 순으로 · 단어를 누르면 줄마다 표시됩니다]
 
-```plaintext
-      입력  2번   1번   0번
-   0  dab   dab   dab   ace
-   1  add   cab   cab   add
-   2  cab   ebb   fad   bad
-   3  fad   add   bad   bed
-   4  fee   fad   dad   bee
-   5  bad   bad   ebb   cab
-   6  dad   dad   ace   dab
-   7  bee   fed   add   dad
-   8  fed   bed   fed   ebb
-   9  bed   fee   bed   fad
-  10  ebb   bee   fee   fed
-  11  ace   ace   bee   fee
-```
-
-`bad bed bee`의 순서는 마지막 패스가 아니라 앞 패스들이 만든 것입니다.
+<LsdStringDemo slide />
 
 </Slide>
 
@@ -232,6 +220,15 @@ sorted  : 008 042 074 437 531
 - **다르면**: 이번 패스가 순서를 바르게 정합니다.
 - **같으면**: 순서는 아래 $$p$$자리가 정해야 하고, 그 순서는 이미 배열에 있습니다.
   - 이번 패스는 그 순서를 **건드리지 않아야** 합니다. 그것이 안정성입니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 앞에서부터 배치하면
+::sub[카운팅 정렬의 3단계를 앞에서부터 하면 같은 글자끼리 순서가 뒤집힙니다 · 탭으로 비교합니다]
+
+<LsdStringDemo placement="unstable" slide />
 
 </Slide>
 
@@ -499,6 +496,15 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 - **접미사 배열**(suffix array): 모든 접미사를 사전순으로 정렬하고,  
   그 순서대로 **시작 위치만** 적은 배열
   - $$SA[j]$$ = 사전순으로 $$j$$번째인 접미사의 시작 위치
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 접미사를 하나씩 꽂기
+::sub[주황이 새 접미사, 파랑이 비교 상대 · 초록은 같은 글자, 빨강은 처음 갈린 글자입니다]
+
+<SuffixInsertDemo slide />
 
 </Slide>
 
@@ -827,16 +833,19 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 무차별 대입
-::sub[Brute-force · 가능한 시작 위치 쌍 i < j를 모두 시도]
+### 한 걸음씩: 무차별 대입
+::sub[Brute-force · 오른쪽 칸 (i, j) 하나가 쌍 하나, 숫자는 공통 접두사 길이 · 칸을 누르면 그 쌍으로 갑니다]
 
-```plaintext
-a a c a a g t t t a c a a g c
-  ↑               ↑
-  i               j        T[i..]와 T[j..]가 "acaag"까지 같다
-```
+<LrsBruteDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 무차별 대입의 비용
+::sub[aacaagtttacaagc$ 16글자에서 쌍 120개, 글자 비교 161번]
 
 - 위치 쌍이 $$\dfrac{n(n-1)}{2}$$개, 쌍마다 최대 $$D$$글자 비교
 - 실행 시간 $$\le D n^2$$, $$D$$는 가장 긴 일치의 길이
@@ -1065,7 +1074,7 @@ n that bed and search the straw hold
 <Slide>
 
 #### 스택과 큐
-::sub[A B C D를 넣고 모두 꺼내면]
+::sub[꺼내는 쪽이 다릅니다]
 
 - **스택**(stack): 넣은 쪽으로 꺼냅니다.
   - **나중에 넣은 것이 먼저**, LIFO(last in, first out)
@@ -1074,9 +1083,14 @@ n that bed and search the straw hold
   - **먼저 넣은 것이 먼저**, FIFO(first in, first out)
   - enqueue(넣기), dequeue(꺼내기)
 
-| 넣은 순서 | 스택에서 꺼낸 순서 | 큐에서 꺼낸 순서 |
-| --- | --- | --- |
-| A B C D | D C B A | A B C D |
+</Slide>
+
+<Slide>
+
+### 눌러 보기: 스택과 큐
+::sub[버튼을 눌러 넣고 꺼냅니다 · 자동 재생은 둘 다에 A B C D를 넣고 모두 꺼냅니다]
+
+<StackQueueDemo slide />
 
 </Slide>
 

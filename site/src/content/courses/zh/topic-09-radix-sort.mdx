@@ -10,10 +10,14 @@ slides: ["topic-09-radix-sort"]
 ---
 
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
+import LrsBruteDemo from '@components/LrsBruteDemo.astro';
+import StackQueueDemo from '@components/StackQueueDemo.astro';
 
 > 主题 03 的计数排序不做比较，就能在 $$O(n + k)$$ 内排好序，可是值的范围
 > $$k$$ 一大就用不了。  
@@ -51,26 +55,13 @@ LSD 基数排序**从最低位开始**，一位一位地重复做计数排序，
   - 按从低位到高位的顺序排序。
 
 字符串也一样。把 12 个三字母单词按末字符（第 2 位）、中间字符（第 1 位）、
-首字符（第 0 位）的顺序排三次，就成了字典序。下表中 `in` 是输入，`[2]`、`[1]`、`[0]`
-列是按该位字符排一次之后的结果。
+首字符（第 0 位）的顺序排三次，就成了字典序。下面的演示中一行就是一趟。新一行
+的单词从上一行的位置出发，移到新的位置。这一趟的键字符是橙色，已经用过的后面
+的字符是绿色。点击单词，可以标出它在每一行的位置。
 
-```plaintext
-      in    [2]   [1]   [0]
-   0  dab   dab   dab   ace
-   1  add   cab   cab   add
-   2  cab   ebb   fad   bad
-   3  fad   add   bad   bed
-   4  fee   fad   dad   bee
-   5  bad   bad   ebb   cab
-   6  dad   dad   ace   dab
-   7  bee   fed   add   dad
-   8  fed   bed   fed   ebb
-   9  bed   fee   bed   fad
-  10  ebb   bee   fee   fed
-  11  ace   ace   bee   fee
-```
+<LsdStringDemo />
 
-看最后一列里以 `b` 开头的 `bad bed bee`。三者首字符相同，所以最后一趟不会
+看最后一行里以 `b` 开头的 `bad bed bee`。三者首字符相同，所以最后一趟不会
 动它们的顺序。这个顺序是前几趟（中间字符、末字符）早已排好的。
 
 ### 一步一步：分配到桶里再收集 \{#lsd-demo}
@@ -185,9 +176,14 @@ LSD 为什么对，可以用每一趟都保持的一条性质来说明。
 后一种情况正是稳定性。只有让相同的键保持原来顺序的排序，前几趟的成果才能
 保住。最后一趟结束时，所有位都排好了，这就是排序完成。
 
-如果把计数排序的第 3 步改成从前往后读，相同数字之间的顺序会被颠倒，这条性质
-就破了。用桶来说，就相当于把桶当成**栈**来用。这个样子在[例 7](#stack-queue)
-里用演示来看。
+如果把计数排序的第 3 步改成从前往后放，相同键之间的顺序会被颠倒，这条性质
+就破了。下面的演示用这种方式排同样的 12 个单词。第二趟结束后，即使从中间字符
+看起，`dad` 也排在 `dab` 前面，最后的结果也不是字典序。切换标签可以和稳定的
+版本比较。
+
+<LsdStringDemo placement="unstable" />
+
+用桶来说，就相当于把桶当成**栈**来用。用数字看到的样子在[例 7](#stack-queue)里。
 
 ### 分析 \{#lsd-analysis}
 
@@ -391,6 +387,15 @@ $$j$$ 个后缀在 $$S$$ 中从哪里开始。它是字符串处理的核心
 
 用 `banana$` 来试。末尾的 `$` 是字符串的结束标记，约定它比其他任何字符都小。
 在 ASCII 中 `$` 是 36，小写字母在 97 以上，正好符合。
+
+从 $$i = 0$$ 开始逐个切出后缀，插入到已经排好的列表里。把新后缀放在最下面，
+和紧挨在上面的后缀按字典序比较，更小就上移一行。这就是插入排序。橙色是新后缀，
+蓝色是比较对象；绿色是相同的字符，红色是第一个不同的字符。
+
+<SuffixInsertDemo />
+
+共比较后缀 18 次、字符 25 次。像 `ana$` 和 `anana$` 这样前面长段相同的后缀，
+一次比较就要读好几个字符。把结果和按起始位置排列的列表并排整理，就是下表。
 
 | 起始位置 | 后缀 | | 排序名次 $$j$$ | $$SA[j]$$ | 后缀 |
 | --- | --- | --- | --- | --- | --- |
@@ -725,13 +730,15 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 ### 暴力法 \{#lrs-brute}
 
-把重复的两个起始位置 $$i < j$$ 全都试一遍，对每一对数公共前缀的长度。
+把重复的两个起始位置 $$i < j$$ 全都试一遍，对每一对数公共前缀的长度。下面的
+演示用碱基序列的前 15 个字符 `aacaagtttacaagc` 加上 `$`，共 16 个字符。左边把
+当前这一对的两个后缀对齐，右边的三角形中一格就是一对。看过的格子写上公共前缀
+长度。点击格子可以直接跳到那一对。
 
-```plaintext
-a a c a a g t t t a c a a g c
-  ↑               ↑
-  i               j        T[i..] 与 T[j..] 直到 "acaag" 都相同
-```
+<LrsBruteDemo />
+
+看完全部 120 对、比较字符 161 次后，找到从位置 1 和 9 开始的 `acaag`。不把
+三角形填满就结束不了，这就是这种方法的代价。
 
 - 位置对有 $$\dfrac{n(n-1)}{2}$$ 个。
 - 每一对最多比较 $$D$$ 个字符。$$D$$ 是最长匹配的长度。
@@ -949,6 +956,13 @@ n that bed and search the straw hold
 - **队列**（queue）：从后面放入，从前面取出。
   - **先放进去的先出来**。称为 FIFO（first in, first out）。
   - 放入叫 enqueue，取出叫 dequeue。
+
+按按钮亲手放入、取出试试。放入的字母按 A、B、C……的顺序决定。播放会先清空两者，
+放入 A B C D，再全部取出。
+
+<StackQueueDemo />
+
+放入顺序相同，取出顺序却不同。
 
 | 放入顺序 | 从栈中取出的顺序 | 从队列中取出的顺序 |
 | --- | --- | --- |

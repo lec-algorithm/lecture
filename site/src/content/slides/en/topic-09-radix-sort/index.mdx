@@ -10,10 +10,14 @@ toc_open: false
 
 import Slide from 'stack-site-builder/components/Slide.astro';
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
+import LrsBruteDemo from '@components/LrsBruteDemo.astro';
+import StackQueueDemo from '@components/StackQueueDemo.astro';
 
 {/* Slide rules follow "slide rules" section in docs/writing-rules.md.
     Numbers match the practice code (topic-09-radix-sort) exactly. */}
@@ -104,28 +108,12 @@ Sort three times: ones digit, tens digit, hundreds digit.
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Strings work the same way
-::sub[Twelve three-letter words, by last, middle, then first character]
+### One step at a time: strings work the same way
+::sub[Twelve three-letter words, by last, middle, then first character · click a word to mark it in every row]
 
-```plaintext
-      input ch2   ch1   ch0
-   0  dab   dab   dab   ace
-   1  add   cab   cab   add
-   2  cab   ebb   fad   bad
-   3  fad   add   bad   bed
-   4  fee   fad   dad   bee
-   5  bad   bad   ebb   cab
-   6  dad   dad   ace   dab
-   7  bee   fed   add   dad
-   8  fed   bed   fed   ebb
-   9  bed   fee   bed   fad
-  10  ebb   bee   fee   fed
-  11  ace   ace   bee   fee
-```
-
-The order of `bad bed bee` was made by the earlier passes, not the last one.
+<LsdStringDemo slide />
 
 </Slide>
 
@@ -232,6 +220,15 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 - **different**: this pass puts them in the right order.
 - **equal**: the lower $$p$$ digits decide, and that order is already in the array.
   - This pass **must not disturb** it. That is stability.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: placing from the front
+::sub[Do step 3 of counting sort from the front and equal characters come out reversed · switch with the tabs]
+
+<LsdStringDemo placement="unstable" slide />
 
 </Slide>
 
@@ -499,6 +496,15 @@ So real implementations hand small buckets to insertion sort.
 - **Suffix array**: sort every suffix in dictionary order,  
   and record **only the starting positions**, in that order
   - $$SA[j]$$ = the start of the $$j$$-th suffix in dictionary order
+
+</Slide>
+
+<Slide>
+
+### One step at a time: insert the suffixes one by one
+::sub[Orange: new suffix, blue: compared with · green: match, red: first difference]
+
+<SuffixInsertDemo slide />
 
 </Slide>
 
@@ -827,16 +833,19 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Brute force
-::sub[Brute-force · try every pair of starting positions i < j]
+### One step at a time: brute force
+::sub[Brute-force · each cell (i, j) is one pair, numbered with its common prefix · click to jump]
 
-```plaintext
-a a c a a g t t t a c a a g c
-  ↑               ↑
-  i               j        T[i..] and T[j..] agree through "acaag"
-```
+<LrsBruteDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### The cost of brute force
+::sub[aacaagtttacaagc$: 16 characters, 120 pairs, 161 character compares]
 
 - $$\dfrac{n(n-1)}{2}$$ position pairs, up to $$D$$ characters compared per pair
 - Running time $$\le D n^2$$, where $$D$$ is the length of the longest match
@@ -1065,7 +1074,7 @@ No matter how long the text, each query is one binary search over the suffix arr
 <Slide>
 
 #### Stacks and queues
-::sub[Put in A B C D, then take everything out]
+::sub[They differ in which end things come out of]
 
 - **Stack**: take out from the end you put in.
   - **Last in comes out first**, LIFO (last in, first out)
@@ -1074,9 +1083,14 @@ No matter how long the text, each query is one binary search over the suffix arr
   - **First in comes out first**, FIFO (first in, first out)
   - enqueue (put in), dequeue (take out)
 
-| Order in | Out of a stack | Out of a queue |
-| --- | --- | --- |
-| A B C D | D C B A | A B C D |
+</Slide>
+
+<Slide>
+
+### Try it: stack and queue
+::sub[Press the buttons to put in and take out · Play puts A B C D into both and takes everything out]
+
+<StackQueueDemo slide />
 
 </Slide>
 
