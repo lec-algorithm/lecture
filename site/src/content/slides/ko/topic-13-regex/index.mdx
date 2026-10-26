@@ -12,6 +12,10 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import RegexMatchDemo from '@components/RegexMatchDemo.astro';
 import FsaDemo from '@components/FsaDemo.astro';
 import NfaDemo from '@components/NfaDemo.astro';
+import LanguageDemo from '@components/LanguageDemo.astro';
+import RegexPlayDemo from '@components/RegexPlayDemo.astro';
+import BlowupDemo from '@components/BlowupDemo.astro';
+import ParenDemo from '@components/ParenDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-13-regex)의 실행 결과와 같습니다. */}
@@ -126,6 +130,24 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 <Slide>
 
+### 직접 해 보기: 클로저 펼치기
+::sub[슬라이더로 펼치는 횟수를 올려 보세요 · 같은 색 칸이 한 번 펼친 덩어리입니다]
+
+<LanguageDemo regexes={['AB*', 'A*B', '(AB)*']} tests={{ 'AB*': ['ABAB', 'B'], 'A*B': ['AABB', 'BA'], '(AB)*': ['ABA', 'BA'] }} slide />
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 괄호
+::sub[탭을 바꿔 보세요 · 괄호가 없으면 연결이 또는보다 먼저 묶입니다]
+
+<LanguageDemo regexes={['C(AC|B)D', 'CAC|BD', '(A|C)((B|C)D)', 'A(B|C)*D']} tests={{ 'C(AC|B)D': ['CD', 'CACBD'], 'CAC|BD': ['CACD', 'CBD'], '(A|C)((B|C)D)': ['ABCD'], 'A(B|C)*D': ['ABAD'] }} k={1} slide />
+
+</Slide>
+
+<Slide>
+
 #### 괄호
 ::sub[Parentheses · 기본 우선순위는 클로저, 연결, 또는 순서입니다]
 
@@ -232,6 +254,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 <Slide>
 
+### 직접 해 보기: 정규식 놀이터
+::sub[정규식과 텍스트를 고쳐 보세요 · 초록 점은 매치가 끝나는 자리, 칸 아래 숫자는 상태 집합의 크기입니다]
+
+<RegexPlayDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 유효성 검증: 전화번호
 ::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
 
@@ -295,6 +326,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 <Slide>
 
+### 직접 해 보기: 3의 배수
+::sub[`(0|1(01*0)*1)*`에 0부터 15까지를 이진수로 넣었습니다 · 초록이 속하는 것입니다]
+
+<RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary slide />
+
+</Slide>
+
+<Slide>
+
 #### 가능성
 ::sub[`(0|1(01*0)*1)*`는 3의 배수를 이진수로 나타냅니다]
 
@@ -324,6 +364,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 둘 다 **개수를 끝없이 세어야** 하는 문제입니다.  
 정규식은 상태가 유한한 기계로 돌아가므로, 셀 수 있는 개수에 한계가 있습니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 상태 k개로 괄호 세기
+::sub[기계는 깊이를 상태로만 셉니다 · `(`가 k개를 넘으면 스택과 기계의 답이 갈라집니다]
+
+<ParenDemo slide />
 
 </Slide>
 
@@ -448,6 +497,15 @@ tests
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 백트래킹의 함정
+::sub[패턴 `a*a*…a*b`(`a*`가 n번), 텍스트는 a가 n개 · 슬라이더로 n을 올려 보세요]
+
+<BlowupDemo slide />
 
 </Slide>
 
@@ -699,6 +757,15 @@ summary
 
 </Slide>
 
+<Slide>
+
+### 한 걸음씩: NFA 만들기
+::sub[주황이 지금 보는 글자, 파란 테두리가 스택에 있는 상태 · 흐린 전이는 아직 더하지 않은 것입니다]
+
+<NfaDemo regex="(A*B|AC)D" mode="build" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 절차: 그래프 만들기
@@ -824,6 +891,15 @@ text = 1001
   - 집합에는 상태가 많아야 $$M+1$$개입니다.
   - 인접 리스트를 쓰면 ε 닫힘의 DFS는 상태와 전이를 한 번씩만 봅니다.
   - 글자당 $$O(M)$$, 전체로는 최악 $$O(MN)$$
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 백트래킹과 NFA
+::sub[같은 입력을 두 방법으로 · 로그 눈금과 선형 눈금을 바꿔 보세요]
+
+<BlowupDemo compare n={10} slide />
 
 </Slide>
 

@@ -12,6 +12,10 @@ slides: ["topic-13-regex"]
 import RegexMatchDemo from '@components/RegexMatchDemo.astro';
 import FsaDemo from '@components/FsaDemo.astro';
 import NfaDemo from '@components/NfaDemo.astro';
+import LanguageDemo from '@components/LanguageDemo.astro';
+import RegexPlayDemo from '@components/RegexPlayDemo.astro';
+import BlowupDemo from '@components/BlowupDemo.astro';
+import ParenDemo from '@components/ParenDemo.astro';
 
 > The trie of Topic 10 was a tool for when you know exactly which string to
 > look for.  
@@ -65,7 +69,12 @@ An alternative. `A|B` is `{A, B}`, and `A|E|I|O|U` is the set of five vowels
 ### Closure \{#closure}
 
 Part of the pattern repeats **any number of times**. Zero counts as any
-number of times.
+number of times. Below, raise the number of times the `*` part is unfolded,
+starting from zero. Cells grouped in one color are one unfolding. Type a
+string into the box and it also tells you whether the string belongs to the
+language.
+
+<LanguageDemo regexes={['AB*', 'A*B', '(AB)*']} tests={{ 'AB*': ['ABAB', 'B'], 'A*B': ['AABB', 'BA'], '(AB)*': ['ABA', 'BA'] }} />
 
 - `AB*`: the language of strings made of A followed by zero or more Bs,
   `{A, AB, ABB, …}`
@@ -78,7 +87,13 @@ B repeats.
 ### Parentheses \{#parentheses}
 
 The default precedence is **closure, then concatenation, then or**. Use
-parentheses to change it.
+parentheses to change it. Switch tabs to see how parentheses change the
+language. `C(AC|B)D` and `CAC|BD` have the same characters but entirely
+different languages.
+
+<LanguageDemo regexes={['C(AC|B)D', 'CAC|BD', '(A|C)((B|C)D)', 'A(B|C)*D']} tests={{ 'C(AC|B)D': ['CD', 'CACBD'], 'CAC|BD': ['CACD', 'CBD'], '(A|C)((B|C)D)': ['ABCD'], 'A(B|C)*D': ['ABAD'] }} k={1} />
+
+In summary:
 
 | Regex | Language | In the language | Not in the language |
 | --- | --- | --- | --- |
@@ -149,6 +164,16 @@ ask whether the whole txt belongs to `.*pat.*`. The leading `.*` is any
 string before pat, the trailing `.*` any string after it. Search tools such
 as `grep` ask this question for every line.
 
+Edit the regex and the text in the playground below. It decides with exactly
+the method built in the [NFA](#nfa) section later. It puts the start state
+back in at every position as it reads, which is the same as `.*pat`. A green
+dot means a match ends there, and the number under a cell is the size of the
+state set after reading that character. The grammar is limited to
+characters, `.`, `*`, `|` and parentheses, and the same question goes to the
+browser's `RegExp` to show that the answers agree.
+
+<RegexPlayDemo />
+
 ### Validation \{#validation}
 
 The most common use of regexes is checking that input has the expected
@@ -206,6 +231,11 @@ uppercase letters, digits and a few symbols.
   - `10` (2), `1011` (11) and `10000` (16) are not.
   - We actually run this regex in the [NFA](#nfa) section later on.
 
+Feed it 0 through 15 in binary and the ones painted green are exactly the
+multiples of 3. You can type longer binary numbers into the text box too.
+
+<RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary />
+
 ### Limits \{#limits}
 
 **Some languages cannot be described** by a regex.
@@ -214,9 +244,18 @@ uppercase letters, digits and a few symbols.
 - checking whether a string has as many As as Bs
 
 Both require **counting without bound**. As we will see, a regex runs on a
-machine with finitely many states. A machine with only $$k$$ states cannot
-tell how many opening parentheses there were once there are more than
-$$k$$. Such languages need a stronger machine with a stack (a pushdown
+machine with finitely many states. The machine below counts depth with its
+states. With $$k$$ states it tells apart only depths $$0 \dots k-1$$, and
+when there are more opening parentheses it has no choice but to stay in the
+last state. Run it next to a stack (the truth) reading the same characters.
+
+<ParenDemo />
+
+Adding states does not help. The $$k+1$$ cases of having read 0, 1, …, $$k$$
+opening parentheses must fit into $$k$$ states, so by the pigeonhole
+principle two of them land in the same state. After that, reading the same
+closing parentheses must give both the same answer, yet only one of them is
+balanced. Such languages need a stronger machine with a stack (a pushdown
 automaton) or a general program.
 
 ## Example 1. Matching by recursion \{#backtracking}
@@ -352,7 +391,11 @@ start position.
 The last table is the weakness of this approach. The pattern is
 `a*a*…a*b` (`a*` repeated $$n$$ times) and the text is $$n$$ as. With no b
 in the text, the answer is obviously "no match." Yet to find that out, the
-engine tries **every way of handing the as out among the `a*`s**.
+engine tries **every way of handing the as out among the `a*`s**. Raise
+$$n$$ with the slider. The bars use a log scale, so each grid line is ten
+times the one below.
+
+<BlowupDemo />
 
 | $$n$$ | Pattern length | Comparisons |
 | --- | --- | --- |
@@ -548,7 +591,13 @@ $$M$$ is the accept state.
     (after finishing A).
 
 Matching parentheses are found with a stack: push on `(` and `|`, pop on
-`)`.
+`)`. Let us build `(A*B|AC)D`, which appears in the practice code's
+exercise. Wrapped, it is `((A*B|AC)D)` with states 0 to 11. Each step looks
+at one character of the regex and paints the transitions added then in
+orange. A blue rim marks a state on the stack, and faint transitions have not
+been added yet.
+
+<NfaDemo regex="(A*B|AC)D" mode="build" />
 
 ```plaintext
 ALGORITHM BuildNFA(re)
@@ -694,7 +743,10 @@ are all classified correctly.
   exactly the result promised at the start of this topic.
 - **Next to backtracking**: the last table is the input that made Example 1
   compare more than 350,000 times. For the NFA, the total number of states
-  put into sets (`work`) stays at 232.
+  put into sets (`work`) stays at 232. Switch to the linear scale below and
+  the NFA bars hug the floor.
+
+<BlowupDemo compare n={10} />
 
 | $$n$$ | Backtracking comparisons | NFA work |
 | --- | --- | --- |

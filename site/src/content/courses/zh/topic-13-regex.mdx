@@ -12,6 +12,10 @@ slides: ["topic-13-regex"]
 import RegexMatchDemo from '@components/RegexMatchDemo.astro';
 import FsaDemo from '@components/FsaDemo.astro';
 import NfaDemo from '@components/NfaDemo.astro';
+import LanguageDemo from '@components/LanguageDemo.astro';
+import RegexPlayDemo from '@components/RegexPlayDemo.astro';
+import BlowupDemo from '@components/BlowupDemo.astro';
+import ParenDemo from '@components/ParenDemo.astro';
 
 > 主题 10 的字典树是在确切知道要找的字符串时使用的工具。  
 > 这次是**不确切知道**要找什么的时候。只知道形状，比如"三个数字、一个连字符、
@@ -56,7 +60,11 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 ### 闭包 \{#closure}
 
-模式的一部分**重复任意次**。0 次也算任意次。
+模式的一部分**重复任意次**。0 次也算任意次。在下面把 `*` 部分的展开次数从 0
+开始一次次增加看看。同一颜色的一组格子是展开一次的部分。在字符串框里输入，
+它还会告诉你这个字符串是否属于该语言。
+
+<LanguageDemo regexes={['AB*', 'A*B', '(AB)*']} tests={{ 'AB*': ['ABAB', 'B'], 'A*B': ['AABB', 'BA'], '(AB)*': ['ABA', 'BA'] }} />
 
 - `AB*`：A 后面跟着 0 个以上 B 的字符串构成的语言 `{A, AB, ABB, …}`
 - `A*B`：0 个以上 A 之后接一个 B 的字符串构成的语言 `{B, AB, AAB, …}`
@@ -65,7 +73,12 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 ### 括号 \{#parentheses}
 
-运算的默认优先级依次是**闭包、连接、或**。想改变它时就用括号。
+运算的默认优先级依次是**闭包、连接、或**。想改变它时就用括号。切换标签，
+看看括号如何改变语言。`C(AC|B)D` 和 `CAC|BD` 字符相同，语言却完全不同。
+
+<LanguageDemo regexes={['C(AC|B)D', 'CAC|BD', '(A|C)((B|C)D)', 'A(B|C)*D']} tests={{ 'C(AC|B)D': ['CD', 'CACBD'], 'CAC|BD': ['CACD', 'CBD'], '(A|C)((B|C)D)': ['ABCD'], 'A(B|C)*D': ['ABAD'] }} k={1} />
+
+整理如下。
 
 | 正则表达式 | 语言 | 属于的例子 | 不属于的例子 |
 | --- | --- | --- | --- |
@@ -132,6 +145,13 @@ import NfaDemo from '@components/NfaDemo.astro';
 `.*pat.*` 即可。前面的 `.*` 是 pat 之前的任意字符串，后面的 `.*` 是 pat
 之后的任意字符串。`grep` 之类的查找工具对每一行都提出这个问题。
 
+在下面的练习场里直接改一改正则和文本。判断用的正是后面 [NFA](#nfa) 一节构造的
+方法。每读一个位置都重新放入开始状态，所以和 `.*pat` 相同。绿点表示有匹配在那里
+结束，格子下的数字是读完那个字符后状态集合的大小。语法限定为字符、`.`、`*`、
+`|` 和括号，同样的问题也交给浏览器的 `RegExp`，显示两者答案是否相同。
+
+<RegexPlayDemo />
+
 ### 有效性校验 \{#validation}
 
 检查输入是否符合规定的形状，是正则表达式最常见的用途。
@@ -182,6 +202,11 @@ import NfaDemo from '@components/NfaDemo.astro';
   - `10`(2)、`1011`(11)、`10000`(16) 不属于它。
   - 这个正则表达式会在后面的 [NFA](#nfa) 一节里实际运行。
 
+把 0 到 15 的二进制放进去，涂成绿色的正好是 3 的倍数。也可以在文本框里输入更长的
+二进制数。
+
+<RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary />
+
 ### 局限 \{#limits}
 
 **也存在正则表达式无法表示的语言**。
@@ -190,8 +215,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 - 检查字符串中 A 和 B 的个数是否相同
 
 两者都是**需要无限计数**的问题。后面会看到，正则表达式运行在状态有限的机器上。
-只有 $$k$$ 个状态的机器，在左括号超过 $$k$$ 个时就分辨不出到底有几个。这类语言
-交给带栈的更强的机器（下推自动机）或一般程序。
+下面的机器用状态来记深度。有 $$k$$ 个状态时只能分辨深度 $$0 \dots k-1$$，左括号
+再多就只能停在最后一个状态。让它和读同样字符的栈（正确答案）并排运行。
+
+<ParenDemo />
+
+增加状态也没有用。读了 0 个、1 个、…、$$k$$ 个左括号的 $$k+1$$ 种情况要装进
+$$k$$ 个状态，按鸽巢原理，必有两种情况落在同一个状态。之后读同样的右括号，两者
+只能给出同样的答案，可配对的只有其中一个。这类语言交给带栈的更强的机器（下推
+自动机）或一般程序。
 
 ## 示例 1. 用递归匹配 \{#backtracking}
 
@@ -317,7 +349,10 @@ blow-up: match((a*)^n b, a^n)
 
 最后一张表就是这种方法的弱点。模式是 `a*a*…a*b`（`a*` 出现 $$n$$ 次），
 文本是 $$n$$ 个 a。文本里没有 b，答案显然是"不匹配"。可引擎为了得出这个结论，
-要把**a 分给哪个 `a*`、各分几个的所有情况**都试一遍。
+要把**a 分给哪个 `a*`、各分几个的所有情况**都试一遍。用滑块增大 $$n$$ 看看。
+柱子用的是对数刻度，每一格是下一格的 10 倍。
+
+<BlowupDemo />
 
 | $$n$$ | 模式长度 | 比较次数 |
 | --- | --- | --- |
@@ -490,7 +525,11 @@ summary
   - `x*` 或 `(…)*`：从块的开头到 `*`（0 次），从 `*` 回到块的开头（再来一次）。
   - `(A|B)`：从 `(` 到 B 的开头（跳过 A），从 `|` 到 `)`（走完 A 之后）。
 
-括号的配对用栈来找。遇到 `(` 和 `|` 就压入，遇到 `)` 就弹出。
+括号的配对用栈来找。遇到 `(` 和 `|` 就压入，遇到 `)` 就弹出。用实践代码练习题里的
+`(A*B|AC)D` 来构造看看。包上括号是 `((A*B|AC)D)`，状态是 0 到 11。每一步查看正则的
+一个字符，把这时添加的转移涂成橙色。蓝色边框是栈里的状态，淡色的转移是还没添加的。
+
+<NfaDemo regex="(A*B|AC)D" mode="build" />
 
 ```plaintext
 ALGORITHM BuildNFA(re)
@@ -626,7 +665,9 @@ blow-up: (a*)^n b on a^n
   这慢，但用邻接表就是这样。因此每个字符 $$O(M)$$，整体最坏 $$O(MN)$$。
   这正是本主题开头许下的那个结果。
 - **与回溯对照**：最后一张表是让示例 1 比较了 35 万次以上的输入。NFA 放进集合的
-  状态数之和（`work`）只有 232。
+  状态数之和（`work`）只有 232。在下面换成线性刻度，NFA 的柱子就贴着底部看不见了。
+
+<BlowupDemo compare n={10} />
 
 | $$n$$ | 回溯比较次数 | NFA 工作量 |
 | --- | --- | --- |

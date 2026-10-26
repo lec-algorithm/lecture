@@ -11,6 +11,10 @@
 //
 // 그래프 만들기와 시뮬레이션은 algorithm-code의 nfaRegex.c · nfa_regex.py와
 // 같다. 기본 입력 (0|1(01*0)*1)*와 1001은 출력의 집합 여덟 개를 그대로 지난다.
+//
+// mode="build"면 그래프를 만드는 과정(BuildNFA)을 한 걸음씩 보여 준다. 한 걸음에
+// 정규식 글자 하나를 보고, ops 스택과 그 걸음에 더한 전이를 칠한다. 아직 더하지
+// 않은 전이는 흐리게 둔다. 기본값 mode="run"은 예전과 똑같이 동작한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -18,34 +22,64 @@ interface Props {
   regex?: string;
   /** 읽을 텍스트 */
   text?: string;
+  /** 'run': 상태 집합으로 돌리기(기본), 'build': 그래프 만들기 */
+  mode?: 'run' | 'build';
   /** 슬라이드용: 글자와 그림을 키운다. */
   slide?: boolean;
 }
-const { regex = '(0|1(01*0)*1)*', text = '1001', slide = false } = Astro.props;
+const { regex = '(0|1(01*0)*1)*', text = '1001', mode = 'run', slide = false } = Astro.props;
 const id = `nd-${Math.random().toString(36).slice(2, 9)}`;
 
-/* BuildNFA. nfaRegex.pseudo와 같은 순서로 ε 전이를 만든다. */
+/* BuildNFA. nfaRegex.pseudo와 같은 순서로 ε 전이를 만든다. build 모드를 위해
+   걸음마다 무엇을 했는지(꺼낸 것, 더한 전이, 스택)도 적어 둔다. */
 const re = `(${regex})`;
 const M = re.length;
 const eps: [number, number][] = [];
+type BuildStep = {
+  i: number;
+  kind: 'open' | 'or' | 'close' | 'closeOr' | 'lit' | 'star';
+  popped: number[];
+  lp: number;
+  added: [number, number][];
+  starAdded: [number, number][];
+  ops: number[];
+};
+const buildSteps: BuildStep[] = [];
 {
   const ops: number[] = [];
   for (let i = 0; i < M; i++) {
+    const before = eps.length;
     let lp = i;
-    if (re[i] === '(' || re[i] === '|') ops.push(i);
-    else if (re[i] === ')') {
+    let kind: BuildStep['kind'] = re[i] === '*' ? 'star' : 'lit';
+    const popped: number[] = [];
+    if (re[i] === '(' || re[i] === '|') {
+      ops.push(i);
+      kind = re[i] === '(' ? 'open' : 'or';
+    } else if (re[i] === ')') {
       const or = ops.pop()!;
+      popped.push(or);
+      kind = 'close';
       if (re[or] === '|') {
         lp = ops.pop()!;
+        popped.push(lp);
+        kind = 'closeOr';
         eps.push([lp, or + 1]);
         eps.push([or, i]);
       } else lp = or;
     }
+    const mid = eps.length;
     if (i < M - 1 && re[i + 1] === '*') {
       eps.push([lp, i + 1]);
       eps.push([i + 1, lp]);
     }
+    const afterStar = eps.length;
     if (re[i] === '(' || re[i] === '*' || re[i] === ')') eps.push([i, i + 1]);
+    buildSteps.push({
+      i, kind, popped, lp,
+      added: [...eps.slice(before, mid), ...eps.slice(afterStar)],
+      starAdded: eps.slice(mid, afterStar),
+      ops: [...ops],
+    });
   }
 }
 const isLiteral = (c: string) => !'()*|'.includes(c);
@@ -67,6 +101,21 @@ const STRINGS: Record<string, Record<string, string>> = {
     close: 'ε 닫힘: ε 전이를 따라 넓히면 {set}',
     yes: '텍스트를 다 읽었고 집합에 수락 상태 {m}이 있습니다. 수락합니다.',
     no: '텍스트를 다 읽었는데 집합에 수락 상태 {m}이 없습니다. 거부합니다.',
+    titleBuild: 'NFA 만들기',
+    stack: 'ops 스택',
+    epsPre: 'ε 전이 ',
+    epsPost: '개',
+    bIdle: '괄호로 감싼 정규식 {r}: 왼쪽부터 한 글자씩 보며 전이를 더합니다. 글자 하나가 상태 하나입니다.',
+    bOpen: "상태 {i} '(': 스택에 넣습니다.",
+    bOr: "상태 {i} '|': 스택에 넣습니다. 왼쪽 갈래가 여기서 끝납니다.",
+    bClose: "상태 {i} ')': 스택에서 짝이 되는 '('를 꺼냅니다. 상태 {lp}입니다.",
+    bCloseOr: "상태 {i} ')': 스택에서 '|'와 짝이 되는 '('를 꺼냅니다.",
+    bOrEdges: "더하는 ε 전이: {lp}→{or1} ('('에서 오른쪽 갈래로), {or}→{i} ('|'에서 ')'로)",
+    bLit: "상태 {i} '{c}': 글자 상태, 매치 전이 {i}→{i1}",
+    bStar: "상태 {i} '*'",
+    bSym: '더하는 ε 전이: {i}→{i1} (글자 없이 다음으로)',
+    bStarAdd: "다음 글자가 '*' → 더하는 ε 전이: {lp}→{i1} (0번), {i1}→{lp} (한 번 더)",
+    bDone: '다 만들었습니다. 상태는 0부터 {m}까지, ε 전이는 모두 {n}개입니다.',
   },
   en: {
     title: 'NFA simulation',
@@ -84,6 +133,21 @@ const STRINGS: Record<string, Record<string, string>> = {
     close: 'ε-closure: follow ε-transitions to widen it to {set}',
     yes: 'The text is used up and the set holds the accept state {m}. Accept.',
     no: 'The text is used up but the set lacks the accept state {m}. Reject.',
+    titleBuild: 'Building the NFA',
+    stack: 'ops stack',
+    epsPre: '',
+    epsPost: ' ε-transitions',
+    bIdle: 'The wrapped regex {r}: scan it from the left one character at a time, adding transitions. Each character is one state.',
+    bOpen: "State {i} '(': push it on the stack.",
+    bOr: "State {i} '|': push it on the stack. The left branch ends here.",
+    bClose: "State {i} ')': pop its matching '(' from the stack. That is state {lp}.",
+    bCloseOr: "State {i} ')': pop the '|' and its matching '(' from the stack.",
+    bOrEdges: "New ε-transitions: {lp}→{or1} (from '(' to the right branch), {or}→{i} (from '|' to ')')",
+    bLit: "State {i} '{c}': a character state, match transition {i}→{i1}",
+    bStar: "State {i} '*'",
+    bSym: 'New ε-transition: {i}→{i1} (move on without reading)',
+    bStarAdd: "Next comes '*' → new ε-transitions: {lp}→{i1} (zero times), {i1}→{lp} (once more)",
+    bDone: 'Done. The states run from 0 to {m}, with {n} ε-transitions in all.',
   },
   zh: {
     title: 'NFA 模拟',
@@ -101,6 +165,21 @@ const STRINGS: Record<string, Record<string, string>> = {
     close: 'ε 闭包：沿 ε 转移扩展为 {set}',
     yes: '文本已读完，集合中有接受状态 {m}。接受。',
     no: '文本已读完，集合中没有接受状态 {m}。拒绝。',
+    titleBuild: 'NFA 构造',
+    stack: 'ops 栈',
+    epsPre: 'ε 转移 ',
+    epsPost: ' 条',
+    bIdle: '加上括号的正则 {r}：从左到右逐个查看字符并添加转移。每个字符就是一个状态。',
+    bOpen: "状态 {i} '('：压入栈。",
+    bOr: "状态 {i} '|'：压入栈。左分支在这里结束。",
+    bClose: "状态 {i} ')'：从栈中弹出与之配对的 '('。它是状态 {lp}。",
+    bCloseOr: "状态 {i} ')'：从栈中弹出 '|' 和与之配对的 '('。",
+    bOrEdges: "新增 ε 转移：{lp}→{or1}（从 '(' 到右分支），{or}→{i}（从 '|' 到 ')'）",
+    bLit: "状态 {i} '{c}'：字符状态，匹配转移 {i}→{i1}",
+    bStar: "状态 {i} '*'",
+    bSym: '新增 ε 转移：{i}→{i1}（不读字符直接前进）',
+    bStarAdd: "下一个字符是 '*' → 新增 ε 转移：{lp}→{i1}（0 次），{i1}→{lp}（再来一次）",
+    bDone: '构造完成。状态从 0 到 {m}，ε 转移共 {n} 条。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -144,8 +223,10 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
 ---
 
 <div
-  class:list={['aas-nfa-demo', slide && 'is-slide']}
+  class:list={['aas-nfa-demo', slide && 'is-slide', mode === 'build' && 'is-build']}
   id={id}
+  data-nd-mode={mode}
+  data-nd-build={mode === 'build' ? JSON.stringify(buildSteps) : undefined}
   data-nd-re={re}
   data-nd-regex={regex}
   data-nd-eps={JSON.stringify(eps)}
@@ -153,7 +234,7 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
   data-nd-strings={JSON.stringify(t)}
 >
   <div class="nd-bar">
-    <span class="nd-head"><strong>{t.title}</strong> <code>{regex}</code></span>
+    <span class="nd-head"><strong>{mode === 'build' ? t.titleBuild : t.title}</strong> <code>{regex}</code></span>
     <div class="nd-controls">
       <button type="button" data-act="back" class="nd-btn">{t.back}</button>
       <button type="button" data-act="step" class="nd-btn">{t.step}</button>
@@ -199,16 +280,23 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     </svg>
   </div>
 
-  <div class="nd-tape">
-    {[...text].map((c, i) => (
-      <span class="nd-cell" data-nd-cell={i}>{c}</span>
-    ))}
-  </div>
+  {mode === 'build' ? (
+    <div class="nd-ops">
+      <span class="nd-ops-label">{t.stack}</span>
+      <span class="nd-ops-cells" data-nd-ops></span>
+    </div>
+  ) : (
+    <div class="nd-tape">
+      {[...text].map((c, i) => (
+        <span class="nd-cell" data-nd-cell={i}>{c}</span>
+      ))}
+    </div>
+  )}
 
   <div class="nd-foot">
     <p class="nd-note" data-nd-note></p>
     <span class="nd-count">
-      {t.setSize}<strong data-nd-count>0</strong>{t.setPost}
+      {mode === 'build' ? t.epsPre : t.setSize}<strong data-nd-count>0</strong>{mode === 'build' ? t.epsPost : t.setPost}
     </span>
   </div>
 </div>
@@ -217,6 +305,12 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
 
     const re = root.dataset.ndRe;
     const M = re.length;
@@ -266,14 +360,96 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
       return steps;
     }
 
-    const steps = plan();
+    /* build 모드: BuildNFA가 글자마다 한 일을 단계로 둔다. 마지막은 다 만든 상태 */
+    const mode = root.dataset.ndMode;
+    const fmtEdge = (v, w) => `${v}→${w}`;
+    function planBuild() {
+      const raw = JSON.parse(root.dataset.ndBuild);
+      const out = raw.map((b) => {
+        const i = b.i;
+        const c = re[i];
+        const v = { i, i1: i + 1, c, lp: b.lp };
+        const parts = [];
+        if (b.kind === 'open') parts.push(fill(S.bOpen, v));
+        else if (b.kind === 'or') parts.push(fill(S.bOr, v));
+        else if (b.kind === 'close') parts.push(fill(S.bClose, v));
+        else if (b.kind === 'closeOr') {
+          const or = b.popped[0];
+          parts.push(fill(S.bCloseOr, { ...v, or }));
+          parts.push(fill(S.bOrEdges, { ...v, or, or1: or + 1 }));
+        } else if (b.kind === 'lit') parts.push(fill(S.bLit, v));
+        else parts.push(fill(S.bStar, v));
+        if (c === '(' || c === '*' || c === ')') parts.push(fill(S.bSym, v));
+        if (b.starAdded.length) parts.push(fill(S.bStarAdd, v));
+        const keys = [...b.added, ...b.starAdded].map(([a, w]) => `e${a}-${w}`);
+        if (isLiteral(c)) keys.push(`m${i}`);
+        return { ...b, parts, keys, nEps: b.added.length + b.starAdded.length };
+      });
+      const total = out.reduce((a, b) => a + b.nEps, 0);
+      out.push({ done: true, ops: [], keys: [], nEps: 0, parts: [fill(S.bDone, { m: M, n: total })] });
+      return out;
+    }
+    const steps = mode === 'build' ? planBuild() : plan();
     const states = [...root.querySelectorAll('[data-nd-state]')];
     const edges = [...root.querySelectorAll('[data-nd-edge]')];
     const cells = [...root.querySelectorAll('[data-nd-cell]')];
     const note = root.querySelector('[data-nd-note]');
     const countEl = root.querySelector('[data-nd-count]');
 
+    /* 문장 묶음을 줄마다 나눠 넣는다. 묶음 안에서도 문장마다 줄을 바꾼다. */
+    const setParts = (node, parts) => {
+      node.replaceChildren();
+      parts.forEach((p, k) => {
+        const span = document.createElement('span');
+        setLines(span, p);
+        if (k) node.appendChild(document.createElement('br'));
+        node.appendChild(span);
+      });
+    };
+    const addedAt = {};
+    if (mode === 'build') {
+      steps.forEach((st, j) => st.keys.forEach((key) => {
+        if (!(key in addedAt)) addedAt[key] = j;
+      }));
+    }
+    const opsEl = root.querySelector('[data-nd-ops]');
+
+    function renderBuild(s) {
+      const step = s >= 0 ? steps[s] : null;
+      const done = !!step && !!step.done;
+      states.forEach((g) => {
+        const i = Number(g.dataset.ndState);
+        g.classList.toggle('is-from', !!step && !done && step.i === i);
+        g.classList.toggle('is-stack', !!step && step.ops.includes(i));
+      });
+      edges.forEach((p) => {
+        const at = addedAt[p.dataset.ndEdge];
+        const later = !step || (!done && (at === undefined || at > s));
+        const on = !!step && !done && at === s;
+        p.classList.toggle('is-later', later);
+        p.classList.toggle('is-on', on);
+        p.setAttribute('marker-end', on ? p.dataset.ndOn : p.dataset.ndOff);
+      });
+      opsEl.replaceChildren(...(step ? step.ops : []).map((i) => {
+        const cell = document.createElement('span');
+        cell.className = 'nd-op';
+        const ch = document.createElement('b');
+        ch.textContent = re[i];
+        const num = document.createElement('small');
+        num.textContent = String(i);
+        cell.append(ch, num);
+        return cell;
+      }));
+      let n = 0;
+      for (let j = 0; j <= s && j < steps.length; j++) n += steps[j].nEps;
+      countEl.textContent = String(n);
+      if (step) setParts(note, step.parts);
+      else setLines(note, fill(S.bIdle, { r: re }));
+      root.classList.toggle('is-done', done);
+    }
+
     function render(s) {
+      if (mode === 'build') return renderBuild(s);
       const step = s >= 0 ? steps[s] : null;
       const set = step ? step.set : new Set();
       states.forEach((g) => {
@@ -302,8 +478,8 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
         cell.classList.toggle('is-now', reading && i === pos - 1);
       });
       countEl.textContent = String(set.size);
-      note.textContent = step ? step.note
-        : fill(S.idle, { r: root.dataset.ndRegex, t: input.join(''), m: M });
+      setLines(note, step ? step.note
+        : fill(S.idle, { r: root.dataset.ndRegex, t: input.join(''), m: M }));
       root.classList.toggle('is-done', !!(step && step.done));
     }
 
@@ -481,6 +657,46 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     stroke-width: 3;
   }
 
+  .aas-nfa-demo .nd-edge.is-later {
+    opacity: 0.08;
+  }
+  .aas-nfa-demo .nd-state.is-stack circle:not(.nd-ring) {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-nfa-demo .nd-ops {
+    display: flex;
+    gap: 0.6em;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.4em;
+    margin-top: 0.4em;
+  }
+  .aas-nfa-demo .nd-ops-label {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-nfa-demo .nd-ops-cells {
+    display: flex;
+    gap: 0.25em;
+    min-width: 2em;
+    padding: 0.15em 0.3em;
+    border-bottom: 2px solid var(--aas-muted);
+  }
+  .aas-nfa-demo .nd-op {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.15em;
+    padding: 0.1em 0.45em;
+    font-family: var(--aas-mono, monospace);
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+  }
+  .aas-nfa-demo .nd-op small {
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
   .aas-nfa-demo .nd-tape {
     display: flex;
     justify-content: center;
@@ -547,6 +763,9 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
   }
   .aas-nfa-demo.is-slide .nd-note {
     min-height: 1.6em;
+  }
+  .aas-nfa-demo.is-slide.is-build .nd-graph {
+    max-height: 28vh;
   }
 
   @media (prefers-reduced-motion: reduce) {

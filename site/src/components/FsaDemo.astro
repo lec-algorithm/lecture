@@ -176,6 +176,12 @@ const chars = [...input];
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const input = [...root.dataset.fdInput];
     const S = JSON.parse(root.dataset.fdStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
@@ -241,7 +247,7 @@ const chars = [...input];
         cell.classList.toggle('is-bad', !!step && step.bad === i);
       });
       countEl.textContent = String(pos);
-      note.textContent = step ? step.note : fill(S.idle, { w: input.join('') });
+      setLines(note, step ? step.note : fill(S.idle, { w: input.join('') }));
       root.classList.toggle('is-done', !!(step && step.done));
     }
 

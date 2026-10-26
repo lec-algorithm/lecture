@@ -12,6 +12,10 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import RegexMatchDemo from '@components/RegexMatchDemo.astro';
 import FsaDemo from '@components/FsaDemo.astro';
 import NfaDemo from '@components/NfaDemo.astro';
+import LanguageDemo from '@components/LanguageDemo.astro';
+import RegexPlayDemo from '@components/RegexPlayDemo.astro';
+import BlowupDemo from '@components/BlowupDemo.astro';
+import ParenDemo from '@components/ParenDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md。
     数字与实践代码（topic-13-regex）的运行结果一致。 */}
@@ -126,6 +130,24 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 <Slide>
 
+### 动手试试：展开闭包
+::sub[用滑块增加展开次数 · 同一颜色的一组格子是展开一次的部分]
+
+<LanguageDemo regexes={['AB*', 'A*B', '(AB)*']} tests={{ 'AB*': ['ABAB', 'B'], 'A*B': ['AABB', 'BA'], '(AB)*': ['ABA', 'BA'] }} slide />
+
+</Slide>
+
+<Slide>
+
+### 动手试试：括号
+::sub[切换标签看看 · 没有括号时，连接比或先结合]
+
+<LanguageDemo regexes={['C(AC|B)D', 'CAC|BD', '(A|C)((B|C)D)', 'A(B|C)*D']} tests={{ 'C(AC|B)D': ['CD', 'CACBD'], 'CAC|BD': ['CACD', 'CBD'], '(A|C)((B|C)D)': ['ABCD'], 'A(B|C)*D': ['ABAD'] }} k={1} slide />
+
+</Slide>
+
+<Slide>
+
 #### 括号
 ::sub[Parentheses · 默认优先级依次是闭包、连接、或]
 
@@ -232,6 +254,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 <Slide>
 
+### 动手试试：正则表达式练习场
+::sub[改一改正则和文本 · 绿点是匹配结束的位置，格子下的数字是状态集合的大小]
+
+<RegexPlayDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 有效性校验：电话号码
 ::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
 
@@ -295,6 +326,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 <Slide>
 
+### 动手试试：3 的倍数
+::sub[把 0 到 15 的二进制放进 `(0|1(01*0)*1)*` · 绿色表示属于]
+
+<RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary slide />
+
+</Slide>
+
+<Slide>
+
 #### 可能性
 ::sub[`(0|1(01*0)*1)*` 表示用二进制写出的 3 的倍数]
 
@@ -324,6 +364,15 @@ import NfaDemo from '@components/NfaDemo.astro';
 
 两者都是**需要无限计数**的问题。  
 正则表达式运行在状态有限的机器上，能数的个数有上限。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：用 k 个状态数括号
+::sub[机器只用状态来记深度 · `(` 超过 k 个时，栈和机器的答案就分开了]
+
+<ParenDemo slide />
 
 </Slide>
 
@@ -448,6 +497,15 @@ tests
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 动手试试：回溯的陷阱
+::sub[模式 `a*a*…a*b`（`a*` 出现 n 次），文本是 n 个 a · 用滑块增大 n]
+
+<BlowupDemo slide />
 
 </Slide>
 
@@ -699,6 +757,15 @@ summary
 
 </Slide>
 
+<Slide>
+
+### 单步：构造 NFA
+::sub[橙色是正在查看的字符，蓝色边框是栈里的状态 · 淡色的转移是还没添加的]
+
+<NfaDemo regex="(A*B|AC)D" mode="build" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 步骤：构造图
@@ -824,6 +891,15 @@ text = 1001
   - 集合里的状态至多 $$M+1$$ 个。
   - 用邻接表时，ε 闭包的 DFS 对每个状态和转移只看一次。
   - 每个字符 $$O(M)$$，整体最坏 $$O(MN)$$
+
+</Slide>
+
+<Slide>
+
+### 动手试试：回溯与 NFA
+::sub[同样的输入，两种方法 · 切换对数刻度和线性刻度看看]
+
+<BlowupDemo compare n={10} slide />
 
 </Slide>
 
