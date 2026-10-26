@@ -195,6 +195,12 @@ const title = mode === 'path' ? t.titlePath : mode === 'children' ? t.titleChild
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const S = JSON.parse(root.dataset.tpStrings);
     const MODE = root.dataset.tpMode;
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
@@ -319,7 +325,7 @@ const title = mode === 'path' ? t.titlePath : mode === 'children' ? t.titleChild
         stat.innerHTML = '';
         stat.append(document.createTextNode(`${S.paths} `), html('strong', '', String(paths.length)));
         linkBtn.textContent = extra ? S.dropLink : S.addLink;
-        note.textContent = msg;
+        setLines(note, msg);
       }
       function pick(i) {
         target = i;
@@ -439,7 +445,7 @@ const title = mode === 'path' ? t.titlePath : mode === 'children' ? t.titleChild
           box.append(third);
           side.append(html('div', 'tp-side-head', tree[sel]), box);
         }
-        note.textContent = msg;
+        setLines(note, msg);
         root.classList.toggle('is-broken', reject);
       }
       function grow(i, c) {
@@ -522,7 +528,7 @@ const title = mode === 'path' ? t.titlePath : mode === 'children' ? t.titleChild
           document.createTextNode(' · N = '), html('strong', '', String(last)),
           document.createTextNode(` · log₂(N + 1) = ${h}`),
         );
-        note.textContent = msg;
+        setLines(note, msg);
         root.classList.toggle('is-done', h === MAXH);
       }
       const show = () => {

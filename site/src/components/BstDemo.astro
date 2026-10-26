@@ -157,6 +157,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const keys = JSON.parse(root.dataset.bdKeys);
     const findRaw = root.dataset.bdFind;
     const searching = findRaw !== '';
@@ -398,7 +404,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         chip.classList.toggle('is-done', i < step.chip || (i === step.chip && !step.token));
         chip.classList.toggle('is-current', i === step.chip && !!step.token);
       });
-      root.querySelector('[data-bd-note]').textContent = step.note;
+      setLines(root.querySelector('[data-bd-note]'), step.note);
       root.querySelector('[data-bd-cmp]').textContent = String(step.cmp);
       const h = root.querySelector('[data-bd-height]');
       if (h) {

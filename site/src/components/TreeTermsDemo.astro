@@ -186,6 +186,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const S = JSON.parse(root.dataset.ttStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const TREE = Object.fromEntries(
@@ -411,8 +417,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         c.setAttribute('aria-selected', String(on));
       });
       nameEl.textContent = S[cur];
-      defEl.textContent = DEF[cur];
-      factEl.textContent = fact;
+      setLines(defEl, DEF[cur]);
+      setLines(factEl, fact);
       cardEl.textContent = fill(S.cardLine, {
         v: name(sel), l: levelOf(sel), p: parentText(sel), kids: kidsText(sel), k: sub.size,
       });

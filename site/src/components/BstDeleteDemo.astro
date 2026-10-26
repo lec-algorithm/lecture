@@ -22,10 +22,12 @@ interface Props {
   keys?: Key[] | string;
   /** 지울 값 */
   del?: Key;
+  /** 자식이 둘일 때 올릴 노드. 기본은 실습 코드와 같은 후속자, pred면 선행자 */
+  use?: 'succ' | 'pred';
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
   slide?: boolean;
 }
-const { keys: rawKeys = 'BADCGFE', del = 'D', slide = false } = Astro.props;
+const { keys: rawKeys = 'BADCGFE', del = 'D', use = 'succ', slide = false } = Astro.props;
 const keys = typeof rawKeys === 'string' ? [...rawKeys] : rawKeys;
 const id = `dd-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -58,6 +60,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     copy: '{k}의 자리에 {s} 값을 복사합니다. 이제 {s} 값이 두 군데 있습니다.',
     removeSucc0: '원래 {s} 노드를 지웁니다. 자식이 없으니 그냥 떼어 냅니다.',
     removeSucc1: '원래 {s} 노드를 지웁니다. 왼쪽 자식이 없으니 오른쪽 자식 {c} 노드가 올라옵니다.',
+    predLeft: '선행자를 찾습니다. 왼쪽 서브트리로 한 번: {v}',
+    predRight: '오른쪽이 있으면 계속 오른쪽으로: {v}',
+    predFound: '선행자는 {s}입니다. 왼쪽 서브트리에서 가장 큰 값, 곧 {k} 바로 앞 값입니다.',
+    removePred1: '원래 {s} 노드를 지웁니다. 오른쪽 자식이 없으니 왼쪽 자식 {c} 노드가 올라옵니다.',
     missing: '비어 있는 자리에 닿았습니다. 트리에 없는 값이라 지울 것이 없습니다.',
     done: '끝. 중위 순서는 지운 값만 빠지고 그대로입니다: {list}',
   },
@@ -89,6 +95,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     copy: 'Copy {s} into {k}’s place. Now {s} appears twice.',
     removeSucc0: 'Delete the original {s}. It has no children, so just detach it.',
     removeSucc1: 'Delete the original {s}. It has no left child, so its right child {c} moves up.',
+    predLeft: 'Look for the predecessor. Step into the left subtree once: {v}',
+    predRight: 'Keep going right while you can: {v}',
+    predFound: '{s} is the predecessor: the largest key in the left subtree, the key right before {k}.',
+    removePred1: 'Delete the original {s}. It has no right child, so its left child {c} moves up.',
     missing: '{k} is not in the tree. Nothing to delete.',
     done: 'Done. The inorder sequence only lost the deleted key: {list}',
   },
@@ -120,6 +130,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     copy: '把 {s} 复制到 {k} 的位置。现在 {s} 出现了两次。',
     removeSucc0: '删除原来的 {s}。它没有子节点，直接摘掉。',
     removeSucc1: '删除原来的 {s}。它没有左子节点，右子节点 {c} 上移。',
+    predLeft: '寻找前驱。先进入左子树一次：{v}',
+    predRight: '只要有右子节点就继续向右：{v}',
+    predFound: '{s} 是前驱：左子树中最大的键，也就是紧挨在 {k} 前面的键。',
+    removePred1: '删除原来的 {s}。它没有右子节点，左子节点 {c} 上移。',
     missing: '树中没有 {k}。没有可删除的。',
     done: '结束。中序序列只少了被删除的键：{list}',
   },
@@ -133,6 +147,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   id={id}
   data-dd-keys={JSON.stringify(keys)}
   data-dd-del={JSON.stringify(del)}
+  data-dd-use={use}
   data-dd-strings={JSON.stringify(t)}
 >
   <div class="dd-bar">
@@ -160,8 +175,15 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const keys = JSON.parse(root.dataset.ddKeys);
     const del = JSON.parse(root.dataset.ddDel);
+    const usePred = root.dataset.ddUse === 'pred';
     const S = JSON.parse(root.dataset.ddStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
 
@@ -265,30 +287,34 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         push({ caseId, moved: child, note: fill(S.remove1, { k: del, c: tree.nodes[child].key }) });
       } else {
         push({ target: v, path: path.slice(), caseId, note: fill(S.found2, { k: del, a: tree.nodes[node.left].key, b: tree.nodes[node.right].key }) });
-        /* 후속자: 오른쪽으로 한 번, 그다음 왼쪽 끝까지 */
-        const walk = [node.right];
-        push({ target: v, focus: [node.right], succPath: walk.slice(), caseId, note: fill(S.succRight, { v: tree.nodes[node.right].key }) });
-        let s = node.right;
+        /* 후속자: 오른쪽으로 한 번, 그다음 왼쪽 끝까지.
+           선행자(use="pred"): 왼쪽으로 한 번, 그다음 오른쪽 끝까지. 좌우만 뒤집힌다. */
+        const first = usePred ? 'left' : 'right';
+        const then = usePred ? 'right' : 'left';
+        const walk = [node[first]];
+        push({ target: v, focus: [node[first]], succPath: walk.slice(), caseId, note: fill(usePred ? S.predLeft : S.succRight, { v: tree.nodes[node[first]].key }) });
+        let s = node[first];
         let sParent = v;
-        let sSide = 'right';
-        while (tree.nodes[s].left !== null) {
+        let sSide = first;
+        while (tree.nodes[s][then] !== null) {
           sParent = s;
-          sSide = 'left';
-          s = tree.nodes[s].left;
+          sSide = then;
+          s = tree.nodes[s][then];
           walk.push(s);
-          push({ target: v, focus: [s], succPath: walk.slice(), caseId, note: fill(S.succLeft, { v: tree.nodes[s].key }) });
+          push({ target: v, focus: [s], succPath: walk.slice(), caseId, note: fill(usePred ? S.predRight : S.succLeft, { v: tree.nodes[s].key }) });
         }
         const sKey = tree.nodes[s].key;
-        push({ target: v, succ: s, focus: [s], succPath: walk.slice(), caseId, note: fill(S.succFound, { s: sKey, k: del }) });
+        push({ target: v, succ: s, focus: [s], succPath: walk.slice(), caseId, note: fill(usePred ? S.predFound : S.succFound, { s: sKey, k: del }) });
         tree.nodes[v].key = sKey;
         push({ target: v, copied: v, succ: s, caseId, note: fill(S.copy, { s: sKey, k: del }) });
-        /* 원래 후속자 지우기: 왼쪽 자식이 없으므로 오른쪽 자식(있으면)이 올라온다. */
-        const sRight = tree.nodes[s].right;
-        relink(sParent, sSide, sRight);
+        /* 원래 후속자 지우기: 왼쪽 자식이 없으므로 오른쪽 자식(있으면)이 올라온다.
+           선행자면 오른쪽 자식이 없으므로 왼쪽 자식이 올라온다. */
+        const sRest = tree.nodes[s][first];
+        relink(sParent, sSide, sRest);
         delete tree.nodes[s];
         push({
-          copied: v, caseId, moved: sRight,
-          note: sRight === null ? fill(S.removeSucc0, { s: sKey }) : fill(S.removeSucc1, { s: sKey, c: tree.nodes[sRight].key }),
+          copied: v, caseId, moved: sRest,
+          note: sRest === null ? fill(S.removeSucc0, { s: sKey }) : fill(usePred ? S.removePred1 : S.removeSucc1, { s: sKey, c: tree.nodes[sRest].key }),
         });
       }
       push({ caseId, note: fill(S.done, { list: inorderKeys(tree).join(' ') }), done: true });
@@ -411,7 +437,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       caseEl.textContent = step.caseId === null ? '' : `${S.caseLabel}: ${S['case' + step.caseId]}`;
       caseEl.classList.toggle('is-empty', step.caseId === null);
       root.querySelector('[data-dd-order]').textContent = inorderKeys(tr).join(' ');
-      root.querySelector('[data-dd-note]').textContent = step.note;
+      setLines(root.querySelector('[data-dd-note]'), step.note);
       root.classList.toggle('is-done', !!step.done);
     }
 

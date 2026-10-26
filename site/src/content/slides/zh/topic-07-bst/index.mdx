@@ -12,6 +12,9 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import TreeFigure from '@components/TreeFigure.astro';
 import TreeTermsDemo from '@components/TreeTermsDemo.astro';
 import TreePropertyDemo from '@components/TreePropertyDemo.astro';
+import TreeShapeDemo from '@components/TreeShapeDemo.astro';
+import TreeScanDemo from '@components/TreeScanDemo.astro';
+import BstCheckDemo from '@components/BstCheckDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -155,25 +158,23 @@ $$
 
 <Slide>
 
-#### 最高的树
+### 动手试试：最高的树
+::sub[改变节点数并选择形状 · 进度条从最低高度到最高高度]
+
+<TreeShapeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 同样的 N，不同的高度
 ::sub[每个节点只有一个子节点时，高度为 N，和链表一样]
-
-<div class="aas-split">
-<div>
-
-<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
-
-</div>
-<div>
 
 | $$N$$ | 最低高度 | 最高高度 |
 | --- | --- | --- |
 | 7 | 3 | 7 |
 | 1,023 | 10 | 1,023 |
 | 约 100 万 | 20 | 约 100 万 |
-
-</div>
-</div>
 
 <br/>
 
@@ -184,11 +185,9 @@ $$
 <Slide>
 
 #### 在二叉树里查找
-::sub[从根开始逐层扫描，直到找到目标或碰到叶子]
+::sub[值随便放就没有可以跳过的地方 · 逐层扫描终究是 O(N)]
 
-<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} slide />
-
-值随便放，就比链表好不到哪里去。终究是 $$O(N)$$。
+<TreeScanDemo slide />
 
 </Slide>
 
@@ -235,6 +234,15 @@ $$
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 动手试试：检查 BST
+::sub[用标签切换两种检查 · 按范围检查会在 7 处发现问题]
+
+<BstCheckDemo slide />
 
 </Slide>
 
@@ -662,18 +670,16 @@ insert order -> shape
 #### 用前驱也可以 (1)
 ::sub[删除 D · 左子树中最大的 C 上移]
 
-<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} slide />
+<BstDeleteDemo del="D" use="pred" slide />
 
 </Slide>
 
 <Slide>
 
 #### 用前驱也可以 (2)
-::sub[删除 Q，左子树中最大的 P]
+::sub[删除 Q，左子树中最大的 P · 形状不同，但都是 BST，中序也一样]
 
-<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} slide />
-
-形状不同，但两者都是 BST，中序也一样。实践代码和演示统一用后继。
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" use="pred" slide />
 
 </Slide>
 

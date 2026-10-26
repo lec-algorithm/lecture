@@ -12,6 +12,9 @@ slides: ["topic-07-bst"]
 import TreeFigure from '@components/TreeFigure.astro';
 import TreeTermsDemo from '@components/TreeTermsDemo.astro';
 import TreePropertyDemo from '@components/TreePropertyDemo.astro';
+import TreeShapeDemo from '@components/TreeShapeDemo.astro';
+import TreeScanDemo from '@components/TreeScanDemo.astro';
+import BstCheckDemo from '@components/BstCheckDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -108,7 +111,12 @@ What does the tallest tree look like? If every node has only one child, the
 tree lines up in a single row and its height is $$N$$. It has the same shape
 as a linked list.
 
-<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
+Change the node count and pick a shape. The left end of the bar is the
+lowest possible height, the right end the highest, and the dot is the height
+of the current shape. **Random** is the BST you get by inserting 1 to $$N$$
+in random order, so it changes every time you press it.
+
+<TreeShapeDemo />
 
 | Nodes $$N$$ | Lowest height | Highest height |
 | --- | --- | --- |
@@ -125,7 +133,10 @@ table is worth remembering.
 Being a binary tree alone does not make search faster. Suppose we look for
 11 in the tree below.
 
-<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} />
+<TreeScanDemo />
+
+Click a node to search for its value, or use the chips above to pick 8, which
+is not in the tree.
 
 The values sit anywhere, so we start at the root and sweep level by level
 until we find the value or reach the leaves. In the worst case we look at
@@ -151,6 +162,13 @@ It is tempting to check only parent–child pairs: "larger than the left
 below satisfies that rule for every parent–child pair and is still not a BST.
 
 <TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "7", tone: "focus" } }, r: { v: "8" } }} caption="3 < 7 satisfies the child rule, but 7 sits in the left subtree of 5" />
+
+Run the two checks yourself. **Children only** lets this tree pass. **Check
+ranges** starts the root at $$(-\infty, \infty)$$; going left narrows the upper
+end to the current key, going right narrows the lower end. By the time it
+reaches 7 the range has shrunk to $$(3, 5)$$, and 7 is caught.
+
+<BstCheckDemo />
 
 7 is larger than 5 yet sits in 5's left subtree. A search for 7 goes right
 (to 8) at 5 and never finds it. The rule has to cover the **whole subtree**,
@@ -481,15 +499,16 @@ the largest value of its left subtree, C, into its place; deleting Q brings P.
 
 - Delete D using predecessor C
 
-<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} />
+<BstDeleteDemo del="D" use="pred" />
 
 - Delete Q using predecessor P
 
-<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} />
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" use="pred" />
 
 The shapes differ from the successor results, but both are BSTs with the
 same inorder sequence. Using the predecessor is a correct deletion too. The
-practice code and demos in this course use the successor.
+two demos above use the predecessor; the practice code and the other demos
+in this course use the successor.
 
 ### Procedure and code \{#delete-code}
 

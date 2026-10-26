@@ -168,6 +168,12 @@ const ruleKey = { in: 'ruleIn', pre: 'rulePre', post: 'rulePost', level: 'ruleLe
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const keys = JSON.parse(root.dataset.tdKeys);
     const S = JSON.parse(root.dataset.tdStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
@@ -330,7 +336,7 @@ const ruleKey = { in: 'ruleIn', pre: 'rulePre', post: 'rulePost', level: 'ruleLe
       chips(outEl, step.out, (i) => justOut && i === step.out.length - 1);
       chips(auxEl, step.aux, (i) => order !== 'level' && i === step.aux.length - 1);
       root.querySelector('[data-td-count]').textContent = String(step.out.length);
-      root.querySelector('[data-td-note]').textContent = step.note;
+      setLines(root.querySelector('[data-td-note]'), step.note);
       root.querySelector('[data-td-rule]').textContent = RULE[order];
       root.querySelector('[data-td-aux-label]').textContent = order === 'level' ? S.queue : S.stack;
       tabs.forEach((tab) => {
