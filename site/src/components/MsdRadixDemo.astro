@@ -42,7 +42,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     split: '버킷 {list}. 하나뿐인 버킷은 끝났습니다.',
     splitRecurse: '버킷 {list}. 원소가 둘 이상인 버킷 {more}만 다음 자리로 재귀합니다.',
     splitLast: '버킷 {list}. 마지막 자리라서 같은 버킷은 같은 값입니다. 끝났습니다.',
-    done: '끝. 자리를 {e}번 읽었습니다. 모든 자리를 다 읽는 LSD는 {n} × {w} = {l}번입니다.',
+    done: '자리를 {e}번 읽고 끝났습니다. 모든 자리를 다 읽는 LSD는 {n} × {w} = {l}번입니다.',
   },
   en: {
     title: 'MSD radix sort',
@@ -62,7 +62,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     split: 'Buckets {list}. A bucket with one element is finished.',
     splitRecurse: 'Buckets {list}. Recurse to the next digit only in bucket {more} (two or more elements).',
     splitLast: 'Buckets {list}. This was the last digit, so a bucket holds equal values. Finished.',
-    done: 'Done. Read {e} digits. LSD reads every digit: {n} × {w} = {l}.',
+    done: 'Done after reading {e} digits. LSD reads every digit: {n} × {w} = {l}.',
   },
   zh: {
     title: 'MSD 基数排序',
@@ -82,7 +82,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     split: '桶 {list}。只有一个元素的桶已经完成。',
     splitRecurse: '桶 {list}。只对含两个以上元素的 {more} 号桶递归处理下一位。',
     splitLast: '桶 {list}。这是最后一位，同一个桶里的值相等，已经完成。',
-    done: '结束。共读取 {e} 位。读完所有位的 LSD 需要 {n} × {w} = {l} 次。',
+    done: '共读取 {e} 位后结束。读完所有位的 LSD 需要 {n} × {w} = {l} 次。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -137,6 +137,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
 
     const vals = JSON.parse(root.dataset.mrValues);
     const S = JSON.parse(root.dataset.mrStrings);
@@ -260,7 +266,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       );
 
       examinedEl.textContent = String(st ? st.examined : 0);
-      note.textContent = st ? st.note : S.idle;
+      setLines(note, st ? st.note : S.idle);
       root.classList.toggle('is-done', !!(st && st.finished));
     }
 
