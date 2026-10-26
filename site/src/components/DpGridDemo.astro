@@ -76,16 +76,16 @@ const STRINGS: Record<string, Record<string, string>> = {
     reset: '처음으로',
     filled: '채운 칸',
     idle: '한 걸음을 누르면 표를 채우기 시작합니다.',
-    grid_start: '({i}, {j})은 출발점입니다. 길 1가지',
-    grid_block: '({i}, {j})은 장애물입니다. 이 칸으로 오는 길은 0',
+    grid_start: '출발점 ({i}, {j}): 길 1가지',
+    grid_block: '장애물 ({i}, {j}): 이 칸으로 오는 길은 0',
     grid_fill: '({i}, {j}) = 위 {u} + 왼쪽 {l} = {v}',
-    grid_done: '끝. ({i}, {j})까지 가는 길은 {v}가지',
+    grid_done: '({i}, {j})까지 가는 길은 모두 {v}가지',
     ks_init: '물건이 없으면(0번 줄) 어떤 용량이든 가치 0입니다.',
     ks_fit: '물건 {i}(무게 {w}, 가치 {v}), 용량 {c}: 안 담음 {x} · 담음 dp[{p}][{r}] + {v} = {y} ⇒ {z}',
     ks_nofit: '물건 {i}(무게 {w}), 용량 {c}: 들어가지 않습니다. 위 칸 그대로 {z}',
-    ks_take: 'dp[{i}][{c}] = {z}가 위 칸 {x}와 다릅니다. 물건 {i}를 담았습니다. 용량 {r}으로 올라갑니다.',
-    ks_skip: 'dp[{i}][{c}] = {z}가 위 칸과 같습니다. 물건 {i}는 담지 않았습니다.',
-    ks_done: '끝. 담은 물건 {list}, 가치 {z}',
+    ks_take: 'dp[{i}][{c}] = {z}, 위 칸은 {x}입니다. 값이 다르니 {i}번 물건을 담았습니다. 용량 {r} 열로 올라갑니다.',
+    ks_skip: 'dp[{i}][{c}] = {z}, 위 칸과 같습니다. {i}번 물건은 담지 않았습니다.',
+    ks_done: '담은 물건 {list}, 가치 {z}',
   },
   en: {
     title_grid: 'Grid path tabulation',
@@ -102,13 +102,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     grid_start: '({i}, {j}) is the start. 1 path',
     grid_block: '({i}, {j}) is an obstacle. 0 paths come into it',
     grid_fill: '({i}, {j}) = up {u} + left {l} = {v}',
-    grid_done: 'Done. {v} paths reach ({i}, {j})',
+    grid_done: '{v} paths in all reach ({i}, {j})',
     ks_init: 'With no items (row 0), every capacity holds value 0.',
     ks_fit: 'Item {i} (weight {w}, value {v}), capacity {c}: skip {x} · take dp[{p}][{r}] + {v} = {y} ⇒ {z}',
     ks_nofit: 'Item {i} (weight {w}), capacity {c}: it does not fit. Copy the cell above, {z}',
     ks_take: 'dp[{i}][{c}] = {z} differs from the cell above, {x}. Item {i} was taken. Move up to capacity {r}.',
     ks_skip: 'dp[{i}][{c}] = {z} equals the cell above. Item {i} was not taken.',
-    ks_done: 'Done. Items taken: {list}, value {z}',
+    ks_done: 'Items taken: {list}, value {z}',
   },
   zh: {
     title_grid: '网格路径递推填表',
@@ -125,13 +125,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     grid_start: '({i}, {j}) 是起点。路径 1 条',
     grid_block: '({i}, {j}) 是障碍。走进这一格的路径为 0',
     grid_fill: '({i}, {j}) = 上 {u} + 左 {l} = {v}',
-    grid_done: '结束。到 ({i}, {j}) 的路径共 {v} 条',
+    grid_done: '到 ({i}, {j}) 的路径共 {v} 条',
     ks_init: '没有物品（第 0 行）时，任何容量的价值都是 0。',
     ks_fit: '物品 {i}（重 {w}，价值 {v}），容量 {c}：不放 {x} · 放 dp[{p}][{r}] + {v} = {y} ⇒ {z}',
     ks_nofit: '物品 {i}（重 {w}），容量 {c}：放不下。照抄上一格 {z}',
     ks_take: 'dp[{i}][{c}] = {z} 与上一格 {x} 不同。放了物品 {i}。上移到容量 {r}。',
     ks_skip: 'dp[{i}][{c}] = {z} 与上一格相同。没有放物品 {i}。',
-    ks_done: '结束。放入的物品 {list}，价值 {z}',
+    ks_done: '放入的物品 {list}，价值 {z}',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -204,6 +204,12 @@ const VY = 75;
   (() => {
     const SVG = 'http://www.w3.org/2000/svg';
     const VX = 100;
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다.
+       끝맺음 문장을 덧붙일 때 쓰는 줄바꿈 문자에서도 끊는다. */
+    const setLines = (node: HTMLElement, text: string) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)|\s*\n\s*/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
     const VY = 75;
     const fill = (tpl: string, vars: Record<string, string | number>) =>
       tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
@@ -252,7 +258,7 @@ const VY = 75;
         }
         const last = steps[steps.length - 1];
         last.done = true;
-        last.note += '  ' + fill(S.grid_done, { i: R - 1, j: C - 1, v: dp[R - 1][C - 1]! });
+        last.note += '\n' + fill(S.grid_done, { i: R - 1, j: C - 1, v: dp[R - 1][C - 1]! });
         return steps;
       }
 
@@ -392,7 +398,7 @@ const VY = 75;
           for (let k = 0; k + 1 < s.path.length; k++) arrow(svg, s.path[k], s.path[k + 1], 'is-path');
         }
         count.textContent = String(filled);
-        note.textContent = s ? s.note : S.idle;
+        setLines(note, s ? s.note : S.idle);
         const last = at === steps.length - 1;
         root.classList.toggle('is-done', last);
         stepBtn.disabled = last;

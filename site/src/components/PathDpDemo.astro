@@ -86,14 +86,14 @@ const STRINGS: Record<string, Record<string, string>> = {
     reset: '처음으로',
     calls: '구한 칸',
     idle: 'k = 0 줄은 기저입니다. 도착점 {d}만 0이고 나머지는 갈 수 없습니다(INF).',
-    enter: 'S({u}, k={k}) 호출: {u}에서 나가는 간선 {list}을 하나씩 봅니다.',
+    enter: 'S({u}, k={k}) 호출: {u}에서 나가는 간선은 {list}입니다. 하나씩 봅니다.',
     leaf: 'S({u}, k={k}) 호출: {u}에서 나가는 간선이 없습니다.',
     hit: 'S({u}, k={k}) = {v}, 이미 구한 칸입니다. 다시 풀지 않고 꺼냅니다.',
     try: '{u}→{x}: {w} + {r}',
     ret: 'S({u}, k={k}) = {v}   ({list})',
-    restore: 'next[{k}][{u}] = {x}: {u}에서 {x}로 갑니다 (비용 {w}).',
-    done: '끝. {path} = {sum} = {v}. memo {n}칸 중 {c}칸만 구했습니다.',
-    none: '끝. 간선 {k}개로 {s}에서 {d}에 가는 길이 없습니다.',
+    restore: 'next[{k}][{u}] = {x}: {u}에서 {x} 쪽으로 갑니다(비용 {w}).',
+    done: '{path} = {sum} = {v}. memo {n}칸 중 {c}칸만 구했습니다.',
+    none: '간선 {k}개로 {s}에서 {d}에 가는 길이 없습니다.',
   },
   en: {
     title: '{s} → {d} with {k} edges',
@@ -113,8 +113,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     try: '{u}→{x}: {w} + {r}',
     ret: 'S({u}, k={k}) = {v}   ({list})',
     restore: 'next[{k}][{u}] = {x}: go from {u} to {x} (cost {w}).',
-    done: 'Done. {path} = {sum} = {v}. Only {c} of the {n} memo cells were solved.',
-    none: 'Done. There is no way from {s} to {d} with exactly {k} edges.',
+    done: '{path} = {sum} = {v}. Only {c} of the {n} memo cells were solved.',
+    none: 'There is no way from {s} to {d} with exactly {k} edges.',
   },
   zh: {
     title: '用 {k} 条边从 {s} 到 {d}',
@@ -134,8 +134,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     try: '{u}→{x}：{w} + {r}',
     ret: 'S({u}, k={k}) = {v}   （{list}）',
     restore: 'next[{k}][{u}] = {x}：从 {u} 走到 {x}（代价 {w}）。',
-    done: '结束。{path} = {sum} = {v}。{n} 个 memo 格子中只求了 {c} 个。',
-    none: '结束。恰好用 {k} 条边无法从 {s} 到 {d}。',
+    done: '{path} = {sum} = {v}。{n} 个 memo 格子中只求了 {c} 个。',
+    none: '恰好用 {k} 条边无法从 {s} 到 {d}。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -216,6 +216,12 @@ const config = { edges, V, src, dst, k };
 <script>
   (() => {
     const INF = Infinity;
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다.
+       끝맺음 문장을 덧붙일 때 쓰는 줄바꿈 문자에서도 끊는다. */
+    const setLines = (node: HTMLElement, text: string) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)|\s*\n\s*/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
     const fill = (tpl: string, vars: Record<string, string | number>) =>
       tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
     const show = (v: number | undefined) => (v === undefined ? '' : v === INF ? 'INF' : String(v));
@@ -385,7 +391,7 @@ const config = { edges, V, src, dst, k };
           el.classList.toggle('is-cur', !!s && s.curU === u);
         });
         count.textContent = String(Object.keys(memo).length);
-        note.textContent = s ? s.note : fill(S.idle, { d: cfg.dst });
+        setLines(note, s ? s.note : fill(S.idle, { d: cfg.dst }));
         const last = at === steps.length - 1;
         root.classList.toggle('is-done', last);
         stepBtn.disabled = last;
