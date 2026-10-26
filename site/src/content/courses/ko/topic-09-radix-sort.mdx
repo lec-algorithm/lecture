@@ -1,34 +1,1103 @@
 ---
 title: "주제 09. 기수 정렬과 접미사 배열"
-description: "자릿수로 정렬하기, 그리고 문자열 색인 자료구조"
+description: "자리마다 카운팅 정렬을 반복하는 LSD·MSD 기수 정렬, 모든 접미사를 정렬한 접미사 배열과 LCP 배열, 그리고 그 위에서 푸는 가장 긴 반복·공통 부분 문자열"
 date: 2026-08-25
 category: sorting
 order: "9091"
 level: 4
 hours: "3:00"
+slides: ["topic-09-radix-sort"]
 ---
 
-> 자료는 준비 중입니다. 이 주제를 다루기 전에 이 페이지가 채워집니다.
+import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import MsdRadixDemo from '@components/MsdRadixDemo.astro';
+import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import KasaiDemo from '@components/KasaiDemo.astro';
+import LcpScanDemo from '@components/LcpScanDemo.astro';
 
-## 다룰 내용
+> 주제 03의 카운팅 정렬은 비교 없이 $$O(n + k)$$에 정렬했지만, 값의 범위
+> $$k$$가 크면 쓸 수 없었습니다.  
+> 이번 주제는 그 한계를 **키를 자리로 쪼개서** 넘습니다. 한 자리는 0부터 9까지뿐이니
+> 자리마다 카운팅 정렬을 한 번씩 돌리면 됩니다.  
+> 후반부에서는 정렬을 문자열의 **모든 접미사**에 적용합니다. 정렬된 접미사는
+> 문자열 검색, 가장 긴 반복 부분 문자열, 두 문자열의 공통 부분 문자열을 푸는
+> 색인이 됩니다.
 
-- LSD 기수 정렬: 낮은 자리부터
-- MSD 기수 정렬: 높은 자리부터, 버킷으로 쪼개며
-- 비교 기반 정렬의 하한을 왜 피해 갈 수 있는가
-- 접미사 배열(suffix array)과 더블링 알고리즘
-- LCP, LCS, LRS 배열
-- 스택과 큐
+## 카운팅 정렬에서 기수 정렬로 \{#from-counting}
 
-## 실습 코드
+[주제 03의 카운팅 정렬](/course/topic-03-divide-conquer/#counting)은 원소끼리
+비교하지 않습니다. 값마다 몇 개 있는지 세고, 누적해서, 뒤에서부터 제자리에
+놓습니다. 그래서 $$O(n + k)$$이고, 비교 정렬의 하한 $$\Omega(n \log n)$$의
+전제 밖에 있습니다. 대신 값이 0부터 $$k$$까지의 정수여야 하고, 카운팅 배열
+$$k + 1$$칸이 필요합니다. 0부터 999까지의 값이면 1000칸입니다.
 
-`algorithm-code` 저장소의 `src/topic-09-radix-sort/` 폴더에 들어갑니다.
-예제마다 의사코드 하나에 C와 Python 구현이 붙습니다.
+**기수 정렬**(radix sort)은 키를 자리로 쪼갭니다. 기수(radix)는 진법의 밑,
+곧 한 자리가 가질 수 있는 값의 수입니다. 10진수라면 한 자리는 0부터 9까지
+열 가지뿐입니다. 세 자리 수를 정렬할 때 1000칸짜리 카운팅 정렬 한 번 대신,
+**10칸짜리 카운팅 정렬을 세 번** 돌립니다. 문자열이라면 한 글자가 한 자리이고,
+바이트 하나는 256가지 값을 가집니다.
+
+자리를 어느 쪽부터 보느냐에 따라 둘로 나뉩니다.
+
+- **LSD**(least significant digit): 가장 낮은 자리부터 높은 자리로
+- **MSD**(most significant digit): 가장 높은 자리부터 낮은 자리로
+
+## 예제 1. LSD 기수 정렬 \{#lsd}
+
+LSD 기수 정렬은 **가장 낮은 자리부터** 한 자리씩 [[stable-sort|안정 정렬]]인
+카운팅 정렬을 반복합니다. 비교를 하지 않는(non-comparison) 정렬입니다.
+
+- **핵심 아이디어**
+  - 각 자리마다 카운팅 정렬을 적용합니다.
+  - 그 카운팅 정렬은 **안정**해야 합니다.
+  - 낮은 자리에서 높은 자리 순으로 정렬합니다.
+
+문자열에서도 같습니다. 세 글자짜리 단어 12개를 마지막 글자(2번), 가운데
+글자(1번), 첫 글자(0번) 순으로 세 번 정렬하면 사전순이 됩니다. 아래 열마다
+그 글자로 한 번 정렬한 결과입니다.
+
+```plaintext
+      입력  2번   1번   0번
+   0  dab   dab   dab   ace
+   1  add   cab   cab   add
+   2  cab   ebb   fad   bad
+   3  fad   add   bad   bed
+   4  fee   fad   dad   bee
+   5  bad   bad   ebb   cab
+   6  dad   dad   ace   dab
+   7  bee   fed   add   dad
+   8  fed   bed   fed   ebb
+   9  bed   fee   bed   fad
+  10  ebb   bee   fee   fed
+  11  ace   ace   bee   fee
+```
+
+마지막 열에서 `b`로 시작하는 `bad bed bee`를 보세요. 첫 글자가 같으니
+마지막 패스는 이 셋의 순서를 건드리지 않습니다. 그 순서는 앞 패스들(가운데
+글자, 마지막 글자)이 이미 만들어 둔 것입니다.
+
+### 한 걸음씩: 버킷에 흩었다 모으기 \{#lsd-demo}
+
+숫자 다섯 개 `437 42 531 8 74`로 해 봅니다. 자릿수를 맞추려고 앞을 0으로
+채워 `437 042 531 008 074`로 봅니다. 카운팅 정렬을 버킷 열 개로 생각하면
+쉽습니다. 이번 자리의 숫자가 $$d$$인 원소를 $$d$$번 버킷에 차례로 넣는 것이
+흩기, 버킷 0부터 9까지 넣은 순서대로 꺼내 배열에 다시 적는 것이 모으기입니다.
+이번 자리가 주황, 이미 끝난 아래 자리가 초록입니다.
+
+<LsdRadixDemo />
+
+둘째 패스에서 `531`과 `437`이 십의 자리 3으로 같은 버킷에 들어갑니다.
+먼저 들어온 `531`이 먼저 나오므로 첫 패스가 만든 순서(일의 자리 1 < 7)가
+남습니다. 셋째 패스의 버킷 0에서도 `008`, `042`, `074`가 앞 패스의 순서
+그대로 나옵니다.
+
+### 절차로 적으면 \{#lsd-pseudo}
+
+```plaintext
+ALGORITHM LsdRadixSort(A, n)
+    max <- A의 최댓값
+    exp <- 1
+    while max / exp > 0 do           // exp = 1, 10, 100, ... 가장 낮은 자리부터
+        CountingSortByDigit(A, n, exp)
+        exp <- exp * 10
+
+ALGORITHM CountingSortByDigit(A, n, exp)
+    // 주제 03의 카운팅 정렬과 같다. 키가 값 전체가 아니라 한 자리일 뿐이다
+    for d <- 0 to 9 do count[d] <- 0
+    for i <- 0 to n-1 do                        // 1) 세기
+        d <- (A[i] / exp) mod 10
+        count[d] <- count[d] + 1
+    for d <- 1 to 9 do                          // 2) 누적
+        count[d] <- count[d] + count[d-1]
+    for i <- n-1 downto 0 do                    // 3) 뒤에서부터 배치: 안정
+        d <- (A[i] / exp) mod 10
+        count[d] <- count[d] - 1
+        B[count[d]] <- A[i]
+    for i <- 0 to n-1 do A[i] <- B[i]
+```
+
+`(A[i] / exp) mod 10`이 `exp` 자리의 숫자입니다. 531에서 `exp = 10`이면
+531 / 10 = 53, 53 mod 10 = 3입니다.
+
+### 코드로 옮기면 \{#lsd-code}
+
+```c
+void countingSortByDigit(int a[], int n, int exp) {
+    int output[MAX_N];
+    int count[RADIX] = {0};
+
+    for (int i = 0; i < n; i++) {               /* 1) 세기 */
+        count[(a[i] / exp) % RADIX]++;
+    }
+    for (int d = 1; d < RADIX; d++) {           /* 2) 누적 */
+        count[d] += count[d - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {          /* 3) 뒤에서부터 배치: 안정 */
+        int d = (a[i] / exp) % RADIX;
+        output[--count[d]] = a[i];
+    }
+    for (int i = 0; i < n; i++) {
+        a[i] = output[i];
+    }
+}
+
+void lsdRadixSort(int a[], int n) {
+    int max = getMax(a, n);
+    for (int exp = 1; max / exp > 0; exp *= RADIX) {
+        countingSortByDigit(a, n, exp);
+    }
+}
+```
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/01_lsd_radix_sort
+make -f /work/Makefile lsdRadixSort.out && ./lsdRadixSort.out
+```
+
+- 결과
+
+```console
+input   : 437 042 531 008 074
+exp 1   : 531 042 074 437 008
+exp 10  : 008 531 437 042 074
+exp 100 : 008 042 074 437 531
+sorted  : 008 042 074 437 531
+
+input : dab add cab fad fee bad dad bee fed bed ebb ace
+char 2: dab cab ebb add fad bad dad fed bed fee bee ace
+char 1: dab cab fad bad dad ebb ace add fed bed fee bee
+char 0: ace add bad bed bee cab dab dad ebb fad fed fee
+sorted: ace add bad bed bee cab dab dad ebb fad fed fee
+```
+
+데모와 같은 세 패스입니다. 문자열은 한 글자를 한 자리로 보고, 카운팅 배열을
+256칸(바이트 하나의 값)으로 잡습니다.
+
+### 왜 안정해야 하는가 \{#lsd-stable}
+
+LSD가 맞는 이유는 패스마다 지켜지는 성질 하나로 설명됩니다.
+
+> **패스 $$p$$가 끝나면, 배열은 아래 $$p$$자리만 놓고 보면 정렬되어 있다.**
+
+패스 $$p + 1$$이 $$(p + 1)$$번째 자리로 정렬할 때 두 원소를 생각해 봅니다.
+
+- 그 자리의 숫자가 **다르면** 이번 패스가 둘의 순서를 바르게 정합니다.
+- 그 자리의 숫자가 **같으면** 순서는 아래 $$p$$자리가 정해야 하고, 그 순서는
+  이미 배열에 있습니다. 이번 패스는 그 순서를 **건드리지 않아야** 합니다.
+
+뒤의 경우가 바로 안정성입니다. 같은 키끼리 원래 순서를 지키는 정렬이어야
+앞 패스의 일이 보존됩니다. 마지막 패스가 끝나면 모든 자리로 정렬된 것이고,
+그것이 정렬입니다.
+
+카운팅 정렬의 3단계를 앞에서부터 읽도록 바꾸면 같은 숫자끼리 순서가 뒤집혀
+이 성질이 깨집니다. 버킷으로 말하면 버킷을 **스택**처럼 쓰는 것과 같습니다.
+그 모습은 [예제 7](#stack-queue)에서 데모로 봅니다.
+
+### 분석 \{#lsd-analysis}
+
+자릿수를 $$d$$, 한 자리가 가질 수 있는 값의 수를 $$k$$(10진수면 10, 바이트면
+256)라고 하면 이렇습니다.
+
+- **시간** $$O(d(n + k))$$: 카운팅 정렬 $$O(n + k)$$를 $$d$$번 합니다.
+  입력이 어떻든 모든 자리를 다 보므로 최선·평균·최악이 같습니다.
+- **공간** $$O(n + k)$$: 출력 배열 $$n$$칸과 카운팅 배열 $$k$$칸
+
+| 장점 | 단점 |
+| --- | --- |
+| 안정 정렬이다. 같은 키의 순서가 유지된다 | 추가 메모리 $$O(n + k)$$가 필요하다 |
+| 자릿수가 고정이면 선형 시간 $$O(n)$$이다 | 정수, 고정 길이 문자열처럼 자리로 쪼갤 수 있는 키에만 쓴다 |
+| 입력과 상관없이 성능이 일정하다 | 자릿수가 크면 패스가 늘어 느려진다 |
+
+### 비교 정렬의 하한을 어떻게 피하는가 \{#lower-bound}
+
+주제 03에서 본 결정 트리 논증은 **"원소를 비교해서 정렬하는 한"**
+$$\Omega(n \log n)$$번 비교해야 한다고 말합니다. 기수 정렬은 카운팅 정렬처럼
+원소끼리 한 번도 비교하지 않습니다. 숫자 하나를 읽어 그 값으로 바로 자리를
+계산합니다. 결정 트리의 한 갈림길이 예·아니오 두 갈래라면, 기수 정렬의 한
+걸음은 $$k$$갈래입니다. 하한을 어긴 것이 아니라 **하한의 전제 밖에서
+움직이는** 것입니다.
+
+다만 공짜는 아닙니다. 서로 다른 값 $$n$$개를 담으려면 자릿수가 적어도
+$$\log_k n$$은 되어야 합니다. 값의 범위가 $$n$$과 함께 커지면 $$d$$도
+$$\log n$$에 비례해 커지고, $$O(d \cdot n)$$은 다시 $$O(n \log n)$$ 꼴이
+됩니다. 기수 정렬이 빛나는 곳은 **키 길이가 고정된** 데이터입니다. 32비트
+정수, 주민등록번호, 우편번호, 고정 길이 코드처럼 $$d$$가 $$n$$과 상관없이
+정해져 있으면 $$O(n)$$입니다.
+
+### 실행 시간 \{#lsd-runtime}
+
+원본 덱에 실린 측정입니다. 한 자리를 바이트 하나(R = 256)로 잡은 LSD 기수
+정렬을 삽입 정렬, 병합 정렬, 퀵 정렬과 나란히 돌렸습니다. 단위는 적혀
+있지 않지만 비율만 봐도 충분합니다.
+
+| n | 삽입 정렬 | 병합 정렬 | 퀵 정렬 | LSD 기수 정렬 (R = 256) |
+| --- | --- | --- | --- | --- |
+| 1,000 | 0.67 | 0.099 | 0.078 | 0.04 |
+| 10,000 | 66.551 | 1.4 | 1.115 | 0.372 |
+| 100,000 | 6,624.052 | 17.069 | 13.737 | 3.712 |
+| 500,000 | 165,804.936 | 96.883 | 77.44 | 18.843 |
+| 1,000,000 | 664,056.755 | 203.398 | 165.979 | 44.333 |
+
+- 삽입 정렬은 $$n$$이 10배가 되면 약 100배가 됩니다. $$O(n^2)$$입니다.
+- 병합 정렬과 퀵 정렬은 10배보다 조금 더 늘어납니다. $$O(n \log n)$$입니다.
+- LSD는 $$n$$이 10배가 되면 거의 10배입니다. 키 길이가 고정이면 자릿수
+  $$d$$도 고정이라 $$O(n)$$입니다. 32비트 정수를 바이트로 쪼개면 $$d = 4$$입니다.
+- 백만 개에서 LSD는 퀵 정렬보다 약 네 배 빠릅니다.
+
+## 예제 2. MSD 기수 정렬 \{#msd}
+
+MSD 기수 정렬은 반대로 **가장 높은 자리부터** 봅니다. 가장 높은 자리로
+카운팅 정렬하면 같은 숫자끼리 한 구간에 모입니다. 이 구간이 버킷입니다.
+버킷끼리는 이미 순서가 정해졌으므로, **버킷마다 따로** 다음 자리로 정렬하면
+됩니다. 버킷 하나를 작은 문제로 보고 같은 방법을 다시 쓰는
+[[divide-and-conquer|분할 정복]]이고, [[recursion|재귀]]로 적습니다.
+
+- 현재 자리로 카운팅 정렬하고, 숫자별 구간(버킷)으로 나눕니다.
+- 원소가 **둘 이상인 버킷만** 다음 자리로 재귀합니다.
+- 원소가 하나뿐인 버킷은 그 자리에서 끝납니다.
+
+### 한 걸음씩 \{#msd-demo}
+
+`170 45 75 90 2 802 24 66`을 정렬합니다. 위의 주황 괄호가 지금 호출이 맡은
+구간, 아래 괄호가 나뉜 버킷입니다. 주황 버킷은 다음 자리로 재귀하고, 초록
+칸은 끝난 원소입니다.
+
+<MsdRadixDemo />
+
+백의 자리로 나누면 버킷 0에 여섯 개, 버킷 1과 8에 하나씩입니다. `170`과
+`802`는 거기서 끝납니다. 버킷 0만 십의 자리로 다시 나누는데, 그러면 모든
+버킷이 크기 1이 되어 **일의 자리는 아예 보지 않습니다.** 원소의 자리를 읽은
+횟수는 8 + 6 = 14번입니다. LSD라면 모든 원소의 모든 자리, 8 × 3 = 24번을
+읽습니다.
+
+### 절차로 적으면 \{#msd-pseudo}
+
+```plaintext
+ALGORITHM MsdRadixSort(A, n)
+    max <- A의 최댓값
+    exp <- 1
+    while max / exp >= 10 do         // 가장 높은 자리의 exp: 802이면 100
+        exp <- exp * 10
+    MsdRecursive(A, 0, n-1, exp)
+
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return    // 원소가 하나 이하이거나 더 볼 자리가 없다
+
+    // 1) A[lo..hi]만 exp 자리로 안정 카운팅 정렬한다
+    //    size[d]: 이 자리의 숫자가 d인 원소 수 = 버킷 d의 크기
+    CountingSortByDigit(A, lo, hi, exp, size)
+
+    // 2) 버킷마다 다음 자리로 재귀
+    start <- lo
+    for d <- 0 to 9 do
+        if size[d] > 1 then
+            MsdRecursive(A, start, start + size[d] - 1, exp / 10)
+        start <- start + size[d]
+```
+
+### 코드로 옮기면 \{#msd-code}
+
+```c
+void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
+    if (lo >= hi || exp == 0) {
+        return;
+    }
+
+    int size[RADIX];                             /* 버킷 크기 */
+    countingSortByDigit(a, lo, hi, exp, size);   /* a[lo..hi]만 정렬 */
+
+    int start = lo;
+    for (int d = 0; d < RADIX; d++) {
+        if (size[d] > 1) {
+            msdRecursive(a, start, start + size[d] - 1,
+                         exp / RADIX, depth + 1);
+        }
+        start += size[d];
+    }
+}
+```
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/02_msd_radix_sort
+make -f /work/Makefile msdRadixSort.out && ./msdRadixSort.out
+```
+
+- 결과
+
+```console
+input : 170 045 075 090 002 802 024 066
+exp 100 [0..7]: 045 075 090 002 024 066 170 802
+  buckets: 0=6 1=1 8=1
+  exp 10  [0..5]: 002 024 045 066 075 090
+    buckets: 0=1 2=1 4=1 6=1 7=1 9=1
+sorted: 002 024 045 066 075 090 170 802
+digits examined = 14 (LSD: 8 x 3 = 24)
+```
+
+들여쓰기가 재귀 깊이입니다. 호출이 두 번뿐이고, 둘째 호출은 여섯 개만 봅니다.
+
+### 문자열에서는 \{#msd-strings}
+
+MSD는 길이가 서로 다른 문자열에 잘 맞습니다. 첫 글자로 나누고, 각 버킷을
+둘째 글자로, ... 나누다가 버킷에 하나만 남으면 나머지 글자는 보지 않습니다.
+두 가지만 정해 두면 됩니다.
+
+- **문자열의 끝은 어떤 글자보다도 앞에 둡니다.** `she`와 `shells`는 셋째
+  글자까지 같고, `she`가 먼저 끝나므로 앞에 옵니다. 끝을 값 $$-1$$짜리 글자로
+  보는 셈입니다.
+- **완전히 같은 키는 끝까지 다 봐야 합니다.** `sea`가 두 번 있으면 마지막
+  글자까지 같다는 것을 확인해야 둘이 같은 버킷에 남습니다. 같은 키가 많으면
+  MSD도 모든 글자를 읽습니다.
+
+### 분석 \{#msd-analysis}
+
+- **최선** $$O(n + k)$$: 첫 자리에서 모든 원소가 서로 다른 버킷으로 갈립니다.
+  카운팅 정렬 한 번이면 끝납니다.
+- **최악**: 앞자리가 모두 같아 끝까지 갈리지 않으면 LSD처럼 $$n \times d$$번
+  자리를 읽습니다. 여기에 **재귀 호출마다** 카운팅 배열 $$k$$칸을 비우고
+  누적하는 $$O(k)$$가 붙습니다.
+- **공간** $$O(n + dk)$$: 출력 배열과, 재귀 깊이 $$d$$만큼 쌓이는 카운팅 배열
+
+호출마다 붙는 $$O(k)$$가 MSD의 약점입니다. 원소 두세 개짜리 작은 버킷이
+많아지면 원소보다 빈 카운팅 칸을 훑는 시간이 더 걸립니다. 바이트 단위
+문자열이면 $$k = 256$$이라 더 그렇습니다. 그래서 실제 구현은 버킷이 작아지면
+(예를 들어 원소 15개 이하) 삽입 정렬로 넘깁니다.
+
+### LSD와 MSD \{#lsd-vs-msd}
+
+| 특징 | LSD 기수 정렬 | MSD 기수 정렬 |
+| --- | --- | --- |
+| 정렬 방향 | 낮은 자리 → 높은 자리 | 높은 자리 → 낮은 자리 |
+| 방식 | 반복 | 재귀 (분할 정복) |
+| 조기 종료 | 불가능, 모든 자리를 읽는다 | 가능, 버킷이 크기 1이 되면 끝 |
+| 가변 길이 키 | 불리, 길이를 맞춰야 한다 | 유리 |
+| 지역성 | 패스마다 배열 전체를 훑는다 | 버킷 하나 안에서만 일한다 |
+| 구현 | 간단 | 복잡, 버킷과 재귀를 관리해야 한다 |
+
+## 여덟 정렬을 나란히 \{#comparison}
+
+주제 03의 표에 두 기수 정렬을 더합니다. $$d$$는 자릿수, $$k$$는 한 자리가
+가질 수 있는 값의 수(카운팅 정렬에서는 값의 범위)입니다.
+
+| 정렬 | 최선 | 평균 | 최악 | 공간 | 안정성 |
+| --- | --- | --- | --- | --- | --- |
+| 선택 정렬 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 불안정 |
+| 삽입 정렬 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 안정 |
+| 셸 정렬 | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | 불안정 |
+| 버블 정렬 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 안정 |
+| 병합 정렬 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | 안정 |
+| 카운팅 정렬 | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | 안정 |
+| LSD 기수 정렬 | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + k)$$ | 안정 |
+| MSD 기수 정렬 | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | 안정 |
+
+위의 다섯은 비교 정렬, 아래의 셋은 비교하지 않는 정렬입니다. MSD의 최악은
+자리를 읽는 비용만 센 값이고, [분석](#msd-analysis)에서 본 것처럼 재귀 호출마다
+$$O(k)$$가 더 붙습니다.
+
+## 예제 3. 접미사 배열 \{#suffix-array}
+
+여기서부터는 정렬을 문자열 처리에 씁니다. 문자열의 **접미사**(suffix)는
+어느 위치부터 끝까지 잘라 낸 부분 문자열입니다. 길이 $$n$$인 문자열에는
+접미사가 $$n$$개 있습니다.
+
+**접미사 배열**(suffix array)은 문자열의 모든 접미사를 사전순으로 정렬하고,
+그 순서대로 **접미사의 시작 위치만** 적은 배열입니다. 문자열 $$S$$에 대해
+$$SA[j]$$는 사전순으로 $$j$$번째인 접미사가 $$S$$의 어디서 시작하는지를
+나타냅니다. 문자열 처리의 핵심 [[data-structure|데이터 구조]] 중 하나입니다.
+
+`banana$`로 해 봅니다. 끝의 `$`는 문자열의 끝 표시이고, 다른 어떤 글자보다도
+작다고 약속합니다. ASCII에서 `$`는 36, 소문자는 97 이상이라 그대로 맞습니다.
+
+| 시작 위치 | 접미사 | | 정렬 순서 $$j$$ | $$SA[j]$$ | 접미사 |
+| --- | --- | --- | --- | --- | --- |
+| 0 | `banana$` | | 0 | 6 | `$` |
+| 1 | `anana$` | | 1 | 5 | `a$` |
+| 2 | `nana$` | | 2 | 3 | `ana$` |
+| 3 | `ana$` | | 3 | 1 | `anana$` |
+| 4 | `na$` | | 4 | 0 | `banana$` |
+| 5 | `a$` | | 5 | 4 | `na$` |
+| 6 | `$` | | 6 | 2 | `nana$` |
+
+$$SA = [6, 5, 3, 1, 0, 4, 2]$$입니다. 접미사를 문자열로 저장하면
+$$1 + 2 + \dots + n$$글자, 곧 $$O(n^2)$$ 공간이 들지만 시작 위치만 적으면
+정수 $$n$$개, $$O(n)$$입니다.
+
+`$`가 왜 필요한지는 `a$`와 `ana$`를 보면 압니다. `$`가 없으면 `a`는 `ana`의
+접두사라서, "짧은 쪽이 앞"이라는 규칙을 따로 정해야 합니다. 가장 작은 끝
+글자를 붙이면 그 규칙이 글자 비교 안에 들어갑니다. 또 어떤 접미사도 다른
+접미사의 접두사가 되지 않습니다.
+
+### 단순한 방법 \{#suffix-naive}
+
+모든 접미사를 만들고, 문자열로 비교해 정렬하면 끝입니다.
+
+- 의사코드
+
+```plaintext
+ALGORITHM BuildSuffixArrayNaive(T, n)
+    for i <- 0 to n-1 do SA[i] <- i
+    SA를 정렬한다. 비교 기준: 접미사 T[SA[a]..]와 T[SA[b]..]의 사전순
+    return SA
+```
+
+- C 구현
+
+```c
+static int compareSuffix(const void *a, const void *b) {
+    int i = *(const int *)a;
+    int j = *(const int *)b;
+    return strcmp(gText + i, gText + j);
+}
+
+void buildSuffixArrayNaive(const char *text, int sa[], int n) {
+    for (int i = 0; i < n; i++) {
+        sa[i] = i;
+    }
+    gText = text;
+    qsort(sa, n, sizeof(int), compareSuffix);
+}
+```
+
+구현은 간단하지만 큰 데이터에는 비효율적입니다. 비교 정렬이
+$$O(n \log n)$$번 비교하고, 접미사 비교 한 번이 최대 $$n$$글자를 보므로
+최악 $$O(n^2 \log n)$$입니다. `aaaa...a$`처럼 같은 글자가 이어지면 비교할
+때마다 거의 끝까지 읽습니다.
+
+### 더블링 \{#suffix-doubling}
+
+**더블링**(doubling, prefix doubling)은 비교할 길이를 두 배씩 늘려 갑니다.
+앞 1글자, 2글자, 4글자, 8글자, ... 로 접미사의 순위를 매기는데, **앞
+$$2h$$글자의 순서는 앞 $$h$$글자의 순위 두 개로 알 수 있다**는 것이
+핵심입니다.
+
+접미사 $$i$$의 앞 $$2h$$글자는 두 토막입니다.
+
+- 앞 $$h$$글자: 접미사 $$i$$의 앞 $$h$$글자. 순위 $$rank[i]$$
+- 뒤 $$h$$글자: 접미사 $$i + h$$의 앞 $$h$$글자. 순위 $$rank[i + h]$$
+
+그러므로 짝 $$(rank[i], rank[i + h])$$를 비교하면 앞 $$2h$$글자를 비교한
+것과 같습니다. 글자를 다시 읽을 필요가 없고 정수 두 개만 비교하면 됩니다.
+$$i + h$$가 문자열을 넘어가면 그 토막은 비어 있으므로 $$-1$$로 둡니다.
+처음 순위는 첫 글자의 문자 코드입니다.
+
+데모에서 줄 하나가 접미사 하나입니다. 짝을 만들 때는 접미사에서 앞
+$$k$$글자를 칠해, 짝이 그 $$k$$글자를 대신한다는 것을 보입니다. 짝으로 정렬하면
+줄들이 자리를 바꾸고 새 순위가 붙습니다. 순위가 같은 줄(아직 갈리지 않은
+접미사)은 주황으로 묶입니다.
+
+<SuffixArrayDemo />
+
+- **k = 2**: 짝은 (첫 글자, 둘째 글자)입니다. `anana$`와 `ana$`는 둘 다
+  `an`으로 시작해 짝 (97, 110)이 같습니다. `nana$`와 `na$`도 (110, 97)로
+  같습니다. 순위가 다섯 가지뿐입니다.
+- **k = 4**: 짝은 (앞 2글자의 순위, 2칸 뒤 접미사의 순위)입니다. `ana$`는
+  위치 3이고 2칸 뒤는 위치 5의 `a$`, 순위 1이라 짝이 (2, 1)입니다.
+  `anana$`는 위치 1이고 2칸 뒤는 위치 3의 `ana$`, 순위 2라 짝이 (2, 2)입니다.
+  이제 갈립니다. 순위 일곱 개가 모두 다르면 끝납니다.
+
+```plaintext
+ALGORITHM BuildSuffixArrayDoubling(T, n)
+    for i <- 0 to n-1 do
+        rank[i] <- T[i]                // 처음 순위: 첫 글자의 문자 코드
+        SA[i] <- i
+    k <- 2
+    loop
+        for i <- 0 to n-1 do           // 짝: 앞 k/2글자, 다음 k/2글자의 순위
+            key[i] <- (rank[i], i + k/2 < n이면 rank[i + k/2], 아니면 -1)
+        SA를 key[SA[j]] 순으로 정렬한다
+        newRank[SA[0]] <- 0            // 정렬 순서대로 새 순위를 매긴다
+        for j <- 1 to n-1 do           // key가 같으면 같은 순위
+            same <- (key[SA[j]] = key[SA[j-1]])
+            newRank[SA[j]] <- newRank[SA[j-1]] + (same이면 0, 아니면 1)
+        rank <- newRank
+        if rank[SA[n-1]] = n-1 then break   // 순위가 모두 다르면 끝
+        k <- k * 2
+    return SA
+```
+
+C 구현은 `qsort`의 비교 함수가 짝을 보게 합니다. 짝이 같으면 시작 위치
+순으로 두어 Python 구현과 같은 순서를 냅니다.
+
+```c
+static int compareKey(const void *a, const void *b) {
+    int i = *(const int *)a;
+    int j = *(const int *)b;
+    if (gKey0[i] != gKey0[j]) {
+        return gKey0[i] - gKey0[j];
+    }
+    if (gKey1[i] != gKey1[j]) {
+        return gKey1[i] - gKey1[j];
+    }
+    return i - j;
+}
+```
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/03_suffix_array
+make -f /work/Makefile suffixArray.out && ./suffixArray.out
+```
+
+- 결과
+
+```console
+text = banana$ (n = 7)
+  0 banana$
+  1 anana$
+  2 nana$
+  3 ana$
+  4 na$
+  5 a$
+  6 $
+
+naive    SA = 6 5 3 1 0 4 2
+
+k = 2
+   j  SA[j]  key         rank  suffix
+   0      6  ( 36,  -1)     0  $
+   1      5  ( 97,  36)     1  a$
+   2      1  ( 97, 110)     2  anana$
+   3      3  ( 97, 110)     2  ana$
+   4      0  ( 98,  97)     3  banana$
+   5      2  (110,  97)     4  nana$
+   6      4  (110,  97)     4  na$
+  distinct ranks = 5 of 7
+k = 4
+   j  SA[j]  key         rank  suffix
+   0      6  (  0,  -1)     0  $
+   1      5  (  1,  -1)     1  a$
+   2      3  (  2,   1)     2  ana$
+   3      1  (  2,   2)     3  anana$
+   4      0  (  3,   4)     4  banana$
+   5      4  (  4,   0)     5  na$
+   6      2  (  4,   4)     6  nana$
+  distinct ranks = 7 of 7
+
+doubling SA = 6 5 3 1 0 4 2
+same = yes
+```
+
+두 방법이 같은 접미사 배열을 냅니다. `k = 2` 표에서 `anana$`가 `ana$`의
+앞에 있는 것은 짝이 같아서 시작 위치 순(1 < 3)으로 둔 것뿐입니다. 순위가
+같으니 아직 둘의 순서는 정해지지 않은 상태이고, `k = 4`에서 바로잡힙니다.
+
+### 분석 \{#suffix-analysis}
+
+- 비교하는 길이가 라운드마다 두 배가 되므로 라운드는 많아야
+  $$\lceil \log_2 n \rceil$$번입니다.
+- 라운드마다 정수 짝 $$n$$개를 비교 정렬하면 $$O(n \log n)$$입니다.
+- 그래서 **전체** $$O(n \log^2 n)$$입니다. 원본 덱의 의사코드 주석도
+  $$O(n \log^2 n)$$입니다.
+
+여기서 이 주제의 앞부분이 다시 쓰입니다. 짝 $$(rank[i], rank[i + h])$$는
+**두 자리 수**이고, 한 자리의 값은 $$-1$$부터 $$n - 1$$까지입니다. 그러니
+비교 정렬 대신 **LSD 기수 정렬 두 패스**(뒷자리로 한 번, 앞자리로 한 번)로
+정렬할 수 있고, 한 라운드가 $$O(n)$$이 됩니다. 그러면 전체가
+$$O(n \log n)$$입니다. 더 나아가 $$O(n)$$에 만드는 알고리즘(SA-IS, DC3)도
+있습니다.
+
+## 예제 4. LCP 배열 \{#lcp}
+
+**LCP 배열**(longest common prefix array)은 접미사 배열과 함께 쓰는 짝입니다.
+정렬된 접미사에서 **이웃한 둘이 앞에서 몇 글자를 공유하는지**를 적습니다.
+
+- $$LCP[j]$$ = 접미사 $$SA[j-1]$$과 $$SA[j]$$의 최장 공통 접두사 길이
+- $$LCP[0]$$은 앞 이웃이 없으므로 정의하지 않습니다. 0으로 두기도 합니다.
+
+| $$j$$ | $$SA[j]$$ | 접미사 | $$LCP[j]$$ | 설명 |
+| --- | --- | --- | --- | --- |
+| 0 | 6 | `$` | - | 정의하지 않음 |
+| 1 | 5 | `a$` | 0 | `$`와 `a$`: 공통 접두사 없음 |
+| 2 | 3 | `ana$` | 1 | `a$`와 `ana$`: 공통 접두사 `a` |
+| 3 | 1 | `anana$` | 3 | `ana$`와 `anana$`: 공통 접두사 `ana` |
+| 4 | 0 | `banana$` | 0 | `anana$`와 `banana$`: 공통 접두사 없음 |
+| 5 | 4 | `na$` | 0 | `banana$`와 `na$`: 공통 접두사 없음 |
+| 6 | 2 | `nana$` | 2 | `na$`와 `nana$`: 공통 접두사 `na` |
+
+$$LCP = [-, 0, 1, 3, 0, 0, 2]$$입니다. 이웃 쌍마다 처음부터 비교하면 쉽지만,
+`aaaa...a$`처럼 공통 접두사가 길면 쌍마다 길게 읽어 $$O(n^2)$$이 됩니다.
+
+### Kasai 알고리즘 \{#kasai}
+
+Kasai 알고리즘은 접미사를 **정렬 순서가 아니라 텍스트 위치 순서**
+$$i = 0, 1, 2, \dots$$로 처리합니다. 이유는 다음 관찰 하나입니다.
+
+> 접미사 $$i$$와 정렬에서 바로 앞 이웃의 LCP가 $$h$$라면, 접미사 $$i + 1$$과
+> 그 앞 이웃의 LCP는 **적어도** $$h - 1$$이다.
+
+접미사 $$i + 1$$은 접미사 $$i$$에서 첫 글자를 뗀 것입니다. 접미사 $$i$$의 앞
+이웃 $$j$$도 첫 글자를 떼면 접미사 $$j + 1$$이 되고, 둘은 여전히 $$h - 1$$글자를
+공유하며 정렬 순서도 그대로입니다. 그러니 접미사 $$i + 1$$의 바로 앞 이웃은
+$$j + 1$$이거나, $$j + 1$$과 $$i + 1$$ 사이에 있는 접미사입니다. 사이에 있는
+접미사도 정렬 순서상 둘 다와 앞 $$h - 1$$글자가 같습니다. 그래서 $$h - 1$$글자는
+비교하지 않고 건너뛰어도 됩니다.
+
+- **1단계**: $$rank[SA[j]] = j$$로 접미사 배열의 역함수를 만듭니다.
+  $$rank[i]$$는 위치 $$i$$에서 시작하는 접미사가 정렬에서 몇 번째인지입니다.
+- **2단계**: $$i = 0, 1, \dots$$ 순으로, 정렬에서 바로 앞 이웃
+  $$j = SA[rank[i] - 1]$$을 찾아 $$h$$번째 글자부터 비교합니다. 다음 위치로
+  가기 전에 $$h$$를 1 줄입니다.
+
+위의 띠가 텍스트와 $$rank[i]$$, 아래 표가 정렬된 접미사입니다. 주황이 지금
+접미사 $$i$$, 파랑이 그 앞 이웃 $$j$$입니다. 회색 글자는 건너뛴 앞 $$h$$글자,
+초록은 새로 일치한 글자, 빨강은 불일치입니다.
+
+<KasaiDemo />
+
+`i = 1`(`anana$`)에서 앞 이웃 `ana$`와 3글자를 공유했습니다. 다음
+`i = 2`(`nana$`)는 `anana$`에서 `a`를 뗀 것이므로 앞 이웃 `na$`와 적어도
+2글자를 공유합니다. 그래서 2글자를 건너뛰고 셋째 글자부터 비교해 한 번 만에
+끝납니다. `i = 3`도 같은 이유로 1글자부터 시작합니다.
+
+```plaintext
+ALGORITHM BuildLcpKasai(T, SA, n)
+    for j <- 0 to n-1 do
+        rank[SA[j]] <- j                    // 1단계: SA의 역함수
+    h <- 0                                  // 지금 알고 있는 공통 접두사 길이
+    for i <- 0 to n-1 do                    // 2단계: 텍스트 위치 순서로
+        if rank[i] > 0 then
+            j <- SA[rank[i] - 1]            // 정렬에서 바로 앞 이웃
+            while i + h < n and j + h < n and T[i + h] = T[j + h] do
+                h <- h + 1                  // h글자는 건너뛰고 h번째부터 비교
+            LCP[rank[i]] <- h
+            if h > 0 then h <- h - 1        // 다음 접미사는 적어도 h-1글자 공유
+        else
+            h <- 0                          // 맨 앞 접미사는 이웃이 없다
+```
+
+`rank[i] = 0`일 때 $$h$$를 0으로 두는 줄은 원본 의사코드에 없던 것을
+더했습니다. 맨 앞 접미사에는 비교할 이웃이 없다는 것을 코드에 분명히 적은
+것입니다. 위 관찰을 따져 보면 이때 $$h$$는 언제나 이미 0이라서 결과는
+같습니다.
+
+```c
+for (int i = 0; i < n; i++) {
+    if (rank[i] == 0) {
+        h = 0;
+        continue;
+    }
+    int j = sa[rank[i] - 1];
+    while (i + h < n && j + h < n && text[i + h] == text[j + h]) {
+        h++;
+    }
+    lcp[rank[i]] = h;
+    if (h > 0) {
+        h--;
+    }
+}
+```
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/04_lcp
+make -f /work/Makefile lcp.out && ./lcp.out
+```
+
+- 결과
+
+```console
+text = banana$
+SA   = 6 5 3 1 0 4 2
+
+   i  suffix    rank  j  start h  lcp  compares
+   0  banana$      4  1        0    0         1
+   1  anana$       3  3        0    3         4
+   2  nana$        6  4        2    2         1
+   3  ana$         2  5        1    1         1
+   4  na$          5  0        0    0         1
+   5  a$           1  6        0    0         1
+   6  $            0  -        -    -         -
+
+   j  SA[j]  LCP[j]  suffix
+   0      6       -  $
+   1      5       0  a$
+   2      3       1  ana$
+   3      1       3  anana$
+   4      0       0  banana$
+   5      4       0  na$
+   6      2       2  nana$
+char compares: kasai 9, naive 12
+```
+
+`start h` 열이 건너뛴 글자 수입니다. 글자 비교는 Kasai가 9번이고, 이웃 쌍을
+하나씩 처음부터 비교하면 12번입니다. `aaaaaaaa$`로 바꾸면 15번 대 36번으로 벌어집니다.
+
+### 분석 \{#lcp-analysis}
+
+$$h$$는 위치마다 많아야 1씩 줄고, $$n$$을 넘을 수 없습니다. 그러므로 while
+루프에서 $$h$$가 늘어나는 횟수는 모두 합쳐 $$2n$$ 이하이고, 불일치 비교는
+위치마다 한 번입니다. **전체** $$O(n)$$입니다. 접미사 배열을 이미 갖고 있다면
+LCP 배열은 거의 공짜로 따라옵니다.
+
+## 예제 5. 가장 긴 반복 부분 문자열 \{#lrs}
+
+**가장 긴 반복 부분 문자열**(longest repeated substring, LRS): 문자열 하나에
+**두 번 이상 나오는** 가장 긴 부분 문자열을 찾습니다. 두 번 나오는 자리는
+겹쳐도 됩니다. DNA 서열에서 반복 구간을 찾거나, 문서에서 표절이나 반복을
+찾거나, 음악에서 되풀이되는 마디를 찾는 문제가 모두 이것입니다.
+
+```plaintext
+aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
+tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
+cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg
+gtatagatagatagacccctagatacacatacatagatctagctagc
+tagctcatcgatacacactctcacactcaagagttatactggtcaac
+acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
+```
+
+원본 덱의 283글자짜리 서열입니다. 답은 위치 31과 217에서 시작하는 15글자
+`agagttatactggtc`이고, 첫째 줄 끝과 다섯째 줄에 있습니다. 눈으로 찾기는 어렵고,
+아래 방법으로는 한 번에 나옵니다.
+
+### 무차별 대입 \{#lrs-brute}
+
+반복의 두 시작 위치 $$i < j$$를 모두 시도하고, 쌍마다 공통 접두사 길이를
+셉니다.
+
+```plaintext
+a a c a a g t t t a c a a g c
+  ↑               ↑
+  i               j        T[i..]와 T[j..]가 "acaag"까지 같다
+```
+
+- 위치 쌍이 $$\dfrac{n(n-1)}{2}$$개입니다.
+- 쌍마다 최대 $$D$$글자를 비교합니다. $$D$$는 가장 긴 일치의 길이입니다.
+- 실행 시간은 $$D n^2$$ 정도입니다. $$n$$이 10억이면 불가능합니다.
+
+### 정렬로 풀기 \{#lrs-sort}
+
+반복되는 부분 문자열은 **두 접미사의 공통 접두사**입니다. `acaag`가 위치 1과
+9에서 나온다는 것은 접미사 `acaagtttacaagc$`와 `acaagc$`가 앞 5글자를
+공유한다는 뜻입니다. 그리고 접미사를 정렬하면 공통 접두사가 긴 접미사끼리
+**바로 이웃하게** 모입니다. 그러니 이웃 쌍만 보면 되고, 그것이 LCP 배열입니다.
+
+> **LRS = LCP 배열의 최댓값이 가리키는 공통 접두사**
+
+```plaintext
+ALGORITHM LongestRepeatedSubstring(T, n)
+    SA <- BuildSuffixArray(T, n)
+    LCP <- BuildLcpKasai(T, SA, n)
+    best <- -1, at <- 0
+    for j <- 1 to n-1 do                    // 이웃 쌍만 본다
+        if LCP[j] > best then
+            best <- LCP[j], at <- j
+    return T[SA[at] .. SA[at] + best - 1]
+```
+
+<LcpScanDemo />
+
+`banana$`에서는 `ana`(위치 1과 3, 겹침)입니다. 15글자짜리 염기 서열로도 해
+봅니다.
+
+<LcpScanDemo text="aacaagtttacaagc$" />
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/05_lrs
+make -f /work/Makefile lrs.out && ./lrs.out
+```
+
+- 결과
+
+```console
+text = banana$ (n = 7)
+   j  SA[j]  LCP[j]  suffix
+   0      6       -  $
+   1      5       0  a$
+   2      3       1  ana$
+   3      1       3  anana$
+   4      0       0  banana$
+   5      4       0  na$
+   6      2       2  nana$
+suffix sort: max LCP = 3 at j = 3 -> "ana" (positions 3, 1), 6 adjacent pairs
+brute force: "ana", 21 pairs, 28 char compares
+
+text = aacaagtttacaagc$ (n = 16)
+   j  SA[j]  LCP[j]  suffix
+   0     15       -  $
+   1      0       0  aacaagtttacaagc$
+   2     11       2  aagc$
+   3      3       3  aagtttacaagc$
+   4      9       1  acaagc$
+   5      1       5  acaagtttacaagc$
+   6     12       1  agc$
+   7      4       2  agtttacaagc$
+   8     14       0  c$
+   9     10       1  caagc$
+  10      2       4  caagtttacaagc$
+  11     13       0  gc$
+  12      5       1  gtttacaagc$
+  13      8       0  tacaagc$
+  14      7       1  ttacaagc$
+  15      6       2  tttacaagc$
+suffix sort: max LCP = 5 at j = 5 -> "acaag" (positions 9, 1), 15 adjacent pairs
+brute force: "acaag", 120 pairs, 161 char compares
+```
+
+두 방법이 같은 답을 냅니다. 정렬을 거치면 이웃 쌍 15개만 보면 되고, 무차별
+대입은 위치 쌍 120개를 모두 봅니다.
+
+### 성능 \{#lrs-performance}
+
+Sedgewick·Wayne의 『Algorithms』에 실린 측정입니다. †는 추정치입니다.
+
+| 입력 파일 | 글자 수 | 무차별 대입 | 접미사 정렬 |
+| --- | --- | --- | --- |
+| `LRS.java` | 2,162 | 0.6초 | 0.14초 |
+| `amendments.txt` | 18,369 | 37초 | 0.25초 |
+| `aesop.txt` | 191,945 | 1.2시간 | 1.0초 |
+| `mobydick.txt` | 120만 | 43시간† | 7.6초 |
+| `chromosome11.txt` | 710만 | 2개월† | 61초 |
+| `pi.txt` | 1000만 | 4개월† | 84초 |
+
+**생각해 볼 문제.** 과학자 A, B, C, D 네 명이 10억 개가 넘는 뉴클레오타이드로
+된 유전체에서 길게 반복되는 염기 서열을 찾고 있습니다. 누구의 방법이 답을
+낼 가능성이 높을까요.
+
+- A는 대학원생이 손으로 찾게 합니다.
+- B는 모든 쌍을 확인하는 무차별 대입을 씁니다.
+- C는 접미사를 삽입 정렬로 정렬합니다.
+- D는 접미사를 LSD 문자열 정렬로 정렬합니다.
+
+B는 $$Dn^2$$이라 위 표의 추세로 보면 수백 년입니다. C의 삽입 정렬은 비교만
+$$O(n^2)$$번입니다. D도 함정이 있습니다. LSD는 **길이가 같은 키**를 전제로
+하는데 접미사는 길이가 1부터 $$n$$까지 제각각입니다. 길이를 $$n$$으로 맞추면
+패스가 $$n$$번, 패스마다 $$O(n)$$이라 $$O(n^2)$$입니다. 10억 글자에서
+$$O(n^2)$$은 넷 다 끝나지 않습니다. 답을 내려면 접미사 정렬을
+$$O(n \log n)$$ 이하로 해야 합니다. 길이가 제각각인 키에 맞는 MSD 계열 정렬이나,
+이 주제의 더블링(기수 정렬과 함께 $$O(n \log n)$$)이 그 길입니다.
+
+## 예제 6. 가장 긴 공통 부분 문자열 \{#lcs}
+
+**가장 긴 공통 부분 문자열**(longest common substring, LCS): 이번에는
+문자열이 **두 개**입니다. 두 문자열에 **함께 나오는** 가장 긴 부분 문자열을
+찾습니다. LRS와 이름이 비슷하고 풀이도 비슷하지만 문제가 다릅니다. LRS는 한
+문자열 안의 반복이고, LCS는 두 문자열 사이의 공통입니다. 원본 덱은 LCS라는
+이름 아래 한 문자열의 LCP 최댓값을 구했는데, 그것은 LRS입니다.
+
+방법은 두 문자열을 하나로 잇는 것입니다.
+
+1. 두 문자열 사이에 어느 쪽에도 없는 구분자 `#`를 넣고 끝에 `$`를 붙입니다.
+   `T = S1 + "#" + S2 + "$"`입니다.
+2. $$T$$의 접미사 배열과 LCP 배열을 만듭니다.
+3. 이웃한 두 접미사가 **서로 다른 문자열에서 시작할 때만** LCP를 후보로
+   삼고, 그 최댓값을 찾습니다.
+
+`#`가 $$T$$에 한 번만 나오므로, $$S_1$$ 쪽에서 시작한 접미사와 $$S_2$$
+쪽에서 시작한 접미사의 공통 접두사는 `#`를 넘어갈 수 없습니다. 그래서 LCP가
+곧 공통 부분 문자열의 길이입니다. 같은 문자열에서 시작한 이웃끼리의 LCP는
+그 문자열 안의 반복(LRS 후보)이라 건너뜁니다.
+
+`mississippi`와 `kiss`로 해 봅니다. 출처 열의 1, 2가 접미사가 시작한
+문자열이고, 회색 줄은 건너뛰는 쌍입니다.
+
+<LcpScanDemo mode="lcs" />
+
+```plaintext
+ALGORITHM LongestCommonSubstring(S1, S2)
+    T <- S1 + "#" + S2 + "$"
+    SA <- BuildSuffixArray(T, n), LCP <- BuildLcpKasai(T, SA, n)
+    best <- 0, at <- 0
+    for j <- 1 to n-1 do
+        f <- Origin(SA[j]), g <- Origin(SA[j-1])   // 1, 2, 구분자면 0
+        if f ≠ 0 and g ≠ 0 and f ≠ g then          // 서로 다른 문자열의 이웃만
+            if LCP[j] > best then best <- LCP[j], at <- j
+    return T[SA[at] .. SA[at] + best - 1]
+```
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/06_lcs
+make -f /work/Makefile lcs.out && ./lcs.out
+```
+
+- 결과
+
+```console
+s1 = mississippi, s2 = kiss
+text = mississippi#kiss$ (n = 17, s1 = 0..10, s2 = 12..15)
+   j  SA[j]  from  LCP[j]  suffix
+   0     11     -       -  #kiss$
+   1     16     -       0  $
+   2     10     1       0  i#kiss$
+   3      7     1       1  ippi#kiss$
+   4     13     2       1  iss$  *
+   5      4     1       3  issippi#kiss$  *
+   6      1     1       4  ississippi#kiss$
+   7     12     2       0  kiss$  *
+   8      0     1       0  mississippi#kiss$  *
+   9      9     1       0  pi#kiss$
+  10      8     1       1  ppi#kiss$
+  11     15     2       0  s$  *
+  12      6     1       1  sippi#kiss$  *
+  13      3     1       2  sissippi#kiss$
+  14     14     2       1  ss$  *
+  15      5     1       2  ssippi#kiss$  *
+  16      2     1       3  ssissippi#kiss$
+max LCP over all pairs = 4
+LCS = "iss" (length 3) at j = 5
+```
+
+`*`가 후보 쌍입니다. LCP 전체의 최댓값은 j = 6의 4(`issi`)지만 두 접미사가
+모두 `mississippi` 쪽이라 공통 부분 문자열이 아닙니다. 그것은 `mississippi`의
+LRS입니다. 후보 중 최댓값은 j = 5의 3이고, `kiss`의 `iss`와 `mississippi`의
+`iss`가 만난 자리입니다. 시간은 접미사 배열 $$O(n \log n)$$에 LCP와 훑기
+$$O(n)$$이고, $$n = |S_1| + |S_2| + 2$$입니다.
+
+### 접미사 배열의 쓰임: 문맥 속 키워드 검색 \{#kwic}
+
+**KWIC**(keyword in context)은 텍스트에서 질의어가 나오는 모든 자리를 앞뒤
+문맥과 함께 보여 주는 검색입니다. 언어학, 데이터베이스, 웹 검색, 워드
+프로세서가 씁니다.
+
+- **전처리**: 텍스트의 접미사 배열을 한 번 만들어 둡니다.
+- **질의**: 질의어로 시작하는 접미사들은 정렬 순서에서 **한 구간에 모여**
+  있습니다. [[binary-search|이진 검색]]으로 그 구간의 처음과 끝을 찾으면 모든
+  출현 위치가 나옵니다. 질의어 길이를 $$m$$이라 하면 비교 한 번이
+  $$O(m)$$이므로 $$O(m \log n)$$입니다.
+
+『두 도시 이야기』(A Tale of Two Cities)에서 `search`를 앞뒤 15글자 문맥과
+함께 찾은 결과로, Sedgewick·Wayne의 예입니다.
+
+```console
+% java KWIC tale.txt 15
+search
+o st giless to search for contraband
+her unavailing search for your fathe
+le and gone in search of her husband
+t provinces in search of impoverishe
+ dispersing in search of other carri
+n that bed and search the straw hold
+```
+
+텍스트가 아무리 길어도 질의마다 접미사 배열 위의 이진 검색 한 번입니다.
+
+## 예제 7. 스택과 큐 \{#stack-queue}
+
+원본 덱의 마지막 절은 두 기본 자료구조입니다. 이 주제와도 바로 이어집니다.
+
+- **스택**(stack): 넣은 쪽으로 꺼냅니다.
+  - **나중에 넣은 것이 먼저** 나옵니다. LIFO(last in, first out)라고 합니다.
+  - 넣기를 push, 꺼내기를 pop이라고 합니다.
+- **큐**(queue): 뒤로 넣고 앞에서 꺼냅니다.
+  - **먼저 넣은 것이 먼저** 나옵니다. FIFO(first in, first out)라고 합니다.
+  - 넣기를 enqueue, 꺼내기를 dequeue라고 합니다.
+
+| 넣은 순서 | 스택에서 꺼내는 순서 | 큐에서 꺼내는 순서 |
+| --- | --- | --- |
+| A B C D | D C B A | A B C D |
+
+### 버킷은 큐다 \{#bucket-queue}
+
+LSD 데모의 버킷을 다시 봅니다. 먼저 넣은 것을 먼저 꺼냈으니 버킷이 **큐**였고,
+그래서 같은 숫자끼리 앞 패스의 순서가 지켜졌습니다. 카운팅 정렬의 "뒤에서부터
+배치"는 큐 버킷 열 개와 같은 일을 배열 하나로 해내는 방법입니다.
+
+버킷을 **스택**으로 바꾸면 어떻게 될까요. 같은 입력으로 해 봅니다.
+
+<LsdRadixDemo buckets="stack" />
+
+첫 패스는 같습니다. 일의 자리가 모두 달라 한 버킷에 둘이 들어간 적이 없기
+때문입니다. 둘째 패스에서 `531`과 `437`이 버킷 3에 함께 들어가고, 스택은
+나중에 넣은 `437`을 먼저 꺼냅니다. 첫 패스가 만든 순서가 뒤집혔습니다.
+셋째 패스의 버킷 0에서도 `008`, `042`, `074`가 거꾸로 나와 최종 결과가
+`074 042 008 437 531`로 틀립니다. **불안정한 버킷은 LSD를 망칩니다.**
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/07_stack_queue
+make -f /work/Makefile stackQueue.out && ./stackQueue.out
+```
+
+- 결과
+
+```console
+push   : A B C D
+pop    : D C B A
+enqueue: A B C D
+dequeue: A B C D
+
+input        : 437 042 531 008 074
+queue exp 1  : 531 042 074 437 008
+queue exp 10 : 008 531 437 042 074
+queue exp 100: 008 042 074 437 531
+stack exp 1  : 531 042 074 437 008
+stack exp 10 : 008 437 531 042 074
+stack exp 100: 074 042 008 437 531
+queue sorted = yes, stack sorted = no
+```
+
+큐 버킷의 줄은 `01_lsd_radix_sort`의 출력과 패스마다 같습니다.
+
+스택은 MSD에도 숨어 있습니다. `MsdRecursive`가 버킷마다 자기 자신을 부를
+때, 돌아올 자리는 **호출 스택**에 쌓입니다. 가장 나중에 부른 호출이 가장
+먼저 끝나는 LIFO입니다. 재귀 없이 MSD를 짜려면 "아직 처리하지 않은 구간"을
+직접 스택에 넣고 꺼내면 됩니다.
+
+## 이 주제에서 남길 것 \{#takeaway}
+
+- **기수 정렬**: 키를 자리로 쪼개 자리마다 카운팅 정렬을 한다. 카운팅 정렬의
+  $$k$$가 커지는 문제를 자릿수 $$d$$로 바꾼다. 시간 $$O(d(n + k))$$
+- **LSD**: 낮은 자리부터. 패스마다 **안정**해야 앞 패스의 순서가 남는다.
+  고정 길이 키에 맞고 구현이 간단하다.
+- **MSD**: 높은 자리부터 버킷으로 나누고 둘 이상인 버킷만 재귀한다. 갈리면
+  더 읽지 않으므로 가변 길이 키에 맞지만, 호출마다 $$O(k)$$가 든다.
+- 기수 정렬은 비교를 하지 않으므로 $$\Omega(n \log n)$$ 하한의 **전제 밖**에
+  있다. 자릿수가 고정이면 $$O(n)$$이다.
+- **접미사 배열**: 모든 접미사를 정렬한 시작 위치의 배열. 더블링은 앞
+  $$2h$$글자의 순서를 앞 $$h$$글자의 순위 짝으로 구한다. $$O(n \log^2 n)$$,
+  짝을 기수 정렬하면 $$O(n \log n)$$
+- **LCP 배열**: 이웃한 접미사의 공통 접두사 길이. Kasai는 텍스트 위치
+  순서로 처리하며 $$h$$를 1씩만 줄여 $$O(n)$$이다.
+- **LRS**는 LCP의 최댓값, **LCS**는 두 문자열을 `#`로 이어 서로 다른
+  문자열에서 시작한 이웃의 LCP 최댓값이다.
+- **스택**은 LIFO, **큐**는 FIFO다. LSD의 버킷은 큐여야 한다.
+
+## 실습 코드 \{#code}
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) 저장소의 `src/topic-09-radix-sort/`
+폴더에 들어 있습니다. 예제마다 의사코드 하나에 C와 Python 구현이 붙습니다.
 
 ```plaintext
 src/topic-09-radix-sort/
-├── 01_lsd_radix_sort/
-├── 02_msd_radix_sort/
-├── 03_suffix_array/
-├── 04_lcp/
-└── 05_lcs/
+├── 01_lsd_radix_sort/   # 437 42 531 8 74를 세 패스로, 세 글자 단어 12개
+├── 02_msd_radix_sort/   # 자리 읽기 14번 (LSD는 24번)
+├── 03_suffix_array/     # banana$의 SA = 6 5 3 1 0 4 2, 단순 정렬과 더블링
+├── 04_lcp/              # Kasai, LCP = - 0 1 3 0 0 2, 글자 비교 9 vs 12
+├── 05_lrs/              # banana$의 ana, 염기 서열의 acaag
+├── 06_lcs/              # mississippi와 kiss의 iss
+└── 07_stack_queue/      # 큐 버킷은 정렬되고 스택 버킷은 틀린다
 ```
+
+파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다. 실행 방법은
+[실습 환경 준비](/article/setup-guide/)를 참고하세요.
+
+**직접 해 볼 것**
+
+- LSD의 `countingSortByDigit`에서 3단계를 앞에서부터 배치하도록 바꿔 보세요.
+  `074 042 008 437 531`처럼 스택 버킷과 같은 틀린 결과가 나옵니다.
+- MSD의 입력을 `{111, 112, 113, 114}`와 `{100, 200, 300, 400}`으로 바꿔
+  자리 읽은 횟수를 비교해 보세요. 12번과 4번입니다.
+- 접미사 배열의 `text`를 `mississippi$`로 바꾸면 더블링이 `k = 8`까지 갑니다.
+  라운드마다 순위가 몇 가지로 늘어나는지 보세요.
+- LRS에 `report("mississippi$")`를 더해 보세요. 답은 겹치는 반복 `issi`입니다.
+- LCS의 `s2`를 `"sip"`로 바꿔 보세요. 같은 문자열 안의 반복(`issi`)에 속지
+  않고 `sip`을 찾는지 확인합니다.
+
+## 자료 이력 \{#changelog}
+
+슬라이드와 이 자료는 함께 버전을 올립니다. 현재 **v1**이고, 슬라이드
+왼쪽 아래에서 같은 버전을 확인할 수 있습니다.
+
+| 버전 | 날짜 | 내용 |
+| --- | --- | --- |
+| v1 | 2026-10-26 | 최초 공개 |
