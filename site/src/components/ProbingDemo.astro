@@ -185,6 +185,12 @@ const slots = Array.from({ length: m }, (_, i) => i);
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
     const S = JSON.parse(root.dataset.pdStrings);
     const mode = root.dataset.pdMode;
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -378,7 +384,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       probesEl.classList.toggle('is-good', !!st.good);
       loadEl.textContent = `${st.n}/${m}`;
       clusterEl.textContent = String(cl.longest);
-      note.textContent = s >= steps.length - 1 && s >= 0 ? `${st.note} ${S.done}` : st.note;
+      setLines(note, s >= steps.length - 1 && s >= 0 ? `${st.note} ${S.done}` : st.note);
       root.classList.toggle('is-done', s >= steps.length - 1);
     }
 

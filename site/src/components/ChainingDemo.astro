@@ -162,6 +162,12 @@ const rows = Array.from({ length: m }, (_, i) => i);
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
     const S = JSON.parse(root.dataset.chStrings);
     const mode = root.dataset.chMode;
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -294,7 +300,7 @@ const rows = Array.from({ length: m }, (_, i) => i);
       countEl.classList.toggle('is-bad', !!st.bad);
       loadEl.textContent = `${st.n}/${m}`;
       longestEl.textContent = String(Math.max(...st.lists.map((l) => l.length)));
-      note.textContent = s >= 0 && s >= steps.length - 1 ? `${st.note} ${S.done}` : st.note;
+      setLines(note, s >= 0 && s >= steps.length - 1 ? `${st.note} ${S.done}` : st.note);
       root.classList.toggle('is-done', s >= steps.length - 1);
     }
 

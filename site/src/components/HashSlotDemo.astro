@@ -129,6 +129,12 @@ const slots = Array.from({ length: m }, (_, i) => i);
   (() => {
     const root = document.getElementById(id);
     if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
     const items = JSON.parse(root.dataset.hsItems);
     const S = JSON.parse(root.dataset.hsStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -185,7 +191,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       usedEl.textContent = String(st ? st.used : 0);
       formula.textContent = st ? st.formula : ' ';
       formula.classList.toggle('is-clash', !!st && st.clash);
-      note.textContent = st ? st.note : fill(S.idle, { n: items.length, m });
+      setLines(note, st ? st.note : fill(S.idle, { n: items.length, m }));
       root.classList.toggle('is-done', s >= steps.length - 1);
     }
 
