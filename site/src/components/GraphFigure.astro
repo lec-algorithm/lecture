@@ -49,8 +49,9 @@ const {
 } = Astro.props;
 const g = getGraph(graph);
 
-const R = 19;
-const PAD = 34;
+// 슬라이드에서는 정점을 조금 키운다. 교안 쪽 모양은 그대로다.
+const R = slide ? 24 : 19;
+const PAD = slide ? 28 : 34;
 const xs = g.nodes.map((p) => p[0]);
 const ys = g.nodes.map((p) => p[1]);
 const minX = Math.min(...xs) - PAD;
@@ -156,10 +157,28 @@ const edges = g.edges.map(([u, v, w]) => {
   .aas-graph-figure.is-slide {
     margin: 0.5rem auto;
   }
+  /* 테마가 슬라이드 안의 svg 높이를 막아 두므로 여기서 다시 연다. */
   .aas-graph-figure.is-slide svg {
     max-width: none;
     width: auto;
     height: 52vh;
+    max-height: none;
+  }
+  /* 데모 안(bare)에서는 높이를 데모가 --gf-slide-h로 정한다. */
+  .aas-graph-figure.is-slide.is-bare svg {
+    width: auto;
+    max-width: none;
+    height: var(--gf-slide-h, 50vh);
+  }
+  /* 강의실 뒤에서 읽히도록 슬라이드의 글자를 키운다. */
+  /* 강의실 뒤에서 읽히도록 슬라이드의 글자를 키운다. 단위는 viewBox 좌표라
+     그래프가 화면에서 줄어드는 만큼(예제 그래프는 0.7배쯤) 크게 잡는다. */
+  .aas-graph-figure.is-slide .gf-weight,
+  .aas-graph-figure.is-slide .gf-badge {
+    font-size: 25px;
+  }
+  .aas-graph-figure.is-slide .gf-label {
+    font-size: 24px;
   }
 
   /* 간선 */
