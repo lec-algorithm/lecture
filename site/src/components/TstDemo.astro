@@ -197,7 +197,7 @@ const STRINGS: Record<string, Record<string, string>> = {
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
-const config = { mode, words, prefill, detail, queries, prefix };
+const config = { mode, words, prefill, detail, queries, prefix, slide };
 const chip =
   mode === 'search'
     ? queries.join(' · ')
@@ -514,9 +514,11 @@ const chip =
     const { steps, head, rows, layoutTst } = plan();
 
     /* 자리: 왼쪽 서브트리, 자기(가운데 자식 바로 위), 오른쪽 서브트리 순서로 칸을 쓴다. */
+    /* 슬라이드에서는 트리가 높이에 맞춰 줄어든다. 레벨 간격을 좁히고 노드를 키워
+       트라이 데모의 노드와 비슷한 크기로 읽히게 한다. */
     const UNIT = 36;
-    const LEVEL = 32;
-    const RAD = 11;
+    const LEVEL = cfg.slide ? 28 : 32;
+    const RAD = cfg.slide ? 13 : 11;
     const pos = new Map();
     let slot = 0;
     let maxDepth = 0;
@@ -918,7 +920,15 @@ const chip =
   }
   .aas-tst-demo.is-slide .ts-svg {
     flex: 1 1 auto;
-    max-height: 56vh;
+    /* 가로는 남으므로 세로를 정해 두고, 그 높이에 맞춰 트리를 키운다. */
+    height: 58vh;
+    max-height: none;
+  }
+  .aas-tst-demo.is-slide .ts-ch {
+    font-size: 15px;
+  }
+  .aas-tst-demo.is-slide .ts-val {
+    font-size: 12px;
   }
   .aas-tst-demo.is-slide .ts-table {
     font-size: 0.7em;

@@ -82,7 +82,10 @@ if (kind === 'trie' || kind === 'compressed') {
     merge('');
   }
   const UNIT = kind === 'compressed' ? 74 : 48;
-  const LEVEL = 50;
+  /* 슬라이드에서는 높이에 맞춰 줄어드므로, 깊은 트라이는 레벨 간격을 좁혀 노드가
+     너무 작아지지 않게 한다(트라이 데모의 노드와 비슷한 크기). */
+  const deepest = Math.max(1, ...words.map(([w]) => w.length));
+  const LEVEL = slide ? Math.min(50, Math.max(32, Math.floor(340 / deepest))) : 50;
   let slot = 0;
   let maxD = 0;
   const pos = new Map<string, { x: number; y: number }>();
@@ -136,7 +139,7 @@ if (kind === 'trie' || kind === 'compressed') {
     nodes.get(id)!.value = v;
   }
   const UNIT = 36;
-  const LEVEL = 32;
+  const LEVEL = slide ? 28 : 32;
   let slot = 0;
   let maxD = 0;
   const pos = new Map<string, { x: number; y: number }>();
@@ -364,7 +367,9 @@ const vbH = kind === 'node' ? 70 : H + TOP + RAD + 16;
   }
   .aas-trie-figure.is-slide svg {
     /* 그림끼리 같은 비율로 키운다. 아주 높은 그림만 화면 높이에 맞춰 줄인다. */
-    height: min(58vh, calc(var(--trf-h) * 0.18vh));
+    height: min(62vh, calc(var(--trf-h) * 0.18vh));
+    /* 테마가 슬라이드의 svg 높이를 막아 두므로 여기서 다시 연다. */
+    max-height: 62vh;
     width: auto;
     max-width: 100%;
   }
