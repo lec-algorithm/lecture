@@ -159,6 +159,22 @@ export const glossary = {
       zh: '反复合并频次最低的两棵树而得到的无前缀码。常见字符得到短码，罕见字符得到长码，在逐字符编码中平均码长最短。',
     },
   },
+  'regular-expression': {
+    label: { ko: '정규 표현식', en: 'Regular expression', zh: '正则表达式' },
+    def: {
+      ko: '문자열의 집합(언어)을 연결·또는(|)·클로저(*) 세 연산과 괄호로 적은 식. 같은 언어를 유한 상태 오토마타로 인식할 수 있다.',
+      en: 'An expression that describes a set of strings (a language) with three operations, concatenation, or (|) and closure (*), plus parentheses. The same language can be recognized by a finite automaton.',
+      zh: '用连接、或（|）、闭包（*）三种运算加括号来描述字符串集合（语言）的式子。同一语言可以由有限状态自动机识别。',
+    },
+  },
+  'finite-automaton': {
+    label: { ko: '유한 상태 오토마타', en: 'Finite automaton', zh: '有限状态自动机' },
+    def: {
+      ko: '상태 몇 개와 전이로 이루어진 기계. 입력을 한 글자씩 읽으며 상태를 옮기고, 끝났을 때 수락 상태에 있으면 그 입력을 받아들인다.',
+      en: 'A machine made of a few states and transitions. It reads the input one character at a time, moving between states, and accepts if it ends in an accept state.',
+      zh: '由若干状态和转移构成的机器。逐个字符读入输入并在状态间移动，结束时若处于接受状态就接受该输入。',
+    },
+  },
   'dynamic-programming': {
     label: { ko: '동적 계획법', en: 'Dynamic programming', zh: '动态规划' },
     def: {
