@@ -10,10 +10,14 @@ toc_open: false
 
 import Slide from 'stack-site-builder/components/Slide.astro';
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
+import LrsBruteDemo from '@components/LrsBruteDemo.astro';
+import StackQueueDemo from '@components/StackQueueDemo.astro';
 
 {/* 幻灯片的编写规则见 docs/writing-rules.md 中关于幻灯片的一节。
     数字与实践代码（topic-09-radix-sort）的运行结果一致。 */}
@@ -104,28 +108,12 @@ import LcpScanDemo from '@components/LcpScanDemo.astro';
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 字符串也一样
-::sub[12 个三字母单词，按第 2、1、0 位字符的顺序 · in 为输入]
+### 一步一步：字符串也一样
+::sub[12 个三字母单词，按第 2、1、0 位字符的顺序 · 点击单词可在每一行标出它]
 
-```plaintext
-      in    [2]   [1]   [0]
-   0  dab   dab   dab   ace
-   1  add   cab   cab   add
-   2  cab   ebb   fad   bad
-   3  fad   add   bad   bed
-   4  fee   fad   dad   bee
-   5  bad   bad   ebb   cab
-   6  dad   dad   ace   dab
-   7  bee   fed   add   dad
-   8  fed   bed   fed   ebb
-   9  bed   fee   bed   fad
-  10  ebb   bee   fee   fed
-  11  ace   ace   bee   fee
-```
-
-`bad bed bee` 的顺序不是最后一趟排的，而是前几趟排好的。
+<LsdStringDemo slide />
 
 </Slide>
 
@@ -232,6 +220,15 @@ sorted  : 008 042 074 437 531
 - **不同**：这一趟会把顺序排对。
 - **相同**：顺序该由低 $$p$$ 位决定，而这个顺序已经在数组里了。
   - 这一趟**不能去动**这个顺序。这就是稳定性。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：从前往后放
+::sub[计数排序第 3 步改为从前往后放，相同字符的顺序就会颠倒 · 用标签切换比较]
+
+<LsdStringDemo placement="unstable" slide />
 
 </Slide>
 
@@ -499,6 +496,15 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 - **后缀数组**（suffix array）：把所有后缀按字典序排好，  
   再按这个顺序**只记下起始位置**的数组
   - $$SA[j]$$ = 字典序第 $$j$$ 个后缀的起始位置
+
+</Slide>
+
+<Slide>
+
+### 一步一步：逐个插入后缀
+::sub[橙色是新后缀，蓝色是比较对象 · 绿色是相同的字符，红色是第一个不同的字符]
+
+<SuffixInsertDemo slide />
 
 </Slide>
 
@@ -827,16 +833,19 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 暴力法
-::sub[Brute-force · 把所有可能的起始位置对 i < j 都试一遍]
+### 一步一步：暴力法
+::sub[Brute-force · 右边每一格 (i, j) 是一对，数字是公共前缀长度 · 点击格子跳到该对]
 
-```plaintext
-a a c a a g t t t a c a a g c
-  ↑               ↑
-  i               j        T[i..] 与 T[j..] 直到 "acaag" 都相同
-```
+<LrsBruteDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 暴力法的代价
+::sub[aacaagtttacaagc$ 共 16 个字符：120 对，字符比较 161 次]
 
 - 位置对有 $$\dfrac{n(n-1)}{2}$$ 个，每对最多比较 $$D$$ 个字符
 - 运行时间 $$\le D n^2$$，$$D$$ 是最长匹配的长度
@@ -1065,7 +1074,7 @@ n that bed and search the straw hold
 <Slide>
 
 #### 栈与队列
-::sub[放入 A B C D 再全部取出]
+::sub[区别在于从哪一端取出]
 
 - **栈**（stack）：从放进去的那一端取出。
   - **后放进去的先出来**，LIFO（last in, first out）
@@ -1074,9 +1083,14 @@ n that bed and search the straw hold
   - **先放进去的先出来**，FIFO（first in, first out）
   - enqueue（放入），dequeue（取出）
 
-| 放入顺序 | 从栈中取出的顺序 | 从队列中取出的顺序 |
-| --- | --- | --- |
-| A B C D | D C B A | A B C D |
+</Slide>
+
+<Slide>
+
+### 动手试试：栈与队列
+::sub[按按钮放入、取出 · 播放会向两者放入 A B C D 再全部取出]
+
+<StackQueueDemo slide />
 
 </Slide>
 
