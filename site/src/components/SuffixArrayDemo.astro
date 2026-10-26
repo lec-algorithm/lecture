@@ -1,0 +1,456 @@
+---
+// 접미사 배열을 더블링으로 만드는 과정을 한 걸음씩 보는 데모.
+//
+// 접미사 하나가 표의 한 줄이다. 처음에는 시작 위치 순으로 서 있다.
+// 라운드마다 두 걸음이다. (1) 짝(key)을 만든다. k = 2에서는 첫 글자와 둘째
+// 글자의 문자 코드, 그다음부터는 (내 순위, k/2칸 뒤 접미사의 순위)다.
+// 접미사에서 앞 k글자를 칠해, 짝이 그 k글자를 대신한다는 것을 보인다.
+// (2) 짝으로 정렬하면 줄들이 미끄러져 자리를 바꾸고, 새 순위가 붙는다.
+// 순위가 같은 줄(아직 갈리지 않은 접미사)은 주황으로 묶인다. 순위가 모두
+// 다르면 끝이고, 그 순서가 접미사 배열이다.
+//
+// 절차와 표의 숫자는 algorithm-code 03_suffix_array의 출력과 같다. 짝이
+// 같으면 시작 위치 순으로 둔다(실습 코드와 같은 규칙).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 접미사 배열을 만들 문자열. '$'로 끝나야 한다. */
+  text?: string;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { text = 'banana$', slide = false } = Astro.props;
+const id = `sa-${Math.random().toString(36).slice(2, 9)}`;
+const n = text.length;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '접미사 배열: 더블링',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    colJ: 'j',
+    colI: '시작',
+    colHalf: '뒤 절반',
+    colKey: '짝 (key)',
+    colRank: '순위',
+    colSuffix: '접미사',
+    roundLabel: 'k',
+    distinctLabel: '서로 다른 순위',
+    idle: '접미사 {n}개가 시작 위치 순으로 서 있습니다. 앞 2글자, 4글자, 8글자, ... 순으로 정렬해 갑니다.',
+    keys2: 'k = 2: 짝은 (첫 글자, 둘째 글자)의 문자 코드입니다. 칠한 2글자가 짝 하나로 바뀌었습니다.',
+    keysK: 'k = {k}: 짝은 (앞 {h}글자의 순위, {h}칸 뒤에서 시작하는 접미사의 순위)입니다. 두 순위를 이으면 앞 {k}글자의 순서가 됩니다.',
+    sorted: '짝으로 정렬하고 순위를 다시 매깁니다. 짝이 같으면 순위도 같습니다. 서로 다른 순위 {d}개 / {n}개',
+    tie: ' 아직 갈리지 않은 줄: {list}',
+    done: '순위가 모두 다릅니다. 이 순서가 접미사 배열입니다. SA = {sa}',
+  },
+  en: {
+    title: 'Suffix array: doubling',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    colJ: 'j',
+    colI: 'start',
+    colHalf: 'back half',
+    colKey: 'key',
+    colRank: 'rank',
+    colSuffix: 'suffix',
+    roundLabel: 'k',
+    distinctLabel: 'distinct ranks',
+    idle: 'The {n} suffixes stand in start-position order. Sort them by the first 2, 4, 8, ... characters.',
+    keys2: 'k = 2: the key is the character codes of (first, second). The 2 shaded characters became one key.',
+    keysK: 'k = {k}: the key is (rank of the first {h} chars, rank of the suffix starting {h} later). Together they order the first {k} characters.',
+    sorted: 'Sort by key and re-rank. Equal keys get equal ranks. Distinct ranks: {d} of {n}',
+    tie: ' Not yet separated: {list}',
+    done: 'All ranks differ. This order is the suffix array. SA = {sa}',
+  },
+  zh: {
+    title: '后缀数组：倍增',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    colJ: 'j',
+    colI: '起点',
+    colHalf: '后半',
+    colKey: '键 (key)',
+    colRank: '排名',
+    colSuffix: '后缀',
+    roundLabel: 'k',
+    distinctLabel: '不同排名',
+    idle: '{n} 个后缀按起始位置排列。依次按前 2、4、8……个字符排序。',
+    keys2: 'k = 2：键是（第一个字符，第二个字符）的字符编码。涂色的 2 个字符变成了一个键。',
+    keysK: 'k = {k}：键是（前 {h} 个字符的排名，从 {h} 格之后开始的后缀的排名）。两个排名连起来就是前 {k} 个字符的顺序。',
+    sorted: '按键排序并重新排名。键相同则排名相同。不同排名 {d} 个 / {n} 个',
+    tie: ' 尚未区分的行：{list}',
+    done: '排名全部不同。这个顺序就是后缀数组。SA = {sa}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const rows = Array.from({ length: n }, (_, i) => i);
+---
+
+<div
+  class:list={['aas-suffix-demo', slide && 'is-slide']}
+  id={id}
+  data-sa-text={text}
+  data-sa-strings={JSON.stringify(t)}
+  style={`--sa-n: ${n}; --sa-len: ${n}`}
+>
+  <div class="sa-bar">
+    <span class="sa-head"><strong>{t.title}</strong></span>
+    <div class="sa-controls">
+      <button type="button" data-act="back" class="sa-btn">{t.back}</button>
+      <button type="button" data-act="step" class="sa-btn">{t.step}</button>
+      <button type="button" data-act="play" class="sa-btn sa-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="sa-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sa-scroll">
+    <div class="sa-table">
+      <div class="sa-row sa-th">
+        <span class="sa-j">{t.colJ}</span>
+        <span class="sa-i">{t.colI}</span>
+        <span class="sa-half">{t.colHalf}</span>
+        <span class="sa-key">{t.colKey}</span>
+        <span class="sa-rank">{t.colRank}</span>
+        <span class="sa-suf">{t.colSuffix}</span>
+      </div>
+      <div class="sa-body">
+        {rows.map((j) => <span class="sa-jcell" style={`--sa-slot: ${j}`}>{j}</span>)}
+        {rows.map((i) => (
+          <div class="sa-row sa-tr" data-sa-row={i} style={`--sa-slot: ${i}`}>
+            <span class="sa-j"></span>
+            <span class="sa-i">{i}</span>
+            <span class="sa-half" data-sa-half></span>
+            <span class="sa-key" data-sa-key></span>
+            <span class="sa-rank" data-sa-rank></span>
+            <span class="sa-suf">
+              {text.slice(i).split('').map((ch, k) => <span class="sa-ch" data-sa-k={k}>{ch}</span>)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <div class="sa-foot">
+    <p class="sa-note" data-sa-note></p>
+    <span class="sa-count">
+      {t.roundLabel} = <strong data-sa-round>-</strong> · {t.distinctLabel} <strong data-sa-d>-</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const text = root.dataset.saText;
+    const S = JSON.parse(root.dataset.saStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = text.length;
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 suffixArray.pseudo의
+       BuildSuffixArrayDoubling과 같다. */
+    function plan() {
+      const steps = [];
+      let rank = [...text].map((c) => c.charCodeAt(0));
+      let sa = [...Array(n).keys()];
+      let shownRank = null;                 // 화면의 순위 열 (처음엔 비어 있음)
+      for (let k = 2; ; k *= 2) {
+        const half = k / 2;
+        const key = rank.map((r, i) => [r, i + half < n ? rank[i + half] : -1]);
+        steps.push({
+          order: sa.slice(), k, half, key, rank: shownRank, showHalf: k > 2,
+          note: k === 2 ? S.keys2 : fill(S.keysK, { k, h: half }),
+        });
+
+        sa.sort((a, b) => key[a][0] - key[b][0] || key[a][1] - key[b][1] || a - b);
+        const nr = new Array(n).fill(0);
+        for (let j = 1; j < n; j++) {
+          const same = key[sa[j]][0] === key[sa[j - 1]][0] && key[sa[j]][1] === key[sa[j - 1]][1];
+          nr[sa[j]] = nr[sa[j - 1]] + (same ? 0 : 1);
+        }
+        rank = nr;
+        shownRank = nr.slice();
+        const distinct = rank[sa[n - 1]] + 1;
+        const groups = {};
+        sa.forEach((i) => (groups[rank[i]] = (groups[rank[i]] || []).concat(i)));
+        const ties = Object.values(groups).filter((g) => g.length > 1);
+        let note = fill(S.sorted, { d: distinct, n });
+        if (ties.length) {
+          note += fill(S.tie, { list: ties.map((g) => g.map((i) => text.slice(i)).join('·')).join(', ') });
+        }
+        steps.push({ order: sa.slice(), k, half, key, rank: shownRank, showHalf: k > 2, distinct, sorted: true, note });
+
+        if (distinct === n) {
+          steps.push({
+            order: sa.slice(), k, half, key, rank: shownRank, showHalf: k > 2, distinct, sorted: true, finished: true,
+            note: fill(S.done, { sa: sa.join(' ') }),
+          });
+          break;
+        }
+      }
+      return steps;
+    }
+
+    const steps = plan();
+    const rowsEl = [...root.querySelectorAll('[data-sa-row]')];
+    const note = root.querySelector('[data-sa-note]');
+    const kEl = root.querySelector("[data-sa-round]");
+    const dEl = root.querySelector('[data-sa-d]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const slot = new Array(n);
+      (st ? st.order : [...Array(n).keys()]).forEach((i, j) => (slot[i] = j));
+      const tieRank = {};
+      if (st && st.rank) st.order.forEach((i) => (tieRank[st.rank[i]] = (tieRank[st.rank[i]] || 0) + 1));
+
+      rowsEl.forEach((row, i) => {
+        row.style.setProperty('--sa-slot', String(slot[i]));
+        const halfEl = row.querySelector('[data-sa-half]');
+        const keyEl = row.querySelector('[data-sa-key]');
+        const rankEl = row.querySelector('[data-sa-rank]');
+        if (st) {
+          const [a, b] = st.key[i];
+          keyEl.textContent = `(${String(a).padStart(3, ' ')}, ${String(b).padStart(3, ' ')})`;
+          halfEl.textContent = st.showHalf ? (i + st.half < n ? String(i + st.half) : '-') : '';
+        } else {
+          keyEl.textContent = '';
+          halfEl.textContent = '';
+        }
+        rankEl.textContent = st && st.rank ? String(st.rank[i]) : '';
+        const tied = !!(st && st.rank && st.sorted && tieRank[st.rank[i]] > 1);
+        row.classList.toggle('is-tie', tied);
+        row.classList.toggle('is-final', !!(st && st.finished));
+        row.querySelectorAll('[data-sa-k]').forEach((ch) => {
+          ch.classList.toggle('is-lit', !!st && Number(ch.dataset.saK) < st.k);
+        });
+      });
+      kEl.textContent = st ? String(st.k) : '-';
+      dEl.textContent = st && st.distinct ? `${st.distinct}/${n}` : '-';
+      note.textContent = st ? st.note : fill(S.idle, { n });
+      root.classList.toggle('is-done', !!(st && st.finished));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1600);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-suffix-demo {
+    --sa-rowh: 1.75em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-suffix-demo .sa-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-suffix-demo .sa-head {
+    font-size: 0.95em;
+  }
+  .aas-suffix-demo .sa-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-suffix-demo .sa-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-suffix-demo .sa-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-suffix-demo .sa-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-suffix-demo .sa-scroll {
+    overflow-x: auto;
+  }
+  .aas-suffix-demo .sa-table {
+    width: max-content;
+    margin: 0 auto;
+    font-family: var(--aas-mono, monospace);
+  }
+  /* 열 너비는 em으로 고정해 머리줄과 몸통 줄이 맞게 한다. */
+  .aas-suffix-demo .sa-row {
+    display: grid;
+    grid-template-columns: 2em 3.2em 4.6em 7.4em 3.4em calc(var(--sa-len) * 0.8em + 1em);
+    align-items: center;
+    height: var(--sa-rowh);
+  }
+  .aas-suffix-demo .sa-row > span {
+    text-align: center;
+    white-space: pre;
+  }
+  .aas-suffix-demo .sa-row > .sa-suf {
+    text-align: left;
+    padding-left: 0.6em;
+  }
+  .aas-suffix-demo .sa-th {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+    height: auto;
+    padding-bottom: 0.3em;
+    grid-template-columns: calc(2em / 0.75) calc(3.2em / 0.75) calc(4.6em / 0.75) calc(7.4em / 0.75) calc(3.4em / 0.75) calc((var(--sa-len) * 0.8em + 1em) / 0.75);
+  }
+  .aas-suffix-demo .sa-body {
+    position: relative;
+    height: calc(var(--sa-n) * var(--sa-rowh));
+  }
+  .aas-suffix-demo .sa-jcell {
+    position: absolute;
+    left: 0;
+    text-align: center;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    width: calc(2em / 0.8);
+    top: calc(var(--sa-slot) * var(--sa-rowh) / 0.8);
+    height: calc(var(--sa-rowh) / 0.8);
+    line-height: calc(var(--sa-rowh) / 0.8);
+  }
+  .aas-suffix-demo .sa-tr {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--sa-slot) * var(--sa-rowh));
+    border-radius: 0.35em;
+    transition:
+      top 0.6s cubic-bezier(0.65, 0, 0.35, 1),
+      background-color 0.3s;
+  }
+  .aas-suffix-demo .sa-tr .sa-i {
+    font-weight: 700;
+  }
+  .aas-suffix-demo .sa-tr .sa-half,
+  .aas-suffix-demo .sa-tr .sa-key {
+    color: var(--aas-muted);
+  }
+  .aas-suffix-demo .sa-tr.is-tie {
+    background: color-mix(in srgb, var(--aas-role-focus) 16%, transparent);
+  }
+  .aas-suffix-demo .sa-tr.is-final {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+  .aas-suffix-demo .sa-ch {
+    display: inline-block;
+    width: 0.8em;
+    text-align: center;
+    border-radius: 0.15em;
+    transition: background-color 0.3s;
+  }
+  .aas-suffix-demo .sa-ch.is-lit {
+    background: color-mix(in srgb, var(--aas-role-model) 30%, transparent);
+  }
+
+  .aas-suffix-demo .sa-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-suffix-demo .sa-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-suffix-demo.is-done .sa-note {
+    color: var(--aas-text);
+  }
+  .aas-suffix-demo .sa-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-suffix-demo .sa-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-suffix-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-suffix-demo.is-slide .sa-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-suffix-demo .sa-tr,
+    .aas-suffix-demo .sa-ch {
+      transition: none;
+    }
+  }
+</style>
