@@ -50,6 +50,7 @@ const id = `tn-${Math.random().toString(36).slice(2, 9)}`;
 
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
+    sep: ' ',
     'title.node': '노드의 링크 배열',
     'title.complete': '자동 완성',
     hint: '노드나 칠한 칸을 누르세요',
@@ -76,6 +77,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     'complete.bad': 'a부터 z까지의 소문자만 칠 수 있습니다.',
   },
   en: {
+    sep: ' ',
     'title.node': 'A node’s link array',
     'title.complete': 'Autocomplete',
     hint: 'click a node or a filled slot',
@@ -102,6 +104,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     'complete.bad': 'Only lowercase letters a to z can be typed.',
   },
   zh: {
+    sep: '',
     'title.node': '节点的链接数组',
     'title.complete': '自动补全',
     hint: '点节点或涂色的格子',
@@ -340,7 +343,7 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
         val.textContent = n.value !== null ? String(n.value) : '-';
         const vars = { s: sel, c: n.ch, k: used.length, e: R - used.length, cs: used.join(', '), v: n.value };
         let text = fill(sel === '' ? S['node.root'] : used.length ? S['node.inner'] : S['node.leaf'], vars);
-        if (sel !== '') text += ' ' + fill(n.value !== null ? S['node.value'] : S['node.noValue'], vars);
+        if (sel !== '') text += S.sep + fill(n.value !== null ? S['node.value'] : S['node.noValue'], vars);
         setLines(note, text);
         setCount([[S.used, used.length], [S.empty, R - used.length], [S.whole, `${total - 1} / ${total * R}`]]);
       };
@@ -405,7 +408,7 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
         }),
       );
       let text;
-      if (raw !== p) text = S['complete.bad'] + ' ';
+      if (raw !== p) text = S['complete.bad'] + S.sep;
       else text = '';
       if (miss !== null) text += fill(S['complete.miss'], { q: cur === '' ? S.rootRef : `"${cur}"`, c: miss });
       else if (p === '') text += fill(S['complete.empty'], { n: found.length });

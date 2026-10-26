@@ -34,6 +34,7 @@ const SETS: Record<string, { label: string; words: string[] }> = {
 
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
+    sep: ' ',
     title: '트라이의 링크 수',
     titleCompare: '같은 키, 세 구조',
     input: '키',
@@ -56,6 +57,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     bad: 'a부터 z까지의 소문자 단어만 받습니다. 단어는 10개, 한 단어는 12글자까지입니다.',
   },
   en: {
+    sep: ' ',
     title: 'Counting trie links',
     titleCompare: 'Same keys, three structures',
     input: 'Keys',
@@ -78,6 +80,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     bad: 'Only lowercase words a to z are accepted, up to 10 words of up to 12 letters.',
   },
   zh: {
+    sep: '',
     title: '数一数字典树的链接',
     titleCompare: '同样的键，三种结构',
     input: '键',
@@ -274,7 +277,7 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
       const rest = links - R;
       const pct = rnw === rn ? 0 : Math.round(((rest - rn) / (rnw - rn)) * 100);
       let text = '';
-      if (bad) text += S.bad + ' ';
+      if (bad) text += S.bad + S.sep;
       if (cfg.compare) {
         const sn = tstNodes(words);
         const rows = [
@@ -323,9 +326,9 @@ const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
         root.querySelector('[data-sp-dotv]').textContent = String(rest);
         root.querySelector('[data-sp-dot]').style.left = `${pct}%`;
         text += fill(S.note, { l: rest, rn, rnw, pct });
-        if (rest === rn && rn !== rnw) text += ' ' + S.noteLow;
-        else if (rest === rnw && rn !== rnw) text += ' ' + S.noteHigh;
-        text += ' ' + fill(S.noteUsed, { u: nodes - 1 });
+        if (rest === rn && rn !== rnw) text += S.sep + S.noteLow;
+        else if (rest === rnw && rn !== rnw) text += S.sep + S.noteHigh;
+        text += S.sep + fill(S.noteUsed, { u: nodes - 1 });
       }
       setLines(note, text);
     }
