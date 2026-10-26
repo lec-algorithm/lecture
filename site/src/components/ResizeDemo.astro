@@ -1,0 +1,502 @@
+---
+// 선형 탐지 표의 크기를 두 배로 늘리며 키를 다시 넣는 데모.
+//
+// 위는 SEARCHEXAMPLE을 넣은 크기 16 배열(적재율 10/16), 아래는 크기 32인
+// 새 배열이다. 한 걸음마다 옛 배열의 0번 칸부터 키를 하나 꺼내, 코드 mod 32로
+// 새 해시를 계산하고 선형 탐지로 새 배열에 넣는다. M이 바뀌면 해시값도
+// 바뀌므로 칸을 그대로 옮길 수 없다는 것을 본다.
+//
+// 칸 오른쪽 위의 작은 숫자는 그 키를 찾을 때 들여다보는 칸 수다. 옛 배열의
+// 합은 17, 새 배열의 합은 12다. algorithm-code의 hashTableLP.c ·
+// hash_table_lp.py에서 resize(wide, 32)와 print_hits가 찍는 값과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `rz-${Math.random().toString(36).slice(2, 9)}`;
+const m = 16;
+const keys = 'SEARCHEXAMPLE';
+const codes = { A: 20, C: 69, E: 10, H: 4, L: 38, M: 49, P: 78, R: 14, S: 22, X: 47, Y: 52 };
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '크기 조정',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    moved: '옮긴 키',
+    hits: '모든 키를 찾는 비용',
+    oldRow: '옛 배열 M = 16',
+    newRow: '새 배열 M = 32',
+    idle: 'M이 바뀌면 해시값도 바뀌므로, 0번 칸부터 키를 하나씩 꺼내 크기 32인 새 배열에 다시 넣습니다. 칸 귀퉁이의 숫자는 그 키를 찾을 때 들여다보는 칸 수입니다.',
+    move: '{i}번 칸의 {k} 키: 새 해시는 {h}입니다. {h}번 칸이 비어 있어 바로 넣습니다.',
+    moveProbe: '{i}번 칸의 {k} 키: 새 해시는 {h}입니다. 차 있는 칸을 지나 {s}번 칸에 넣습니다({p}칸).',
+    done: '키 10개를 모두 옮겼습니다. 적재율이 10/16에서 10/32로 내려가자, 모든 키를 한 번씩 찾는 비용이 {a}칸에서 {b}칸이 되었습니다.',
+  },
+  en: {
+    title: 'Resizing',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    moved: 'moved',
+    hits: 'probes to find every key',
+    oldRow: 'old array M = 16',
+    newRow: 'new array M = 32',
+    idle: 'A new M means new hash values, so take the keys out one by one from slot 0 and insert them into a new array of size 32. The small number in a corner is how many slots a search for that key looks at.',
+    move: '{k} from slot {i}: the new hash is {h}. Slot {h} is empty, so it goes straight in.',
+    moveProbe: '{k} from slot {i}: the new hash is {h}. It passes full slots and lands in slot {s} ({p} probes).',
+    done: 'All 10 keys moved. With the load down from 10/16 to 10/32, finding every key once now takes {b} probes instead of {a}.',
+  },
+  zh: {
+    title: '调整大小',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    moved: '已移动',
+    hits: '查找全部键的探测数',
+    oldRow: '旧数组 M = 16',
+    newRow: '新数组 M = 32',
+    idle: 'M 变了，哈希值也会变，所以从 0 号格开始逐个取出键，重新插入大小为 32 的新数组。格子角上的数字是查找该键时要看的格数。',
+    move: '{i} 号格的 {k}：新的哈希值是 {h}。{h} 号格为空，直接放入。',
+    moveProbe: '{i} 号格的 {k}：新的哈希值是 {h}。越过有键的格，放进 {s} 号格（共 {p} 格）。',
+    done: '10 个键全部搬完。装载因子从 10/16 降到 10/32，把每个键各查一次的探测数从 {a} 格变成 {b} 格。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const oldSlots = Array.from({ length: m }, (_, i) => i);
+const newRows = [0, 1].map((r) => Array.from({ length: m }, (_, i) => r * m + i));
+---
+
+<div
+  class:list={['aas-resize-demo', slide && 'is-slide']}
+  id={id}
+  data-rz-strings={JSON.stringify(t)}
+  style={`--rz-m: ${m}`}
+>
+  <div class="rz-bar">
+    <span class="rz-head"><strong>{t.title}</strong> · M = 16 → 32</span>
+    <div class="rz-controls">
+      <button type="button" data-act="back" class="rz-btn">{t.back}</button>
+      <button type="button" data-act="step" class="rz-btn">{t.step}</button>
+      <button type="button" data-act="play" class="rz-btn rz-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="rz-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="rz-stats">
+    <span class="rz-big">
+      <span class="rz-big-label">{t.moved}</span>
+      <strong data-rz-moved>0</strong><span class="rz-of">/ 10</span>
+    </span>
+    <span class="rz-big">
+      <span class="rz-big-label">{t.hits}</span>
+      <span class="rz-was" data-rz-was></span>
+      <span class="rz-arrow">→</span>
+      <strong data-rz-hits>0</strong>
+    </span>
+    <span class="rz-formula" data-rz-formula>&nbsp;</span>
+  </div>
+
+  <div class="rz-scroll">
+    <div class="rz-track">
+      <div class="rz-label">{t.oldRow}</div>
+      <div class="rz-row">
+        {oldSlots.map((i) => <span class="rz-cell" data-rz-old={i}><i></i><b></b><small></small></span>)}
+      </div>
+      <div class="rz-idx">{oldSlots.map((i) => <span>{i}</span>)}</div>
+
+      <div class="rz-label">{t.newRow}</div>
+      {
+        newRows.map((row) => (
+          <>
+            <div class="rz-row">
+              {row.map((i) => (
+                <span class="rz-cell" data-rz-new={i}>
+                  <i />
+                  <b />
+                  <small />
+                </span>
+              ))}
+            </div>
+            <div class="rz-idx">{row.map((i) => <span>{i}</span>)}</div>
+          </>
+        ))
+      }
+    </div>
+  </div>
+
+  <p class="rz-note" data-rz-note></p>
+</div>
+
+<script is:inline define:vars={{ id, m, keys, codes }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.rzStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const code = (k) => codes[k] ?? k.charCodeAt(0);
+
+    /* 선형 탐지 put과 get. hashTableLP.pseudo와 같다(크기 조정 검사는 이 데모에 필요 없다). */
+    const table = (size) => ({ size, keys: new Array(size).fill(null), vals: new Array(size).fill(null) });
+    function put(t, k, v) {
+      let i = code(k) % t.size;
+      const path = [i];
+      while (t.keys[i] !== null && t.keys[i] !== k) {
+        i = (i + 1) % t.size;
+        path.push(i);
+      }
+      t.keys[i] = k;
+      t.vals[i] = v;
+      return path;
+    }
+    function probesOf(t, k) {
+      let i = code(k) % t.size;
+      let p = 1;
+      while (t.keys[i] !== k) {
+        i = (i + 1) % t.size;
+        p += 1;
+      }
+      return p;
+    }
+
+    const old = table(m);
+    [...keys].forEach((k, v) => put(old, k, v));
+    const oldCost = old.keys.map((k) => (k === null ? 0 : probesOf(old, k)));
+    const oldTotal = oldCost.reduce((a, b) => a + b, 0);
+
+    /* 단계 배열: resize와 같이 옛 배열의 0번 칸부터 차례로 새 배열에 넣는다. */
+    const wide = table(2 * m);
+    const newCost = new Array(2 * m).fill(0);
+    const steps = [];
+    let moved = 0;
+    let total = 0;
+    for (let i = 0; i < m; i++) {
+      const k = old.keys[i];
+      if (k === null) continue;
+      const path = put(wide, k, old.vals[i]);
+      const s = path[path.length - 1];
+      newCost[s] = path.length;
+      moved += 1;
+      total += path.length;
+      const h = path[0];
+      steps.push({
+        from: i,
+        path,
+        keys: wide.keys.slice(),
+        vals: wide.vals.slice(),
+        cost: newCost.slice(),
+        moved,
+        total,
+        formula: `${k}: ${code(k)} mod 16 = ${code(k) % m}  →  ${code(k)} mod 32 = ${h}`,
+        note: path.length === 1 ? fill(S.move, { i, k, h }) : fill(S.moveProbe, { i, k, h, s, p: path.length }),
+      });
+    }
+    const end = steps[steps.length - 1];
+    steps.push({ ...end, path: [], from: -1, final: true, note: fill(S.done, { a: oldTotal, b: end.total }) });
+
+    const oldCells = [...root.querySelectorAll('[data-rz-old]')];
+    const newCells = [...root.querySelectorAll('[data-rz-new]')];
+    const movedEl = root.querySelector('[data-rz-moved]');
+    const hitsEl = root.querySelector('[data-rz-hits]');
+    const wasEl = root.querySelector('[data-rz-was]');
+    const formula = root.querySelector('[data-rz-formula]');
+    const note = root.querySelector('[data-rz-note]');
+    wasEl.textContent = String(oldTotal);
+
+    function paint(cell, k, v, cost) {
+      cell.querySelector('i').textContent = k === null ? '' : String(cost);
+      cell.querySelector('b').textContent = k ?? '';
+      cell.querySelector('small').textContent = k === null ? '' : String(v);
+      cell.classList.toggle('is-full', k !== null);
+      cell.classList.toggle('is-slow', k !== null && cost > 1);
+    }
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const doneUpto = st ? (st.final ? m : st.from) : -1;
+      oldCells.forEach((cell, i) => {
+        paint(cell, old.keys[i], old.vals[i], oldCost[i]);
+        cell.classList.toggle('is-gone', old.keys[i] !== null && i < doneUpto);
+        cell.classList.toggle('is-lift', !!st && i === st.from);
+      });
+      newCells.forEach((cell, i) => {
+        const k = st ? st.keys[i] : null;
+        paint(cell, k, st ? st.vals[i] : null, st ? st.cost[i] : 0);
+        const last = st && st.path.length ? st.path[st.path.length - 1] : -1;
+        cell.classList.toggle('is-probe', !!st && st.path.includes(i) && i !== last);
+        cell.classList.toggle('is-placed', i === last);
+      });
+      movedEl.textContent = String(st ? st.moved : 0);
+      hitsEl.textContent = String(st ? st.total : 0);
+      hitsEl.classList.toggle('is-good', !!st && st.final);
+      formula.textContent = st && !st.final ? st.formula : ' ';
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', s >= steps.length - 1);
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-resize-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --rz-cell: 2.45em;
+    --rz-gap: 0.2em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-resize-demo .rz-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-resize-demo .rz-head {
+    font-size: 0.95em;
+  }
+  .aas-resize-demo .rz-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-resize-demo .rz-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-resize-demo .rz-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-resize-demo .rz-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-resize-demo .rz-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4em 2em;
+    margin-bottom: 0.3em;
+  }
+  .aas-resize-demo .rz-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+  }
+  .aas-resize-demo .rz-big-label,
+  .aas-resize-demo .rz-of,
+  .aas-resize-demo .rz-arrow {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-resize-demo .rz-was {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.4em;
+    color: var(--aas-muted);
+    text-decoration: line-through;
+  }
+  .aas-resize-demo .rz-big strong {
+    min-width: 1.2em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-resize-demo .rz-big strong.is-good {
+    color: var(--aas-role-eval);
+  }
+
+  .aas-resize-demo .rz-scroll {
+    overflow-x: auto;
+  }
+  .aas-resize-demo .rz-track {
+    width: max-content;
+    margin: 0 auto;
+  }
+  .aas-resize-demo .rz-label {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    margin: 0.2em 0 0.15em;
+  }
+  .aas-resize-demo .rz-row,
+  .aas-resize-demo .rz-idx {
+    display: grid;
+    grid-template-columns: repeat(var(--rz-m), var(--rz-cell));
+    gap: 0 var(--rz-gap);
+  }
+  .aas-resize-demo .rz-idx {
+    margin-bottom: 0.3em;
+  }
+  .aas-resize-demo .rz-idx span {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.65em;
+    color: var(--aas-muted);
+  }
+  .aas-resize-demo .rz-cell {
+    position: relative;
+    height: 2.3em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.3s,
+      border-color 0.3s,
+      box-shadow 0.3s,
+      opacity 0.3s;
+  }
+  .aas-resize-demo .rz-cell.is-full {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-resize-demo .rz-cell b {
+    font-size: 1em;
+    line-height: 1.1;
+  }
+  .aas-resize-demo .rz-cell small {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.6em;
+    color: var(--aas-muted);
+    line-height: 1;
+  }
+  /* 그 키를 찾을 때 들여다보는 칸 수. 1보다 크면 강조한다. */
+  .aas-resize-demo .rz-cell i {
+    position: absolute;
+    top: 0.1em;
+    right: 0.25em;
+    font-style: normal;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.6em;
+    color: var(--aas-muted);
+  }
+  .aas-resize-demo .rz-cell.is-slow i {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-resize-demo .rz-cell.is-gone {
+    opacity: 0.3;
+  }
+  .aas-resize-demo .rz-cell.is-lift {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-resize-demo .rz-cell.is-probe {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-resize-demo .rz-cell.is-placed {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-resize-demo .rz-cell.is-placed b {
+    animation: rz-pop 0.45s ease-out;
+  }
+  .aas-resize-demo .rz-formula {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    font-weight: 700;
+    white-space: pre;
+  }
+
+  .aas-resize-demo .rz-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.2em;
+  }
+  .aas-resize-demo.is-done .rz-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes rz-pop {
+    from {
+      transform: scale(1.6);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-resize-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-resize-demo .rz-cell {
+      transition: none;
+    }
+    .aas-resize-demo .rz-cell b {
+      animation: none !important;
+    }
+  }
+</style>
