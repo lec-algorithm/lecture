@@ -261,6 +261,12 @@ const rows = Array.from({ length: n }, (_, v) => v);
     const root = document.getElementById(id);
     if (!root) return;
 
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
     const mode = root.dataset.hgMode;
     const n = Number(root.dataset.hgN);
     const edges = JSON.parse(root.dataset.hgEdges);
@@ -614,7 +620,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
         row.classList.toggle('is-now', !!st && st.node[v].includes('focus'));
         row.classList.toggle('is-done', !!st && st.node[v].includes('done'));
       });
-      note.textContent = st ? st.note : fill(S.idle, { s });
+      setLines(note, st ? st.note : fill(S.idle, { s }));
       countEl.textContent = st ? st.count : '';
       root.classList.toggle('is-done', !!(st && st.end));
     }
