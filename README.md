@@ -58,6 +58,7 @@ lecture/
 ├── .github/workflows/       # GitHub Pages 배포
 ├── docker-compose.yml       # 사이트 실행 (보기 전용, 소스 내장)
 ├── docker-compose.dev.yml   # 사이트 실행 (site/ 바인드 마운트 + 핫리로드)
+├── Makefile                 # 위 compose 명령의 단축 타깃 (make로 목록)
 ├── AGENTS.md                # AI 도구용 저장소 가이드
 ├── CHANGELOG.md             # 변경 기록
 └── README.md
@@ -101,6 +102,29 @@ docker compose down
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
+
+### make 단축 명령
+
+위 docker compose 명령은 저장소 루트의 `Makefile`이 짧은 타깃으로 감쌉니다.
+`make`만 치면 목록과 설명이 나옵니다.
+
+| 타깃 | 하는 일 | 감싸는 명령 |
+| --- | --- | --- |
+| `make up` · `make up-d` | 보기 전용 가동 (포그라운드 · 백그라운드) | `docker compose up [-d]` |
+| `make build` | 보기 전용 이미지 다시 만들기 (`git pull` 뒤) | `docker compose build` |
+| `make dev` · `make dev-d` | 편집용 가동 (바인드 마운트 + 핫리로드) | `docker compose -f … -f docker-compose.dev.yml up [-d]` |
+| `make rebuild` | 의존성을 바꾼 뒤 이미지를 다시 만들며 편집용 가동 | 위 명령 + `--build` |
+| `make logs` · `make ps` | 로그 따라가기 · 상태 | `docker compose logs -f app` · `ps` |
+| `make restart` · `make shell` | app 재시작 · 컨테이너 안 셸 | `restart app` · `exec app sh` |
+| `make down` | 중지·정리 | `docker compose down` |
+| `make clean` | 중지·정리 + `node_modules` 볼륨 삭제 | `docker compose down -v` |
+| `make check` | 컨테이너 안에서 `pnpm build && pnpm check` | `run --rm app …` |
+
+`make clean`은 `make down` **대신** 씁니다. `down`으로 컨테이너를 먼저 지우면
+`node_modules` 익명 볼륨이 주인 없이 남아 `down -v`로도 지워지지 않습니다.
+
+`make check`는 `site/`를 마운트해 지금 고친 소스를 빌드·검사합니다. Node 없이
+커밋 전 검증을 돌릴 때 씁니다.
 
 ### 로컬 pnpm
 

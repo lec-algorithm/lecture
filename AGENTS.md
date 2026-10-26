@@ -26,6 +26,7 @@
 - `site/`: stack-site-builder 기반 Astro 강의 사이트. 강의·슬라이드·글·실습
   환경 카탈로그·용어집. 콘텐츠 작성 위치와 개발 명령은 `site/README.md` 참고
 - `docs/`: 수업계획서, 변환 계획, 규칙 문서(작성·문서화·git·배포)
+- `Makefile`: docker compose 명령의 단축 타깃. `make`로 목록을 본다.
 - `.github/workflows/deploy.yml`: `main` push → GitHub Pages 배포
 
 ## Git 워크플로: git flow (상세: `docs/git-workflow.md`)
@@ -35,8 +36,8 @@
 - **`main`은 곧 공개 사이트다.** push되면 그대로 배포된다.
 - **커밋하면서 진행한다**. 논리 단위가 완결되면 바로 커밋하고, 여러 작업의
   변경을 워킹 트리에 쌓아두지 않는다. 한 커밋에는 한 가지 주제만 담는다.
-- 커밋 전 검증: 사이트 변경이 있으면 `cd site && pnpm build && pnpm check`,
-  md/mdx 문서 변경이 있으면 `python3 scripts/check-style.py` 통과 필수.
+- 커밋 전 검증: 사이트 변경이 있으면 `cd site && pnpm build && pnpm check`
+  (Node 없이는 루트에서 `make check`), md/mdx 문서 변경이 있으면 `python3 scripts/check-style.py` 통과 필수.
   커밋 메시지 제목은 영어 명령형 한 줄
 - **예전 PDF 원본을 커밋하지 않는다.** 저장소 바깥(`../lecture_old_pdfs`)에 둔다.
 
@@ -46,6 +47,11 @@
 # repo 루트에서 — Docker (Node/pnpm 설치 불필요)
 docker compose up                            # 보기 전용 (소스 내장)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up  # site/ 바인드 마운트 + 핫리로드
+
+# 같은 일을 make로 — 목록은 make
+make up / make dev / make dev-d / make logs  # 보기 전용 · 편집용 · 백그라운드 · 로그
+make down / make clean                       # 중지 · 중지 + node_modules 볼륨 삭제 (down 대신)
+make check                                   # 컨테이너 안에서 pnpm build && pnpm check
 
 # site/ 에서 — 로컬 pnpm
 pnpm dev / pnpm build / pnpm check
