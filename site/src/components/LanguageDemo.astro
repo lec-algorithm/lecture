@@ -1,0 +1,579 @@
+---
+// 정규식 하나가 가리키는 문자열의 집합(언어)을 펼쳐 보는 데모.
+//
+// 탭으로 정규식을 고르면 그 언어의 문자열을 길이 순으로 늘어놓는다. '*'가 있으면
+// 언어가 끝이 없으므로 슬라이더로 "덩어리를 몇 번까지 펼칠지" k를 정한다.
+// k = 0이면 '*' 덩어리를 한 번도 쓰지 않은 것, k = 2면 0번, 1번, 2번 쓴 것까지다.
+// 한 번 펼친 덩어리마다 칸 색을 번갈아 칠해 반복이 눈에 보이게 한다.
+//
+// 아래 칸에 문자열을 적으면 속하는지 판정한다. 판정은 nfaRegex의 BuildNFA와
+// Recognizes를 그대로 쓴다. 다만 괄호 한 쌍에 '|'가 여럿이어도 되도록(A|E|I|O|U),
+// ')'에서 '|'를 모두 꺼내 갈래마다 같은 ε 전이 두 개를 더한다. '|'가 하나면
+// 실습 코드와 같은 그래프다.
+//
+// 문법: 글자(영문·숫자), '.', '*', '|', 괄호
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 탭으로 고를 정규식들 */
+  regexes?: string[];
+  /** 정규식별로 눌러 볼 예 */
+  tests?: Record<string, string[]>;
+  /** 처음 펼칠 횟수 */
+  k?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  regexes = ['AB*', 'A*B', '(AB)*'],
+  tests = {},
+  k = 2,
+  slide = false,
+} = Astro.props;
+const id = `lg-${Math.random().toString(36).slice(2, 9)}`;
+const MAX_K = 4;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '언어 펼치기',
+    kLabel: '* 펼치는 횟수 최대',
+    testLabel: '문자열',
+    testHint: '적어 보세요',
+    empty: 'ε',
+    countFinite: '전부 {n}개',
+    countInf: '{n}개 보임 · 끝없이 이어짐',
+    countCap: '앞의 {n}개만 보임',
+    noteStar: '* 덩어리를 0번부터 {k}번까지 펼친 문자열입니다. 같은 색으로 묶인 칸이 한 번 펼친 덩어리입니다. 횟수를 올리면 언어가 끝없이 늘어납니다.',
+    noteStar0: '* 덩어리를 한 번도 쓰지 않은 문자열만 보입니다. 0번도 클로저에 들어갑니다.',
+    noteFinite: '*가 없으니 언어가 유한합니다. 정규식이 가리키는 문자열은 이것이 전부입니다.',
+    yes: '✓ 속합니다',
+    no: '✕ 속하지 않습니다',
+    emptyIn: '(빈 문자열)',
+  },
+  en: {
+    title: 'Unfolding a language',
+    kLabel: 'max unfoldings of *',
+    testLabel: 'string',
+    testHint: 'type one',
+    empty: 'ε',
+    countFinite: '{n} in all',
+    countInf: '{n} shown · goes on forever',
+    countCap: 'first {n} shown',
+    noteStar: 'These are the strings with each * part unfolded 0 to {k} times. Cells grouped in one color are one unfolding. Raise the count and the language grows without end.',
+    noteStar0: 'Only strings that use no * part at all. Zero times counts as a closure too.',
+    noteFinite: 'With no * the language is finite. These are all the strings the expression describes.',
+    yes: '✓ belongs',
+    no: '✕ does not belong',
+    emptyIn: '(empty string)',
+  },
+  zh: {
+    title: '展开语言',
+    kLabel: '* 最多展开次数',
+    testLabel: '字符串',
+    testHint: '输入试试',
+    empty: 'ε',
+    countFinite: '共 {n} 个',
+    countInf: '显示 {n} 个 · 无穷无尽',
+    countCap: '只显示前 {n} 个',
+    noteStar: '这些是把 * 部分展开 0 到 {k} 次得到的字符串。同一颜色的一组格子是展开一次的部分。增加次数，语言会无限增长。',
+    noteStar0: '只显示完全不使用 * 部分的字符串。0 次也算闭包。',
+    noteFinite: '没有 *，所以语言是有限的。正则表达式描述的字符串就是这些。',
+    yes: '✓ 属于',
+    no: '✕ 不属于',
+    emptyIn: '(空字符串)',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-language-demo', slide && 'is-slide']}
+  id={id}
+  data-lg-regexes={JSON.stringify(regexes)}
+  data-lg-tests={JSON.stringify(tests)}
+  data-lg-k={Math.min(Math.max(0, k), MAX_K)}
+  data-lg-strings={JSON.stringify(t)}
+>
+  <div class="lg-bar">
+    <span class="lg-head"><strong>{t.title}</strong></span>
+    <div class="lg-tabs" role="tablist">
+      {regexes.map((r, i) => (
+        <button type="button" role="tab" class="lg-tab" data-lg-tab={i}><code>{r}</code></button>
+      ))}
+    </div>
+  </div>
+
+  <label class="lg-range" data-lg-krow>
+    {t.kLabel} <strong data-lg-kval></strong>
+    <input type="range" min="0" max={MAX_K} step="1" data-lg-range />
+  </label>
+
+  <div class="lg-set">
+    <span class="lg-brace">{'{'}</span>
+    <div class="lg-items" data-lg-items></div>
+    <span class="lg-brace">{'}'}</span>
+  </div>
+  <div class="lg-count" data-lg-count></div>
+
+  <div class="lg-test">
+    <label class="lg-input">
+      {t.testLabel}
+      <input type="text" maxlength="24" spellcheck="false" autocomplete="off" placeholder={t.testHint} data-lg-text />
+    </label>
+    <span class="lg-verdict" data-lg-verdict></span>
+    <span class="lg-examples" data-lg-examples></span>
+  </div>
+  <p class="lg-note" data-lg-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.lgStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const regexes = JSON.parse(root.dataset.lgRegexes);
+    const tests = JSON.parse(root.dataset.lgTests);
+    let K = Number(root.dataset.lgK);
+    let cur = 0;
+    const CAP = 40;
+
+    /* 구문 트리. 우선순위는 클로저, 연결, 또는 순서다. */
+    function parse(src) {
+      let i = 0;
+      const peek = () => src[i];
+      function alt() {
+        const xs = [cat()];
+        while (peek() === '|') {
+          i += 1;
+          xs.push(cat());
+        }
+        return xs.length === 1 ? xs[0] : { t: 'alt', xs };
+      }
+      function cat() {
+        const xs = [];
+        while (i < src.length && peek() !== '|' && peek() !== ')') xs.push(rep());
+        return xs.length === 1 ? xs[0] : { t: 'cat', xs };
+      }
+      function rep() {
+        let a = atom();
+        while (peek() === '*') {
+          i += 1;
+          a = { t: 'star', x: a };
+        }
+        return a;
+      }
+      function atom() {
+        if (peek() === '(') {
+          i += 1;
+          const x = alt();
+          i += 1; // ')'
+          return x;
+        }
+        const c = src[i];
+        i += 1;
+        return { t: 'chr', c };
+      }
+      return alt();
+    }
+    const hasStar = (n) =>
+      n.t === 'star' || (n.xs || []).some(hasStar) || (n.x ? hasStar(n.x) : false);
+
+    /* 언어 펼치기. 항목은 { s, tag } 이고 tag[j]는 j번째 글자를 만든 '*' 덩어리의
+       몇 번째 펼침인지(가장 안쪽 '*' 기준), '*' 밖이면 -1이다. */
+    function expand(node, k) {
+      const cap = (arr) => (arr.length > 400 ? arr.slice(0, 400) : arr);
+      const join = (a, b) => ({ s: a.s + b.s, tag: a.tag.concat(b.tag) });
+      if (node.t === 'chr') return [{ s: node.c, tag: [-1] }];
+      if (node.t === 'cat') {
+        let acc = [{ s: '', tag: [] }];
+        for (const x of node.xs) {
+          const next = [];
+          for (const a of acc) for (const b of expand(x, k)) next.push(join(a, b));
+          acc = cap(next);
+        }
+        return acc;
+      }
+      if (node.t === 'alt') return cap(node.xs.flatMap((x) => expand(x, k)));
+      /* star: 0번부터 k번까지 */
+      const inner = expand(node.x, k);
+      const out = [{ s: '', tag: [] }];
+      let layer = [{ s: '', tag: [] }];
+      for (let j = 0; j < k; j++) {
+        const next = [];
+        for (const a of layer) {
+          for (const b of inner) next.push(join(a, { s: b.s, tag: b.tag.map((g) => (g < 0 ? j : g)) }));
+        }
+        layer = cap(next);
+        out.push(...layer);
+      }
+      return cap(out);
+    }
+    function language(src, k) {
+      const seen = new Map();
+      for (const it of expand(parse(src), k)) if (!seen.has(it.s)) seen.set(it.s, it);
+      return [...seen.values()].sort((a, b) => a.s.length - b.s.length || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0));
+    }
+
+    /* BuildNFA와 Recognizes. ')'에서 '|'를 모두 꺼내는 것만 다르다. */
+    function recognizes(regex, text) {
+      const re = `(${regex})`;
+      const M = re.length;
+      const eps = [];
+      const ops = [];
+      for (let i = 0; i < M; i++) {
+        let lp = i;
+        if (re[i] === '(' || re[i] === '|') ops.push(i);
+        else if (re[i] === ')') {
+          const ors = [];
+          let top = ops.pop();
+          while (re[top] === '|') {
+            ors.push(top);
+            top = ops.pop();
+          }
+          lp = top;
+          for (const or of ors) eps.push([lp, or + 1], [or, i]);
+        }
+        if (i < M - 1 && re[i + 1] === '*') eps.push([lp, i + 1], [i + 1, lp]);
+        if (re[i] === '(' || re[i] === '*' || re[i] === ')') eps.push([i, i + 1]);
+      }
+      const closure = (set) => {
+        const out = new Set();
+        const dfs = (v) => {
+          out.add(v);
+          for (const [a, b] of eps) if (a === v && !out.has(b)) dfs(b);
+        };
+        for (let v = 0; v <= M; v++) if (set.has(v) && !out.has(v)) dfs(v);
+        return out;
+      };
+      const isLiteral = (c) => !'()*|'.includes(c);
+      let pc = closure(new Set([0]));
+      for (const ch of text) {
+        const match = new Set();
+        for (let i = 0; i < M; i++) {
+          if (pc.has(i) && isLiteral(re[i]) && (re[i] === ch || re[i] === '.')) match.add(i + 1);
+        }
+        pc = closure(match);
+      }
+      return pc.has(M);
+    }
+
+    const tabs = [...root.querySelectorAll('[data-lg-tab]')];
+    const krow = root.querySelector('[data-lg-krow]');
+    const range = root.querySelector('[data-lg-range]');
+    const kval = root.querySelector('[data-lg-kval]');
+    const items = root.querySelector('[data-lg-items]');
+    const count = root.querySelector('[data-lg-count]');
+    const textIn = root.querySelector('[data-lg-text]');
+    const verdict = root.querySelector('[data-lg-verdict]');
+    const examples = root.querySelector('[data-lg-examples]');
+    const note = root.querySelector('[data-lg-note]');
+    range.value = String(K);
+    let chipEls = [];
+
+    function chip(it) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'lg-word';
+      b.dataset.lgWord = it.s;
+      if (!it.s) {
+        b.classList.add('is-empty');
+        b.textContent = S.empty;
+      } else {
+        /* 펼침 번호가 같은 이웃 글자를 한 덩어리로 묶어 칠한다. */
+        let j = 0;
+        while (j < it.s.length) {
+          const g = it.tag[j];
+          let e = j + 1;
+          while (e < it.s.length && it.tag[e] === g) e += 1;
+          const span = document.createElement('span');
+          span.textContent = it.s.slice(j, e);
+          if (g >= 0) span.className = `lg-rep is-${g % 2 ? 'odd' : 'even'}`;
+          b.appendChild(span);
+          j = e;
+        }
+      }
+      b.addEventListener('click', () => {
+        textIn.value = it.s;
+        check();
+      });
+      return b;
+    }
+
+    function check() {
+      const s = textIn.value;
+      /* toggle의 두 번째 인자가 undefined면 뒤집기가 되므로 늘 불리언으로 만든다. */
+      const has = !!(s.length > 0 || textIn.dataset.touched);
+      if (!has) {
+        verdict.textContent = '';
+        verdict.className = 'lg-verdict';
+      } else {
+        const ok = recognizes(regexes[cur], s);
+        verdict.textContent = `${ok ? S.yes : S.no}${s ? '' : ` ${S.emptyIn}`}`;
+        verdict.className = `lg-verdict ${ok ? 'is-yes' : 'is-no'}`;
+      }
+      chipEls.forEach((c) => c.classList.toggle('is-picked', has && c.dataset.lgWord === s));
+    }
+
+    function render() {
+      const src = regexes[cur];
+      const ast = parse(src);
+      const star = hasStar(ast);
+      krow.hidden = !star;
+      kval.textContent = String(K);
+      tabs.forEach((b, i) => {
+        b.classList.toggle('is-on', i === cur);
+        b.setAttribute('aria-selected', String(i === cur));
+      });
+      const all = language(src, star ? K : 0);
+      const shown = all.slice(0, CAP);
+      chipEls = shown.map(chip);
+      items.replaceChildren(...chipEls);
+      if (star) {
+        const more = document.createElement('span');
+        more.className = 'lg-more';
+        more.textContent = '…';
+        items.appendChild(more);
+      }
+      count.textContent = all.length > CAP
+        ? fill(S.countCap, { n: CAP })
+        : star ? fill(S.countInf, { n: all.length }) : fill(S.countFinite, { n: all.length });
+      examples.replaceChildren(...(tests[src] || []).map((w) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'lg-ex';
+        b.textContent = w || S.empty;
+        b.addEventListener('click', () => {
+          textIn.value = w;
+          textIn.dataset.touched = '1';
+          check();
+        });
+        return b;
+      }));
+      setLines(note, star ? (K === 0 ? S.noteStar0 : fill(S.noteStar, { k: K })) : S.noteFinite);
+      check();
+    }
+
+    tabs.forEach((b) =>
+      b.addEventListener('click', () => {
+        cur = Number(b.dataset.lgTab);
+        textIn.value = '';
+        delete textIn.dataset.touched;
+        render();
+      }),
+    );
+    range.addEventListener('input', () => {
+      K = Number(range.value);
+      render();
+    });
+    textIn.addEventListener('input', () => {
+      textIn.dataset.touched = '1';
+      check();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-language-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-language-demo .lg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-language-demo .lg-head {
+    font-size: 0.95em;
+  }
+  .aas-language-demo .lg-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-language-demo .lg-tab {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-language-demo .lg-tab code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-weight: 700;
+  }
+  .aas-language-demo .lg-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-language-demo .lg-tab.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-language-demo .lg-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-language-demo .lg-range[hidden] {
+    display: none;
+  }
+  .aas-language-demo .lg-range strong {
+    min-width: 1em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-language-demo .lg-range input {
+    width: 8em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-language-demo .lg-set {
+    display: flex;
+    gap: 0.4em;
+    align-items: flex-start;
+    margin-top: 0.6em;
+  }
+  .aas-language-demo .lg-brace {
+    font-size: 1.6em;
+    line-height: 1.1;
+    color: var(--aas-muted);
+  }
+  .aas-language-demo .lg-items {
+    flex: 0 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+    min-height: 2.2em;
+  }
+  .aas-language-demo .lg-word {
+    display: inline-flex;
+    gap: 0.12em;
+    padding: 0.2em 0.35em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    font-size: 1em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-language-demo .lg-word.is-empty {
+    color: var(--aas-muted);
+    font-style: italic;
+  }
+  .aas-language-demo .lg-word.is-picked {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-language-demo .lg-rep {
+    padding: 0 0.12em;
+    border-radius: 0.2em;
+  }
+  .aas-language-demo .lg-rep.is-even {
+    background: color-mix(in srgb, var(--aas-role-model) 35%, var(--aas-bg));
+  }
+  .aas-language-demo .lg-rep.is-odd {
+    background: color-mix(in srgb, var(--aas-role-trace) 50%, var(--aas-bg));
+  }
+  .aas-language-demo .lg-more {
+    color: var(--aas-muted);
+    font-weight: 700;
+  }
+  .aas-language-demo .lg-count {
+    margin-top: 0.3em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    text-align: right;
+  }
+  .aas-language-demo .lg-test {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+    margin-top: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-language-demo .lg-input {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+  }
+  .aas-language-demo .lg-input input {
+    width: 9em;
+    padding: 0.2em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-language-demo .lg-verdict {
+    font-weight: 700;
+  }
+  .aas-language-demo .lg-verdict.is-yes {
+    color: var(--aas-role-eval);
+  }
+  .aas-language-demo .lg-verdict.is-no {
+    color: var(--aas-role-guard);
+  }
+  .aas-language-demo .lg-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-language-demo .lg-ex {
+    padding: 0.15em 0.6em;
+    font-size: 1em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px dashed var(--aas-muted);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-language-demo .lg-ex:hover,
+  .aas-language-demo .lg-word:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-language-demo .lg-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-language-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-language-demo * {
+      transition: none !important;
+    }
+  }
+</style>
