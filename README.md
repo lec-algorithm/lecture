@@ -90,7 +90,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 docker compose logs -f app
 
-# 중지·정리 (node_modules 볼륨까지 지우려면 -v)
+# 중지·정리 (node_modules 볼륨까지 지우려면 down 대신 처음부터 down -v)
 docker compose down
 ```
 
@@ -114,17 +114,25 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 | `make build` | 보기 전용 이미지 다시 만들기 (`git pull` 뒤) | `docker compose build` |
 | `make dev` · `make dev-d` | 편집용 가동 (바인드 마운트 + 핫리로드) | `docker compose -f … -f docker-compose.dev.yml up [-d]` |
 | `make rebuild` | 의존성을 바꾼 뒤 이미지를 다시 만들며 편집용 가동 | 위 명령 + `--build` |
-| `make logs` · `make ps` | 로그 따라가기 · 상태 | `docker compose logs -f app` · `ps` |
-| `make restart` · `make shell` | app 재시작 · 컨테이너 안 셸 | `restart app` · `exec app sh` |
-| `make down` | 중지·정리 | `docker compose down` |
+| `make logs` · `make ps` | 로그 따라가기 · 상태 | `docker compose logs -f app` · `docker compose ps` |
+| `make restart` · `make shell` | app 재시작 · 컨테이너 안 셸 | `docker compose restart app` · `docker compose exec app sh` |
+| `make down` | 중지·정리 (`node_modules` 볼륨은 남김) | `docker compose down` |
 | `make clean` | 중지·정리 + `node_modules` 볼륨 삭제 | `docker compose down -v` |
-| `make check` | 컨테이너 안에서 `pnpm build && pnpm check` | `run --rm app …` |
+| `make check` | 컨테이너 안에서 `pnpm build && pnpm check` | 편집용 두 파일로 `run --rm --no-deps app …` 뒤 `down` |
 
 `make clean`은 `make down` **대신** 씁니다. `down`으로 컨테이너를 먼저 지우면
 `node_modules` 익명 볼륨이 주인 없이 남아 `down -v`로도 지워지지 않습니다.
+이미 남은 볼륨은 `docker volume prune`으로 지웁니다. 다른 프로젝트의 쓰지 않는
+익명 볼륨도 함께 지워지므로 목록을 확인하고 씁니다.
 
-`make check`는 `site/`를 마운트해 지금 고친 소스를 빌드·검사합니다. Node 없이
-커밋 전 검증을 돌릴 때 씁니다.
+`make rebuild`는 이미지를 다시 만들어도 `node_modules` 볼륨은 그대로 둡니다.
+기동할 때 `pnpm install`이 맞춰 주므로 보통은 충분하고, 완전히 새로 하려면
+`make clean` 뒤에 `make rebuild`를 씁니다.
+
+`make check`는 `site/`를 마운트해 지금 고친 소스로 사이트 빌드와 타입 검사를
+Node 없이 돌립니다. 문서 스타일 검사(`python3 scripts/check-style.py`)는 따로
+돌립니다. 떠 있는 `app`과 같은 `site/`를 쓰게 되므로 `app`이 떠 있으면 실행을
+거부합니다. 먼저 `make down`을 합니다.
 
 ### 로컬 pnpm
 

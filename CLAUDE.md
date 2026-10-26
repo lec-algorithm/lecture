@@ -36,8 +36,8 @@
 - **`main`은 곧 공개 사이트다.** push되면 그대로 배포된다.
 - **커밋하면서 진행한다**. 논리 단위가 완결되면 바로 커밋하고, 여러 작업의
   변경을 워킹 트리에 쌓아두지 않는다. 한 커밋에는 한 가지 주제만 담는다.
-- 커밋 전 검증: 사이트 변경이 있으면 `cd site && pnpm build && pnpm check`
-  (Node 없이는 루트에서 `make check`), md/mdx 문서 변경이 있으면 `python3 scripts/check-style.py` 통과 필수.
+- 커밋 전 검증: 사이트 변경이 있으면 `cd site && pnpm build && pnpm check`,
+  md/mdx 문서 변경이 있으면 `python3 scripts/check-style.py` 통과 필수.
   커밋 메시지 제목은 영어 명령형 한 줄
 - **예전 PDF 원본을 커밋하지 않는다.** 저장소 바깥(`../lecture_old_pdfs`)에 둔다.
 
