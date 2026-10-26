@@ -12,6 +12,9 @@ slides: ["topic-07-bst"]
 import TreeFigure from '@components/TreeFigure.astro';
 import TreeTermsDemo from '@components/TreeTermsDemo.astro';
 import TreePropertyDemo from '@components/TreePropertyDemo.astro';
+import TreeShapeDemo from '@components/TreeShapeDemo.astro';
+import TreeScanDemo from '@components/TreeScanDemo.astro';
+import BstCheckDemo from '@components/BstCheckDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -105,8 +108,11 @@ $$
 
 반대로 가장 높은 트리는 어떤 모양일까요. 노드마다 자식이 하나뿐이면 트리가
 한 줄로 늘어서서 높이가 $$N$$이 됩니다. 연결 리스트와 같은 모양입니다.
+노드 수를 바꾸고 모양을 골라 보세요. 막대의 왼쪽 끝이 가장 낮은 높이,
+오른쪽 끝이 가장 높은 높이이고, 점이 지금 모양의 높이입니다. **무작위**는
+1부터 $$N$$까지를 무작위 순서로 넣은 BST 모양이라 누를 때마다 바뀝니다.
 
-<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
+<TreeShapeDemo />
 
 | 노드 수 $$N$$ | 가장 낮은 높이 | 가장 높은 높이 |
 | --- | --- | --- |
@@ -122,7 +128,9 @@ $$
 이진 트리라는 것만으로는 찾기가 빨라지지 않습니다. 아래 트리에서 11을
 찾는다고 해 봅시다.
 
-<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} />
+<TreeScanDemo />
+
+노드를 누르면 그 값을 찾고, 위의 칩으로 트리에 없는 8도 고를 수 있습니다.
 
 값이 아무 데나 놓여 있으니 루트에서 시작해 원하는 값을 찾거나 잎에 닿을
 때까지 레벨별로 다 훑어야 합니다. 최악에는 모든 노드를 봅니다. 연결
@@ -147,6 +155,13 @@ $$
 부모·자식 쌍이 그 규칙을 지키는데도 BST가 아닙니다.
 
 <TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "7", tone: "focus" } }, r: { v: "8" } }} caption="3 < 7이라 자식 규칙은 맞지만, 7이 5의 왼쪽 서브트리에 있다" />
+
+두 가지 검사로 직접 돌려 봅니다. **자식과만 비교**는 이 트리를 통과시킵니다.
+**범위로 검사**는 루트를 $$(-\infty, \infty)$$에서 시작해, 왼쪽으로 내려갈 때는
+위 끝을, 오른쪽으로 내려갈 때는 아래 끝을 지금 키로 좁혀 내려보냅니다. 7에
+이르면 범위가 $$(3, 5)$$로 좁아져 있어 걸립니다.
+
+<BstCheckDemo />
 
 7은 5보다 큰데 5의 왼쪽 서브트리에 들어가 있습니다. 7을 찾으면 5에서
 오른쪽(8)으로 가게 되어 영영 찾지 못합니다. 규칙은 자식 하나가 아니라
@@ -467,15 +482,15 @@ R을 복사하고 원래 R을 지우면 R의 오른쪽 자식 Z가 올라옵니�
 
 - D 삭제, 선행자 C 사용
 
-<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} />
+<BstDeleteDemo del="D" use="pred" />
 
 - Q 삭제, 선행자 P 사용
 
-<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} />
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" use="pred" />
 
 모양은 후속자를 쓴 결과와 다르지만 둘 다 BST이고 중위 순서도 같습니다.
-선행자를 써도 맞는 삭제입니다. 이 과목의 실습 코드와 데모는 후속자로
-맞췄습니다.
+선행자를 써도 맞는 삭제입니다. 위 두 데모만 선행자를 쓰고, 이 과목의
+실습 코드와 나머지 데모는 후속자로 맞췄습니다.
 
 ### 절차와 코드 \{#delete-code}
 

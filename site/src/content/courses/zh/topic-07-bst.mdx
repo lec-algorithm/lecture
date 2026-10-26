@@ -12,6 +12,9 @@ slides: ["topic-07-bst"]
 import TreeFigure from '@components/TreeFigure.astro';
 import TreeTermsDemo from '@components/TreeTermsDemo.astro';
 import TreePropertyDemo from '@components/TreePropertyDemo.astro';
+import TreeShapeDemo from '@components/TreeShapeDemo.astro';
+import TreeScanDemo from '@components/TreeScanDemo.astro';
+import BstCheckDemo from '@components/BstCheckDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -96,7 +99,11 @@ $$
 那么最高的树长什么样？如果每个节点只有一个子节点，树会排成一条线，高度
 变成 $$N$$。形状和链表一样。
 
-<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
+改变节点数并选择形状试试。进度条左端是最低高度，右端是最高高度，圆点是当前
+形状的高度。**随机**是把 1 到 $$N$$ 以随机顺序插入 BST 得到的形状，每次点击都会
+变化。
+
+<TreeShapeDemo />
 
 | 节点数 $$N$$ | 最低高度 | 最高高度 |
 | --- | --- | --- |
@@ -111,7 +118,9 @@ $$
 
 仅仅是二叉树，并不能让查找变快。假设要在下面这棵树里找 11。
 
-<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} />
+<TreeScanDemo />
+
+点击节点就会查找它的值，也可以用上面的标签选择树里没有的 8。
 
 值随便放，只能从根开始逐层扫描，直到找到目标或碰到叶子。最坏要看遍所有
 节点，是比链表好不到哪里去的 $$O(N)$$。要变快，就需要一条规则告诉我们
@@ -134,6 +143,12 @@ $$
 其实不够：下面这棵树里每一对父子都满足这条规则，却不是 BST。
 
 <TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "7", tone: "focus" } }, r: { v: "8" } }} caption="3 < 7，子节点规则成立，但 7 在 5 的左子树里" />
+
+亲手运行两种检查。**只和子节点比**会让这棵树通过。**按范围检查**让根从
+$$(-\infty, \infty)$$ 开始，往左走时把上界收紧为当前键，往右走时把下界收紧为
+当前键。走到 7 时范围已缩小为 $$(3, 5)$$，于是被发现。
+
+<BstCheckDemo />
 
 7 比 5 大，却在 5 的左子树里。找 7 时会在 5 处往右（8）走，永远找不到。
 规则必须作用于**整棵子树**，而不是一个子节点。出于同样的原因，上一节的
@@ -439,14 +454,14 @@ Z 就会上移。
 
 - 删除 D，用前驱 C
 
-<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} />
+<BstDeleteDemo del="D" use="pred" />
 
 - 删除 Q，用前驱 P
 
-<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} />
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" use="pred" />
 
 形状和用后继的结果不同，但两者都是 BST，中序也一样。用前驱也是正确的
-删除。本课程的实践代码和演示统一用后继。
+删除。只有上面两个演示用前驱，本课程的实践代码和其他演示统一用后继。
 
 ### 步骤与代码 \{#delete-code}
 

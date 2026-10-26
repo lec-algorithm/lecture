@@ -12,6 +12,9 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import TreeFigure from '@components/TreeFigure.astro';
 import TreeTermsDemo from '@components/TreeTermsDemo.astro';
 import TreePropertyDemo from '@components/TreePropertyDemo.astro';
+import TreeShapeDemo from '@components/TreeShapeDemo.astro';
+import TreeScanDemo from '@components/TreeScanDemo.astro';
+import BstCheckDemo from '@components/BstCheckDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -155,25 +158,23 @@ Height counts **levels**. Textbooks that count links get one less.
 
 <Slide>
 
-#### The tallest tree
+### Try it: the tallest tree
+::sub[Change the node count and pick a shape · the bar runs from the lowest to the highest height]
+
+<TreeShapeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Same N, different heights
 ::sub[If every node has only one child, the height is N, just like a linked list]
-
-<div class="aas-split">
-<div>
-
-<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
-
-</div>
-<div>
 
 | $$N$$ | Lowest height | Highest height |
 | --- | --- | --- |
 | 7 | 3 | 7 |
 | 1,023 | 10 | 1,023 |
 | about 1M | 20 | about 1M |
-
-</div>
-</div>
 
 <br/>
 
@@ -184,11 +185,9 @@ Every operation in this topic is proportional to this height.
 <Slide>
 
 #### Searching a binary tree
-::sub[Start at the root and sweep level by level until found or out of leaves]
+::sub[With values anywhere there is nowhere to skip · sweeping level by level ends at O(N)]
 
-<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} slide />
-
-With values anywhere, it is no better than a linked list: $$O(N)$$.
+<TreeScanDemo slide />
 
 </Slide>
 
@@ -235,6 +234,15 @@ Keys are distinct. Inserting an existing value does nothing.
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### Try it: checking a BST
+::sub[Switch between the two checks with the tabs · the range check catches 7]
+
+<BstCheckDemo slide />
 
 </Slide>
 
@@ -662,18 +670,16 @@ It must be larger than everything to D's left and smaller than everything to its
 #### The predecessor works too (1)
 ::sub[Delete D · the largest of the left subtree, C, moves up]
 
-<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} slide />
+<BstDeleteDemo del="D" use="pred" slide />
 
 </Slide>
 
 <Slide>
 
 #### The predecessor works too (2)
-::sub[Delete Q, largest of the left subtree: P]
+::sub[Delete Q, largest of the left subtree: P · different shapes, both BSTs with the same inorder]
 
-<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} slide />
-
-Different shapes, but both are BSTs with the same inorder. The code and demos use the successor.
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" use="pred" slide />
 
 </Slide>
 
