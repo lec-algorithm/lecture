@@ -10,6 +10,8 @@ slides: ["topic-07-bst"]
 ---
 
 import TreeFigure from '@components/TreeFigure.astro';
+import TreeTermsDemo from '@components/TreeTermsDemo.astro';
+import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -29,9 +31,30 @@ import TraversalDemo from '@components/TraversalDemo.astro';
   如果两个节点同时指向同一个子节点，或者链接绕回上方，就不是树。
 - **性质 2**：每个节点**最多有两个**子节点，即左子节点和右子节点。
 
+先确认性质 1。点击节点，会涂出从根到该节点的路径。无论点哪个节点，路径都只有
+一条。再按**再连一条链接**，加上从 C 到 E 的链接。E 有了两个父节点，到 E 及其
+下方节点的路径变成两条，链接也绕了回来。
+
+<TreePropertyDemo mode="path" />
+
+性质 2 通过亲手长一棵树来确认。点击虚线位置（+），那里就会长出子节点。即使只有
+一个子节点，它是左还是右也是确定的。选中左右都已占满的节点，再按**再加一个子节点**，
+因为没有第三个位置而被拒绝。
+
+<TreePropertyDemo mode="children" />
+
 <TreeFigure tree={{ l: { l: { v: "A", filled: true }, r: { v: "B", filled: true } }, r: { l: { v: "C", filled: true }, r: { v: "D", filled: true } } }} />
 
 ### 术语 \{#terms}
+
+把描述树时用的名称逐个点一点。点击术语，下面的树会涂出它所指的部分；点击节点，
+就以该节点为基准。父·子、子树、层都以选中的节点为基准显示。这棵树特意选成不是
+full tree：叶子在不同的层、还有只有一个子节点的节点，叶、高度、full tree 的区别
+才看得出来。
+
+<TreeTermsDemo />
+
+归纳如下。
 
 | 术语 | 含义 |
 | --- | --- |
@@ -54,6 +77,10 @@ full tree。
 ### 高度与节点数 \{#height}
 
 第 $$l$$ 层最多有 $$2^l$$ 个节点：第 0 层 1 个，第 1 层 2 个，第 2 层 4 个。
+一步一步填满各层，个数每次翻倍。
+
+<TreePropertyDemo mode="count" />
+
 高度为 $$h$$ 的 full tree 每一层都是满的，所以节点数 $$N$$ 为：
 
 $$

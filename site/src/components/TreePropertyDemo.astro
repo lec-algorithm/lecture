@@ -1,0 +1,903 @@
+---
+// 이진 트리의 성질을 손으로 건드려 보는 데모. mode 셋이 한 파일에 있다.
+//
+// - path (성질 1): 노드를 누르면 루트에서 그 노드까지의 경로가 칠해진다. 경로는
+//   언제나 하나다. "링크 하나 더 잇기"로 C에서 E로 가는 링크를 더하면 E와 그
+//   아래 노드까지 경로가 둘이 되고, 링크가 돌아 되돌아오는 고리가 생긴다.
+// - children (성질 2): 점선 자리를 눌러 자식을 단다. 노드마다 자리는 왼쪽과
+//   오른쪽 둘뿐이라, 다 찬 노드에 셋째 자식을 달려 하면 거부된다.
+// - count (높이와 노드 수): 높이를 하나씩 늘리며 full tree의 레벨을 채운다.
+//   레벨 l에는 2^l개, 높이 h면 모두 2^h − 1개다.
+//
+// 노드의 자리는 TreeTermsDemo와 같이 힙 번호로 정한다(루트 1, 자식 2i·2i+1).
+// 높이는 이 과목의 약속대로 레벨의 수로 센다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  mode?: 'path' | 'children' | 'count';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { mode = 'path', slide = false } = Astro.props;
+const id = `tp-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    titlePath: '성질 1: 경로는 하나',
+    titleChildren: '성질 2: 자식은 최대 둘',
+    titleCount: '높이와 노드 수',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    addLink: '링크 하나 더 잇기 (C → E)',
+    dropLink: '더한 링크 지우기',
+    addChild: '자식 하나 더 달기',
+    removeLeaf: '이 잎 떼기',
+    paths: '경로',
+    pathN: '경로 {i}',
+    linksN: '링크 {k}개',
+    pathIdle: '노드를 누르면 루트에서 그 노드까지 가는 경로가 칠해집니다.',
+    pathOne: '{v}까지 가는 경로는 하나뿐입니다. 다른 노드를 눌러 보세요.',
+    pathRoot: '루트 자신까지는 링크 0개짜리 경로 하나입니다.',
+    pathStill: '{v}까지는 아직 경로가 하나입니다. E와 그 아래 G, H를 눌러 보세요.',
+    pathTwo: '{v}까지 가는 경로가 둘입니다. E의 부모가 B와 C 둘이 되어, A → B → E와 A → C → E가 고리를 이룹니다. 이제 트리가 아닙니다.',
+    childIdle: '점선 자리(+)를 누르면 자식이 생깁니다. 노드를 고르면 자식을 하나 더 달아 보거나 잎을 뗄 수 있습니다.',
+    childAdded: '새 노드 {c}: {v}의 {side} 자식이 되었습니다.',
+    childSelected: '{v}: 왼쪽 {l} · 오른쪽 {r}',
+    childFull: '{v}: 왼쪽 {l}, 오른쪽 {r}로 두 자리가 다 찼습니다. 셋째 자식을 둘 자리가 없습니다. 이진 트리의 노드는 자식이 최대 두 개입니다.',
+    childDeep: '{v}: 이 데모는 레벨 3까지만 그립니다.',
+    childRemoved: '{v}: 잎을 뗐습니다.',
+    childNotLeaf: '{v}: 자식이 있는 노드는 뗄 수 없습니다. 잎부터 떼세요.',
+    childRoot: '루트는 뗄 수 없습니다.',
+    childPick: '먼저 노드를 하나 고르세요.',
+    childStats: '노드 {n} · 높이 {h} · 높이 {h}에 담을 수 있는 최대 {max}개',
+    empty: '비어 있음',
+    left: '왼쪽',
+    right: '오른쪽',
+    countIdle: '높이 1: 루트 하나뿐입니다. 한 걸음마다 레벨을 하나 더 채웁니다.',
+    countStep: '레벨 {l} 채우기: 노드 {c}개를 더합니다. 이제 높이 {h}, 노드 {n}개입니다.',
+    countDone: '높이 {h}인 full tree의 노드는 {n}개입니다. 같은 {n}개를 한 줄로 세우면 높이는 {n}입니다.',
+    level: '레벨 {l}',
+    total: '합계',
+  },
+  en: {
+    titlePath: 'Property 1: one path',
+    titleChildren: 'Property 2: at most two children',
+    titleCount: 'Height and node count',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    addLink: 'Add one more link (C → E)',
+    dropLink: 'Remove the extra link',
+    addChild: 'Add one more child',
+    removeLeaf: 'Remove this leaf',
+    paths: 'paths',
+    pathN: 'path {i}',
+    linksN: '{k} links',
+    pathIdle: 'Click a node to colour the path from the root to it.',
+    pathOne: 'There is only one path to {v}. Try other nodes.',
+    pathRoot: 'To the root itself there is one path of 0 links.',
+    pathStill: 'There is still one path to {v}. Click E or G and H below it.',
+    pathTwo: 'There are two paths to {v}. E now has two parents, B and C, so A → B → E and A → C → E close a loop. This is no longer a tree.',
+    childIdle: 'Click a dashed spot (+) to grow a child. Select a node to try one more child or remove a leaf.',
+    childAdded: 'New node {c} is the {side} child of {v}.',
+    childSelected: '{v}: left {l} · right {r}',
+    childFull: '{v}: left {l} and right {r} fill both spots. There is no spot for a third child. A binary tree node has at most two children.',
+    childDeep: '{v}: this demo draws only down to level 3.',
+    childRemoved: '{v}: leaf removed.',
+    childNotLeaf: '{v}: a node with children cannot be removed. Remove leaves first.',
+    childRoot: 'The root cannot be removed.',
+    childPick: 'Select a node first.',
+    childStats: '{n} nodes · height {h} · at most {max} nodes fit in height {h}',
+    empty: 'empty',
+    left: 'left',
+    right: 'right',
+    countIdle: 'Height 1: just the root. Each step fills one more level.',
+    countStep: 'Fill level {l}: add {c} nodes. Now height {h}, {n} nodes.',
+    countDone: 'A full tree of height {h} has {n} nodes. Lined up in a single chain, the same {n} nodes would have height {n}.',
+    level: 'level {l}',
+    total: 'total',
+  },
+  zh: {
+    titlePath: '性质 1：路径只有一条',
+    titleChildren: '性质 2：最多两个子节点',
+    titleCount: '高度与节点数',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    addLink: '再连一条链接（C → E）',
+    dropLink: '删掉多连的链接',
+    addChild: '再加一个子节点',
+    removeLeaf: '摘掉这个叶子',
+    paths: '路径',
+    pathN: '路径 {i}',
+    linksN: '{k} 条链接',
+    pathIdle: '点击节点，会涂出从根到该节点的路径。',
+    pathOne: '到 {v} 的路径只有一条。再点别的节点试试。',
+    pathRoot: '到根自身是一条 0 条链接的路径。',
+    pathStill: '到 {v} 仍然只有一条路径。点 E 或它下面的 G、H 试试。',
+    pathTwo: '到 {v} 的路径有两条。E 有了 B 和 C 两个父节点，A → B → E 与 A → C → E 围成一个环。这已经不是树了。',
+    childIdle: '点击虚线位置（+）就会长出子节点。选中节点后，可以试着再加一个子节点或摘掉叶子。',
+    childAdded: '新节点 {c} 成为 {v} 的{side}子节点。',
+    childSelected: '{v}：左 {l} · 右 {r}',
+    childFull: '{v}：左 {l}、右 {r}，两个位置都满了，没有放第三个子节点的位置。二叉树的节点最多有两个子节点。',
+    childDeep: '{v}：这个演示只画到第 3 层。',
+    childRemoved: '{v}：摘掉了这个叶子。',
+    childNotLeaf: '{v}：有子节点的节点不能摘掉。请先摘叶子。',
+    childRoot: '根不能摘掉。',
+    childPick: '请先选中一个节点。',
+    childStats: '节点 {n} · 高度 {h} · 高度 {h} 最多能放 {max} 个',
+    empty: '空',
+    left: '左',
+    right: '右',
+    countIdle: '高度 1：只有根。每一步再填满一层。',
+    countStep: '填满第 {l} 层：加上 {c} 个节点。现在高度 {h}，节点 {n} 个。',
+    countDone: '高度为 {h} 的 full tree 有 {n} 个节点。把同样 {n} 个节点排成一条链，高度就是 {n}。',
+    level: '第 {l} 层',
+    total: '合计',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const title = mode === 'path' ? t.titlePath : mode === 'children' ? t.titleChildren : t.titleCount;
+---
+
+<div
+  class:list={['aas-tree-prop-demo', `is-${mode}`, slide && 'is-slide']}
+  id={id}
+  data-tp-mode={mode}
+  data-tp-strings={JSON.stringify(t)}
+>
+  <div class="tp-bar">
+    <span class="tp-head"><strong>{title}</strong></span>
+    <div class="tp-controls">
+      {mode === 'path' && (
+        <>
+          <button type="button" data-act="link" class="tp-btn tp-btn-primary">{t.addLink}</button>
+          <button type="button" data-act="reset" class="tp-btn">{t.reset}</button>
+        </>
+      )}
+      {mode === 'children' && (
+        <>
+          <button type="button" data-act="add" class="tp-btn tp-btn-primary">{t.addChild}</button>
+          <button type="button" data-act="remove" class="tp-btn">{t.removeLeaf}</button>
+          <button type="button" data-act="reset" class="tp-btn">{t.reset}</button>
+        </>
+      )}
+      {mode === 'count' && (
+        <>
+          <button type="button" data-act="back" class="tp-btn">{t.back}</button>
+          <button type="button" data-act="step" class="tp-btn">{t.step}</button>
+          <button type="button" data-act="play" class="tp-btn tp-btn-primary">{t.play}</button>
+          <button type="button" data-act="reset" class="tp-btn">{t.reset}</button>
+        </>
+      )}
+    </div>
+  </div>
+  <div class="tp-body">
+    <svg class="tp-svg" data-tp-svg role="img" aria-label={title}></svg>
+    <div class="tp-side" data-tp-side></div>
+  </div>
+  <div class="tp-foot">
+    <p class="tp-note" data-tp-note></p>
+    <span class="tp-stat" data-tp-stat></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const S = JSON.parse(root.dataset.tpStrings);
+    const MODE = root.dataset.tpMode;
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const levelOf = (i) => Math.floor(Math.log2(i));
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = root.querySelector('[data-tp-svg]');
+    const side = root.querySelector('[data-tp-side]');
+    const note = root.querySelector('[data-tp-note]');
+    const stat = root.querySelector('[data-tp-stat]');
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const html = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    };
+
+    /* 힙 번호 i의 좌표. levels는 그림에 쓸 레벨 수 */
+    function layout(levels, W, R, gap) {
+      const PADX = R + 8;
+      const TOP = R + 10;
+      const H = TOP + (levels - 1) * gap + R + 12;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      return (i) => {
+        const l = levelOf(i);
+        const k = i - 2 ** l;
+        return { x: PADX + ((2 * k + 1) / 2 ** (l + 1)) * (W - 2 * PADX), y: TOP + l * gap };
+      };
+    }
+    function drawNode(parent, p, label, R, cls) {
+      const g = el('g', { class: `tp-node ${cls || ''}` }, parent);
+      el('circle', { cx: p.x, cy: p.y, r: R }, g);
+      const tx = el('text', { x: p.x, y: p.y, class: 'tp-label' }, g);
+      tx.textContent = label;
+      return g;
+    }
+
+    /* ---------- 성질 1: 경로 ---------- */
+    function initPath() {
+      const TREE = { 1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E', 7: 'F', 10: 'G', 11: 'H', 15: 'I' };
+      const ids = Object.keys(TREE).map(Number);
+      const R = 20;
+      const pos = layout(4, 600, R, 80);
+      const EXTRA = [3, 5]; // C → E
+      let extra = false;
+      let target = null;
+
+      const edgeLayer = el('g', {}, svg);
+      const edges = new Map();
+      for (const i of ids) {
+        if (i === 1) continue;
+        const a = pos(Math.floor(i / 2));
+        const b = pos(i);
+        edges.set(`${Math.floor(i / 2)}-${i}`, el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'tp-edge' }, edgeLayer));
+      }
+      const ca = pos(EXTRA[0]);
+      const cb = pos(EXTRA[1]);
+      const mx = (ca.x + cb.x) / 2;
+      const my = (ca.y + cb.y) / 2 + 40;
+      const extraEdge = el('path', { d: `M${ca.x},${ca.y} Q${mx},${my} ${cb.x},${cb.y}`, class: 'tp-edge tp-extra' }, edgeLayer);
+      edges.set(`${EXTRA[0]}-${EXTRA[1]}`, extraEdge);
+
+      const nodes = new Map();
+      for (const i of ids) {
+        const g = drawNode(svg, pos(i), TREE[i], R, 'is-click');
+        g.setAttribute('tabindex', '0');
+        g.setAttribute('role', 'button');
+        g.addEventListener('click', () => pick(i));
+        g.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            pick(i);
+          }
+        });
+        nodes.set(i, g);
+      }
+
+      const parentsOf = (v) => {
+        const ps = v === 1 ? [] : [Math.floor(v / 2)];
+        if (extra && v === EXTRA[1]) ps.push(EXTRA[0]);
+        return ps;
+      };
+      const pathsTo = (v) => (v === 1 ? [[1]] : parentsOf(v).flatMap((p) => pathsTo(p).map((path) => [...path, v])));
+
+      const linkBtn = root.querySelector('[data-act="link"]');
+      function render(msg) {
+        const paths = target ? pathsTo(target) : [];
+        const onA = new Set();
+        const onB = new Set();
+        const nodeA = new Set();
+        const nodeB = new Set();
+        paths.forEach((path, k) => {
+          path.forEach((v, j) => {
+            (k === 0 ? nodeA : nodeB).add(v);
+            if (j > 0) (k === 0 ? onA : onB).add(`${path[j - 1]}-${v}`);
+          });
+        });
+        edges.forEach((line, key) => {
+          line.classList.toggle('is-a', onA.has(key));
+          line.classList.toggle('is-b', onB.has(key) && !onA.has(key));
+        });
+        extraEdge.classList.toggle('is-gone', !extra);
+        nodes.forEach((g, i) => {
+          g.classList.toggle('is-a', nodeA.has(i));
+          g.classList.toggle('is-b', nodeB.has(i) && !nodeA.has(i));
+          g.classList.toggle('is-target', i === target);
+        });
+        side.replaceChildren();
+        paths.forEach((path, k) => {
+          const row = html('div', `tp-path-row ${k === 0 ? 'is-a' : 'is-b'}`);
+          row.append(html('span', 'tp-path-label', fill(S.pathN, { i: k + 1 })));
+          row.append(html('span', 'tp-path', path.map((v) => TREE[v]).join(' → ')));
+          row.append(html('span', 'tp-path-links', fill(S.linksN, { k: path.length - 1 })));
+          side.append(row);
+        });
+        root.classList.toggle('is-broken', paths.length > 1);
+        stat.innerHTML = '';
+        stat.append(document.createTextNode(`${S.paths} `), html('strong', '', String(paths.length)));
+        linkBtn.textContent = extra ? S.dropLink : S.addLink;
+        note.textContent = msg;
+      }
+      function pick(i) {
+        target = i;
+        const n = pathsTo(i).length;
+        let msg;
+        if (i === 1) msg = S.pathRoot;
+        else if (n > 1) msg = fill(S.pathTwo, { v: TREE[i] });
+        else if (extra) msg = fill(S.pathStill, { v: TREE[i] });
+        else msg = fill(S.pathOne, { v: TREE[i] });
+        render(msg);
+      }
+      linkBtn.addEventListener('click', () => {
+        extra = !extra;
+        if (extra) {
+          target = 11; // H: 두 경로가 바로 보이게
+          render(fill(S.pathTwo, { v: TREE[11] }));
+        } else pick(target || 11);
+      });
+      root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+        extra = false;
+        target = null;
+        render(S.pathIdle);
+      });
+      target = 11;
+      pick(11);
+    }
+
+    /* ---------- 성질 2: 자식은 최대 둘 ---------- */
+    function initChildren() {
+      const START = { 1: 'A', 2: 'B', 3: 'C', 5: 'D' };
+      const MAX_LEVEL = 3;
+      const R = 20;
+      const pos = layout(MAX_LEVEL + 1, 600, R, 74);
+      let tree = {};
+      let sel = null;
+      let reject = false;
+      const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const nextLetter = () => [...LETTERS].find((c) => !Object.values(tree).includes(c)) || '?';
+      const has = (i) => tree[i] !== undefined;
+      const kidsOf = (i) => [2 * i, 2 * i + 1].filter(has);
+
+      function heightOf() {
+        const ids = Object.keys(tree).map(Number);
+        return Math.max(...ids.map(levelOf)) + 1;
+      }
+      function render(msg) {
+        svg.replaceChildren();
+        const edgeLayer = el('g', {}, svg);
+        const ids = Object.keys(tree).map(Number).sort((a, b) => a - b);
+        // 빈 자리(점선): 있는 노드의 비어 있는 자식 자리, 레벨 4까지
+        for (const i of ids) {
+          if (levelOf(i) >= MAX_LEVEL) continue;
+          for (const c of [2 * i, 2 * i + 1]) {
+            if (has(c)) continue;
+            const a = pos(i);
+            const b = pos(c);
+            el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'tp-slot-edge' }, edgeLayer);
+            const g = el('g', { class: 'tp-slot', tabindex: 0, role: 'button' }, svg);
+            el('circle', { cx: b.x, cy: b.y, r: R - 3 }, g);
+            const tx = el('text', { x: b.x, y: b.y, class: 'tp-label' }, g);
+            tx.textContent = '+';
+            const add = () => grow(i, c);
+            g.addEventListener('click', add);
+            g.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                add();
+              }
+            });
+          }
+        }
+        for (const i of ids) {
+          if (i === 1) continue;
+          const a = pos(Math.floor(i / 2));
+          const b = pos(i);
+          el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'tp-edge' }, edgeLayer);
+        }
+        for (const i of ids) {
+          const g = drawNode(svg, pos(i), tree[i], R, `is-click ${i === sel ? 'is-a' : ''}`);
+          g.setAttribute('tabindex', '0');
+          g.setAttribute('role', 'button');
+          const choose = () => {
+            sel = i;
+            reject = false;
+            render(fill(S.childSelected, { v: tree[i], l: has(2 * i) ? tree[2 * i] : S.empty, r: has(2 * i + 1) ? tree[2 * i + 1] : S.empty }));
+          };
+          g.addEventListener('click', choose);
+          g.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              choose();
+            }
+          });
+        }
+        // 거부된 셋째 자식: 고른 노드 바로 아래 가운데에 빨간 점선 원과 ✕
+        if (reject && sel) {
+          const p = pos(sel);
+          const q = { x: p.x, y: p.y + 74 * 0.95 };
+          el('line', { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: 'tp-reject-edge' }, edgeLayer);
+          const g = el('g', { class: 'tp-reject' }, svg);
+          el('circle', { cx: q.x, cy: q.y, r: R }, g);
+          const tx = el('text', { x: q.x, y: q.y, class: 'tp-label' }, g);
+          tx.textContent = '✕';
+        }
+        const h = heightOf();
+        stat.textContent = fill(S.childStats, { n: ids.length, h, max: 2 ** h - 1 });
+        side.replaceChildren();
+        if (sel && has(sel)) {
+          const box = html('div', 'tp-slots');
+          [[S.left, 2 * sel], [S.right, 2 * sel + 1]].forEach(([label, c]) => {
+            const cell = html('div', `tp-slot-cell ${has(c) ? 'is-full' : ''}`);
+            cell.append(html('span', 'tp-slot-label', label), html('strong', '', has(c) ? tree[c] : '–'));
+            box.append(cell);
+          });
+          const third = html('div', `tp-slot-cell is-none ${reject ? 'is-reject' : ''}`);
+          third.append(html('span', 'tp-slot-label', '?'), html('strong', '', '✕'));
+          box.append(third);
+          side.append(html('div', 'tp-side-head', tree[sel]), box);
+        }
+        note.textContent = msg;
+        root.classList.toggle('is-broken', reject);
+      }
+      function grow(i, c) {
+        if (has(c)) return;
+        tree[c] = nextLetter();
+        sel = i;
+        reject = false;
+        render(fill(S.childAdded, { c: tree[c], v: tree[i], side: c % 2 === 0 ? S.left : S.right }));
+      }
+      root.querySelector('[data-act="add"]').addEventListener('click', () => {
+        if (!sel) return render(S.childPick);
+        const free = [2 * sel, 2 * sel + 1].find((c) => !has(c));
+        if (free === undefined) {
+          reject = true;
+          return render(fill(S.childFull, { v: tree[sel], l: tree[2 * sel], r: tree[2 * sel + 1] }));
+        }
+        if (levelOf(sel) >= MAX_LEVEL) return render(fill(S.childDeep, { v: tree[sel] }));
+        grow(sel, free);
+      });
+      root.querySelector('[data-act="remove"]').addEventListener('click', () => {
+        if (!sel) return render(S.childPick);
+        const v = tree[sel];
+        if (sel === 1) return render(S.childRoot);
+        if (kidsOf(sel).length) return render(fill(S.childNotLeaf, { v }));
+        delete tree[sel];
+        sel = Math.floor(sel / 2);
+        reject = false;
+        render(fill(S.childRemoved, { v }));
+      });
+      const reset = () => {
+        tree = { ...START };
+        sel = 2; // B: 자식이 하나 있는 노드부터
+        reject = false;
+        render(S.childIdle);
+      };
+      root.querySelector('[data-act="reset"]').addEventListener('click', reset);
+      reset();
+    }
+
+    /* ---------- 높이와 노드 수 ---------- */
+    function initCount() {
+      const MAXH = 5;
+      const R = 15;
+      const pos = layout(MAXH, 640, R, 62);
+      let h = 1;
+      let timer = null;
+      const playBtn = root.querySelector('[data-act="play"]');
+
+      const pow = (e, tail) => {
+        const span = html('span', 'tp-pow', '2');
+        span.append(html('sup', '', String(e)), document.createTextNode(tail));
+        return span;
+      };
+      function render(msg, fresh) {
+        svg.replaceChildren();
+        const edgeLayer = el('g', {}, svg);
+        const last = 2 ** h - 1;
+        for (let i = 2; i <= last; i++) {
+          const a = pos(Math.floor(i / 2));
+          const b = pos(i);
+          el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: `tp-edge ${fresh && levelOf(i) === h - 1 ? 'is-fresh' : ''}` }, edgeLayer);
+        }
+        for (let i = 1; i <= last; i++) {
+          drawNode(svg, pos(i), '', R, fresh && levelOf(i) === h - 1 ? 'is-fresh' : 'is-full');
+        }
+        side.replaceChildren();
+        const table = html('div', 'tp-count');
+        for (let l = 0; l < h; l++) {
+          const row = html('div', `tp-count-row ${fresh && l === h - 1 ? 'is-fresh' : ''}`);
+          row.append(html('span', '', fill(S.level, { l })), pow(l, ''), html('strong', '', String(2 ** l)));
+          table.append(row);
+        }
+        const sum = html('div', 'tp-count-row is-sum');
+        sum.append(html('span', '', S.total), pow(h, ' − 1'), html('strong', '', String(last)));
+        table.append(sum);
+        side.append(table);
+        stat.innerHTML = '';
+        stat.append(
+          document.createTextNode('h = '), html('strong', '', String(h)),
+          document.createTextNode(' · N = '), html('strong', '', String(last)),
+          document.createTextNode(` · log₂(N + 1) = ${h}`),
+        );
+        note.textContent = msg;
+        root.classList.toggle('is-done', h === MAXH);
+      }
+      const show = () => {
+        if (h === 1) return render(S.countIdle, false);
+        const n = 2 ** h - 1;
+        const msg = h === MAXH
+          ? `${fill(S.countStep, { l: h - 1, c: 2 ** (h - 1), h, n })} ${fill(S.countDone, { h, n })}`
+          : fill(S.countStep, { l: h - 1, c: 2 ** (h - 1), h, n });
+        render(msg, true);
+      };
+      const stop = () => {
+        if (timer) clearInterval(timer);
+        timer = null;
+        playBtn.textContent = S.play;
+      };
+      const step = () => {
+        if (h >= MAXH) return stop();
+        h += 1;
+        show();
+        if (h >= MAXH) stop();
+      };
+      root.querySelector('[data-act="back"]').addEventListener('click', () => {
+        stop();
+        if (h > 1) h -= 1;
+        show();
+      });
+      root.querySelector('[data-act="step"]').addEventListener('click', () => {
+        stop();
+        step();
+      });
+      root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+        stop();
+        h = 1;
+        show();
+      });
+      playBtn.addEventListener('click', () => {
+        if (timer) return stop();
+        if (h >= MAXH) h = 1;
+        show();
+        playBtn.textContent = S.stop;
+        timer = setInterval(step, 1100);
+      });
+      show();
+    }
+
+    if (MODE === 'path') initPath();
+    else if (MODE === 'children') initChildren();
+    else initCount();
+  })();
+</script>
+
+<style is:global>
+  .aas-tree-prop-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tree-prop-demo .tp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-tree-prop-demo .tp-head {
+    font-size: 0.95em;
+  }
+  .aas-tree-prop-demo .tp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+  }
+  .aas-tree-prop-demo .tp-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tree-prop-demo .tp-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tree-prop-demo .tp-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-tree-prop-demo .tp-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+  }
+  .aas-tree-prop-demo .tp-svg {
+    flex: 1.6 1 22em;
+    min-width: 0;
+    max-height: 20em;
+  }
+  .aas-tree-prop-demo .tp-side {
+    flex: 1 1 11em;
+    font-size: 0.9em;
+  }
+
+  /* 그림 */
+  .aas-tree-prop-demo .tp-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+    fill: none;
+    transition: stroke 0.2s, opacity 0.3s;
+  }
+  .aas-tree-prop-demo .tp-edge.is-a {
+    stroke: var(--aas-role-focus);
+    stroke-width: 4.5;
+  }
+  .aas-tree-prop-demo .tp-edge.is-b {
+    stroke: var(--aas-role-guard);
+    stroke-width: 4.5;
+  }
+  .aas-tree-prop-demo .tp-extra {
+    stroke: var(--aas-role-guard);
+    stroke-dasharray: 7 5;
+    stroke-width: 2.5;
+  }
+  .aas-tree-prop-demo .tp-extra.is-b {
+    stroke-dasharray: none;
+  }
+  .aas-tree-prop-demo .is-gone {
+    opacity: 0;
+  }
+  .aas-tree-prop-demo .tp-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.8;
+    transition: fill 0.2s, stroke 0.2s;
+  }
+  .aas-tree-prop-demo .tp-label {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-tree-prop-demo .tp-node.is-click {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-tree-prop-demo .tp-node.is-click:hover circle,
+  .aas-tree-prop-demo .tp-node.is-click:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 3;
+  }
+  .aas-tree-prop-demo .tp-node.is-a circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-tree-prop-demo .tp-node.is-b circle {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-tree-prop-demo .tp-node.is-a .tp-label,
+  .aas-tree-prop-demo .tp-node.is-b .tp-label {
+    fill: #fff;
+  }
+  .aas-tree-prop-demo .tp-node.is-target circle {
+    stroke: var(--aas-text);
+    stroke-width: 3;
+  }
+  .aas-tree-prop-demo .tp-node.is-full circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+  }
+  .aas-tree-prop-demo .tp-node.is-fresh circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-tree-prop-demo .tp-edge.is-fresh {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-tree-prop-demo .tp-slot {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-tree-prop-demo .tp-slot circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-muted);
+    stroke-width: 1.4;
+    stroke-dasharray: 4 3;
+  }
+  .aas-tree-prop-demo .tp-slot .tp-label {
+    fill: var(--aas-muted);
+  }
+  .aas-tree-prop-demo .tp-slot:hover circle,
+  .aas-tree-prop-demo .tp-slot:focus-visible circle {
+    stroke: var(--aas-role-eval);
+    stroke-width: 2.5;
+  }
+  .aas-tree-prop-demo .tp-slot:hover .tp-label {
+    fill: var(--aas-role-eval);
+  }
+  .aas-tree-prop-demo .tp-slot-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.2;
+    stroke-dasharray: 3 4;
+    opacity: 0.6;
+  }
+  .aas-tree-prop-demo .tp-reject circle {
+    fill: color-mix(in srgb, var(--aas-role-guard) 15%, var(--aas-bg));
+    stroke: var(--aas-role-guard);
+    stroke-width: 2.5;
+    stroke-dasharray: 5 3;
+  }
+  .aas-tree-prop-demo .tp-reject .tp-label {
+    fill: var(--aas-role-guard);
+  }
+  .aas-tree-prop-demo .tp-reject,
+  .aas-tree-prop-demo .tp-reject-edge {
+    animation: tp-shake 0.45s ease;
+  }
+  .aas-tree-prop-demo .tp-reject-edge {
+    stroke: var(--aas-role-guard);
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+  }
+  @keyframes tp-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+
+  /* 옆 칸: 경로 목록, 자리 표, 레벨별 개수 */
+  .aas-tree-prop-demo .tp-path-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 0.6em;
+    align-items: baseline;
+    margin-bottom: 0.5em;
+    padding: 0.35em 0.6em;
+    border-left: 4px solid var(--aas-role-focus);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+  }
+  .aas-tree-prop-demo .tp-path-row.is-b {
+    border-left-color: var(--aas-role-guard);
+  }
+  .aas-tree-prop-demo .tp-path-label,
+  .aas-tree-prop-demo .tp-path-links {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-prop-demo .tp-path {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-tree-prop-demo .tp-side-head {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 800;
+    font-size: 1.2em;
+    margin-bottom: 0.3em;
+  }
+  .aas-tree-prop-demo .tp-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4em;
+  }
+  .aas-tree-prop-demo .tp-slot-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.3em;
+    border: 1.5px dashed var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-tree-prop-demo .tp-slot-cell.is-full {
+    border-style: solid;
+    border-color: var(--aas-role-eval);
+  }
+  .aas-tree-prop-demo .tp-slot-cell.is-none {
+    opacity: 0.45;
+  }
+  .aas-tree-prop-demo .tp-slot-cell.is-reject {
+    opacity: 1;
+    border-color: var(--aas-role-guard);
+    color: var(--aas-role-guard);
+  }
+  .aas-tree-prop-demo .tp-slot-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-tree-prop-demo .tp-slot-cell strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.1em;
+  }
+  .aas-tree-prop-demo .tp-count-row {
+    display: grid;
+    grid-template-columns: 1fr auto 2.5em;
+    gap: 0.6em;
+    padding: 0.15em 0.5em;
+    border-radius: 0.3em;
+  }
+  .aas-tree-prop-demo .tp-count-row strong {
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-prop-demo .tp-pow {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-tree-prop-demo .tp-count-row.is-fresh {
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, transparent);
+  }
+  .aas-tree-prop-demo .tp-count-row.is-sum {
+    margin-top: 0.3em;
+    border-top: 1px solid var(--aas-border);
+    font-weight: 700;
+  }
+
+  .aas-tree-prop-demo .tp-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-tree-prop-demo .tp-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-tree-prop-demo.is-broken .tp-note {
+    color: var(--aas-role-guard);
+    font-weight: 600;
+  }
+  .aas-tree-prop-demo.is-done .tp-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-tree-prop-demo .tp-stat {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-tree-prop-demo .tp-stat strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기 */
+  .aas-tree-prop-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tree-prop-demo.is-slide .tp-svg {
+    max-height: 46vh;
+  }
+  .aas-tree-prop-demo.is-slide .tp-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tree-prop-demo * {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+</style>

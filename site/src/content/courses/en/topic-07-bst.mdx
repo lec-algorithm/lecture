@@ -10,6 +10,8 @@ slides: ["topic-07-bst"]
 ---
 
 import TreeFigure from '@components/TreeFigure.astro';
+import TreeTermsDemo from '@components/TreeTermsDemo.astro';
+import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -34,9 +36,33 @@ tree has two properties.
 - **Property 2**: each node has **at most two** children: a left child and a
   right child.
 
+Check property 1 first. Click a node and the path from the root to it is
+coloured. Whichever node you click, there is one path. Now press **Add one
+more link** to add a link from C to E. E gets two parents, the paths to E
+and the nodes below it double, and a link now loops back.
+
+<TreePropertyDemo mode="path" />
+
+For property 2, grow a tree yourself. Click a dashed spot (+) and a child
+appears there. Even a single child is either a left or a right child.
+Select a node whose left and right are both taken and press **Add one more
+child**: there is no third spot, so it is refused.
+
+<TreePropertyDemo mode="children" />
+
 <TreeFigure tree={{ l: { l: { v: "A", filled: true }, r: { v: "B", filled: true } }, r: { l: { v: "C", filled: true }, r: { v: "D", filled: true } } }} />
 
 ### Vocabulary \{#terms}
+
+Click the names we use for trees one by one. A term colours the part of the
+tree it refers to, and clicking a node makes it the reference node. Parent
+and child, subtree and level are shown relative to the selected node. This
+tree is deliberately not a full tree. Leaves on different levels and nodes
+with a single child are what make leaf, height and full tree look different.
+
+<TreeTermsDemo />
+
+In summary:
 
 | Term | Meaning |
 | --- | --- |
@@ -61,8 +87,12 @@ comparing with other material.
 ### Height and node count \{#height}
 
 Level $$l$$ holds at most $$2^l$$ nodes: 1 on level 0, 2 on level 1, 4 on
-level 2. A full tree of height $$h$$ has every level filled, so its node
-count $$N$$ is
+level 2. Fill the levels one step at a time and the count doubles each time.
+
+<TreePropertyDemo mode="count" />
+
+A full tree of height $$h$$ has every level filled, so its node count $$N$$
+is
 
 $$
 N = 2^0 + 2^1 + \cdots + 2^{h-1} = 2^h - 1

@@ -10,6 +10,8 @@ slides: ["topic-07-bst"]
 ---
 
 import TreeFigure from '@components/TreeFigure.astro';
+import TreeTermsDemo from '@components/TreeTermsDemo.astro';
+import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -33,9 +35,33 @@ import TraversalDemo from '@components/TraversalDemo.astro';
 - **성질 2**: 각 노드는 자식을 **최대 두 개** 가집니다. 왼쪽 자식과 오른쪽
   자식입니다.
 
+성질 1부터 확인해 봅니다. 노드를 누르면 루트에서 그 노드까지 가는 경로가
+칠해집니다. 어느 노드를 눌러도 경로는 하나입니다. 이번에는 **링크 하나 더
+잇기**를 눌러 C에서 E로 가는 링크를 더해 봅니다. E의 부모가 둘이 되면서 E와
+그 아래 노드까지 가는 경로가 둘로 늘고, 링크가 돌아 되돌아오는 고리가 생깁니다.
+
+<TreePropertyDemo mode="path" />
+
+성질 2는 직접 트리를 키워 보며 확인합니다. 점선 자리(+)를 누르면 그 자리에
+자식이 생깁니다. 자식이 하나뿐이어도 왼쪽인지 오른쪽인지는 정해져 있습니다.
+왼쪽과 오른쪽이 다 찬 노드를 고르고 **자식 하나 더 달기**를 누르면 셋째
+자리가 없어 거부됩니다.
+
+<TreePropertyDemo mode="children" />
+
 <TreeFigure tree={{ l: { l: { v: "A", filled: true }, r: { v: "B", filled: true } }, r: { l: { v: "C", filled: true }, r: { v: "D", filled: true } } }} />
 
 ### 용어 \{#terms}
+
+트리를 말할 때 쓰는 이름을 하나씩 눌러 봅니다. 용어를 누르면 아래 트리에서
+그 용어가 가리키는 부분이 칠해지고, 노드를 누르면 그 노드가 기준이 됩니다.
+부모·자식, 서브트리, 레벨은 고른 노드를 기준으로 보여 줍니다. 이 트리는 일부러
+full tree가 아니게 골랐습니다. 잎의 레벨이 서로 다르고 자식이 하나뿐인 노드가
+있어야 잎, 높이, full tree의 차이가 보입니다.
+
+<TreeTermsDemo />
+
+정리하면 이렇습니다.
 
 | 용어 | 뜻 |
 | --- | --- |
@@ -59,8 +85,13 @@ import TraversalDemo from '@components/TraversalDemo.astro';
 ### 높이와 노드 수 \{#height}
 
 레벨 $$l$$에는 노드가 최대 $$2^l$$개 들어갑니다. 레벨 0에 1개, 레벨 1에
-2개, 레벨 2에 4개입니다. 높이가 $$h$$인 full tree는 모든 레벨이 꽉
-차 있으므로 노드 수 $$N$$은 이렇습니다.
+2개, 레벨 2에 4개입니다. 한 걸음씩 레벨을 채워 보면 개수가 두 배씩 늘어
+갑니다.
+
+<TreePropertyDemo mode="count" />
+
+높이가 $$h$$인 full tree는 모든 레벨이 꽉 차 있으므로 노드 수 $$N$$은
+이렇습니다.
 
 $$
 N = 2^0 + 2^1 + \cdots + 2^{h-1} = 2^h - 1
