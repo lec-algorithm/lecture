@@ -1,0 +1,678 @@
+---
+// 이진 탐색 트리의 삽입과 검색을 한 걸음씩 해 보는 데모.
+//
+// 삽입(기본): 빈 트리에서 시작해 keys를 차례로 넣는다. 넣을 값(주황 원)이
+// 루트에서 출발해 노드와 비교하며 작으면 왼쪽, 크면 오른쪽으로 내려가고,
+// 비어 있는 자리에 닿으면 거기에 새 노드로 자리 잡는다(초록).
+// 검색(find를 주면): keys로 다 만든 트리에서 find를 찾아 내려간다.
+//
+// 노드의 자리는 처음부터 정해 둔다. x는 모든 키를 정렬했을 때의 순번(중위
+// 순서), y는 깊이다. 그래서 노드가 늘어나도 이미 있는 노드는 움직이지 않고,
+// 새 노드는 제자리에 나타난다. 그 자체로 "중위 순서 = 정렬된 순서"를 보여 준다.
+//
+// 비교 횟수와 높이는 algorithm-code의 bstSearchInsert.c · bst_search_insert.py와
+// 같다. 기본 입력이면 높이 4, 비교 17회다. 높이는 레벨의 수로 센다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+type Key = number | string;
+interface Props {
+  /** 넣는 순서. 기본은 실습 코드의 5 9 7 3 8 12 6 4 20 */
+  keys?: Key[];
+  /** 주면 검색 모드: keys로 만든 트리에서 이 값을 찾는다. */
+  find?: Key;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { keys = [5, 9, 7, 3, 8, 12, 6, 4, 20], find, slide = false } = Astro.props;
+const id = `bd-${Math.random().toString(36).slice(2, 9)}`;
+const mode = find === undefined ? 'insert' : 'search';
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    insertTitle: '이진 탐색 트리: 삽입',
+    searchTitle: '이진 탐색 트리: 검색',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    queue: '넣을 순서',
+    target: '찾는 값',
+    cmp: '비교',
+    height: '높이',
+    nodes: '노드',
+    idleInsert: '빈 트리입니다. 값을 하나씩 넣습니다. 비교하며 내려가다 비어 있는 자리에 매답니다.',
+    idleSearch: '찾는 값은 {k}입니다. 루트에서 출발해 작으면 왼쪽, 크면 오른쪽으로 내려갑니다.',
+    root: '{k}: 트리가 비어 있으니 루트가 됩니다.',
+    less: '{k} < {v} → 왼쪽으로 갑니다.',
+    greater: '{k} > {v} → 오른쪽으로 갑니다.',
+    emptyLeft: '{k} < {v}, 왼쪽이 비어 있습니다.',
+    emptyRight: '{k} > {v}, 오른쪽이 비어 있습니다.',
+    place: '{v}의 {side} 자리에 {k} 노드를 매답니다.',
+    left: '왼쪽',
+    right: '오른쪽',
+    dup: '{k} = {v}, 이미 있는 값이라 넣지 않습니다.',
+    found: '{k} = {v}, 찾았습니다. 비교 {c}회',
+    missing: '비어 있는 자리에 닿았습니다. 트리에 없는 값입니다. 비교 {c}회. 넣는다면 바로 이 자리입니다.',
+    doneInsert: '모두 넣었습니다. 높이 {h}, 비교 {c}회. 왼쪽부터 읽으면 {list}',
+  },
+  en: {
+    insertTitle: 'Binary search tree: insert',
+    searchTitle: 'Binary search tree: search',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    queue: 'insert order',
+    target: 'find',
+    cmp: 'comparisons',
+    height: 'height',
+    nodes: 'nodes',
+    idleInsert: 'An empty tree. Insert the values one at a time: compare on the way down and hang the new node on the empty spot.',
+    idleSearch: 'Find {k}. Start at the root; go left if smaller, right if larger.',
+    root: '{k}: the tree is empty, so it becomes the root.',
+    less: '{k} < {v} → go left.',
+    greater: '{k} > {v} → go right.',
+    emptyLeft: '{k} < {v}, and the left child is empty.',
+    emptyRight: '{k} > {v}, and the right child is empty.',
+    place: 'Hang {k} as the {side} child of {v}.',
+    left: 'left',
+    right: 'right',
+    dup: '{k} = {v}: already in the tree, so nothing is inserted.',
+    found: '{k} = {v}: found. {c} comparisons',
+    missing: '{k} is not in the tree. {c} comparisons. This is exactly where it would go.',
+    doneInsert: 'All inserted. Height {h}, {c} comparisons. Read left to right: {list}',
+  },
+  zh: {
+    insertTitle: '二叉搜索树：插入',
+    searchTitle: '二叉搜索树：查找',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    queue: '插入顺序',
+    target: '查找',
+    cmp: '比较',
+    height: '高度',
+    nodes: '节点',
+    idleInsert: '空树。逐个插入值：一路比较向下，挂在空位上。',
+    idleSearch: '查找 {k}。从根出发，小则向左，大则向右。',
+    root: '{k}：树是空的，它成为根。',
+    less: '{k} < {v} → 向左。',
+    greater: '{k} > {v} → 向右。',
+    emptyLeft: '{k} < {v}，左边是空的。',
+    emptyRight: '{k} > {v}，右边是空的。',
+    place: '把 {k} 挂在 {v} 的{side}。',
+    left: '左边',
+    right: '右边',
+    dup: '{k} = {v}，已经存在，不插入。',
+    found: '{k} = {v}，找到了。比较 {c} 次',
+    missing: '树中没有 {k}。比较 {c} 次。若要插入，正是这个位置。',
+    doneInsert: '全部插入。高度 {h}，比较 {c} 次。从左往右读：{list}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-bst-demo', slide && 'is-slide']}
+  id={id}
+  data-bd-keys={JSON.stringify(keys)}
+  data-bd-find={find === undefined ? '' : JSON.stringify(find)}
+  data-bd-strings={JSON.stringify(t)}
+>
+  <div class="bd-bar">
+    <span class="bd-head"><strong>{mode === 'insert' ? t.insertTitle : t.searchTitle}</strong></span>
+    <div class="bd-controls">
+      <button type="button" data-act="back" class="bd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="bd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="bd-btn bd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="bd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="bd-queue">
+    <span class="bd-queue-label">{mode === 'insert' ? t.queue : t.target}</span>
+    {mode === 'insert'
+      ? keys.map((k, i) => <span class="bd-chip" data-bd-chip={i}>{k}</span>)
+      : <span class="bd-chip is-current">{find}</span>}
+  </div>
+
+  <svg class="bd-tree" data-bd-svg role="img" aria-label={mode === 'insert' ? t.insertTitle : t.searchTitle}></svg>
+
+  <div class="bd-foot">
+    <p class="bd-note" data-bd-note></p>
+    <span class="bd-count">
+      {t.cmp} <strong data-bd-cmp>0</strong>
+      {mode === 'insert' && <span> · {t.height} <strong data-bd-height>0</strong></span>}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const keys = JSON.parse(root.dataset.bdKeys);
+    const findRaw = root.dataset.bdFind;
+    const searching = findRaw !== '';
+    const target = searching ? JSON.parse(findRaw) : null;
+    const S = JSON.parse(root.dataset.bdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+
+    /* 트리를 실제로 만든다. 노드 id는 키 자신이다(키는 중복 없이 한 번만 들어간다). */
+    const nodes = new Map(); /* key → { key, left, right, parent, depth } */
+    let treeRoot = null;
+    function insertKey(k) {
+      if (treeRoot === null) {
+        treeRoot = k;
+        nodes.set(k, { key: k, left: null, right: null, parent: null, depth: 0 });
+        return;
+      }
+      let v = treeRoot;
+      for (;;) {
+        const node = nodes.get(v);
+        if (k === v) return;
+        const side = k < v ? 'left' : 'right';
+        if (node[side] === null) {
+          node[side] = k;
+          nodes.set(k, { key: k, left: null, right: null, parent: v, depth: node.depth + 1 });
+          return;
+        }
+        v = node[side];
+      }
+    }
+    keys.forEach(insertKey);
+    const height = (k) => (k === null ? 0 : 1 + Math.max(height(nodes.get(k).left), height(nodes.get(k).right)));
+
+    /* 자리: x는 정렬된 순번, y는 깊이. 검색이 실패하면 빈 자리에 유령 노드를 그린다. */
+    const sorted = [...nodes.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const UNIT = 46;
+    const ABOVE = 36; /* 노드 바로 위에 뜬 값까지의 거리 */
+    const R = 17;
+    const PAD = 30;
+    const TOP = 56; /* 루트 위에 넣을 값이 떠 있을 자리 */
+
+    /* 검색이 실패하는 자리까지 미리 구해 둔다(유령 노드의 x). */
+    let ghost = null;
+    if (searching && !nodes.has(target)) {
+      let v = treeRoot;
+      let parent = null;
+      while (v !== null) {
+        parent = v;
+        v = target < v ? nodes.get(v).left : nodes.get(v).right;
+      }
+      if (parent !== null) {
+        const rank = sorted.indexOf(parent);
+        ghost = { parent, side: target < parent ? 'left' : 'right', x: rank + (target < parent ? -0.5 : 0.5), depth: nodes.get(parent).depth + 1 };
+      }
+    }
+    const maxDepth = Math.max(0, ...[...nodes.values()].map((n) => n.depth), ghost ? ghost.depth : 0);
+    /* 레벨 간격. 깊은(기운) 트리는 간격을 줄여 대각선으로 눕힌다. 그래야 그림 전체를
+       높이에 맞춰 줄이지 않아도 되고, 노드 크기가 균형 트리와 비슷하게 남는다.
+       이웃한 레벨의 노드는 가로로 적어도 한 칸(UNIT) 떨어져 있으므로 겹치지 않는다. */
+    const LEVEL = maxDepth <= 3 ? 62 : Math.max(18, 186 / maxDepth);
+    const minX = ghost && ghost.x < 0 ? ghost.x : 0;
+    const maxX = Math.max(sorted.length - 1, ghost ? ghost.x : 0);
+    const X = (rank) => PAD + (rank - minX) * UNIT;
+    const Y = (depth) => TOP + depth * LEVEL;
+    const posOf = (k) => ({ x: X(sorted.indexOf(k)), y: Y(nodes.get(k).depth) });
+    const W = (maxX - minX) * UNIT + 2 * PAD;
+    const H = TOP + maxDepth * LEVEL + R + 14;
+
+    /* 단계 배열. 단계마다 놓인 노드 집합, 지금 보는 노드, 지나온 길, 넣을 값의 자리를 담는다. */
+    const steps = [];
+    let placed = new Set(searching ? nodes.keys() : []);
+    let comparisons = 0;
+    /* 넣을 값은 비교한 노드 옆, 다음에 갈 쪽에 선다. 같으면 바로 위에.
+       레벨 간격을 줄인 깊은 트리에서는 옆자리가 다음 레벨 노드와 겹치므로 늘 위에 선다. */
+    const tokenAt = (k, side) => {
+      const p = posOf(k);
+      if (LEVEL < 62) return { x: p.x, y: p.y - ABOVE };
+      if (side === 'left') return { x: p.x - 2 * R - 6, y: p.y };
+      if (side === 'right') return { x: p.x + 2 * R + 6, y: p.y };
+      return { x: p.x, y: p.y - ABOVE };
+    };
+
+    if (!searching) {
+      steps.push({ placed: new Set(), focus: null, path: [], token: null, chip: -1, cmp: 0, note: S.idleInsert });
+      const built = new Set();
+      let rootKey = null;
+      keys.forEach((k, i) => {
+        const path = [];
+        if (rootKey === null) {
+          rootKey = k;
+          built.add(k);
+          steps.push({ placed: new Set(built), focus: null, path: [], fresh: k, token: null, chip: i, cmp: comparisons, note: fill(S.root, { k }) });
+          return;
+        }
+        let v = rootKey;
+        for (;;) {
+          comparisons += 1;
+          path.push(v);
+          const node = nodes.get(v);
+          if (k === v) {
+            steps.push({ placed: new Set(built), focus: v, path: path.slice(), token: tokenAt(v, 'eq'), tokenKey: k, chip: i, cmp: comparisons, note: fill(S.dup, { k, v }) });
+            break;
+          }
+          const side = k < v ? 'left' : 'right';
+          const next = node[side] !== null && built.has(node[side]) ? node[side] : null;
+          if (next === null) {
+            steps.push({
+              placed: new Set(built), focus: v, path: path.slice(), token: tokenAt(v, side), tokenKey: k, chip: i, cmp: comparisons,
+              note: fill(side === 'left' ? S.emptyLeft : S.emptyRight, { k, v }),
+            });
+            built.add(k);
+            steps.push({
+              placed: new Set(built), focus: null, path: path.slice(), fresh: k, token: null, chip: i, cmp: comparisons,
+              note: fill(S.place, { k, v, side: side === 'left' ? S.left : S.right }),
+            });
+            break;
+          }
+          steps.push({
+            placed: new Set(built), focus: v, path: path.slice(), token: tokenAt(v, side), tokenKey: k, chip: i, cmp: comparisons,
+            note: fill(side === 'left' ? S.less : S.greater, { k, v }),
+          });
+          v = next;
+        }
+      });
+      steps.push({
+        placed: new Set(built), focus: null, path: [], token: null, chip: keys.length, cmp: comparisons, done: true,
+        note: fill(S.doneInsert, { h: height(treeRoot), c: comparisons, list: sorted.join(' ') }),
+      });
+    } else {
+      const top = { x: X(sorted.indexOf(treeRoot)), y: Y(0) - ABOVE };
+      steps.push({ placed, focus: null, path: [], token: top, tokenKey: target, cmp: 0, note: fill(S.idleSearch, { k: target }) });
+      let v = treeRoot;
+      const path = [];
+      while (v !== null) {
+        comparisons += 1;
+        path.push(v);
+        if (target === v) {
+          steps.push({ placed, focus: null, found: v, path: path.slice(), token: null, cmp: comparisons, done: true, note: fill(S.found, { k: target, v, c: comparisons }) });
+          break;
+        }
+        const node = nodes.get(v);
+        const side = target < v ? 'left' : 'right';
+        const next = node[side];
+        steps.push({
+          placed, focus: v, path: path.slice(), token: tokenAt(v, side), tokenKey: target, cmp: comparisons,
+          note: fill(next === null ? (side === 'left' ? S.emptyLeft : S.emptyRight) : side === 'left' ? S.less : S.greater, { k: target, v }),
+        });
+        v = next;
+      }
+      if (v === null) {
+        steps.push({ placed, focus: null, path: path.slice(), token: null, ghost: true, cmp: comparisons, done: true, note: fill(S.missing, { k: target, c: comparisons }) });
+      }
+    }
+
+    /* 그림: 모든 노드와 가지를 한 번 만들어 두고, 단계마다 클래스만 바꾼다. */
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = root.querySelector('[data-bd-svg]');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const edgeLayer = el('g', {});
+    const nodeLayer = el('g', {});
+    svg.appendChild(edgeLayer);
+    svg.appendChild(nodeLayer);
+    const nodeEls = new Map();
+    const edgeEls = new Map();
+    for (const k of sorted) {
+      const p = posOf(k);
+      const parent = nodes.get(k).parent;
+      if (parent !== null) {
+        const q = posOf(parent);
+        const line = el('line', { class: 'bd-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+        edgeLayer.appendChild(line);
+        edgeEls.set(k, line);
+      }
+      const g = el('g', { class: 'bd-node', transform: `translate(${p.x} ${p.y})` });
+      g.appendChild(el('circle', { r: R }));
+      g.appendChild(el('text', { class: 'bd-label' }, String(k)));
+      nodeLayer.appendChild(g);
+      nodeEls.set(k, g);
+    }
+    let ghostEl = null;
+    let ghostEdge = null;
+    if (ghost) {
+      const gx = X(ghost.x);
+      const gy = Y(ghost.depth);
+      const q = posOf(ghost.parent);
+      ghostEdge = el('line', { class: 'bd-edge bd-ghost-edge', x1: q.x, y1: q.y, x2: gx, y2: gy });
+      edgeLayer.appendChild(ghostEdge);
+      ghostEl = el('g', { class: 'bd-node bd-ghost', transform: `translate(${gx} ${gy})` });
+      ghostEl.appendChild(el('circle', { r: R }));
+      ghostEl.appendChild(el('text', { class: 'bd-label' }, String(target)));
+      nodeLayer.appendChild(ghostEl);
+    }
+    /* 넣을(찾을) 값. CSS transform 전환으로 노드 사이를 미끄러져 간다. */
+    const token = el('g', { class: 'bd-token' });
+    const tokenInner = el('g', {});
+    tokenInner.appendChild(el('circle', { r: R }));
+    const tokenText = el('text', { class: 'bd-label' }, '');
+    tokenInner.appendChild(tokenText);
+    token.appendChild(tokenInner);
+    nodeLayer.appendChild(token);
+
+    const chips = [...root.querySelectorAll('[data-bd-chip]')];
+
+    function render(s) {
+      const step = steps[s];
+      const onPath = new Set(step.path);
+      for (const [k, g] of nodeEls) {
+        const shown = step.placed.has(k);
+        g.classList.toggle('is-gone', !shown);
+        g.classList.toggle('is-path', onPath.has(k) && step.focus !== k);
+        g.classList.toggle('is-focus', step.focus === k);
+        g.classList.toggle('is-fresh', step.fresh === k || step.found === k);
+        const line = edgeEls.get(k);
+        if (line) {
+          line.classList.toggle('is-gone', !shown);
+          /* 지나온 길: 길 위의 노드로 들어오는 가지 */
+          const pathEdge = onPath.has(k) && onPath.has(nodes.get(k).parent);
+          line.classList.toggle('is-path', pathEdge);
+          line.classList.toggle('is-fresh', step.fresh === k);
+        }
+      }
+      if (ghostEl) {
+        ghostEl.classList.toggle('is-gone', !step.ghost);
+        ghostEdge.classList.toggle('is-gone', !step.ghost);
+      }
+      if (step.token) {
+        token.classList.remove('is-gone');
+        token.style.transform = `translate(${step.token.x}px, ${step.token.y}px)`;
+        tokenText.textContent = String(step.tokenKey);
+      } else {
+        token.classList.add('is-gone');
+      }
+      chips.forEach((chip, i) => {
+        chip.classList.toggle('is-done', i < step.chip || (i === step.chip && !step.token));
+        chip.classList.toggle('is-current', i === step.chip && !!step.token);
+      });
+      root.querySelector('[data-bd-note]').textContent = step.note;
+      root.querySelector('[data-bd-cmp]').textContent = String(step.cmp);
+      const h = root.querySelector('[data-bd-height]');
+      if (h) {
+        const depthMax = Math.max(-1, ...[...step.placed].map((k) => nodes.get(k).depth));
+        h.textContent = String(depthMax + 1);
+      }
+      root.classList.toggle('is-done', !!step.done);
+    }
+
+    let at = 0;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render(0);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    /* 처음에는 전환 없이 그린다. */
+    token.classList.add('no-move');
+    render(0);
+    requestAnimationFrame(() => token.classList.remove('no-move'));
+  })();
+</script>
+
+<!-- 그림은 스크립트가 만들므로 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-bst-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-bst-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-bst-demo .bd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-bst-demo .bd-head {
+    font-size: 0.95em;
+  }
+  .aas-bst-demo .bd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-bst-demo .bd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-bst-demo .bd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-bst-demo .bd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* 넣을 순서: 넣은 것은 흐리게, 지금 넣는 것은 주황 */
+  .aas-bst-demo .bd-queue {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+    font-size: 0.85em;
+  }
+  .aas-bst-demo .bd-queue-label {
+    color: var(--aas-muted);
+    margin-right: 0.3em;
+  }
+  .aas-bst-demo .bd-chip {
+    min-width: 1.9em;
+    padding: 0.1em 0.45em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    transition:
+      opacity 0.3s,
+      background 0.2s,
+      border-color 0.2s;
+  }
+  .aas-bst-demo .bd-chip.is-current {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+  }
+  .aas-bst-demo .bd-chip.is-done {
+    opacity: 0.35;
+  }
+
+  .aas-bst-demo .bd-tree {
+    display: block;
+    width: 100%;
+    max-height: 24em;
+    margin: 0.4em auto 0;
+  }
+  .aas-bst-demo .bd-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+    transition:
+      opacity 0.35s,
+      stroke 0.2s;
+  }
+  .aas-bst-demo .bd-edge.is-path {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-bst-demo .bd-edge.is-fresh {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-bst-demo .bd-ghost-edge {
+    stroke-dasharray: 4 4;
+  }
+  .aas-bst-demo .bd-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 1.6;
+    transition:
+      fill 0.2s,
+      stroke 0.2s;
+  }
+  .aas-bst-demo .bd-label {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-bst-demo .bd-node,
+  .aas-bst-demo .bd-token {
+    transition: opacity 0.35s;
+  }
+  .aas-bst-demo .is-gone {
+    opacity: 0;
+  }
+  /* 지나온 노드: 테두리만 주황으로 남긴다. */
+  .aas-bst-demo .bd-node.is-path circle {
+    fill: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+    stroke-width: 2.5;
+  }
+  .aas-bst-demo .bd-node.is-path .bd-label {
+    fill: var(--aas-text);
+  }
+  .aas-bst-demo .bd-node.is-focus circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-bst-demo .bd-node.is-fresh circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-bst-demo .bd-node.is-focus .bd-label,
+  .aas-bst-demo .bd-node.is-fresh .bd-label {
+    fill: #fff;
+  }
+  .aas-bst-demo .bd-ghost circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-role-focus);
+    stroke-dasharray: 4 3;
+  }
+  .aas-bst-demo .bd-ghost .bd-label {
+    fill: var(--aas-role-focus);
+  }
+
+  /* 넣을 값: 테두리만 주황인 원이 노드 위에 떠서 따라 내려간다. */
+  .aas-bst-demo .bd-token {
+    transition:
+      transform 0.45s ease,
+      opacity 0.3s;
+  }
+  .aas-bst-demo .bd-token.no-move {
+    transition: none;
+  }
+  .aas-bst-demo .bd-token circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-bst-demo .bd-token .bd-label {
+    fill: var(--aas-text);
+  }
+
+  .aas-bst-demo .bd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-bst-demo .bd-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-bst-demo.is-done .bd-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-bst-demo .bd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-bst-demo .bd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-bst-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-bst-demo.is-slide .bd-tree {
+    max-height: 50vh;
+  }
+  .aas-bst-demo.is-slide .bd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-bst-demo .bd-node,
+    .aas-bst-demo .bd-node circle,
+    .aas-bst-demo .bd-edge,
+    .aas-bst-demo .bd-token,
+    .aas-bst-demo .bd-chip {
+      transition: none;
+    }
+  }
+</style>

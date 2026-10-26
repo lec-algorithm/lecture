@@ -1,0 +1,1097 @@
+---
+title: "Topic 07. Binary Search Trees"
+description: "Binary tree vocabulary and height; search, insertion and deletion in a binary search tree where the left is smaller and the right is larger; and printing, freeing and copying a tree with four traversals"
+date: "Topic 07 · v1"
+order: 7
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import TreeFigure from '@components/TreeFigure.astro';
+import BstDemo from '@components/BstDemo.astro';
+import BstDeleteDemo from '@components/BstDeleteDemo.astro';
+import TraversalDemo from '@components/TraversalDemo.astro';
+
+{/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
+    Numbers match the practice code (topic-07-bst) exactly. */}
+
+<Slide class="cover">
+
+# Binary Search Trees
+
+Topic 07
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## Putting two topics together
+::sub[Binary search from Topic 01, binary trees from Topic 06]
+
+- **Binary search** (Topic 01): compare with the middle, discard half.
+  - Fast, but inserting into an array means shifting everything after it.
+- **Binary trees** (Topic 06): first met while building Huffman codes.
+  - Nodes go in and out by changing links.
+
+<br/>
+
+**Search like binary search; insert and delete by changing links.**  
+That structure is the binary search tree, and its performance hangs on one number: the height.
+
+</Slide>
+
+<Slide class="center">
+
+## Binary Trees
+::sub[Binary Tree]
+
+</Slide>
+
+<Slide>
+
+#### Two properties of a binary tree
+
+<div class="aas-split">
+<div>
+
+- **Property 1**
+  - From the root to every other node there is **exactly one** path.
+  - If a link loops back, it is not a tree.
+- **Property 2**
+  - Each node has **at most two** children.
+  - A left child and a right child.
+
+</div>
+<div>
+
+<TreeFigure tree={{ l: { l: { v: "A", filled: true }, r: { v: "B", filled: true } }, r: { l: { v: "C", filled: true }, r: { v: "D", filled: true } } }} />
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### Vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| node · link | a circle holding a value · a line connecting nodes (edge) |
+| root | the topmost node. The only node without a parent |
+| parent · child | nodes directly above · below each other along a link |
+| leaf | a node with no children |
+| subtree | a node and everything below it. A tree in its own right |
+| level | how many links down from the root. The root is level 0 |
+| height | the number of levels. A root alone has height 1 |
+| full tree | every non-leaf has two children, all leaves on one level |
+
+</Slide>
+
+<Slide>
+
+#### Height and node count
+::sub[Level l holds at most 2^l nodes]
+
+A full tree of height $$h$$ has every level filled.
+
+$$
+N = 2^0 + 2^1 + \cdots + 2^{h-1} = 2^h - 1
+$$
+
+Solving backwards, the height is the log of the node count.
+
+$$
+h = \log_2(N + 1) = O(\log N)
+$$
+
+<br/>
+
+Height counts **levels**. Textbooks that count links get one less.
+
+</Slide>
+
+<Slide>
+
+#### The tallest tree
+::sub[If every node has only one child, the height is N, just like a linked list]
+
+<div class="aas-split">
+<div>
+
+<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
+
+</div>
+<div>
+
+| $$N$$ | Lowest height | Highest height |
+| --- | --- | --- |
+| 7 | 3 | 7 |
+| 1,023 | 10 | 1,023 |
+| about 1M | 20 | about 1M |
+
+</div>
+</div>
+
+<br/>
+
+Every operation in this topic is proportional to this height.
+
+</Slide>
+
+<Slide>
+
+#### Searching a binary tree
+::sub[Start at the root and sweep level by level until found or out of leaves]
+
+<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} slide />
+
+With values anywhere, it is no better than a linked list: $$O(N)$$.
+
+</Slide>
+
+<Slide class="center">
+
+## Binary Search Trees
+::sub[Binary Search Tree (BST)]
+
+</Slide>
+
+<Slide>
+
+#### Definition
+::sub[The rule every node follows]
+
+- **Every key in the left subtree** is smaller than the node's key.
+- **Every key in the right subtree** is larger than the node's key.
+- The left and right subtrees are binary search trees as well.
+
+<br/>
+
+Keys are distinct. Inserting an existing value does nothing.
+
+</Slide>
+
+<Slide>
+
+#### Comparing with children is not enough
+::sub[A common mistake: "larger than the left child, smaller than the right is enough"]
+
+<div class="aas-split">
+<div>
+
+<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "7", tone: "focus" } }, r: { v: "8" } }} />
+
+</div>
+<div>
+
+- Every parent–child pair follows the rule.
+  - 3 < 5, 8 > 5, 7 > 3
+- But 7 sits in 5's **left subtree**.
+  - A search for 7 goes right at 5 and misses.
+- The rule must cover the **whole subtree**.
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+#### A binary search tree
+::sub[Built by inserting 7 4 14 1 6 16 2 5 15 in order]
+
+<TreeFigure tree={{ v: "7", l: { v: "4", l: { v: "1", tone: "eval", r: { v: "2" } }, r: { v: "6", l: { v: "5" } } }, r: { v: "14", r: { v: "16", tone: "focus", l: { v: "15" } } } }} slide />
+
+The **smallest value** is at the far left (1), the **largest** at the far right (16).  
+Read left to right, `1 2 4 5 6 7 14 15 16` is in sorted order.
+
+</Slide>
+
+<Slide>
+
+### Step by step: find 6
+::sub[The orange circle is the target; it stands beside the node, on the side it goes next]
+
+<BstDemo keys={[7, 4, 14, 1, 6, 16, 2, 5, 15]} find={6} slide />
+
+</Slide>
+
+<Slide>
+
+### Step by step: find 13
+::sub[A missing value is quick to spot. The dashed circle is where the search failed]
+
+<BstDemo keys={[7, 4, 14, 1, 6, 16, 2, 5, 15]} find={13} slide />
+
+</Slide>
+
+<Slide>
+
+#### The same idea as binary search
+::sub[Topic 01: compare with the middle, discard half]
+
+- **Binary search** compared with the middle value every time.
+- A **binary search tree** places that "middle" at the root in advance.
+  - Each subtree carries its own pivot value too.
+- The difference is that it is held together by links.
+  - So inserting and deleting are easy.
+
+<br/>
+
+**Where a search fails is exactly where to insert.** Example 1 uses this.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Search procedure
+::sub[One path from the root toward the leaves, so O(h)]
+
+```plaintext
+ALGORITHM Search(root, key)
+    node <- root
+    while node != NULL do
+        if key = node.key then
+            return node                 // found it
+        if key < node.key then
+            node <- node.left           // smaller: only the left subtree matters
+        else
+            node <- node.right          // larger: only the right subtree matters
+    return NULL                         // reached an empty spot: not there
+```
+
+</Slide>
+
+<Slide>
+
+#### Same keys, different shapes (1)
+::sub[A BST of the eight keys A C E H M R S X · root S]
+
+<TreeFigure tree={{ v: "S", l: { v: "E", l: { v: "A", r: { v: "C" } }, r: { v: "R", l: { v: "H", r: { v: "M" } } } }, r: { v: "X" } }} slide />
+
+</Slide>
+
+<Slide>
+
+#### Same keys, different shapes (2)
+::sub[Another BST of the same eight keys · root E]
+
+<TreeFigure tree={{ v: "E", l: { v: "C", l: { v: "A" } }, r: { v: "R", l: { v: "H", r: { v: "M" } }, r: { v: "X", l: { v: "S" } } } }} slide />
+
+A BST's shape is not unique. Different shapes mean different search costs.
+
+</Slide>
+
+<Slide>
+
+### Finding E in a lopsided tree
+::sub[Each comparison discards just one node]
+
+<BstDemo keys={['S', 'R', 'X', 'M', 'H', 'E', 'C', 'A']} find="E" slide />
+
+</Slide>
+
+<Slide>
+
+### Finding E in a balanced tree
+::sub[Ideally the search range halves with every comparison]
+
+<BstDemo keys={['H', 'C', 'R', 'A', 'E', 'M', 'S', 'X']} find="E" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Representing it with links
+::sub[A linked-list node holds one address, a tree node two]
+
+```plaintext
+linked-list node    [ value | next address ]
+
+tree node        [ left address | value | right address ]
+                        |                     |
+                        v                     v
+          [ left | value | right ]  [ left | value | right ]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Node data and node creation
+::sub[A new node has no children, so both addresses are NULL]
+
+```c
+typedef struct TreeNode {
+    int key;
+    struct TreeNode *left;   /* address of the left child */
+    struct TreeNode *right;  /* address of the right child */
+} TreeNode;
+
+TreeNode *createNode(int key) {
+    TreeNode *node = (TreeNode *)malloc(sizeof(TreeNode));
+    node->key = key;
+    node->left = NULL;
+    node->right = NULL;
+    return node;
+}
+```
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. Search and Insert
+::sub[Search and Insert]
+
+</Slide>
+
+<Slide>
+
+#### Insert = failed search + hang it there
+::sub[Use the BST property to put a new item in the right place]
+
+- Go down **as if searching** for the value.
+  - Smaller goes left, larger goes right.
+- On reaching an **empty child spot**, attach a new node there.
+- If the value is already there, do nothing.
+
+<br/>
+
+Not a single existing node moves.  
+Unlike an array insert, nothing behind has to shift.
+
+</Slide>
+
+<Slide>
+
+### Step by step: 5 9 7 3 8 12 6 4 20
+::sub[The top row is the insertion order; the orange circle is the value going in]
+
+<BstDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Why nodes appear in place
+::sub[The horizontal position is the rank in sorted order]
+
+- The demo's nodes appear in their final places from the start.
+- Drop every node to the floor into one row and you get
+  - `3 4 5 6 7 8 9 12 20`
+- Sorted from the left. **That is exactly the BST rule.**
+
+</Slide>
+
+<Slide class="compact">
+
+#### Insert procedure
+::sub[Each call promises: "insert key into this subtree and return its root"]
+
+```plaintext
+ALGORITHM Insert(root, key)
+    if root = NULL then
+        return new node(key)            // exactly where the search failed
+    if key < root.key then
+        root.left <- Insert(root.left, key)
+    else if key > root.key then
+        root.right <- Insert(root.right, key)
+    // if equal, do nothing (each key goes in only once)
+    return root
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`01_search_insert/bstSearchInsert.c` · the caller replaces its root with the one returned]
+
+```c
+TreeNode *insert(TreeNode *root, int key) {
+    if (root == NULL) {
+        return createNode(key);
+    }
+    if (key < root->key) {
+        root->left = insert(root->left, key);
+    } else if (key > root->key) {
+        root->right = insert(root->right, key);
+    }
+    return root;
+}
+
+TreeNode *root = NULL;
+root = insert(root, 5);       /* on an empty tree the root goes from NULL to the new node */
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: insert and search
+::sub[Before each insert, it prints the path the search took]
+
+```console
+insert 5 9 7 3 8 12 6 4 20
+  insert  5: root
+  insert  9: 5 -> right of 5
+  insert  7: 5 9 -> left of 9
+  insert  3: 5 -> left of 5
+  insert  8: 5 9 7 -> right of 7
+  insert 12: 5 9 -> right of 9
+  insert  6: 5 9 7 -> left of 7
+  insert  4: 5 3 -> right of 3
+  insert 20: 5 9 12 -> right of 12
+inorder = 3 4 5 6 7 8 9 12 20
+height = 4, comparisons = 17
+
+tree 7 4 14 1 6 16 2 5 15
+  search 6: 7 4 6 -> found (3 comparisons)
+  search 13: 7 14 -> not found (2 comparisons)
+  min = 1, max = 16
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: shape and insertion order
+::sub[Same keys, different shapes: different heights and comparison counts]
+
+```console
+same keys, two shapes
+  tree S R X M H E C A: height 7
+    search E: S R M H E -> found (5 comparisons)
+  tree H C R A E M S X: height 4
+    search E: H C E -> found (3 comparisons)
+
+insert order -> shape
+  D B F A C E G: height 3, comparisons 10
+  B A D C G F E: height 5, comparisons 13
+  A B C D E F G: height 7, comparisons 21
+```
+
+</Slide>
+
+<Slide>
+
+#### The insertion order decides the shape (1)
+::sub[Same keys A to G · inserted as D B F A C E G: height 3, 10 comparisons]
+
+<TreeFigure tree={{ v: "D", l: { v: "B", l: { v: "A" }, r: { v: "C" } }, r: { v: "F", l: { v: "E" }, r: { v: "G" } } }} slide />
+
+</Slide>
+
+<Slide>
+
+#### The insertion order decides the shape (2)
+::sub[Inserted as B A D C G F E: height 5, 13 comparisons]
+
+<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "D", l: { v: "C" }, r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} slide />
+
+</Slide>
+
+<Slide>
+
+### Inserting in sorted order
+::sub[A B C D E F G · each new value is the maximum, so it always lands at the far right]
+
+<BstDemo keys={['A', 'B', 'C', 'D', 'E', 'F', 'G']} slide />
+
+</Slide>
+
+<Slide>
+
+#### Unbalanced trees
+::sub[They make search slow, which is undesirable]
+
+- A tree leaning to one side **is a linked list.**
+  - Search falls back to $$O(n)$$.
+- Inserting $$n$$ sorted keys costs $$\dfrac{n(n-1)}{2}$$ comparisons.
+  - 21 for 7 keys; building alone is $$O(n^2)$$
+- Balanced trees such as the **red-black tree** and the AVL tree
+  - reshape on every insert and delete to keep the height at $$O(\log n)$$.
+  - This is what C++ `std::map` and Java `TreeMap` use.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. Delete
+::sub[Delete]
+
+</Slide>
+
+<Slide>
+
+#### Steps and the condition for deletion
+
+- **Steps**: find the value, then delete that node.
+- **Condition**: the BST property must still hold.
+  - left is smaller, right is larger
+
+<br/>
+
+| Case | Node to delete | What to do |
+| --- | --- | --- |
+| 1 | 0 children (leaf) | just detach it |
+| 2 | 1 child | link that child directly to the parent |
+| 3 | 2 children | copy the successor, then delete the original successor |
+
+</Slide>
+
+<Slide>
+
+### Case 1: 0 children
+::sub[Delete E from B A D C G F E · a leaf, so just detach it]
+
+<BstDeleteDemo del="E" slide />
+
+</Slide>
+
+<Slide>
+
+### Case 2: 1 child
+::sub[Delete F · link its child E directly to F's parent G]
+
+<BstDeleteDemo del="F" slide />
+
+</Slide>
+
+<Slide>
+
+#### Case 3: with two children
+::sub[The parent has one child slot, so it cannot link both]
+
+Look for **another value** to put in D's place.  
+It must be larger than everything to D's left and smaller than everything to its right.
+
+- **Successor**: the smallest value in the right subtree
+  - right once, then all the way left
+  - the value right after D in inorder
+- **Predecessor**: the largest value in the left subtree
+  - the value right before D in inorder
+
+</Slide>
+
+<Slide>
+
+### Case 3: 2 children
+::sub[Delete D · copy the successor into D's place, then delete the original successor]
+
+<BstDeleteDemo del="D" slide />
+
+</Slide>
+
+<Slide>
+
+#### The successor has no left child
+::sub[So deleting the original successor always ends in case 1 or 2]
+
+- The successor is "the far left".
+  - If it had a left child, that child would be smaller and the successor instead.
+- Case 3 never comes up again when deleting the original successor.
+- The value exists twice right after the copy, but one is deleted at once.
+
+</Slide>
+
+<Slide>
+
+### Delete Q from the J tree
+::sub[R has no left child, so R itself is the successor; R's child Z moves up]
+
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" slide />
+
+</Slide>
+
+<Slide>
+
+### Delete the root J
+::sub[For the successor, go right once (Q), then all the way left (L, K)]
+
+<BstDeleteDemo keys="JBQLRKNZMP" del="J" slide />
+
+</Slide>
+
+<Slide>
+
+#### The predecessor works too (1)
+::sub[Delete D · the largest of the left subtree, C, moves up]
+
+<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} slide />
+
+</Slide>
+
+<Slide>
+
+#### The predecessor works too (2)
+::sub[Delete Q, largest of the left subtree: P]
+
+<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} slide />
+
+Different shapes, but both are BSTs with the same inorder. The code and demos use the successor.
+
+</Slide>
+
+<Slide>
+
+#### Deletion as recursion
+
+- **Problem size**: the number of nodes in the tree
+- **Base case**: the key to delete has been found
+  - Handle it with one of the three cases.
+- **General case**: pick the left or right subtree
+  - Delete in that subtree and link the returned root back.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Delete procedure
+::sub[Case 1 and case 2 (right child only) merge into one line]
+
+```plaintext
+ALGORITHM Delete(root, key)
+    if root = NULL then
+        return NULL                         // nothing to delete
+    if key < root.key then
+        root.left <- Delete(root.left, key)
+    else if key > root.key then
+        root.right <- Delete(root.right, key)
+    else                                    // root is the node to delete
+        if root.left = NULL then            // cases 1·2: no child, or only a right one
+            return root.right
+        if root.right = NULL then           // case 2: only a left child
+            return root.left
+        succ <- FindMin(root.right)         // case 3: the successor
+        root.key <- succ.key                // copy the successor's key here
+        root.right <- Delete(root.right, succ.key)   // and delete the original successor
+    return root
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### In code
+::sub[`02_delete/bstDelete.c` · a detached node is handed back with free]
+
+```c
+} else {
+    /* cases 1·2: zero children or one */
+    if (root->left == NULL) {
+        TreeNode *temp = root->right;   /* save the child to keep before free */
+        free(root);
+        return temp;
+    }
+    if (root->right == NULL) {
+        TreeNode *temp = root->left;
+        free(root);
+        return temp;
+    }
+    /* case 3: two children. Copy the successor, then delete the original. */
+    TreeNode *succ = findMin(root->right);
+    root->key = succ->key;
+    root->right = deleteNode(root->right, succ->key);
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: B A D C G F E
+::sub[tree writes the shape as key(left,right) · each deletion starts from the original tree]
+
+```console
+insert BADCGFE
+  tree    = B(A,D(C,G(F(E,-),-)))
+  inorder = A B C D E F G
+delete E: no child, just remove it
+  tree    = B(A,D(C,G(F,-)))
+  inorder = A B C D F G
+delete F: one child E, link it to the parent
+  tree    = B(A,D(C,G(E,-)))
+  inorder = A B C D E G
+delete D: two children, successor E takes its place
+  tree    = B(A,E(C,G(F,-)))
+  inorder = A B C E F G
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: the J tree
+::sub[In every case the inorder sequence loses only the deleted value]
+
+```console
+insert JBQLRKNZMP
+  tree    = J(B,Q(L(K,N(M,P)),R(-,Z)))
+  inorder = B J K L M N P Q R Z
+delete Q: two children, successor R takes its place
+  tree    = J(B,R(L(K,N(M,P)),Z))
+  inorder = B J K L M N P R Z
+delete J: two children, successor K takes its place
+  tree    = K(B,Q(L(-,N(M,P)),R(-,Z)))
+  inorder = B K L M N P Q R Z
+```
+
+<br/>
+
+Finding the node and then the successor is still one path. Deletion is $$O(h)$$ too.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 3. Traversal
+::sub[Traversal]
+
+</Slide>
+
+<Slide>
+
+#### Three traversals
+::sub[The only difference is when the current node is printed]
+
+| Traversal | Order | Result for the `D B F A C E G` tree |
+| --- | --- | --- |
+| inorder | [left] [current] [right] | `A B C D E F G` |
+| preorder | [current] [left] [right] | `D B A C F E G` |
+| postorder | [left] [right] [current] | `A C B E G F D` |
+
+<br/>
+
+An array is read from the front, but a tree forces a choice at every fork.
+
+</Slide>
+
+<Slide>
+
+### Step by step: traversal
+::sub[Switch tabs. The orange outline is the call stack; printed nodes get numbers]
+
+<TraversalDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### What the three traversals show
+
+- **Inorder**: print after the whole left side
+  - On a BST it is **always sorted**, whatever the insertion order.
+- **Preorder**: the root comes first
+  - A parent always comes before its children.
+- **Postorder**: the root comes last
+  - Children always come before their parent.
+
+</Slide>
+
+<Slide>
+
+#### Level order
+::sub[Level order · top level first, left to right within a level]
+
+- It uses a **queue** instead of recursion.
+  - Take the front, print it, add its children to the back.
+  - Repeat until the queue is empty.
+- The level order of the `D B F A C E G` tree is `D B F A C E G`.
+  - The same as the insertion order.
+- This is exactly **BFS**, which sweeps a graph outward in Topic 12.
+
+</Slide>
+
+<Slide>
+
+### With eleven nodes: P F B H G S R Y T W Z
+::sub[With more nodes the orders differ more clearly]
+
+<TraversalDemo keys="PFBHGSRYTWZ" order="pre" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Traversal procedures
+::sub[Preorder and postorder only move the one print line of inorder]
+
+```plaintext
+ALGORITHM Inorder(node)                 // inorder: [left] [current] [right]
+    if node != NULL then
+        Inorder(node.left)
+        print node.key
+        Inorder(node.right)
+
+ALGORITHM Preorder(node)                // preorder: [current] [left] [right]
+    if node != NULL then
+        print node.key
+        Preorder(node.left)
+        Preorder(node.right)
+
+ALGORITHM Postorder(node)               // postorder: [left] [right] [current]
+    if node != NULL then
+        Postorder(node.left)
+        Postorder(node.right)
+        print node.key
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: four traversals
+::sub[`03_traversal/traversal.c`]
+
+```console
+insert DBFACEG
+  tree       = D(B(A,C),F(E,G))
+  inorder    = A B C D E F G
+  preorder   = D B A C F E G
+  postorder  = A C B E G F D
+  levelorder = D B F A C E G
+
+insert PFBHGSRYTWZ
+  tree       = P(F(B,H(G,-)),S(R,Y(T(-,W),Z)))
+  inorder    = B F G H P R S T W Y Z
+  preorder   = P F B H G S R Y T W Z
+  postorder  = B G H F R W T Z Y S P
+  levelorder = P F S B H R Y G T Z W
+```
+
+</Slide>
+
+<Slide>
+
+#### The cost of a traversal
+
+- **Time**: all four print each node exactly once.
+  - $$O(n)$$
+- **Extra space**
+  - Recursion stacks the path from the root to the current node. $$O(h)$$
+  - Level order can hold a whole level in the queue. Up to $$O(n)$$
+
+</Slide>
+
+<Slide class="center">
+
+## Example 4. Print, Free, Copy
+::sub[Print, Free, Copy]
+
+</Slide>
+
+<Slide>
+
+#### Which traversal to use
+::sub[Decided by whether the parent or the children must be handled first]
+
+| Task | Traversal | Why |
+| --- | --- | --- |
+| print in sorted order | inorder | a BST's inorder is ascending |
+| print the shape | preorder | the parent is written before indenting its children |
+| free | postorder | freeing the parent first loses the child addresses |
+| copy | preorder | the parent must exist before children hang on it |
+
+</Slide>
+
+<Slide class="compact">
+
+#### Printing the shape is preorder
+::sub[Easy to mistake for inorder, but the function prints the node before its children]
+
+<div class="aas-split">
+<div>
+
+```console
+P
+├── F
+│   ├── B
+│   └── H
+│       ├── G
+│       └── -
+└── S
+    ├── R
+    └── Y
+        ├── T
+        │   ├── -
+        │   └── W
+        └── Z
+```
+
+</div>
+<div>
+
+- Write the node, then indent its children below it.
+- The upper child is the left one, the lower the right.
+- An empty child with a sibling is `-`
+- A different job from sorted printing (inorder).
+
+</div>
+</div>
+
+</Slide>
+
+<Slide>
+
+### Freeing is postorder
+::sub[Step to the end: the output row is the free order. Leaves first, the root P last]
+
+<TraversalDemo keys="PFBHGSRYTWZ" order="post" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Free: postorder
+::sub[`04_print_free_copy/treeOps.c` · free every child, then the node itself]
+
+```c
+TreeNode *clearTree(TreeNode *root) {
+    if (root != NULL) {
+        clearTree(root->left);
+        clearTree(root->right);
+        free(root);              /* safe: every child is already freed */
+    }
+    return NULL;                 /* use as root = clearTree(root); */
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Copy: preorder
+::sub[The node must be made first so the copied children can hang on it]
+
+```c
+TreeNode *copyTree(TreeNode *root) {
+    if (root == NULL) {
+        return NULL;
+    }
+    TreeNode *copy = createNode(root->key);
+    copy->left = copyTree(root->left);
+    copy->right = copyTree(root->right);
+    return copy;
+}
+```
+
+</Slide>
+
+<Slide>
+
+#### Save and rebuild
+::sub[Write it to a file, then read it back and insert again on the next run]
+
+- **Written in inorder**
+  - The sorted order is saved.
+  - Re-inserting grows a one-sided tree. The original structure is lost.
+- **Written in preorder**
+  - A parent always comes before its children.
+  - Re-inserting puts every key back in place: **the same tree**.
+
+</Slide>
+
+<Slide>
+
+### Re-inserting in inorder
+::sub[B F G H P R S T W Y Z · height 11, equal to the node count]
+
+<BstDemo keys={['B', 'F', 'G', 'H', 'P', 'R', 'S', 'T', 'W', 'Y', 'Z']} slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run: copy, free, rebuild
+
+```console
+sorted (inorder)  : B F G H P R S T W Y Z
+copy   (preorder) : P F B H G S R Y T W Z
+copy is same      : yes
+free   (postorder): B G H F R W T Z Y S P
+copy after free   : NULL
+
+rebuild from preorder: height 5, same shape: yes
+rebuild from inorder : height 11, same shape: no
+```
+
+<br/>
+
+Saved in preorder it returns as the same tree of height 5; saved in inorder, at height 11.
+
+</Slide>
+
+<Slide>
+
+#### BSTs and linked lists
+::sub[Strictly, search, insertion and deletion are all O(h)]
+
+| Operation | BST (balanced) | BST (worst) | Sorted linked list |
+| --- | --- | --- | --- |
+| constructor | $$O(1)$$ | $$O(1)$$ | $$O(1)$$ |
+| destructor | $$O(n)$$ | $$O(n)$$ | $$O(n)$$ |
+| empty?·full? | $$O(1)$$ | $$O(1)$$ | $$O(1)$$ |
+| search | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
+| insert | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
+| delete | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
+
+<br/>
+
+$$O(\log n)$$ hides the assumption $$h = O(\log n)$$. Once it breaks, a BST is just a linked list.
+
+</Slide>
+
+<Slide>
+
+#### Side by side with a sorted array
+::sub[Binary search from Topic 01]
+
+- **Sorted array**
+  - Search is $$O(\log n)$$ with binary search
+  - Inserting and deleting shift elements: $$O(n)$$
+- **Balanced BST**
+  - Search, insertion and deletion all $$O(\log n)$$
+  - Because inserting and deleting only change links.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Change the shapes, and guess shapes from traversal results]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-07-bst/`  
+Open a file and press the **▶ button** at the top right of the editor.
+
+1. **Change `keys` in 01 to descending order.**
+   - Predict the height and the comparison count first.
+2. **Change case 3 in 02 to the predecessor.**
+   - Deleting D should bring up C, and deleting Q should bring up P.
+3. **Feed postorder and level order to `rebuild` in 04.**
+   - Which one gives back the original tree, and why?
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **BST: the whole left subtree is smaller, the whole right larger.**
+   - A rule that compares with one child only is not enough.
+2. **Search: smaller goes left, larger goes right.**
+   - Insertion hangs the node where the search failed. Both $$O(h)$$
+3. **The insertion order decides the shape.**
+   - Sorted order makes a linked list: $$O(n)$$.
+4. **Delete by detaching, linking or replacing with the successor.**
+   - The successor has no left child, so it ends in case 1 or 2.
+5. **Traversals differ only in when they print.**
+   - Sorting: inorder; freeing: postorder; copying and saving: preorder; level order: a queue
+
+</Slide>
