@@ -1,30 +1,865 @@
 ---
 title: "主题 07. 二叉搜索树"
-description: "从二叉树术语到 BST 的插入、删除与遍历"
+description: "二叉树的术语与高度；左小右大的二叉搜索树的查找、插入与删除；再用四种遍历来输出、释放、复制一棵树"
 date: 2026-08-25
 category: data-structures
 order: "9093"
 level: 3
 hours: "3:00"
+slides: ["topic-07-bst"]
 ---
 
-> 材料准备中，会在讲授该主题之前补齐本页。
+import TreeFigure from '@components/TreeFigure.astro';
+import BstDemo from '@components/BstDemo.astro';
+import BstDeleteDemo from '@components/BstDeleteDemo.astro';
+import TraversalDemo from '@components/TraversalDemo.astro';
 
-## 涵盖内容
+> 主题 01 的二分查找在有序数组里和中间元素比较，丢掉一半。
+> 它很快，但要往数组里插入一个值，就得把后面的元素全部挪开。  
+> 主题 06 在构造霍夫曼编码时第一次遇到了二叉树。  
+> 本主题把这两者合在一起。
+> **像二分查找那样每次丢掉一半来查找，靠改链接来插入和删除。**  
+> 这种结构就是二叉搜索树，我们还会看到它的性能完全取决于树的高度。
 
-- 二叉树的术语：根、父、子、高度
-- 二叉搜索树的性质与查找
-- 用链式结构表示树
-- 插入与删除，以及删除有两个子节点的结点
-- 遍历：前序、中序、后序
-- 树的打印、释放与复制
+## 二叉树 \{#binary-tree}
 
-## 实验代码
+树是由节点和连接节点的链接组成的结构。其中二叉树具备两条性质。
 
-位于 `algorithm-code` 仓库的 `src/topic-07-bst/` 文件夹。
-每个示例都由一份伪代码与 C、Python 两种实现组成。
+- **性质 1**：从根到其他每个节点的路径**恰好只有一条**（unique）。
+  如果两个节点同时指向同一个子节点，或者链接绕回上方，就不是树。
+- **性质 2**：每个节点**最多有两个**子节点，即左子节点和右子节点。
+
+<TreeFigure tree={{ l: { l: { v: "A", filled: true }, r: { v: "B", filled: true } }, r: { l: { v: "C", filled: true }, r: { v: "D", filled: true } } }} />
+
+### 术语 \{#terms}
+
+| 术语 | 含义 |
+| --- | --- |
+| 节点（node） | 存放值的一个圆 |
+| 链接（link） | 连接节点的线，也叫边（edge） |
+| 根（root） | 最上面的节点，唯一没有父节点的节点 |
+| 父·子（parent·child） | 由链接直接相连的上·下节点 |
+| 叶子（leaf） | 没有子节点的节点 |
+| 子树（subtree） | 一个节点及其下方的全部，本身也是一棵树 |
+| 层（level） | 从根往下走了几条链接，根在第 0 层 |
+| 高度（height） | 层的个数，只有根时为 1 |
+| full tree | 非叶节点都有两个子节点，且所有叶子都在同一层的树 |
+
+上图是 full tree。A、B、C、D 是叶子，都在第 2 层。去掉 D 就不再是
+full tree。
+
+本课程把高度算作**层的个数**。也有教材按从根到最深叶子的**链接数**来算，
+那样会比我们的值小 1。和其他资料对照时只要对齐这一点即可。
+
+### 高度与节点数 \{#height}
+
+第 $$l$$ 层最多有 $$2^l$$ 个节点：第 0 层 1 个，第 1 层 2 个，第 2 层 4 个。
+高度为 $$h$$ 的 full tree 每一层都是满的，所以节点数 $$N$$ 为：
+
+$$
+N = 2^0 + 2^1 + \cdots + 2^{h-1} = 2^h - 1
+$$
+
+反过来解，高度就是节点数的对数。
+
+$$
+2^h = N + 1 \quad\Rightarrow\quad h = \log_2(N + 1) = O(\log N)
+$$
+
+那么最高的树长什么样？如果每个节点只有一个子节点，树会排成一条线，高度
+变成 $$N$$。形状和链表一样。
+
+<TreeFigure tree={{ v: "A", r: { v: "B", l: { v: "C", r: { v: "D" } } } }} />
+
+| 节点数 $$N$$ | 最低高度 | 最高高度 |
+| --- | --- | --- |
+| 7 | 3 | 7 |
+| 1,023 | 10 | 1,023 |
+| 约 100 万 | 20 | 约 100 万 |
+
+同样的节点数，高度可以从 $$\log_2 N$$ 一直到 $$N$$。本主题的所有操作最终都
+与这个高度成正比，记住这张表就好。
+
+### 在二叉树里查找 \{#binary-tree-search}
+
+仅仅是二叉树，并不能让查找变快。假设要在下面这棵树里找 11。
+
+<TreeFigure tree={{ v: "2", l: { v: "7", l: { v: "2" }, r: { v: "6", l: { v: "5" }, r: { v: "11" } } }, r: { v: "5", r: { v: "9", l: { v: "4" } } } }} />
+
+值随便放，只能从根开始逐层扫描，直到找到目标或碰到叶子。最坏要看遍所有
+节点，是比链表好不到哪里去的 $$O(N)$$。要变快，就需要一条规则告诉我们
+**哪里可以不看**。
+
+## 二叉搜索树 \{#bst}
+
+### 定义 \{#bst-definition}
+
+[[bst|二叉搜索树]] （binary search tree，BST）是每个节点都遵守下面规则的
+二叉树。
+
+- **左子树中的所有键**都小于该节点的键。
+- **右子树中的所有键**都大于该节点的键。
+- 左右子树也各自是二叉搜索树。
+
+假定键互不相同。再次插入相同的值时什么也不做。
+
+只说"比左**子节点**大、比右**子节点**小"是不够的。旧版资料就是这样写的，
+但下面这棵树里每一对父子都满足这条规则，却不是 BST。
+
+<TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "7", tone: "focus" } }, r: { v: "8" } }} caption="3 < 7，子节点规则成立，但 7 在 5 的左子树里" />
+
+7 比 5 大，却在 5 的左子树里。找 7 时会在 5 处往右（8）走，永远找不到。
+规则必须作用于**整棵子树**，而不是一个子节点。出于同样的原因，上一节的
+2·7·5 那棵树也不是 BST。
+
+下面是一棵遵守规则的树。依次插入键 `7 4 14 1 6 16 2 5 15` 就得到这个形状。
+
+<TreeFigure tree={{ v: "7", l: { v: "4", l: { v: "1", tone: "eval", r: { v: "2" } }, r: { v: "6", l: { v: "5" } } }, r: { v: "14", r: { v: "16", tone: "focus", l: { v: "15" } } } }} caption="绿：最小值 · 橙：最大值" />
+
+- **最小值**在一路往左走到底的地方（1）。
+- **最大值**在一路往右走到底的地方（16）。
+- 从左往右读是 `1 2 4 5 6 7 14 15 16`，正好有序。
+
+### 查找 \{#bst-search}
+
+有了规则，每比较一次就能整块丢掉一边。来找 6。橙色圆是要找的值，它站在
+比较过的节点旁边、下一步要去的那一侧。
+
+<BstDemo keys={[7, 4, 14, 1, 6, 16, 2, 5, 15]} find={6} />
+
+和 7 比较，较小，所以右子树 `14 15 16` 不必看。和 4 比较，较大，`1 2`
+也丢掉。比较 3 次就找到了。不存在的值也能很快知道。找 13 时，14 的左边
+是空的，所以比较 2 次就能回答"没有"。
+
+<BstDemo keys={[7, 4, 14, 1, 6, 16, 2, 5, 15]} find={13} />
+
+虚线圆就是 13 应当插入的位置。请记住，**查找失败的位置就是插入的位置**。
+示例 1 会直接用到它。
+
+这和主题 01 的[[binary-search|二分查找]]是同一个思路。二分查找每次和中间值
+比较，丢掉一半。二叉搜索树则事先把那个"中间"立在根上，每棵子树也立好
+各自那一部分的基准值。不同之处在于它不是数组而是用链接串起来的，所以
+插入和删除很容易。
+
+```plaintext
+ALGORITHM Search(root, key)
+    node <- root
+    while node != NULL do
+        if key = node.key then
+            return node                 // 找到了
+        if key < node.key then
+            node <- node.left           // 小于就只看左子树
+        else
+            node <- node.right          // 大于就只看右子树
+    return NULL                         // 碰到空位：没有
+```
+
+只沿着从根到叶子的一条路往下走，所以比较次数最多是高度 $$h$$。
+查找是 $$O(h)$$。
+
+### 同样的键，不同的形状 \{#shapes}
+
+BST 的形状不是唯一的。下面两棵树都由 `A C E H M R S X` 这八个键构成，
+都遵守 BST 规则。
+
+<TreeFigure tree={{ v: "S", l: { v: "E", l: { v: "A", r: { v: "C" } }, r: { v: "R", l: { v: "H", r: { v: "M" } } } }, r: { v: "X" } }} />
+
+<TreeFigure tree={{ v: "E", l: { v: "C", l: { v: "A" } }, r: { v: "R", l: { v: "H", r: { v: "M" } }, r: { v: "X", l: { v: "S" } } } }} />
+
+形状不同，查找代价也不同。在把同样的键极端地挤到一边的树里找 E。
+
+<BstDemo keys={['S', 'R', 'X', 'M', 'H', 'E', 'C', 'A']} find="E" />
+
+比较 5 次。这也是 BST，但每次比较只丢掉一个节点。把同样的键放得均衡一些，
+结果如下。
+
+<BstDemo keys={['H', 'C', 'R', 'A', 'E', 'M', 'S', 'X']} find="E" />
+
+比较 3 次。理想情况下，每比较一次查找范围就缩小一半。
+
+### 用链接表示 \{#structure}
+
+链表的节点存一个值和下一个节点的地址。二叉搜索树的节点存两个地址。
+
+```plaintext
+链表节点               [ 值 | 下一个地址 ]
+
+树节点             [ 左地址 | 值 | 右地址 ]
+                       |            |
+                       v            v
+          [ 左 | 值 | 右 ]      [ 左 | 值 | 右 ]
+```
+
+用 C 写出来就是一个结构体和一个创建节点的函数。新节点没有子节点，所以两个
+地址都设为 `NULL`。
+
+```c
+typedef struct TreeNode {
+    int key;
+    struct TreeNode *left;   /* 左子节点的地址 */
+    struct TreeNode *right;  /* 右子节点的地址 */
+} TreeNode;
+
+TreeNode *createNode(int key) {
+    TreeNode *node = (TreeNode *)malloc(sizeof(TreeNode));
+    node->key = key;
+    node->left = NULL;
+    node->right = NULL;
+    return node;
+}
+```
+
+## 示例 1. 查找与插入 \{#insert}
+
+插入就是**失败的查找 + 挂在那个位置上**。像查找要插入的值那样往下走，
+碰到空的子节点位置就把新节点挂上去。按旧版资料的顺序
+`5 9 7 3 8 12 6 4 20` 插入。上面一行是插入顺序，橙色圆是正在插入的值。
+
+<BstDemo />
+
+看插入 8 的那一幕。比 5 大往右，比 9 小往左，比 7 大往右，而 7 的右边是
+空的，8 就落在那里。已有的节点一个都不动，不必像往数组里插入那样把后面的
+元素挪开。
+
+演示里的节点从一开始就出现在自己的位置上，因为横向位置就是**排序后的
+名次**。把所有节点放到底部排成一行，就是从左到右有序的
+`3 4 5 6 7 8 9 12 20`。BST 规则说的正是这个性质。
+
+```plaintext
+ALGORITHM Insert(root, key)
+    if root = NULL then
+        return 新节点(key)               // 正是查找失败的那个位置
+    if key < root.key then
+        root.left <- Insert(root.left, key)
+    else if key > root.key then
+        root.right <- Insert(root.right, key)
+    // 相等时什么也不做（键只插入一次）
+    return root
+```
+
+用递归写很短。每次调用都遵守"把 key 插进这棵子树并返回它的根"这一约定。
+插进空子树时，新节点就成为那棵子树的根，父节点把返回的地址重新写进
+`left` 或 `right`。
+
+- C 实现
+
+```c
+TreeNode *insert(TreeNode *root, int key) {
+    if (root == NULL) {
+        return createNode(key);
+    }
+    if (key < root->key) {
+        root->left = insert(root->left, key);
+    } else if (key > root->key) {
+        root->right = insert(root->right, key);
+    }
+    return root;
+}
+```
+
+调用方总是用返回的根替换原来的根。因为第一次往空树插入时，根会从 `NULL`
+变成新节点。
+
+```c
+TreeNode *root = NULL;
+root = insert(root, 5);
+root = insert(root, 9);
+```
+
+- 运行
+
+```sh
+cd src/topic-07-bst/01_search_insert
+make -f /work/Makefile bstSearchInsert.out && ./bstSearchInsert.out
+```
+
+- 结果
+
+```console
+insert 5 9 7 3 8 12 6 4 20
+  insert  5: root
+  insert  9: 5 -> right of 5
+  insert  7: 5 9 -> left of 9
+  insert  3: 5 -> left of 5
+  insert  8: 5 9 7 -> right of 7
+  insert 12: 5 9 -> right of 9
+  insert  6: 5 9 7 -> left of 7
+  insert  4: 5 3 -> right of 3
+  insert 20: 5 9 12 -> right of 12
+inorder = 3 4 5 6 7 8 9 12 20
+height = 4, comparisons = 17
+
+tree 7 4 14 1 6 16 2 5 15
+  search 6: 7 4 6 -> found (3 comparisons)
+  search 13: 7 14 -> not found (2 comparisons)
+  min = 1, max = 16
+
+same keys, two shapes
+  tree S R X M H E C A: height 7
+    search E: S R M H E -> found (5 comparisons)
+  tree H C R A E M S X: height 4
+    search E: H C E -> found (3 comparisons)
+
+insert order -> shape
+  D B F A C E G: height 3, comparisons 10
+  B A D C G F E: height 5, comparisons 13
+  A B C D E F G: height 7, comparisons 21
+```
+
+`insert 8` 的 `5 9 7` 就是查找 8 失败时走过的路，和演示一致。插入九个值
+总共比较了 17 次。第三组是上一节的两棵树。同样的八个键，可以排成高度 7，
+也可以排成高度 4。
+
+### 插入顺序决定形状 \{#insert-order}
+
+最后一组是本主题最重要的结果。同样的键 A 到 G，按三种顺序插入。
+
+- `D B F A C E G`
+
+<TreeFigure tree={{ v: "D", l: { v: "B", l: { v: "A" }, r: { v: "C" } }, r: { v: "F", l: { v: "E" }, r: { v: "G" } } }} />
+
+- `B A D C G F E`
+
+<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "D", l: { v: "C" }, r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} />
+
+- `A B C D E F G`
+
+<TreeFigure tree={{ v: "A", r: { v: "B", r: { v: "C", r: { v: "D", r: { v: "E", r: { v: "F", r: { v: "G" } } } } } } }} />
+
+按有序顺序插入时，新值总比目前的最大值大，所以每次都挂在最右端。亲手插入
+一遍，就会看到树只往一边长。
+
+<BstDemo keys={['A', 'B', 'C', 'D', 'E', 'F', 'G']} />
+
+| 插入顺序 | 高度 | 插入所用比较 |
+| --- | --- | --- |
+| `D B F A C E G` | 3 | 10 |
+| `B A D C G F E` | 5 | 13 |
+| `A B C D E F G` | 7 | 21 |
+
+- 偏向一边的树**和链表一样**，查找退回到 $$O(n)$$。
+- 插入 $$n$$ 个有序的键，比较次数是 $$0 + 1 + \cdots + (n-1) = \dfrac{n(n-1)}{2}$$，
+  光建树就要 $$O(n^2)$$。7 个键就是 21 次。
+- 不平衡的树会让查找时间变长，所以并不可取。**红黑树**、AVL 树这样的
+  平衡树（balanced tree）在每次插入删除时调整形状，把高度始终限制在
+  $$O(\log n)$$。这超出本课程范围，但实际库中的有序映射（C++ `std::map`、
+  Java `TreeMap`）用的就是它。
+
+数据本来就按顺序到来的情况并不少见，比如按日期排列的日志、按编号排列的
+学号。所以不考虑平衡的 BST 在实际中可能很危险。
+
+## 示例 2. 删除 \{#delete}
+
+删除分两步：先**找到**要删的值，再**删掉**那个节点。条件只有一个：删除后
+**左小右大**这一 BST 性质必须得到保持。根据要删节点的子节点个数分为三种
+情形。
+
+| 情形 | 要删的节点 | 做法 |
+| --- | --- | --- |
+| 1 | 0 个子节点（叶子） | 直接摘掉 |
+| 2 | 1 个子节点 | 把那个子节点直接接到父节点上 |
+| 3 | 2 个子节点 | 把后继复制到这个位置，再删掉原来的后继 |
+
+用和旧版资料相同的树来做，即插入 `B A D C G F E` 得到的树。三个演示都从
+这棵树重新开始。
+
+### 情形 1：0 个子节点 \{#delete-leaf}
+
+E 是叶子。摘掉它，其他节点之间的位置关系不变。
+
+<BstDeleteDemo del="E" />
+
+### 情形 2：1 个子节点 \{#delete-one}
+
+F 只有一个左子节点 E。删掉 F，把 E 直接接到 F 的父节点 G 上。E 本来就在
+G 的左子树里，所以比 G 小，放在 G 的左边仍然正确。即使子节点下面还挂着
+子树，整块提上来就行。
+
+<BstDeleteDemo del="F" />
+
+### 情形 3：2 个子节点 \{#delete-two}
+
+D 有 C 和 G 两个子节点。D 的父节点 B 只有一个子节点位置，接不下两个。
+所以不删 D 这个节点，而是去找**能放进 D 位置的另一个值**。这个值必须比
+D 左边所有的值都大、比右边所有的值都小。候选有两个。
+
+- **后继**（successor）：右子树中最小的值。往右走一次，再一路往左走到底
+  就能找到。按中序它紧跟在 D 后面。
+- **前驱**（predecessor）：左子树中最大的值。按中序它紧挨在 D 前面。
+
+实践代码用后继。
+
+<BstDeleteDemo del="D" />
+
+把后继 E 复制到 D 的位置后，E 会暂时出现在两个地方。接着删掉原来的 E 即可。
+后继是"最左端"，所以**没有左子节点**。因此删除原来的后继总是以情形 1 或
+情形 2 结束，不会再出现情形 3。
+
+在旧版资料的第二棵树（J、B、Q、L、R、K、N、Z、M、P）里删除 Q。Q 的右子节点
+R 没有左子节点，所以 R 自己就是后继。复制 R 再删掉原来的 R，R 的右子节点
+Z 就会上移。
+
+<BstDeleteDemo keys="JBQLRKNZMP" del="Q" />
+
+删除根也是同样的步骤。为了找 J 的后继，先往右走一次（Q），再往左走到底
+（L、K）。
+
+<BstDeleteDemo keys="JBQLRKNZMP" del="J" />
+
+### 用前驱也可以 \{#predecessor}
+
+旧版资料的图用的是前驱。删 D 时由左子树中最大的 C 顶替，删 Q 时由 P 顶替。
+
+- 删除 D，用前驱 C
+
+<TreeFigure tree={{ v: "B", l: { v: "A" }, r: { v: "C", tone: "eval", r: { v: "G", l: { v: "F", l: { v: "E" } } } } }} />
+
+- 删除 Q，用前驱 P
+
+<TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} />
+
+形状和用后继的结果不同，但两者都是 BST，中序也一样。用哪一个都是正确的
+删除。旧版资料的代码用的是后继，本课程的实践代码和演示也统一用后继。
+
+### 步骤与代码 \{#delete-code}
+
+删除也用递归来想会很清楚。
+
+- **问题规模**：树的节点数
+- **基本情形**：找到了要删的键。按三种情形之一处理。
+- **一般情形**：选左子树或右子树，在其中删除。
+
+```plaintext
+ALGORITHM Delete(root, key)
+    if root = NULL then
+        return NULL                         // 没有要删的值
+    if key < root.key then
+        root.left <- Delete(root.left, key)
+    else if key > root.key then
+        root.right <- Delete(root.right, key)
+    else                                    // root 就是要删的节点
+        if root.left = NULL then            // 情形 1·2：没有子节点或只有右子节点
+            return root.right
+        if root.right = NULL then           // 情形 2：只有左子节点
+            return root.left
+        succ <- FindMin(root.right)         // 情形 3：后继
+        root.key <- succ.key                // 把后继的键复制到这里
+        root.right <- Delete(root.right, succ.key)   // 再删掉原来的后继
+    return root
+```
+
+注意情形 1 和情形 2（只有右子节点）合成了一行。左边为空就返回右边，而如果
+一个子节点都没有，右边也是 `NULL`，这就恰好等于"摘掉"。
+
+- C 实现
+
+```c
+TreeNode *findMin(TreeNode *node) {
+    while (node->left != NULL) {
+        node = node->left;
+    }
+    return node;
+}
+
+TreeNode *deleteNode(TreeNode *root, char key) {
+    if (root == NULL) {
+        return NULL;
+    }
+    if (key < root->key) {
+        root->left = deleteNode(root->left, key);
+    } else if (key > root->key) {
+        root->right = deleteNode(root->right, key);
+    } else {
+        /* 情形 1·2：没有子节点或只有一个 */
+        if (root->left == NULL) {
+            TreeNode *temp = root->right;
+            free(root);
+            return temp;
+        }
+        if (root->right == NULL) {
+            TreeNode *temp = root->left;
+            free(root);
+            return temp;
+        }
+        /* 情形 3：有两个子节点。复制后继，再删掉原来的后继。 */
+        TreeNode *succ = findMin(root->right);
+        root->key = succ->key;
+        root->right = deleteNode(root->right, succ->key);
+    }
+    return root;
+}
+```
+
+在 C 里要用 `free` 归还摘下来的节点的内存。在此之前必须先把要保留的子节点
+地址存进 `temp`。`free` 之后就不能再读 `root->right` 了。
+
+- 运行
+
+```sh
+cd src/topic-07-bst/02_delete
+make -f /work/Makefile bstDelete.out && ./bstDelete.out
+```
+
+- 结果
+
+```console
+insert BADCGFE
+  tree    = B(A,D(C,G(F(E,-),-)))
+  inorder = A B C D E F G
+delete E: no child, just remove it
+  tree    = B(A,D(C,G(F,-)))
+  inorder = A B C D F G
+delete F: one child E, link it to the parent
+  tree    = B(A,D(C,G(E,-)))
+  inorder = A B C D E G
+delete D: two children, successor E takes its place
+  tree    = B(A,E(C,G(F,-)))
+  inorder = A B C E F G
+
+insert JBQLRKNZMP
+  tree    = J(B,Q(L(K,N(M,P)),R(-,Z)))
+  inorder = B J K L M N P Q R Z
+delete Q: two children, successor R takes its place
+  tree    = J(B,R(L(K,N(M,P)),Z))
+  inorder = B J K L M N P R Z
+delete J: two children, successor K takes its place
+  tree    = K(B,Q(L(-,N(M,P)),R(-,Z)))
+  inorder = B K L M N P Q R Z
+```
+
+`tree` 是把形状写成一行的结果，格式为 `键(左,右)`，空子节点写作 `-`。
+无论哪种情形，中序都**只少了被删的那个值**，仍然有序。这说明 BST 的性质
+得到了保持。
+
+代价是向下找到要删的节点，若是情形 3 再往下找后继。两段加起来也只是从根到
+叶子的一条路，所以是 $$O(h)$$。
+
+## 示例 3. 遍历 \{#traversal}
+
+把树的所有节点各访问一次叫做遍历（traversal）。数组从头读就行，但树在每个
+岔路口都要决定先看哪边。用递归写的遍历有三种，区别只有一个：**何时输出
+当前节点**。
+
+| 遍历 | 顺序 | `D B F A C E G` 这棵树的结果 |
+| --- | --- | --- |
+| 中序（inorder） | [左] [当前] [右] | `A B C D E F G` |
+| 前序（preorder） | [当前] [左] [右] | `D B A C F E G` |
+| 后序（postorder） | [左] [右] [当前] | `A C B E G F D` |
+
+切换标签，一步一步看。橙色是当前节点，橙色边框是尚未结束的调用（调用栈），
+输出过的节点会标上它是第几个输出的。
+
+<TraversalDemo />
+
+- **中序**在每个节点处先看完左边再输出，所以在 BST 上**总是得到有序序列**，
+  与插入顺序无关。
+- **前序**中根排在最前面。父节点总是先于子节点。
+- **后序**中根排在最后面。子节点总是先于父节点。
+
+除了这三种，还有**层序**（level order）：从根开始逐层读，同一层从左往右。
+它不用递归而用队列（queue）：取出一个节点输出，再把它的子节点放到队尾，
+重复到队列为空。主题 12 里从近到远遍历图的 [[bfs|BFS]] 正是这个方法。
+
+再用旧版资料总结时用的那棵树跑一遍。它有十一个节点，顺序的差别更明显。
+
+<TraversalDemo keys="PFBHGSRYTWZ" order="pre" />
+
+```plaintext
+ALGORITHM Inorder(node)                 // 中序：[左] [当前] [右]
+    if node != NULL then
+        Inorder(node.left)
+        输出 node.key
+        Inorder(node.right)
+
+ALGORITHM Preorder(node)                // 前序：[当前] [左] [右]
+    if node != NULL then
+        输出 node.key
+        Preorder(node.left)
+        Preorder(node.right)
+
+ALGORITHM Postorder(node)               // 后序：[左] [右] [当前]
+    if node != NULL then
+        Postorder(node.left)
+        Postorder(node.right)
+        输出 node.key
+
+ALGORITHM LevelOrder(root)              // 层序：从上层到下层，同一层从左到右
+    queue <- [root]
+    while queue 不为空 do
+        node <- 从 queue 队首取出
+        输出 node.key
+        if node.left != NULL then 把 node.left 放到 queue 队尾
+        if node.right != NULL then 把 node.right 放到 queue 队尾
+```
+
+- C 实现（中序与层序）
+
+```c
+void inorderTraversal(TreeNode *root) {
+    if (root != NULL) {
+        inorderTraversal(root->left);
+        printf(" %c", root->key);
+        inorderTraversal(root->right);
+    }
+}
+
+void levelorderTraversal(TreeNode *root) {
+    TreeNode *queue[MAX_NODES];
+    int head = 0;
+    int tail = 0;
+    if (root != NULL) {
+        queue[tail++] = root;
+    }
+    while (head < tail) {
+        TreeNode *node = queue[head++];
+        printf(" %c", node->key);
+        if (node->left != NULL) {
+            queue[tail++] = node->left;
+        }
+        if (node->right != NULL) {
+            queue[tail++] = node->right;
+        }
+    }
+}
+```
+
+前序和后序只是把中序函数里那一行 `printf` 换了个位置。
+
+- 运行
+
+```sh
+cd src/topic-07-bst/03_traversal
+make -f /work/Makefile traversal.out && ./traversal.out
+```
+
+- 结果
+
+```console
+insert DBFACEG
+  tree       = D(B(A,C),F(E,G))
+  inorder    = A B C D E F G
+  preorder   = D B A C F E G
+  postorder  = A C B E G F D
+  levelorder = D B F A C E G
+
+insert PFBHGSRYTWZ
+  tree       = P(F(B,H(G,-)),S(R,Y(T(-,W),Z)))
+  inorder    = B F G H P R S T W Y Z
+  preorder   = P F B H G S R Y T W Z
+  postorder  = B G H F R W T Z Y S P
+  levelorder = P F S B H R Y G T Z W
+```
+
+四种遍历都对每个节点恰好输出一次，所以是 $$O(n)$$。额外空间不同：递归遍历
+在调用栈里堆着从根到当前节点的路径，是 $$O(h)$$；层序的队列里可能整整放下
+一层，最多 $$O(n)$$。
+
+## 示例 4. 输出·释放·复制 \{#print-free-copy}
+
+处理整棵树的工作都只需要一次遍历。用哪种遍历，取决于**父节点和子节点该先
+处理谁**。
+
+| 要做的事 | 遍历 | 理由 |
+| --- | --- | --- |
+| 按有序顺序输出 | 中序 | BST 的中序是升序 |
+| 按形状输出 | 前序 | 先写出父节点，才能在它下面缩进写子节点 |
+| 释放（free） | 后序 | 先删父节点就会丢失通往子节点的地址 |
+| 复制 | 前序 | 先有父节点才能挂上子节点 |
+
+### 输出 \{#print}
+
+有序输出就是前面看过的中序遍历。要用字符画出树的**形状**，就先写节点，再在
+它下面逐级缩进写子节点。先处理当前节点，所以是前序。旧版资料把这个函数介绍
+为"使用中序遍历"，但看代码，它先打印节点再往子节点走，是前序。有序输出
+（中序）和形状输出（前序）是两回事。
+
+```c
+void printTree(TreeNode *root, const char *prefix, int isLast) {
+    printf("%s%s", prefix, isLast ? "└── " : "├── ");
+    if (root == NULL) {
+        printf("-\n");
+        return;
+    }
+    printf("%c\n", root->key);                       /* 先处理当前 */
+
+    if (root->left != NULL || root->right != NULL) {
+        char next[256];
+        snprintf(next, sizeof(next), "%s%s", prefix, isLast ? "    " : "│   ");
+        printTree(root->left, next, 0);              /* 然后是左边 */
+        printTree(root->right, next, 1);             /* 然后是右边 */
+    }
+}
+```
+
+### 释放 \{#free}
+
+在 C 里用 `malloc` 创建的节点，用完要用 `free` 归还。先 `free` 父节点，
+就再也读不到写在里面的子节点地址，所以先删子节点的**后序**才对。把下面的
+演示翻到最后，输出行就是释放顺序：从叶子开始，根 P 最后。
+
+<TraversalDemo keys="PFBHGSRYTWZ" order="post" />
+
+```c
+TreeNode *clearTree(TreeNode *root) {
+    if (root != NULL) {
+        clearTree(root->left);
+        clearTree(root->right);
+        free(root);              /* 子节点都已释放，所以安全 */
+    }
+    return NULL;
+}
+```
+
+返回 `NULL` 是为了写成 `root = clearTree(root);`，不留下已释放的地址。
+
+### 复制 \{#copy}
+
+复制正好相反。要有新的父节点才能把复制好的子节点挂上去，所以是**前序**。
+
+```c
+TreeNode *copyTree(TreeNode *root) {
+    if (root == NULL) {
+        return NULL;
+    }
+    TreeNode *copy = createNode(root->key);   /* 先处理当前 */
+    copy->left = copyTree(root->left);
+    copy->right = copyTree(root->right);
+    return copy;
+}
+```
+
+### 保存后重建 \{#rebuild}
+
+假设把树写进文件，下次运行程序时读出来重新插入。应该用哪种遍历写？
+
+- **用中序写**，保存的是有序序列。按这个顺序重新插入，就会像前面看到的那样
+  长成一棵只往一边长的树，原来的结构消失了。
+- **用前序写**，父节点总是先于子节点出现。按这个顺序插入，每个键都会精确地
+  回到原位，得到**同一棵树**。
+
+把中序序列 `B F G H P R S T W Y Z` 重新插入，结果如下。
+
+<BstDemo keys={['B', 'F', 'G', 'H', 'P', 'R', 'S', 'T', 'W', 'Y', 'Z']} />
+
+- 运行
+
+```sh
+cd src/topic-07-bst/04_print_free_copy
+make -f /work/Makefile treeOps.out && ./treeOps.out
+```
+
+- 结果
+
+```console
+insert PFBHGSRYTWZ
+
+P
+├── F
+│   ├── B
+│   └── H
+│       ├── G
+│       └── -
+└── S
+    ├── R
+    └── Y
+        ├── T
+        │   ├── -
+        │   └── W
+        └── Z
+
+sorted (inorder)  : B F G H P R S T W Y Z
+copy   (preorder) : P F B H G S R Y T W Z
+copy is same      : yes
+free   (postorder): B G H F R W T Z Y S P
+copy after free   : NULL
+
+rebuild from preorder: height 5, same shape: yes
+rebuild from inorder : height 11, same shape: no
+```
+
+形状输出中上面是左子节点，下面是右子节点。有兄弟但自己为空的子节点写作 `-`。
+用前序保存的恢复成高度 5 的同一棵树，用中序保存的变成高度 11，和节点数相同。
+
+## BST 与链表 \{#comparison}
+
+同样的事情用有序链表来做会怎样？链表必须从头一个个往后找，所以查找、插入、
+删除都是 $$O(n)$$。
+
+| 操作 | BST（平衡时） | BST（最坏） | 有序链表 |
+| --- | --- | --- | --- |
+| 创建（constructor） | $$O(1)$$ | $$O(1)$$ | $$O(1)$$ |
+| 释放（destructor） | $$O(n)$$ | $$O(n)$$ | $$O(n)$$ |
+| 是否为空·是否已满 | $$O(1)$$ | $$O(1)$$ | $$O(1)$$ |
+| 查找 | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
+| 插入 | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
+| 删除 | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
+
+旧版资料在 BST 一栏只写了 $$O(\log n)$$，并注明"假设 $$h = O(\log n)$$"。
+最坏一栏说明，这个假设一旦不成立，BST 也会和链表一样。确切地说，查找、插入、
+删除都是 $$O(h)$$，一切取决于高度 $$h$$ 落在 $$\log_2 n$$ 和 $$n$$ 之间的
+哪里。
+
+再和主题 01 的有序数组放在一起比较。数组用二分查找，查找是 $$O(\log n)$$，
+但插入和删除要前后挪动元素，是 $$O(n)$$。平衡的 BST 三项都是 $$O(\log n)$$，
+因为只要改链接就能插入和删除。
+
+## 要带走的 \{#takeaway}
+
+- **二叉树**：从根到每个节点的路径只有一条，子节点最多两个。
+  $$N$$ 个节点的高度可以从 $$\log_2(N+1)$$ 一直到 $$N$$。
+- **二叉搜索树**：在每个节点上，整棵左子树都更小，整棵右子树都更大。
+  只和一个子节点比较的规则是不够的。
+- **查找与插入**：小往左，大往右。插入就是挂在查找失败的位置上。代价是
+  $$O(h)$$。
+- **插入顺序决定形状**。按有序顺序插入会变成链表，所有操作都退化为
+  $$O(n)$$。平衡树可以防止这一点。
+- **删除**：0 个子节点就摘掉，1 个就接上，2 个就用后继（或前驱）替换，再删掉
+  原来的后继。
+- **遍历**：中序是有序序列，前序父节点在先，后序子节点在先，层序用队列。
+  输出、释放、复制各用一种合适的遍历就能完成。
+
+## 实践代码 \{#code}
+
+在 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main)
+仓库的 `src/topic-07-bst/` 文件夹里。每个示例都由一份伪代码加 C 和 Python
+实现组成。
 
 ```plaintext
 src/topic-07-bst/
-└── 01_binary_search_tree/
+├── 01_search_insert/      # 查找与插入，按插入顺序高度为 3·5·7
+├── 02_delete/             # 删除的三种情形，用后继替换
+├── 03_traversal/          # 中序·前序·后序·层序
+└── 04_print_free_copy/    # 形状输出，后序释放，前序复制，重建
 ```
+
+打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
+[实践环境准备](/article/setup-guide/)。
+
+**亲手试试**
+
+- 把 01 的 `keys` 改成降序 `20 12 9 8 7 6 5 4 3`。先预测高度和比较次数，
+  再运行看看。
+- 把 02 的情形 3 改成用前驱。删 D 时应由 C 上来，删 Q 时应由 P 上来。确认
+  中序是否不变。
+- 给 04 的 `rebuild` 传入后序序列和层序序列。看看哪一个能恢复原来的树，并
+  说明原因。
+- 下面这棵树里，`4 2 7 5 1 6 8 3` 和 `1 2 4 5 7 3 6 8` 分别是哪种遍历的
+  结果？如果这棵树是 BST，比节点 1 的键小、比节点 5 的键大的值应该插在
+  哪里？如果要删除节点 1，哪些节点可以填补它的位置？
+
+<TreeFigure tree={{ v: "1", l: { v: "2", l: { v: "4" }, r: { v: "5", l: { v: "7" } } }, r: { v: "3", l: { v: "6", r: { v: "8" } } } }} />
+
+- 判断下面的说法是真是假。
+  - 调用本主题的删除函数，可能得到比原来层数更多的树。
+  - 前序遍历处理节点的顺序恰好是后序遍历的逆序。
+  - 中序遍历无论插入顺序如何，总是以相同的顺序处理节点。
+  - 后序遍历无论插入顺序如何，总是以相同的顺序处理节点。
+
+## 版本记录 \{#changelog}
+
+幻灯片与本资料一起升版。当前版本是 **v1**，幻灯片左下角
+可以看到同一版本号。
+
+| 版本 | 日期 | 内容 |
+| --- | --- | --- |
+| v1 | 2026-10-26 | 首次公开 |
