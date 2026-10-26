@@ -18,7 +18,7 @@ URL         := http://localhost:4321/lecture/
 
 help: ## 타깃 목록
 	@echo "사용법: make <타깃>   (사이트: $(URL))"
-	@awk 'BEGIN { FS = ":.*## " } /^[a-z-]+:.*## / { printf "  %-9s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z0-9_-]+:.*## / { printf "  %-9s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # 보기 전용: 소스와 의존성이 이미지에 들어 있다.
 
@@ -41,7 +41,9 @@ dev-d: ## 콘텐츠 편집용으로 백그라운드 가동 (로그는 make logs)
 	$(COMPOSE_DEV) up -d
 	@echo "사이트: $(URL)"
 
-rebuild: ## 의존성을 바꾼 뒤 이미지를 다시 만들며 편집용으로 가동
+# node_modules 익명 볼륨은 컨테이너를 다시 만들어도 남아 새 이미지의 것을
+# 가린다. 기동 때 pnpm install이 맞춰 주지만, 완전히 새로 하려면 clean 먼저.
+rebuild: ## 의존성을 바꾼 뒤 이미지를 다시 만들며 편집용으로 가동 (완전히 새로: make clean 먼저)
 	$(COMPOSE_DEV) up --build
 
 # 뜬 컨테이너 다루기: 어느 모드로 띄웠든 같은 app 서비스다.
@@ -58,15 +60,20 @@ restart: ## app 재시작 (테마를 올린 뒤 등)
 shell: ## app 컨테이너 안 셸
 	$(COMPOSE) exec $(SERVICE) sh
 
-down: ## 중지·정리
+down: ## 중지·정리 (node_modules 볼륨은 남김, 지우려면 down 대신 clean)
 	$(COMPOSE) down
 
 # down으로 컨테이너를 먼저 지우면 익명 볼륨은 주인 없이 남아 down -v로도 안
-# 지워진다. 그래서 clean은 down 대신 쓴다.
+# 지워진다. 그래서 clean은 down 대신 쓴다. 이미 남은 볼륨은 docker volume prune
 clean: ## 중지·정리 + node_modules 익명 볼륨까지 삭제 (down 대신)
 	$(COMPOSE) down -v
 
-# 검증: Node 없이 커밋 전 검사를 돌린다. 바인드 마운트라 지금 고친 소스를 본다.
-
-check: ## 컨테이너 안에서 pnpm build && pnpm check (커밋 전 검증)
-	$(COMPOSE_DEV) run --rm --no-deps $(SERVICE) sh -c "pnpm install && pnpm build && pnpm check"
+# 검증: Node 없이 사이트 빌드·타입 검사를 돌린다. 바인드 마운트라 지금 고친
+# 소스를 본다. 떠 있는 app과 같은 site/(.astro·dist)를 쓰게 되므로 그때는 멈추고,
+# run이 만든 네트워크는 끝나고 down으로 치운다 (app이 없을 때만 오므로 안전).
+check: ## 컨테이너 안에서 pnpm build && pnpm check (app이 떠 있으면 거부)
+	@if [ -n "$$($(COMPOSE) ps -q $(SERVICE))" ]; then \
+		echo "app 컨테이너가 떠 있습니다. make down(또는 clean) 뒤에 다시 실행하세요."; exit 1; \
+	fi
+	$(COMPOSE_DEV) run --rm --no-deps $(SERVICE) sh -c "pnpm install && pnpm build && pnpm check"; \
+		status=$$?; $(COMPOSE) down; exit $$status
