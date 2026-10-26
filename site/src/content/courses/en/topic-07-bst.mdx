@@ -116,9 +116,9 @@ follows these rules.
 We assume all keys are distinct. Inserting a value that is already there
 does nothing.
 
-"Larger than the left **child** and smaller than the right **child**" is not
-enough. The old slides put it that way, but the tree below satisfies that
-rule for every parent–child pair and is still not a BST.
+It is tempting to check only parent–child pairs: "larger than the left
+**child** and smaller than the right **child**." That is not enough. The tree
+below satisfies that rule for every parent–child pair and is still not a BST.
 
 <TreeFigure tree={{ v: "5", l: { v: "3", r: { v: "7", tone: "focus" } }, r: { v: "8" } }} caption="3 < 7 satisfies the child rule, but 7 sits in the left subtree of 5" />
 
@@ -236,8 +236,7 @@ TreeNode *createNode(int key) {
 
 Insertion is **a failed search plus hanging the node there**. Go down as if
 searching for the value, and when you reach an empty child spot, attach a
-new node there. Let's insert in the same order as the old slides,
-`5 9 7 3 8 12 6 4 20`. The top row is the insertion order, and the orange
+new node there. Let's insert `5 9 7 3 8 12 6 4 20` in that order. The top row is the insertion order, and the orange
 circle is the value being inserted.
 
 <BstDemo />
@@ -396,8 +395,7 @@ depending on how many children the node to delete has.
 | 2 | 1 child | link that child directly to the parent |
 | 3 | 2 children | copy the successor into its place, then delete the original successor |
 
-Let's use the same tree as the old slides, built by inserting
-`B A D C G F E`. Each of the three demos starts afresh from this tree.
+Let's use the tree built by inserting `B A D C G F E`. Each of the three demos starts afresh from this tree.
 
 ### Case 1: 0 children \{#delete-leaf}
 
@@ -436,8 +434,7 @@ Now delete the original E. The successor is "the far left", so it **has no
 left child**. That is why deleting the original successor always ends in case
 1 or case 2, and case 3 never comes up again.
 
-Let's delete Q from the second tree of the old slides (J, B, Q, L, R, K, N,
-Z, M, P). Q's right child R has no left child, so R itself is the successor.
+Let's delete Q from the tree built by inserting `J B Q L R K N Z M P`. Q's right child R has no left child, so R itself is the successor.
 Copy R, delete the original R, and R's right child Z moves up.
 
 <BstDeleteDemo keys="JBQLRKNZMP" del="Q" />
@@ -449,8 +446,8 @@ Deleting the root works the same way. To find J's successor, go right once
 
 ### The predecessor works too \{#predecessor}
 
-The figures in the old slides used the predecessor. Deleting D brings the
-largest value of its left subtree, C, into its place; deleting Q brings P.
+If case 3 uses the predecessor instead of the successor, deleting D brings
+the largest value of its left subtree, C, into its place; deleting Q brings P.
 
 - Delete D using predecessor C
 
@@ -461,9 +458,8 @@ largest value of its left subtree, C, into its place; deleting Q brings P.
 <TreeFigure tree={{ v: "J", l: { v: "B" }, r: { v: "P", tone: "eval", l: { v: "L", l: { v: "K" }, r: { v: "N", l: { v: "M" } } }, r: { v: "R", r: { v: "Z" } } } }} />
 
 The shapes differ from the successor results, but both are BSTs with the
-same inorder sequence. Either is a correct deletion. The code in the old
-slides used the successor, and the practice code and demos in this course
-follow it.
+same inorder sequence. Using the predecessor is a correct deletion too. The
+practice code and demos in this course use the successor.
 
 ### Procedure and code \{#delete-code}
 
@@ -613,7 +609,7 @@ node off the front, print it, add its children to the back, and repeat until
 the queue is empty. This is exactly [[bfs|BFS]], which in Topic 12 sweeps a
 graph from the nearest vertices outward.
 
-Let's also run it on the tree the old slides used for their summary. With
+Let's also run it on the tree built by inserting `P F B H G S R Y T W Z`. With
 eleven nodes the differences between the orders show more clearly.
 
 <TraversalDemo keys="PFBHGSRYTWZ" order="pre" />
@@ -728,9 +724,8 @@ first**.
 Sorted printing is just the inorder traversal we have already seen. To print
 the tree's **shape** as text, write the node first and then its children
 below it, indented one step. The current node comes first, so it is
-preorder. The old slides introduced this function as "using inorder
-traversal", but the code prints the node first and then goes down to the
-children: preorder. Sorted printing (inorder) and shape printing (preorder)
+preorder. Printing a tree makes one think of inorder, but this function
+prints the node first and then goes down to the children, so it is preorder. Sorted printing (inorder) and shape printing (preorder)
 are different jobs.
 
 ```c
@@ -865,8 +860,8 @@ deletion are all $$O(n)$$.
 | insert | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
 | delete | $$O(\log n)$$ | $$O(n)$$ | $$O(n)$$ |
 
-The old slides wrote only $$O(\log n)$$ in the BST column, with the note
-"assuming $$h = O(\log n)$$". The worst-case column shows that once that
+Calling a BST simply $$O(\log n)$$ hides the assumption
+$$h = O(\log n)$$. The worst-case column shows that once that
 assumption breaks, a BST is no better than a linked list. Strictly speaking,
 search, insertion and deletion are all $$O(h)$$, and everything depends on
 where the height $$h$$ lies between $$\log_2 n$$ and $$n$$.
