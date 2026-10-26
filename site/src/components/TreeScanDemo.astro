@@ -1,0 +1,473 @@
+---
+// 규칙 없는 이진 트리에서 값을 찾는 데모.
+//
+// 값이 아무 데나 놓여 있으니 어디를 건너뛸 수 없다. 루트부터 레벨 순서로 한
+// 노드씩 보며(주황) 찾는 값과 비교하고, 본 노드는 회색으로 남긴다. 찾으면
+// 초록, 끝까지 없으면 노드 N개를 모두 본 것이다. 노드를 누르면 그 값을 찾고,
+// 아래 칩으로 트리에 없는 값도 고를 수 있다.
+//
+// 기본 트리는 교안의 그림과 같다(2, 7, 5, 2, 6, 9, 5, 11, 4). 같은 값이 두 번
+// 있으면 레벨 순서로 먼저 만나는 쪽에서 멈춘다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+export interface ScanNode {
+  v: number | string;
+  l?: ScanNode;
+  r?: ScanNode;
+}
+interface Props {
+  tree?: ScanNode;
+  /** 처음에 찾을 값 */
+  target?: number | string;
+  /** 트리에 없는 값 하나 (칩으로 고를 수 있다) */
+  missing?: number | string;
+  slide?: boolean;
+}
+const {
+  tree = { v: 2, l: { v: 7, l: { v: 2 }, r: { v: 6, l: { v: 5 }, r: { v: 11 } } }, r: { v: 5, r: { v: 9, l: { v: 4 } } } },
+  target = 11,
+  missing = 8,
+  slide = false,
+} = Astro.props;
+const id = `ts-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '이진 트리에서 찾기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    target: '찾는 값',
+    missing: '없음',
+    order: '본 순서',
+    cmp: '비교',
+    idle: '찾는 값은 {k}입니다. 규칙이 없으니 루트부터 레벨 순서로 하나씩 봅니다. 노드를 누르면 그 값을 찾습니다.',
+    miss: '{v} ≠ {k}. 다음 노드로 갑니다.',
+    found: '{v} = {k}, 찾았습니다. 비교 {c}회입니다.',
+    none: '끝까지 없었습니다. 노드 {n}개를 모두 봤습니다. 비교 {n}회, O(N)입니다.',
+  },
+  en: {
+    title: 'Searching a binary tree',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    target: 'find',
+    missing: 'absent',
+    order: 'visited',
+    cmp: 'comparisons',
+    idle: 'Find {k}. With no rule to follow, look at one node at a time in level order from the root. Click a node to search for its value.',
+    miss: '{v} ≠ {k}. On to the next node.',
+    found: '{v} = {k}, found it. {c} comparisons.',
+    none: 'Not there. All {n} nodes were checked: {n} comparisons, O(N).',
+  },
+  zh: {
+    title: '在二叉树里查找',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    target: '要找的值',
+    missing: '不存在',
+    order: '查看顺序',
+    cmp: '比较',
+    idle: '查找 {k}。没有规则可循，只能从根开始按层的顺序逐个查看。点击节点即可查找它的值。',
+    miss: '{v} ≠ {k}。继续看下一个节点。',
+    found: '{v} = {k}，找到了。比较 {c} 次。',
+    none: '一直没找到。{n} 个节点全看了一遍：比较 {n} 次，O(N)。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 값 칩: 트리에 있는 값(중복 없이) + 없는 값 하나 */
+const values: (number | string)[] = [];
+const collect = (n?: ScanNode) => {
+  if (!n) return;
+  collect(n.l);
+  if (!values.includes(n.v)) values.push(n.v);
+  collect(n.r);
+};
+collect(tree);
+values.sort((a, b) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b))));
+---
+
+<div
+  class:list={['aas-tree-scan-demo', slide && 'is-slide']}
+  id={id}
+  data-ts-tree={JSON.stringify(tree)}
+  data-ts-target={JSON.stringify(target)}
+  data-ts-strings={JSON.stringify(t)}
+>
+  <div class="ts-bar">
+    <span class="ts-head"><strong>{t.title}</strong></span>
+    <div class="ts-controls">
+      <button type="button" data-act="back" class="ts-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ts-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ts-btn ts-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ts-btn">{t.reset}</button>
+    </div>
+  </div>
+  <div class="ts-picks">
+    <span class="ts-label">{t.target}</span>
+    {values.map((v) => (
+      <button type="button" class="ts-pick" data-ts-pick={JSON.stringify(v)}>{v}</button>
+    ))}
+    <button type="button" class="ts-pick is-missing" data-ts-pick={JSON.stringify(missing)}>{missing} <small>{t.missing}</small></button>
+  </div>
+  <svg class="ts-svg" data-ts-svg role="img" aria-label={t.title}></svg>
+  <div class="ts-order"><span class="ts-label">{t.order}</span> <span data-ts-order></span></div>
+  <div class="ts-foot">
+    <p class="ts-note" data-ts-note></p>
+    <span class="ts-count">{t.cmp} <strong data-ts-count>0</strong></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.tsStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const tree = JSON.parse(root.dataset.tsTree);
+    let target = JSON.parse(root.dataset.tsTarget);
+
+    /* 배치: x는 중위 순서, y는 깊이 (TreeFigure와 같은 방식) */
+    const nodes = [];
+    let order = 0;
+    const walk = (n, d, parent) => {
+      if (!n) return;
+      const me = { v: n.v, d, parent, x: 0 };
+      walk(n.l, d + 1, me);
+      me.x = order++;
+      nodes.push(me);
+      walk(n.r, d + 1, me);
+    };
+    walk(tree, 0, null);
+    const depth = Math.max(...nodes.map((n) => n.d));
+    const UNIT = 62;
+    const GAP = 74;
+    const R = 21;
+    const PAD = 30;
+    const W = (order - 1) * UNIT + 2 * PAD;
+    const H = depth * GAP + 2 * R + 14;
+    const X = (n) => PAD + n.x * UNIT;
+    const Y = (n) => R + 7 + n.d * GAP;
+
+    /* 레벨 순서(BFS) */
+    const levelOrder = [];
+    const queue = [];
+    const rootNode = nodes.find((n) => n.parent === null);
+    queue.push(rootNode);
+    const childrenOf = (p) => nodes.filter((n) => n.parent === p).sort((a, b) => a.x - b.x);
+    while (queue.length) {
+      const n = queue.shift();
+      levelOrder.push(n);
+      queue.push(...childrenOf(n));
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const svg = root.querySelector('[data-ts-svg]');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    nodes.forEach((n) => {
+      if (n.parent) el('line', { x1: X(n.parent), y1: Y(n.parent), x2: X(n), y2: Y(n), class: 'ts-edge' }, svg);
+    });
+    nodes.forEach((n) => {
+      const g = el('g', { class: 'ts-node', tabindex: 0, role: 'button' }, svg);
+      el('circle', { cx: X(n), cy: Y(n), r: R }, g);
+      const tx = el('text', { x: X(n), y: Y(n), class: 'ts-text' }, g);
+      tx.textContent = String(n.v);
+      const badge = el('text', { x: X(n) + R + 3, y: Y(n) - R + 2, class: 'ts-badge' }, g);
+      n.g = g;
+      n.badge = badge;
+      const choose = () => setTarget(n.v);
+      g.addEventListener('click', choose);
+      g.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          choose();
+        }
+      });
+    });
+
+    /* 단계: 레벨 순서로 하나씩 비교하다 찾으면 멈춘다. */
+    function plan() {
+      const steps = [];
+      for (let i = 0; i < levelOrder.length; i++) {
+        const n = levelOrder[i];
+        const hit = n.v === target;
+        steps.push({ i, hit, note: hit ? fill(S.found, { v: n.v, k: target, c: i + 1 }) : fill(S.miss, { v: n.v, k: target }) });
+        if (hit) return steps;
+      }
+      steps.push({ i: levelOrder.length - 1, none: true, note: fill(S.none, { n: levelOrder.length }) });
+      return steps;
+    }
+
+    const noteEl = root.querySelector('[data-ts-note]');
+    const countEl = root.querySelector('[data-ts-count]');
+    const orderEl = root.querySelector('[data-ts-order]');
+    const picks = [...root.querySelectorAll('[data-ts-pick]')];
+    let steps = plan();
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function render() {
+      const step = at >= 0 ? steps[at] : null;
+      const seen = step ? step.i + 1 : 0;
+      levelOrder.forEach((n, k) => {
+        const done = k < seen;
+        n.g.classList.toggle('is-seen', done && !(step && step.hit && k === step.i));
+        n.g.classList.toggle('is-now', !!step && !step.none && k === step.i && !step.hit);
+        n.g.classList.toggle('is-found', !!step && !!step.hit && k === step.i);
+        n.badge.textContent = done ? String(k + 1) : '';
+      });
+      countEl.textContent = String(seen);
+      orderEl.textContent = levelOrder.slice(0, seen).map((n) => n.v).join(' → ');
+      setLines(noteEl, step ? step.note : fill(S.idle, { k: target }));
+      root.classList.toggle('is-done', !!step && (step.hit || step.none));
+      root.classList.toggle('is-none', !!step && !!step.none);
+      picks.forEach((p) => p.classList.toggle('is-on', JSON.parse(p.dataset.tsPick) === target));
+    }
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function setTarget(v) {
+      stop();
+      target = v;
+      steps = plan();
+      at = -1;
+      render();
+    }
+    picks.forEach((p) => p.addEventListener('click', () => setTarget(JSON.parse(p.dataset.tsPick))));
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 800);
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-tree-scan-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tree-scan-demo .ts-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-tree-scan-demo .ts-head {
+    font-size: 0.95em;
+  }
+  .aas-tree-scan-demo .ts-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-tree-scan-demo .ts-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tree-scan-demo .ts-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tree-scan-demo .ts-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-tree-scan-demo .ts-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+    font-size: 0.85em;
+  }
+  .aas-tree-scan-demo .ts-label {
+    color: var(--aas-muted);
+    margin-right: 0.3em;
+    font-size: 0.85em;
+  }
+  .aas-tree-scan-demo .ts-pick {
+    min-width: 2em;
+    padding: 0.1em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    font-size: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tree-scan-demo .ts-pick small {
+    font-family: var(--aas-font, sans-serif);
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-tree-scan-demo .ts-pick.is-on {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+  }
+  .aas-tree-scan-demo .ts-svg {
+    display: block;
+    width: 100%;
+    max-height: 19em;
+    margin: 0.4em auto 0;
+  }
+  .aas-tree-scan-demo .ts-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+  }
+  .aas-tree-scan-demo .ts-node {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-tree-scan-demo .ts-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.8;
+    transition: fill 0.2s, stroke 0.2s;
+  }
+  .aas-tree-scan-demo .ts-node:hover circle,
+  .aas-tree-scan-demo .ts-node:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 3;
+  }
+  .aas-tree-scan-demo .ts-text {
+    font-size: 16px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-tree-scan-demo .ts-badge {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-tree-scan-demo .ts-node.is-seen circle {
+    fill: color-mix(in srgb, var(--aas-muted) 28%, var(--aas-bg));
+    stroke: var(--aas-muted);
+  }
+  .aas-tree-scan-demo .ts-node.is-now circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-tree-scan-demo .ts-node.is-found circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-tree-scan-demo .ts-node.is-now .ts-text,
+  .aas-tree-scan-demo .ts-node.is-found .ts-text {
+    fill: #fff;
+  }
+  .aas-tree-scan-demo .ts-order {
+    margin-top: 0.4em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    min-height: 1.4em;
+  }
+  .aas-tree-scan-demo .ts-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-tree-scan-demo .ts-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-tree-scan-demo.is-done .ts-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-tree-scan-demo.is-none .ts-note {
+    color: var(--aas-role-guard);
+  }
+  .aas-tree-scan-demo .ts-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-tree-scan-demo .ts-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tree-scan-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tree-scan-demo.is-slide .ts-svg {
+    max-height: 40vh;
+  }
+  .aas-tree-scan-demo.is-slide .ts-note {
+    min-height: 1.6em;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tree-scan-demo * {
+      transition: none !important;
+    }
+  }
+</style>
