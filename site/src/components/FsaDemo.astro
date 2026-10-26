@@ -1,0 +1,493 @@
+---
+// 패턴 ab*c를 인식하는 유한 상태 오토마타를 한 걸음씩 돌려 보는 데모.
+//
+// 위는 상태 다섯 개(S0~S4)와 전이 그림, 아래는 입력 테이프다. 한 걸음마다
+// 글자 하나를 읽어 현재 상태(주황)를 옮기고, 방금 지난 전이를 주황으로
+// 칠한다. S1에서는 글자를 읽지 않고 ε 전이로 S2로 넘어간다. 입력이 끝났을 때
+// S4에 있으면 수락(초록), 갈 곳이 없거나 S4가 아니면 거부(빨강)다.
+//
+// 절차와 결과는 algorithm-code의 fsaSimple.c · fsa_simple.py와 같다.
+// "abbbbc"는 S0 S1 S2 S3 S3 S3 S3 S4로 수락, "abd"는 S3에서 'd'를 만나 거부한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 읽을 문자열 */
+  input?: string;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { input = 'abbbbc', slide = false } = Astro.props;
+const id = `fd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '유한 상태 오토마타 · ab*c',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    read: '읽은 글자 ',
+    accept: '수락',
+    idle: '입력 "{w}"를 S0에서 시작해 한 글자씩 읽습니다.',
+    start: '시작 상태 S0에 있습니다.',
+    move: "'{c}'를 읽고 {from} → {to}",
+    loop: "'{c}'를 읽고 {from}에 그대로 머뭅니다.",
+    eps: 'S1에서는 글자를 읽지 않고 ε 전이로 S2로 넘어갑니다.',
+    stuck: "{from}에는 '{c}'로 가는 전이가 없습니다. 거부합니다.",
+    yes: '입력이 끝났고 수락 상태 S4에 있습니다. 수락합니다.',
+    no: '입력이 끝났는데 {from}은 수락 상태가 아닙니다. 거부합니다.',
+  },
+  en: {
+    title: 'Finite state automaton · ab*c',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    read: 'read ',
+    accept: 'accept',
+    idle: 'Read "{w}" one character at a time, starting in S0.',
+    start: 'We are in the start state S0.',
+    move: "Read '{c}': {from} → {to}",
+    loop: "Read '{c}': stay in {from}.",
+    eps: 'From S1, move to S2 by an ε-transition without reading anything.',
+    stuck: "{from} has no transition on '{c}'. Reject.",
+    yes: 'The input is over and we are in the accept state S4. Accept.',
+    no: 'The input is over but {from} is not an accept state. Reject.',
+  },
+  zh: {
+    title: '有限状态自动机 · ab*c',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    read: '已读 ',
+    accept: '接受',
+    idle: '从 S0 出发，逐个字符读入 "{w}"。',
+    start: '处于开始状态 S0。',
+    move: "读入 '{c}'：{from} → {to}",
+    loop: "读入 '{c}'：停留在 {from}。",
+    eps: '在 S1 不读字符，经 ε 转移直接到 S2。',
+    stuck: "{from} 没有读 '{c}' 的转移。拒绝。",
+    yes: '输入结束，处于接受状态 S4。接受。',
+    no: '输入结束，但 {from} 不是接受状态。拒绝。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 그림 좌표. 상태는 한 줄로 놓고, S3의 'b'는 위로 도는 고리, S2 → S4의
+   'c'는 아래로 도는 호다. */
+const R = 24;
+const Y = 92;
+const X = (i: number) => 74 + i * 134;
+const W = X(4) + R + 70;
+const H = 210;
+const straight = (a: number, b: number) =>
+  `M ${X(a) + R} ${Y} L ${X(b) - R - 2} ${Y}`;
+type Edge = { key: string; d: string; label: string; lx: number; ly: number; eps?: boolean };
+const edges: Edge[] = [
+  { key: '01', d: straight(0, 1), label: "'a'", lx: (X(0) + X(1)) / 2, ly: Y - 12 },
+  { key: '12', d: straight(1, 2), label: 'ε', lx: (X(1) + X(2)) / 2, ly: Y - 12, eps: true },
+  { key: '23', d: straight(2, 3), label: "'b'", lx: (X(2) + X(3)) / 2, ly: Y - 12 },
+  { key: '34', d: straight(3, 4), label: "'c'", lx: (X(3) + X(4)) / 2, ly: Y - 12 },
+  {
+    key: '33',
+    d: `M ${X(3) - 12} ${Y - R + 3} C ${X(3) - 34} ${Y - 78}, ${X(3) + 34} ${Y - 78}, ${X(3) + 13} ${Y - R + 1}`,
+    label: "'b'",
+    lx: X(3),
+    ly: Y - 70,
+  },
+  {
+    key: '24',
+    d: `M ${X(2) + 10} ${Y + R - 2} C ${X(2) + 70} ${Y + 104}, ${X(4) - 70} ${Y + 104}, ${X(4) - 12} ${Y + R + 1}`,
+    label: "'c'",
+    lx: X(3),
+    ly: Y + 106,
+  },
+];
+const chars = [...input];
+---
+
+<div
+  class:list={['aas-fsa-demo', slide && 'is-slide']}
+  id={id}
+  data-fd-input={input}
+  data-fd-strings={JSON.stringify(t)}
+>
+  <div class="fd-bar">
+    <span class="fd-head"><strong>{t.title}</strong></span>
+    <div class="fd-controls">
+      <button type="button" data-act="back" class="fd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="fd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="fd-btn fd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="fd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <svg class="fd-graph" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.title}>
+    <defs>
+      <marker id={`${id}-arrow`} class="fd-head-normal" viewBox="0 0 10 10" refX="9" refY="5"
+        markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" />
+      </marker>
+      <marker id={`${id}-arrow-on`} class="fd-head-on" viewBox="0 0 10 10" refX="9" refY="5"
+        markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" />
+      </marker>
+    </defs>
+    <path class="fd-start" d={`M ${X(0) - R - 44} ${Y} L ${X(0) - R - 2} ${Y}`}
+      marker-end={`url(#${id}-arrow)`} />
+    {edges.map((e) => (
+      <g class:list={['fd-edge', e.eps && 'is-eps']} data-fd-edge={e.key}>
+        <path d={e.d} data-fd-off={`url(#${id}-arrow)`} data-fd-on={`url(#${id}-arrow-on)`}
+          marker-end={`url(#${id}-arrow)`} />
+        <text x={e.lx} y={e.ly}>{e.label}</text>
+      </g>
+    ))}
+    {[0, 1, 2, 3, 4].map((i) => (
+      <g class:list={['fd-state', i === 4 && 'is-final']} data-fd-state={i}>
+        {i === 4 && <circle class="fd-ring" cx={X(i)} cy={Y} r={R + 5} />}
+        <circle cx={X(i)} cy={Y} r={R} />
+        <text x={X(i)} y={Y}>S{i}</text>
+      </g>
+    ))}
+    <text class="fd-accept-label" x={X(4) + R + 10} y={Y}>{t.accept}</text>
+  </svg>
+
+  <div class="fd-tape">
+    {chars.map((c, i) => (
+      <span class="fd-cell" data-fd-cell={i}>{c}</span>
+    ))}
+  </div>
+
+  <div class="fd-foot">
+    <p class="fd-note" data-fd-note></p>
+    <span class="fd-count">
+      {t.read}<strong data-fd-count>0</strong> / {chars.length}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    const input = [...root.dataset.fdInput];
+    const S = JSON.parse(root.dataset.fdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 fsaSimple.pseudo의 Accept와 같다. */
+    function plan() {
+      const steps = [{ state: 0, pos: 0, edge: null, note: S.start }];
+      let st = 0;
+      for (let k = 0; k < input.length; k++) {
+        const c = input[k];
+        if (st === 0 && c === 'a') {
+          steps.push({ state: 1, pos: k + 1, edge: '01', note: fill(S.move, { c, from: 'S0', to: 'S1' }) });
+          st = 2;
+          steps.push({ state: 2, pos: k + 1, edge: '12', note: S.eps });
+          continue;
+        }
+        if ((st === 2 || st === 3) && (c === 'b' || c === 'c')) {
+          const to = c === 'b' ? 3 : 4;
+          const note = to === st
+            ? fill(S.loop, { c, from: `S${st}` })
+            : fill(S.move, { c, from: `S${st}`, to: `S${to}` });
+          steps.push({ state: to, pos: k + 1, edge: `${st}${to}`, note });
+          st = to;
+          continue;
+        }
+        steps.push({ state: st, pos: k, bad: k, edge: null, done: 'reject', note: fill(S.stuck, { c, from: `S${st}` }) });
+        return steps;
+      }
+      const ok = st === 4;
+      steps.push({
+        state: st, pos: input.length, edge: null, done: ok ? 'accept' : 'reject',
+        note: ok ? S.yes : fill(S.no, { from: `S${st}` }),
+      });
+      return steps;
+    }
+
+    const steps = plan();
+    const states = [...root.querySelectorAll('[data-fd-state]')];
+    const edgeEls = [...root.querySelectorAll('[data-fd-edge]')];
+    const cells = [...root.querySelectorAll('[data-fd-cell]')];
+    const note = root.querySelector('[data-fd-note]');
+    const countEl = root.querySelector('[data-fd-count]');
+
+    function render(s) {
+      const step = s >= 0 ? steps[s] : null;
+      states.forEach((g) => {
+        const i = Number(g.dataset.fdState);
+        const here = !!step && step.state === i;
+        g.classList.toggle('is-now', here && !step.done);
+        g.classList.toggle('is-yes', here && step.done === 'accept');
+        g.classList.toggle('is-no', here && step.done === 'reject');
+      });
+      edgeEls.forEach((g) => {
+        const on = !!step && step.edge === g.dataset.fdEdge;
+        g.classList.toggle('is-on', on);
+        const path = g.querySelector('path');
+        path.setAttribute('marker-end', on ? path.dataset.fdOn : path.dataset.fdOff);
+      });
+      const pos = step ? step.pos : 0;
+      cells.forEach((cell, i) => {
+        cell.classList.toggle('is-read', !!step && i < pos);
+        cell.classList.toggle('is-next', !!step && !step.done && i === pos);
+        cell.classList.toggle('is-bad', !!step && step.bad === i);
+      });
+      countEl.textContent = String(pos);
+      note.textContent = step ? step.note : fill(S.idle, { w: input.join('') });
+      root.classList.toggle('is-done', !!(step && step.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-fsa-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-fsa-demo .fd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-fsa-demo .fd-head {
+    font-size: 0.95em;
+  }
+  .aas-fsa-demo .fd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-fsa-demo .fd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-fsa-demo .fd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-fsa-demo .fd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-fsa-demo .fd-graph {
+    display: block;
+    width: 100%;
+    max-width: 40em;
+    height: auto;
+    margin: 0 auto;
+  }
+  .aas-fsa-demo .fd-head-normal path {
+    fill: var(--aas-muted);
+  }
+  .aas-fsa-demo .fd-head-on path {
+    fill: var(--aas-role-focus);
+  }
+  .aas-fsa-demo .fd-start,
+  .aas-fsa-demo .fd-edge path {
+    fill: none;
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+    transition: stroke 0.3s, stroke-width 0.3s;
+  }
+  .aas-fsa-demo .fd-edge.is-eps path {
+    stroke-dasharray: 5 4;
+  }
+  .aas-fsa-demo .fd-edge text {
+    font-size: 17px;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-fsa-demo .fd-edge.is-on path {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3.2;
+  }
+  .aas-fsa-demo .fd-edge.is-on text {
+    fill: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-fsa-demo .fd-state circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .aas-fsa-demo .fd-state .fd-ring {
+    fill: none;
+  }
+  .aas-fsa-demo .fd-state text {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-fsa-demo .fd-state.is-now circle:not(.fd-ring) {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-fsa-demo .fd-state.is-yes circle:not(.fd-ring) {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-fsa-demo .fd-state.is-no circle:not(.fd-ring) {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-fsa-demo .fd-state.is-now text,
+  .aas-fsa-demo .fd-state.is-yes text,
+  .aas-fsa-demo .fd-state.is-no text {
+    fill: #fff;
+  }
+  .aas-fsa-demo .fd-accept-label {
+    font-size: 15px;
+    fill: var(--aas-muted);
+    dominant-baseline: central;
+  }
+
+  .aas-fsa-demo .fd-tape {
+    display: flex;
+    justify-content: center;
+    gap: 0.25em;
+    margin-top: 0.4em;
+  }
+  .aas-fsa-demo .fd-cell {
+    width: 1.9em;
+    height: 1.9em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+  }
+  .aas-fsa-demo .fd-cell.is-read {
+    color: var(--aas-muted);
+    background: color-mix(in srgb, var(--aas-muted) 15%, var(--aas-bg));
+  }
+  .aas-fsa-demo .fd-cell.is-next {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-fsa-demo .fd-cell.is-bad {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+
+  .aas-fsa-demo .fd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-fsa-demo .fd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-fsa-demo.is-done .fd-note {
+    color: var(--aas-text);
+  }
+  .aas-fsa-demo .fd-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-fsa-demo .fd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-fsa-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-fsa-demo.is-slide .fd-graph {
+    max-width: none;
+    width: auto;
+    height: 34vh;
+  }
+  .aas-fsa-demo.is-slide .fd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-fsa-demo .fd-edge path,
+    .aas-fsa-demo .fd-state circle,
+    .aas-fsa-demo .fd-cell {
+      transition: none;
+    }
+  }
+</style>
