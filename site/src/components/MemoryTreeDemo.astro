@@ -1,0 +1,984 @@
+---
+// 트리가 메모리에 실제로 어떻게 놓이는지 보는 데모. mode 둘이 한 파일에 있다.
+//
+// - pointer (기본): 실습 코드의 TreeNode(key, left, right)를 malloc으로 하나씩
+//   받는다. 오른쪽은 주소 순으로 늘어놓은 메모리다. 블록은 받은 순서와 상관없이
+//   여기저기 흩어지고, 노드를 잇는 것은 left·right 칸에 적힌 주소뿐이다.
+//   삽입은 블록을 받고, 주소를 따라 내려가다, NULL 칸에 새 주소를 쓴다.
+//   find를 주면 다 만든 트리에서 cur = cur->left / cur->right로 주소를 따라간다.
+// - array: 주소 없이 배열 한 줄에 담는다. i번 칸의 자식은 2i+1과 2i+2번 칸이다(주제 12의 힙과 같다).
+//   탭으로 넣는 순서를 바꾸면, 기운 트리는 빈칸이 크게 늘어난다.
+//
+// 주소는 설명용으로 정한 값이다(실제 64비트 주소는 더 길다). 블록 크기는
+// 64비트에서 sizeof(TreeNode) = 24바이트(int 4 + 빈칸 4 + 포인터 8 + 8)로 둔다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  mode?: 'pointer' | 'array';
+  /** 넣는 순서. 기본은 실습 코드 01의 앞 일곱 개 5 9 7 3 8 12 6 */
+  keys?: number[];
+  /** pointer 모드에서 주면 검색: 다 만든 트리에서 이 값을 찾는다. */
+  find?: number;
+  slide?: boolean;
+}
+const { mode = 'pointer', keys = [5, 9, 7, 3, 8, 12, 6], find, slide = false } = Astro.props;
+const id = `mt-${Math.random().toString(36).slice(2, 9)}`;
+
+/** 받은 순서대로 malloc이 돌려준 주소. 일부는 붙어 있고 일부는 멀리 떨어진다. */
+const ADDRS = [0x2a40, 0x2a58, 0x3110, 0x2a70, 0x1e08, 0x3128, 0x2a88, 0x1e20, 0x3140];
+/** 배열 모드의 두 번째 탭: 정렬된 순서로 넣으면 한쪽으로 기운다. */
+const SORTED = [3, 5, 6, 7, 8];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    titlePointer: '메모리 속의 트리: 포인터',
+    titleSearch: '메모리 속의 트리: 주소 따라가기',
+    titleArray: '메모리 속의 트리: 배열',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    memory: '메모리 (주소 순)',
+    address: '주소',
+    key: 'key',
+    left: 'left',
+    right: 'right',
+    rootVar: 'root (변수)',
+    gap: '다른 데이터',
+    tabMixed: '넣는 순서: {keys}',
+    tabSorted: '정렬된 순서: {keys}',
+    used: '쓴 칸',
+    need: '필요한 칸',
+    idleInsert: '빈 트리입니다. root 변수에는 NULL이 들어 있습니다. 값을 하나씩 넣으며 메모리가 어떻게 바뀌는지 봅니다.',
+    idleSearch: '찾는 값은 {k}입니다. root에 적힌 주소에서 출발해, 칸에 적힌 주소를 따라 뛰어갑니다.',
+    alloc: 'malloc: 주소 {a}에 24바이트 블록을 받았습니다. key = {k}, left = NULL, right = NULL을 씁니다.',
+    setRoot: 'root ← {a}. 이제 {k} 노드가 루트입니다.',
+    fromRoot: 'root에 적힌 주소를 따라갑니다: {a}. 그 블록의 key는 {v}입니다.',
+    follow: '{k} {op} {v} → {side} 칸에 적힌 주소를 따라갑니다: {a}',
+    link: '{k} {op} {v}, {side} 칸이 NULL입니다. 그 칸에 새 블록의 주소를 씁니다: {side} ← {a}',
+    doneInsert: '모두 넣었습니다. 주소 순서와 트리 모양은 아무 상관이 없습니다. 노드를 잇는 것은 칸에 적힌 주소뿐입니다.',
+    found: '{k} = {v}, 찾았습니다. 주소 {a}의 블록입니다. 블록 {c}개를 읽었습니다.',
+    missing: '{side} 칸이 NULL입니다. 더 갈 주소가 없으니 {k}는 트리에 없습니다.',
+    pick: '{k} 노드: 주소 {a} · left {l} · right {r}',
+    idleArray: '포인터 대신 칸 번호를 계산합니다. i번 칸의 왼쪽 자식은 2i+1번, 오른쪽 자식은 2i+2번 칸입니다.',
+    arrRoot: '{k}: 첫 값이라 0번 칸에 씁니다.',
+    arrMove: '{k} {op} {v} → {side} 자식 칸은 {calc} = {j}번입니다.',
+    arrPlace: '{j}번 칸이 비어 있습니다. {k}를 씁니다.',
+    arrDone: '모두 넣었습니다. 값은 {n}개인데 칸은 {m}개가 필요합니다. 빈칸 {e}개',
+    toLeft: '왼쪽',
+    toRight: '오른쪽',
+  },
+  en: {
+    titlePointer: 'A tree in memory: pointers',
+    titleSearch: 'A tree in memory: following addresses',
+    titleArray: 'A tree in memory: an array',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    memory: 'memory (by address)',
+    address: 'address',
+    key: 'key',
+    left: 'left',
+    right: 'right',
+    rootVar: 'root (variable)',
+    gap: 'other data',
+    tabMixed: 'insert order: {keys}',
+    tabSorted: 'sorted order: {keys}',
+    used: 'cells used',
+    need: 'cells needed',
+    idleInsert: 'An empty tree: the root variable holds NULL. Insert the values one at a time and watch memory change.',
+    idleSearch: 'Find {k}. Start from the address in root and jump to the address written in each field.',
+    alloc: 'malloc: got a 24-byte block at {a}. Write key = {k}, left = NULL, right = NULL.',
+    setRoot: 'root ← {a}. Node {k} is now the root.',
+    fromRoot: 'Go to the address in root, {a}. That block holds key {v}.',
+    follow: '{k} {op} {v} → go to {a}, the address in the {side} field.',
+    link: '{k} {op} {v}, and the {side} field is NULL. Write the new block’s address there: {side} ← {a}',
+    doneInsert: 'All inserted. Address order has nothing to do with the tree’s shape. Only the addresses in the fields tie the nodes together.',
+    found: '{k} = {v}, found it: the block at {a}. {c} blocks were read.',
+    missing: 'The {side} field is NULL. There is no address left to follow, so {k} is not in the tree.',
+    pick: 'node {k}: address {a} · left {l} · right {r}',
+    idleArray: 'Instead of pointers, compute cell numbers. The children of cell i are cells 2i+1 and 2i+2.',
+    arrRoot: '{k}: the first value goes into cell 0.',
+    arrMove: '{k} {op} {v} → its {side} child is cell {calc} = {j}.',
+    arrPlace: 'Cell {j} is empty. Write {k}.',
+    arrDone: 'All inserted. {n} values need {m} cells: {e} of them are empty.',
+    toLeft: 'left',
+    toRight: 'right',
+  },
+  zh: {
+    titlePointer: '内存中的树：指针',
+    titleSearch: '内存中的树：顺着地址走',
+    titleArray: '内存中的树：数组',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    memory: '内存（按地址）',
+    address: '地址',
+    key: 'key',
+    left: 'left',
+    right: 'right',
+    rootVar: 'root（变量）',
+    gap: '其他数据',
+    tabMixed: '插入顺序：{keys}',
+    tabSorted: '有序顺序：{keys}',
+    used: '用到的格',
+    need: '需要的格',
+    idleInsert: '空树：root 变量里是 NULL。逐个插入值，看内存如何变化。',
+    idleSearch: '要找的值是 {k}。从 root 中的地址出发，顺着各字段里写的地址跳转。',
+    alloc: 'malloc：在地址 {a} 得到一个 24 字节的块。写入 key = {k}、left = NULL、right = NULL。',
+    setRoot: 'root ← {a}。现在 {k} 节点是根。',
+    fromRoot: '前往 root 中的地址 {a}。那个块的 key 是 {v}。',
+    follow: '{k} {op} {v} → 前往 {side} 字段里的地址 {a}。',
+    link: '{k} {op} {v}，{side} 字段是 NULL。在那里写入新块的地址：{side} ← {a}',
+    doneInsert: '全部插入。地址的顺序与树的形状毫无关系。把节点连起来的只有字段里写的地址。',
+    found: '{k} = {v}，找到了：地址 {a} 的块。共读了 {c} 个块。',
+    missing: '{side} 字段是 NULL。没有可以继续的地址，所以 {k} 不在树中。',
+    pick: '{k} 节点：地址 {a} · left {l} · right {r}',
+    idleArray: '不用指针，而是计算格号。第 i 格的左子节点是第 2i+1 格，右子节点是第 2i+2 格。',
+    arrRoot: '{k}：第一个值写入第 0 格。',
+    arrMove: '{k} {op} {v} → {side}子节点是第 {calc} = {j} 格。',
+    arrPlace: '第 {j} 格是空的。写入 {k}。',
+    arrDone: '全部插入。{n} 个值需要 {m} 个格：空格 {e} 个。',
+    toLeft: '左',
+    toRight: '右',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const title = mode === 'array' ? t.titleArray : find === undefined ? t.titlePointer : t.titleSearch;
+const tabs = [
+  { id: 'mixed', label: t.tabMixed.replace('{keys}', keys.join(' ')) },
+  { id: 'sorted', label: t.tabSorted.replace('{keys}', SORTED.join(' ')) },
+];
+---
+
+<div
+  class:list={['aas-memory-tree-demo', `is-${mode}`, slide && 'is-slide']}
+  id={id}
+  data-mt-mode={mode}
+  data-mt-keys={JSON.stringify(keys)}
+  data-mt-sorted={JSON.stringify(SORTED)}
+  data-mt-find={find === undefined ? '' : String(find)}
+  data-mt-addrs={JSON.stringify(ADDRS)}
+  data-mt-strings={JSON.stringify(t)}
+>
+  <div class="mt-bar">
+    <span class="mt-head"><strong>{title}</strong></span>
+    <div class="mt-controls">
+      <button type="button" data-act="back" class="mt-btn">{t.back}</button>
+      <button type="button" data-act="step" class="mt-btn">{t.step}</button>
+      <button type="button" data-act="play" class="mt-btn mt-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="mt-btn">{t.reset}</button>
+    </div>
+  </div>
+  {mode === 'array' && (
+    <div class="mt-tabs" role="tablist">
+      {tabs.map((tab) => (
+        <button type="button" class="mt-tab" role="tab" data-mt-tab={tab.id}>{tab.label}</button>
+      ))}
+    </div>
+  )}
+  <div class="mt-body">
+    <svg class="mt-svg" data-mt-svg role="img" aria-label={title}></svg>
+    <div class="mt-side" data-mt-side></div>
+  </div>
+  <div class="mt-foot">
+    <p class="mt-note" data-mt-note></p>
+    <span class="mt-stat" data-mt-stat></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.mtStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const MODE = root.dataset.mtMode;
+    const KEYS = JSON.parse(root.dataset.mtKeys);
+    const SORTED = JSON.parse(root.dataset.mtSorted);
+    const FIND = root.dataset.mtFind === '' ? null : Number(root.dataset.mtFind);
+    const ADDRS = JSON.parse(root.dataset.mtAddrs);
+    const hex = (a) => (a === null ? 'NULL' : `0x${a.toString(16).toUpperCase()}`);
+    const BLOCK = 24;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = root.querySelector('[data-mt-svg]');
+    const side = root.querySelector('[data-mt-side]');
+    const note = root.querySelector('[data-mt-note]');
+    const stat = root.querySelector('[data-mt-stat]');
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const html = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    };
+
+    /* ---------- 공통: 단계 재생 ---------- */
+    let steps = [];
+    let at = -1;
+    let timer = null;
+    let draw = () => {};
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      draw();
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      draw();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      draw();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      draw();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+
+    /* ---------- 포인터 ---------- */
+    function initPointer() {
+      /* 노드 i: 받은 순서. 주소는 ADDRS[i]. */
+      const nodes = KEYS.map((k, i) => ({ key: k, addr: ADDRS[i % ADDRS.length] + Math.floor(i / ADDRS.length) * 0x1000 }));
+      const byAddr = new Map(nodes.map((n, i) => [n.addr, i]));
+
+      /* 다 만든 트리(그림 배치용): 중위 순서가 x, 깊이가 y */
+      const L = new Array(nodes.length).fill(null);
+      const R = new Array(nodes.length).fill(null);
+      const depth = new Array(nodes.length).fill(0);
+      for (let i = 1; i < nodes.length; i++) {
+        let c = 0;
+        for (;;) {
+          const arr = nodes[i].key < nodes[c].key ? L : R;
+          if (arr[c] === null) {
+            arr[c] = i;
+            depth[i] = depth[c] + 1;
+            break;
+          }
+          c = arr[c];
+        }
+      }
+      const order = [];
+      const walk = (i) => {
+        if (i === null) return;
+        walk(L[i]);
+        order.push(i);
+        walk(R[i]);
+      };
+      walk(0);
+      const xOf = new Array(nodes.length);
+      order.forEach((i, k) => (xOf[i] = k));
+      const maxD = Math.max(...depth);
+
+      /* 단계: 각 단계는 그 시점의 메모리 상태(left·right·root)와 강조를 갖는다. */
+      const mem = { root: null, left: new Array(nodes.length).fill(null), right: new Array(nodes.length).fill(null), alive: new Array(nodes.length).fill(false) };
+      const snap = (extra) => ({ root: mem.root, left: mem.left.slice(), right: mem.right.slice(), alive: mem.alive.slice(), ...extra });
+      const out = [];
+      const sideName = (s) => (s === 'left' ? S.left : S.right);
+      if (FIND === null) {
+        nodes.forEach((n, i) => {
+          mem.alive[i] = true;
+          out.push(snap({ cur: i, fresh: i, note: fill(S.alloc, { a: hex(n.addr), k: n.key }) }));
+          if (mem.root === null) {
+            mem.root = n.addr;
+            out.push(snap({ cur: i, write: 'root', note: fill(S.setRoot, { a: hex(n.addr), k: n.key }) }));
+            return;
+          }
+          let c = byAddr.get(mem.root);
+          out.push(snap({ cur: c, read: 'root', fresh: i, note: fill(S.fromRoot, { a: hex(mem.root), v: nodes[c].key }) }));
+          for (;;) {
+            const s = n.key < nodes[c].key ? 'left' : 'right';
+            const op = s === 'left' ? '<' : '>';
+            const val = mem[s][c];
+            if (val === null) {
+              mem[s][c] = n.addr;
+              out.push(snap({ cur: c, write: s, fresh: i, note: fill(S.link, { k: n.key, op, v: nodes[c].key, side: sideName(s), a: hex(n.addr) }) }));
+              break;
+            }
+            out.push(snap({ cur: c, read: s, fresh: i, note: fill(S.follow, { k: n.key, op, v: nodes[c].key, side: sideName(s), a: hex(val) }) }));
+            c = byAddr.get(val);
+          }
+        });
+        out.push(snap({ cur: null, done: true, note: S.doneInsert }));
+      } else {
+        nodes.forEach((n, i) => {
+          mem.alive[i] = true;
+          if (i === 0) mem.root = n.addr;
+        });
+        for (let i = 1; i < nodes.length; i++) {
+          let c = 0;
+          for (;;) {
+            const s = nodes[i].key < nodes[c].key ? 'left' : 'right';
+            if (mem[s][c] === null) {
+              mem[s][c] = nodes[i].addr;
+              break;
+            }
+            c = byAddr.get(mem[s][c]);
+          }
+        }
+        let c = byAddr.get(mem.root);
+        let reads = 1;
+        out.push(snap({ cur: c, read: 'root', note: fill(S.fromRoot, { a: hex(mem.root), v: nodes[c].key }) }));
+        for (;;) {
+          if (nodes[c].key === FIND) {
+            out.push(snap({ cur: c, found: true, done: true, note: fill(S.found, { k: FIND, v: nodes[c].key, a: hex(nodes[c].addr), c: reads }) }));
+            break;
+          }
+          const s = FIND < nodes[c].key ? 'left' : 'right';
+          const op = s === 'left' ? '<' : '>';
+          const val = mem[s][c];
+          if (val === null) {
+            out.push(snap({ cur: c, read: s, done: true, miss: true, note: fill(S.missing, { side: sideName(s), k: FIND }) }));
+            break;
+          }
+          out.push(snap({ cur: c, read: s, note: fill(S.follow, { k: FIND, op, v: nodes[c].key, side: sideName(s), a: hex(val) }) }));
+          c = byAddr.get(val);
+          reads += 1;
+        }
+      }
+      steps = out;
+
+      /* 그림: 트리 */
+      const UNIT = 64;
+      const GAP = 78;
+      const RAD = 21;
+      const PAD = 36;
+      const W = (nodes.length - 1) * UNIT + 2 * PAD;
+      const H = maxD * GAP + 2 * RAD + 26;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      const X = (i) => PAD + xOf[i] * UNIT;
+      const Y = (i) => RAD + 6 + depth[i] * GAP;
+      const edgeLayer = el('g', {}, svg);
+      const edgeEls = [];
+      nodes.forEach((n, i) => {
+        if (i === 0) return;
+        let p = 0;
+        for (let c = 0; c < nodes.length; c++) if (L[c] === i || R[c] === i) p = c;
+        edgeEls[i] = { line: el('line', { x1: X(p), y1: Y(p), x2: X(i), y2: Y(i), class: 'mt-edge' }, edgeLayer), p, side: L[p] === i ? 'left' : 'right' };
+      });
+      const nodeEls = nodes.map((n, i) => {
+        const g = el('g', { class: 'mt-node', tabindex: 0, role: 'button' }, svg);
+        el('circle', { cx: X(i), cy: Y(i), r: RAD }, g);
+        const tx = el('text', { x: X(i), y: Y(i), class: 'mt-text' }, g);
+        tx.textContent = String(n.key);
+        const ad = el('text', { x: X(i), y: Y(i) + RAD + 12, class: 'mt-addr' }, g);
+        ad.textContent = hex(n.addr);
+        g.addEventListener('click', () => pick(i));
+        g.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            pick(i);
+          }
+        });
+        return g;
+      });
+
+      /* 메모리 표: root 변수 한 줄 + 주소 순으로 늘어놓은 블록. 떨어진 곳에는 다른 데이터 줄 */
+      const table = html('div', 'mt-mem');
+      const head = html('div', 'mt-row mt-row-head');
+      [S.address, S.key, S.left, S.right].forEach((h) => head.append(html('span', '', h)));
+      const rootRow = html('div', 'mt-row mt-row-root');
+      rootRow.append(html('span', 'mt-root-name', S.rootVar));
+      const rootVal = html('span', 'mt-cell mt-ptr', 'NULL');
+      rootRow.append(rootVal);
+      table.append(html('div', 'mt-mem-title', S.memory), rootRow, head);
+      const sorted = nodes.map((n, i) => i).sort((a, b) => nodes[a].addr - nodes[b].addr);
+      const rowEls = new Array(nodes.length);
+      let prev = null;
+      sorted.forEach((i) => {
+        if (prev !== null && nodes[i].addr - nodes[prev].addr > BLOCK) {
+          const g = html('div', 'mt-row mt-row-gap');
+          g.append(html('span', '', '⋯'), html('span', 'mt-gap-text', S.gap));
+          table.append(g);
+        }
+        const r = html('div', 'mt-row mt-row-node');
+        const a = html('span', 'mt-cell mt-a', hex(nodes[i].addr));
+        const k = html('span', 'mt-cell mt-k', String(nodes[i].key));
+        const l = html('span', 'mt-cell mt-ptr', 'NULL');
+        const rr = html('span', 'mt-cell mt-ptr', 'NULL');
+        r.append(a, k, l, rr);
+        r.addEventListener('click', () => pick(i));
+        table.append(r);
+        rowEls[i] = { row: r, key: k, left: l, right: rr };
+        prev = i;
+      });
+      side.append(table);
+
+      let pinned = null;
+      function pick(i) {
+        stop();
+        pinned = i;
+        draw();
+        const s = at >= 0 ? steps[at] : snap0;
+        if (!s.alive[i]) return;
+        setLines(note, fill(S.pick, { k: nodes[i].key, a: hex(nodes[i].addr), l: hex(s.left[i]), r: hex(s.right[i]) }));
+      }
+      const snap0 = { root: FIND === null ? null : steps[0].root, left: FIND === null ? new Array(nodes.length).fill(null) : steps[0].left, right: FIND === null ? new Array(nodes.length).fill(null) : steps[0].right, alive: new Array(nodes.length).fill(FIND !== null) };
+
+      draw = () => {
+        const s = at >= 0 ? steps[at] : snap0;
+        nodes.forEach((n, i) => {
+          const g = nodeEls[i];
+          g.classList.toggle('is-gone', !s.alive[i]);
+          g.classList.toggle('is-cur', s.cur === i && !s.found);
+          g.classList.toggle('is-fresh', s.fresh === i);
+          g.classList.toggle('is-found', !!s.found && s.cur === i);
+          g.classList.toggle('is-pin', pinned === i);
+          const row = rowEls[i];
+          row.row.classList.toggle('is-gone', !s.alive[i]);
+          row.row.classList.toggle('is-cur', s.cur === i);
+          row.row.classList.toggle('is-fresh', s.fresh === i && s.cur === i);
+          row.row.classList.toggle('is-pin', pinned === i);
+          // 아직 받지 않은 블록은 빈 공간이다. 앞으로 들어갈 값을 미리 보이지 않는다.
+          row.key.textContent = s.alive[i] ? String(n.key) : '';
+          ['left', 'right'].forEach((f) => {
+            row[f].textContent = s.alive[i] ? hex(s[f][i]) : '';
+            row[f].classList.toggle('is-null', s[f][i] === null);
+            row[f].classList.toggle('is-read', s.cur === i && s.read === f);
+            row[f].classList.toggle('is-write', s.cur === i && s.write === f);
+          });
+        });
+        edgeEls.forEach((e, i) => {
+          if (!e) return;
+          const linked = s[e.side][e.p] === nodes[i].addr;
+          e.line.classList.toggle('is-gone', !linked);
+          e.line.classList.toggle('is-new', linked && s.cur === e.p && s.write === e.side);
+          e.line.classList.toggle('is-read', linked && s.cur === e.p && s.read === e.side);
+        });
+        rootVal.textContent = hex(s.root);
+        rootVal.classList.toggle('is-null', s.root === null);
+        rootVal.classList.toggle('is-read', s.read === 'root');
+        rootVal.classList.toggle('is-write', s.write === 'root');
+        const alive = s.alive.filter(Boolean).length;
+        stat.textContent = `${alive} × ${BLOCK} B`;
+        root.classList.toggle('is-done', !!s.done);
+        root.classList.toggle('is-miss', !!s.miss);
+        setLines(note, at >= 0 ? s.note : FIND === null ? S.idleInsert : fill(S.idleSearch, { k: FIND }));
+      };
+      draw();
+    }
+
+    /* ---------- 배열 ---------- */
+    function initArray() {
+      const MAXL = 4; // 레벨 0~4, 칸 0~30
+      const CELLS = 2 ** (MAXL + 1) - 1;
+      const RAD = 16;
+      const W = 620;
+      const GAP = 58;
+      const PADX = RAD + 6;
+      const TOP = RAD + 14;
+      svg.setAttribute('viewBox', `0 0 ${W} ${TOP + MAXL * GAP + RAD + 6}`);
+      const levelOf = (i) => Math.floor(Math.log2(i + 1));
+      const pos = (i) => {
+        const l = levelOf(i);
+        const k = i + 1 - 2 ** l;
+        return { x: PADX + ((2 * k + 1) / 2 ** (l + 1)) * (W - 2 * PADX), y: TOP + l * GAP };
+      };
+      const tabs = [...root.querySelectorAll('[data-mt-tab]')];
+      let tab = 'mixed';
+
+      function plan(keys) {
+        const arr = {};
+        const out = [];
+        keys.forEach((k) => {
+          if (!Object.keys(arr).length) {
+            arr[0] = k;
+            out.push({ arr: { ...arr }, cur: 0, place: 0, note: fill(S.arrRoot, { k }) });
+            return;
+          }
+          let i = 0;
+          for (;;) {
+            const left = k < arr[i];
+            const j = left ? 2 * i + 1 : 2 * i + 2;
+            out.push({ arr: { ...arr }, cur: i, next: j, note: fill(S.arrMove, { k, op: left ? '<' : '>', v: arr[i], side: left ? S.toLeft : S.toRight, calc: left ? `2·${i}+1` : `2·${i}+2`, j }) });
+            if (arr[j] === undefined) {
+              arr[j] = k;
+              out.push({ arr: { ...arr }, cur: j, place: j, note: fill(S.arrPlace, { j, k }) });
+              break;
+            }
+            i = j;
+          }
+        });
+        const used = Object.keys(arr).map(Number);
+        const m = Math.max(...used) + 1;
+        out.push({ arr: { ...arr }, done: true, note: fill(S.arrDone, { n: used.length, m, e: m - used.length }) });
+        return out;
+      }
+
+      /* 칸 줄: 0~30 */
+      const strip = html('div', 'mt-strip');
+      const cellEls = [];
+      for (let i = 0; i < CELLS; i++) {
+        const c = html('div', 'mt-slot');
+        c.append(html('span', 'mt-slot-i', String(i)), html('strong', 'mt-slot-v', ''));
+        strip.append(c);
+        cellEls[i] = c;
+      }
+      side.append(strip);
+
+      draw = () => {
+        const s = at >= 0 ? steps[at] : { arr: {} };
+        svg.replaceChildren();
+        const edgeLayer = el('g', {}, svg);
+        const filled = Object.keys(s.arr).map(Number);
+        filled.forEach((i) => {
+          if (i === 0) return;
+          const a = pos(Math.floor((i - 1) / 2));
+          const b = pos(i);
+          el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'mt-edge' }, edgeLayer);
+        });
+        if (s.next) {
+          const a = pos(s.cur);
+          const b = pos(s.next);
+          el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'mt-edge is-read' }, edgeLayer);
+        }
+        for (let i = 0; i < CELLS; i++) {
+          const p = pos(i);
+          const has = s.arr[i] !== undefined;
+          const g = el('g', { class: `mt-node ${has ? '' : 'is-empty'} ${s.cur === i ? 'is-cur' : ''} ${s.place === i ? 'is-fresh' : ''} ${s.next === i ? 'is-next' : ''}` }, svg);
+          el('circle', { cx: p.x, cy: p.y, r: RAD }, g);
+          const tx = el('text', { x: p.x, y: p.y, class: has ? 'mt-text' : 'mt-idx' }, g);
+          tx.textContent = has ? String(s.arr[i]) : String(i);
+        }
+        cellEls.forEach((c, i) => {
+          if (!c) return;
+          const has = s.arr[i] !== undefined;
+          c.querySelector('.mt-slot-v').textContent = has ? String(s.arr[i]) : '';
+          c.classList.toggle('is-full', has);
+          c.classList.toggle('is-cur', s.cur === i);
+          c.classList.toggle('is-fresh', s.place === i);
+          c.classList.toggle('is-next', s.next === i);
+        });
+        const used = Object.keys(s.arr).map(Number);
+        const m = used.length ? Math.max(...used) + 1 : 0;
+        stat.innerHTML = '';
+        stat.append(document.createTextNode(`${S.used} `), html('strong', '', String(used.length)), document.createTextNode(` · ${S.need} `), html('strong', '', String(m)));
+        root.classList.toggle('is-done', !!s.done);
+        setLines(note, at >= 0 ? s.note : S.idleArray);
+        tabs.forEach((b) => {
+          const on = b.dataset.mtTab === tab;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-selected', String(on));
+        });
+      };
+      const load = () => {
+        steps = plan(tab === 'mixed' ? KEYS : SORTED);
+        at = -1;
+        draw();
+      };
+      tabs.forEach((b) =>
+        b.addEventListener('click', () => {
+          stop();
+          tab = b.dataset.mtTab;
+          load();
+        }),
+      );
+      load();
+    }
+
+    if (MODE === 'array') initArray();
+    else initPointer();
+  })();
+</script>
+
+<style is:global>
+  .aas-memory-tree-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-memory-tree-demo .mt-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-memory-tree-demo .mt-head {
+    font-size: 0.95em;
+  }
+  .aas-memory-tree-demo .mt-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-memory-tree-demo .mt-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-memory-tree-demo .mt-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-memory-tree-demo .mt-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-memory-tree-demo .mt-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    margin-bottom: 0.4em;
+  }
+  .aas-memory-tree-demo .mt-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-memory-tree-demo .mt-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-memory-tree-demo .mt-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+  }
+  .aas-memory-tree-demo .mt-svg {
+    flex: 1.15 1 18em;
+    min-width: 0;
+    max-height: 19em;
+  }
+  .aas-memory-tree-demo .mt-side {
+    flex: 1 1 15em;
+    min-width: 0;
+  }
+  .aas-memory-tree-demo.is-array .mt-svg {
+    flex: 1 1 18em;
+  }
+  .aas-memory-tree-demo.is-array .mt-side {
+    flex: 1.1 1 16em;
+  }
+
+  /* 트리 */
+  .aas-memory-tree-demo .mt-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+    transition: opacity 0.3s, stroke 0.2s;
+  }
+  .aas-memory-tree-demo .mt-edge.is-read {
+    stroke: var(--aas-role-model);
+    stroke-width: 4;
+  }
+  .aas-memory-tree-demo .mt-edge.is-new {
+    stroke: var(--aas-role-eval);
+    stroke-width: 4;
+  }
+  .aas-memory-tree-demo .is-gone {
+    opacity: 0;
+  }
+  .aas-memory-tree-demo .mt-node {
+    cursor: pointer;
+    outline: none;
+    transition: opacity 0.3s;
+  }
+  .aas-memory-tree-demo .mt-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.8;
+    transition: fill 0.2s, stroke 0.2s;
+  }
+  .aas-memory-tree-demo .mt-text {
+    font-size: 16px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-memory-tree-demo .mt-addr {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-memory-tree-demo .mt-idx {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-memory-tree-demo .mt-node.is-empty circle {
+    fill: none;
+    stroke: var(--aas-border);
+    stroke-dasharray: 3 3;
+  }
+  .aas-memory-tree-demo .mt-node.is-cur circle {
+    stroke: var(--aas-role-focus);
+    stroke-width: 4;
+  }
+  .aas-memory-tree-demo .mt-node.is-next circle {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+    stroke-dasharray: none;
+  }
+  .aas-memory-tree-demo .mt-node.is-fresh circle,
+  .aas-memory-tree-demo .mt-node.is-found circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-memory-tree-demo .mt-node.is-fresh .mt-text,
+  .aas-memory-tree-demo .mt-node.is-found .mt-text {
+    fill: #fff;
+  }
+  .aas-memory-tree-demo .mt-node.is-pin circle {
+    stroke: var(--aas-role-tool);
+    stroke-width: 4;
+  }
+  .aas-memory-tree-demo .mt-node:hover circle {
+    stroke: var(--aas-accent);
+  }
+
+  /* 메모리 표 */
+  .aas-memory-tree-demo .mt-mem {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+  }
+  .aas-memory-tree-demo .mt-mem-title {
+    font-family: var(--aas-font, sans-serif);
+    color: var(--aas-muted);
+    font-size: 0.9em;
+    margin-bottom: 0.2em;
+  }
+  .aas-memory-tree-demo .mt-row {
+    display: grid;
+    grid-template-columns: 5.2em 2.6em 5.2em 5.2em;
+    gap: 0.25em;
+    align-items: center;
+    padding: 0.08em 0;
+  }
+  /* 칸 너비가 em이라 줄 자체의 글자 크기를 바꾸면 칸이 좁아져 아래 줄과
+     어긋난다. 크기는 안쪽 글자에만 준다. */
+  .aas-memory-tree-demo .mt-row-head {
+    text-align: center;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+    margin-bottom: 0.15em;
+  }
+  .aas-memory-tree-demo .mt-row-head > span {
+    font-size: 0.85em;
+  }
+  .aas-memory-tree-demo .mt-row-root {
+    grid-template-columns: 8.1em 5.2em;
+    margin-bottom: 0.4em;
+  }
+  .aas-memory-tree-demo .mt-root-name {
+    color: var(--aas-muted);
+    font-family: var(--aas-font, sans-serif);
+  }
+  .aas-memory-tree-demo .mt-row-gap {
+    color: var(--aas-muted);
+    grid-template-columns: 5.2em 1fr;
+  }
+  .aas-memory-tree-demo .mt-row-gap > span {
+    font-size: 0.8em;
+    text-align: center;
+  }
+  .aas-memory-tree-demo .mt-row-gap > .mt-gap-text {
+    text-align: left;
+    padding-left: 0.4em;
+  }
+  .aas-memory-tree-demo .mt-gap-text {
+    font-family: var(--aas-font, sans-serif);
+  }
+  .aas-memory-tree-demo .mt-row-node {
+    cursor: pointer;
+    border-radius: 0.3em;
+    transition: opacity 0.3s, background 0.2s;
+  }
+  .aas-memory-tree-demo .mt-row-node.is-gone {
+    opacity: 0.45;
+  }
+  .aas-memory-tree-demo .mt-row-node.is-cur {
+    background: color-mix(in srgb, var(--aas-role-focus) 16%, transparent);
+  }
+  .aas-memory-tree-demo .mt-row-node.is-fresh {
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, transparent);
+  }
+  .aas-memory-tree-demo .mt-row-node.is-pin {
+    outline: 2px solid var(--aas-role-tool);
+  }
+  .aas-memory-tree-demo .mt-cell {
+    padding: 0.1em 0.3em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    text-align: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .aas-memory-tree-demo .mt-a {
+    color: var(--aas-muted);
+    border-style: dashed;
+  }
+  .aas-memory-tree-demo .mt-k {
+    font-weight: 700;
+  }
+  .aas-memory-tree-demo .mt-ptr {
+    color: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-memory-tree-demo .mt-ptr.is-null {
+    color: var(--aas-muted);
+    font-weight: 400;
+  }
+  .aas-memory-tree-demo .mt-ptr.is-read {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-memory-tree-demo .mt-ptr.is-write {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 28%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+
+  /* 배열 칸 줄 */
+  .aas-memory-tree-demo .mt-strip {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 0.2em;
+  }
+  .aas-memory-tree-demo .mt-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.05em 0;
+    border: 1px dashed var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    min-height: 2.3em;
+  }
+  .aas-memory-tree-demo .mt-slot-i {
+    font-size: 0.6em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-memory-tree-demo .mt-slot-v {
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-memory-tree-demo .mt-slot.is-full {
+    border-style: solid;
+    border-color: var(--aas-text);
+  }
+  .aas-memory-tree-demo .mt-slot.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-memory-tree-demo .mt-slot.is-next {
+    border-color: var(--aas-role-model);
+    box-shadow: 0 0 0 2px var(--aas-role-model);
+  }
+  .aas-memory-tree-demo .mt-slot.is-fresh {
+    background: color-mix(in srgb, var(--aas-role-eval) 28%, var(--aas-bg));
+  }
+
+  .aas-memory-tree-demo .mt-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-memory-tree-demo .mt-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-memory-tree-demo.is-done .mt-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-memory-tree-demo.is-miss .mt-note {
+    color: var(--aas-role-guard);
+  }
+  .aas-memory-tree-demo .mt-stat {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-memory-tree-demo .mt-stat strong {
+    color: var(--aas-text);
+  }
+
+  .aas-memory-tree-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-memory-tree-demo.is-slide .mt-svg {
+    max-height: 36vh;
+  }
+  .aas-memory-tree-demo.is-slide .mt-note {
+    min-height: 1.6em;
+  }
+  .aas-memory-tree-demo.is-slide .mt-mem {
+    font-size: 0.74em;
+  }
+  .aas-memory-tree-demo.is-slide .mt-row {
+    padding: 0;
+  }
+  .aas-memory-tree-demo.is-slide .mt-cell {
+    padding: 0 0.3em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-memory-tree-demo * {
+      transition: none !important;
+    }
+  }
+</style>

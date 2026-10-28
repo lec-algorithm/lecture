@@ -1,0 +1,903 @@
+---
+title: "主题 10. 字典树与三向搜索树"
+description: "把字符串键按字符逐个存成路径的字典树，它的查找·插入·前缀查找·删除与空间代价，以及把链接减到三个的 TST"
+date: "主题 10 · v1"
+order: 10
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import TrieDemo from '@components/TrieDemo.astro';
+import TstDemo from '@components/TstDemo.astro';
+import TrieFigure from '@components/TrieFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+
+{/* 幻灯片规则见 docs/writing-rules.md 的"슬라이드 규칙"。
+    数字与实践代码（topic-10-trie）的运行结果一致。 */}
+
+<Slide class="cover">
+
+# 字典树与 TST
+
+主题 10
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 把键拆开来存
+::sub[主题 07 是二叉搜索树，主题 08 是哈希表]
+
+- **二叉搜索树**：整个键拿来比较，一路往下走。
+- **哈希表**：用整个键算出哈希值。
+- **字典树**：把字符串键**按字符逐个拆开**，存成树上的路径。
+
+<br/>
+
+查找时间取决于**键有几个字符**，而不是有多少个键。  
+找出以某个前缀开头的所有键，也顺带得到了。
+
+</Slide>
+
+<Slide>
+
+#### 再高效一点
+::sub[表再大也成立的性质]
+
+- **查找成功时**
+  - 所需时间与要找的键的长度成正比。
+- **查找失败时**
+  - 只检查几个字符就结束。
+
+</Slide>
+
+<Slide class="center">
+
+## 字典树
+::sub[Trie · 前缀树、数字树]
+
+</Slide>
+
+<Slide>
+
+#### 字典树
+::sub[名字来自检索（retrieval）]
+
+- 为字符串查找而设计的树。
+  - 也叫前缀树（prefix tree）、数字树（digital tree）。
+- 专门用来存储和查找字符串集合的结构。
+- 每个节点代表一个字符。
+  - 从根到某个节点的路径就是一个字符串。
+- 键的最后一个字符所在的节点存放值。
+
+</Slide>
+
+<Slide>
+
+#### 节点
+::sub[TrieNode]
+
+- **children[26]**：指向下一个节点的链接数组
+  - 字符直接当下标用。`b` 是 1 号格，`s` 是 18 号格
+- **hasValue**：是否有键在这个节点结束
+- **value**：那个键的值
+
+</Slide>
+
+<Slide class="compact">
+
+#### 节点写成代码
+::sub[`01_trie/trie.c`]
+
+```c
+#define ALPHABET_SIZE 26 /* R：字母表大小 (a-z) */
+
+typedef struct TrieNode {
+    struct TrieNode *children[ALPHABET_SIZE]; /* a-z 链接，空则为 NULL */
+    bool hasValue;                            /* 是否有键在这个节点结束 */
+    int value;                                /* 那个键的值 */
+} TrieNode;
+```
+
+没有链接就是 NULL，新节点创建时 26 格全部填 NULL。
+
+</Slide>
+
+<Slide>
+
+### 存放六个键的字典树
+::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · 点节点就能看到它的链接数组]
+
+<TrieNodeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 怎么读这张图
+::sub[节点里的字母是指向它的链接所代表的字符]
+
+- 节点本身并不存字母。
+  - 从父节点的第几格过来，就是哪个字母。
+- 节点旁的蓝色数字是值。
+  - `she` 的最后一个字符 `e` 上是 0。
+- `s` 链接下面是**所有以 s 开头的键**。
+  - `sh` 下面是所有以 sh 开头的键。
+
+</Slide>
+
+<Slide>
+
+#### 特点
+::sub[共享的与浪费的]
+
+- **共享公共前缀**
+  - `sea` 和 `sells` 共用 `se`，`she` 和 `shells` 共用 `she`。
+- **查找快**：键长为 $$m$$ 时 $$O(m)$$
+- **存键值对**：单词和与之关联的值放在一起。
+- **占内存**
+  - 每个节点 26 个链接，442 个里只用了 16 个。
+
+</Slide>
+
+<Slide class="center">
+
+## 例题 1. 字典树插入
+::sub[Insert]
+
+</Slide>
+
+<Slide>
+
+#### 插入
+::sub[以键的字符为向导，从根往下走]
+
+- **还没到最后一个字符就遇到 NULL 链接**
+  - 新建一个节点挂上去。
+- **到达最后一个字符的节点**
+  - 在这个节点存值。
+  - 原来已有值就换成新值。
+
+</Slide>
+
+<Slide>
+
+### 逐步看：六个键
+::sub[经过的节点是蓝色，新建的节点是绿色]
+
+<TrieDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 插入写成代码
+::sub[`01_trie/trie.pseudo`]
+
+```plaintext
+ALGORITHM Insert(root, word, value)
+    current <- root
+    for i <- 0 to length(word)-1 do
+        index <- word[i] - 'a'          // 把字符换成数组下标 (a=0, b=1, ...)
+        if current.children[index] = NULL then
+            current.children[index] <- CreateTrieNode()   // 没有链接就新建节点
+        current <- current.children[index]
+    current.hasValue <- true            // 在键的最后一个字符的节点存值
+    current.value <- value
+```
+
+</Slide>
+
+<Slide class="center">
+
+## 字典树查找
+::sub[Search]
+
+</Slide>
+
+<Slide>
+
+#### 查找
+::sub[从根出发，依次沿着键的字符走]
+
+- 一直重复，直到遇到 NULL 链接或到达最后一个字符。
+- **成功**：最后一个字符的节点有值。
+- **失败**有两种
+  - 没有链接，走不下去。
+  - 走到了最后，但那个节点没有值。
+
+</Slide>
+
+<Slide>
+
+### 逐步看：四次 get
+::sub[shells · shell · she · shore]
+
+<TrieDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+#### 四次的结果
+::sub[失败也有两种样子]
+
+- **get("shells")**：最后的 `s` 上有值 3，成功
+- **get("shell")**：走到了最后的 `l`，但没有值。
+  - `shell` 只是 `shells` 的前缀，不是键。
+- **get("she")**：中间节点只要有值也算成功，返回 0
+- **get("shore")**：`sh` 之后没有 `o` 链接。
+  - 只看了三个节点就失败了。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 查找写成代码
+::sub[`01_trie/trie.pseudo` · 实践代码失败时返回 -1]
+
+```plaintext
+ALGORITHM Search(root, word)
+    current <- root
+    for i <- 0 to length(word)-1 do
+        index <- word[i] - 'a'
+        if current.children[index] = NULL then
+            return -1                   // 没有链接：失败
+        current <- current.children[index]
+    if current.hasValue then
+        return current.value
+    return -1                           // 节点在但没有值：失败
+```
+
+</Slide>
+
+<Slide class="center">
+
+## 按前缀查找全部
+::sub[Keys with Prefix · 自动补全]
+
+</Slide>
+
+<Slide>
+
+#### 按前缀查找全部
+::sub[在搜索框里敲到 sh，就会出现 she、shells、shore]
+
+`sh` 节点下面是**所有以 sh 开头的键**。
+
+1. 沿着前缀走到它最后一个字符的节点。
+2. 遍历下面的子树，收集有值节点的键。
+
+<br/>
+
+子节点按 a 到 z 的顺序走，所以结果是**字典序**。
+
+</Slide>
+
+<Slide>
+
+### 逐步看："sh"
+::sub[多放了 shore=7 的字典树 · 收集到的节点是绿色]
+
+<TrieDemo mode="prefix" slide />
+
+</Slide>
+
+<Slide>
+
+### 自己输入：自动补全
+::sub[输入前缀，它下面的键按字典序列出来]
+
+<TrieNodeDemo mode="complete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 收集写成代码
+::sub[`01_trie/trie.pseudo` · 先看值，再往子节点走]
+
+```plaintext
+ALGORITHM GetAllWordsHelper(node, prefix, results)
+    if node = NULL then return
+    if node.hasValue then
+        把 (prefix, node.value) 加入 results
+    for i <- 0 to 25 do                 // 按 a 到 z 的顺序，结果是字典序
+        if node.children[i] != NULL then
+            GetAllWordsHelper(node.children[i], prefix + ('a' + i), results)
+```
+
+`GetWordsWithPrefix` 先走到前缀的节点，再调用它。
+
+</Slide>
+
+<Slide class="center">
+
+## 字典树删除
+::sub[Delete]
+
+</Slide>
+
+<Slide>
+
+#### 删除
+::sub[先清掉值，再从下往上摘掉没用的节点]
+
+1. **用查找找到键的节点，把值设为 NULL**
+2. **一路返回时整理**
+   - 子链接里只要有不是 NULL 的，就什么也不删。
+   - 既没有值、子链接也全是 NULL，就删掉这个节点。
+   - 因此父节点的子链接全变成 NULL 时，父节点也删掉。
+
+</Slide>
+
+<Slide>
+
+### 逐步看：delete("shells")
+::sub[要删的节点是红色虚线，停下的节点是绿色边框]
+
+<TrieDemo mode="delete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 删除写成代码
+::sub[`01_trie/trie.pseudo` · 根不删]
+
+```plaintext
+ALGORITHM DeleteHelper(node, word, index)
+    if index = length(word) then        // 到达键的最后一个字符的节点
+        if not node.hasValue then return false    // 键不存在
+        node.hasValue <- false
+        return node 是否一个子节点也没有
+    child <- node.children[word[index] - 'a']
+    if child = NULL then return false   // 键不存在
+    if DeleteHelper(child, word, index + 1) then
+        释放 child，把那个链接设为 NULL
+        return (not node.hasValue) and node 是否一个子节点也没有
+    return false
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`01_trie/` · 演示的四个场景原样出现]
+
+- 运行
+
+```console
+search
+  shells -> 3      visited 7: root s h e l l s
+  shell  -> none   visited 6: root s h e l l (no value)
+  she    -> 0      visited 4: root s h e
+  shore  -> none   visited 3: root s h (no link 'o')
+
+insert shore=7
+getWordsWithPrefix(sh): she(0) shells(3) shore(7)
+getWordsWithPrefix(se): sea(2) sells(1)
+
+delete shells: removed s l l
+  shells -> none   visited 4: root s h e (no link 'l')
+nodes = 17
+```
+
+</Slide>
+
+<Slide class="center">
+
+## 字典树分析
+::sub[形状、时间、空间]
+
+</Slide>
+
+<Slide>
+
+#### 形状由键集合决定
+::sub[链接结构与插入、删除的顺序无关]
+
+- **字典树**：键集合一定，形状就唯一确定。
+  - 六个键按什么顺序放，都是同一张图。
+- **二叉搜索树**：插入顺序不同，形状就不同。
+  - 按排好的顺序插入会排成一条线。这是主题 07 见过的最坏情况。
+
+</Slide>
+
+<Slide>
+
+### 逐步看：插入顺序
+::sub[同样六个键只换插入顺序，只有二叉搜索树改变形状]
+
+<TrieOrderDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 查找与插入的最坏情况
+::sub[查找或插入键时经过的节点]
+
+- 含根在内，最多是**键长加 1**。
+  - 一个字符走一个链接，到达键的末尾就停。
+  - 用递归写时，深度从 0 开始，到达键长时停止。
+- 键长为 $$m$$ 时 $$O(m)$$
+  - **与有多少个键无关。**
+
+<br/>
+
+运行结果：`shells`（6 个字符）是 `visited 7`
+
+</Slide>
+
+<Slide>
+
+#### 查找失败时间的期望
+::sub[用大小为 R 的字母表上的 N 个随机键建成的字典树]
+
+- 查找失败平均检查约 $$\log_R N$$ 个节点。
+- **查找失败的耗时与键的长度无关。**
+  - 在英语词典里查 `xmcwkeicowalcoeks`，三四个字母就知道没有。
+- 如果字典树里有一百万个随机键
+  - 不管是 7 位车牌还是 20 位账号，四五个节点就结束。
+
+</Slide>
+
+<Slide>
+
+### 自己数一数：查找失败
+::sub[用 N 个随机键建字典树，再用随机键查 1000 次]
+
+<TrieMissDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 实验：7 个字符的随机键
+::sub[`01_trie/` · 用随机键查 1000 次，经过节点数（含根）的平均]
+
+- 运行
+
+```console
+search miss, random keys of length 7, 1000 searches
+  N = 100    average visited = 2.15
+  N = 1000   average visited = 2.82
+  N = 10000  average visited = 3.45
+```
+
+键每增加到十倍，平均就多 0.6\~0.7 个。  
+$$\log_{26} 10 \approx 0.71$$，也就是随 $$\log_R N$$ 增长。
+
+</Slide>
+
+<Slide>
+
+#### 空间
+::sub[大小为 R 的字母表上的 N 个键，键的平均长度 w]
+
+- 每个节点有 $$R$$ 个链接。
+- 链接数在 **$$RN$$ 到 $$RNw$$ 之间**。
+  - 根的 $$R$$ 个另算。
+- **键短，或大量共享前缀**时接近 $$RN$$。
+- **键长且互不相同**时接近 $$RNw$$。
+- 把 $$R$$ 减小，可以省下相当多的空间。
+
+</Slide>
+
+<Slide>
+
+### 自己改一改：RN 与 RNw 之间
+::sub[chain 共享全部前缀，spread 一个也不共享 · 也可以自己输入键]
+
+<TrieSpaceDemo set="chain" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 数一数链接
+::sub[`01_trie/` · R = 26]
+
+- 运行
+
+```console
+space (R = 26, w = average key length)
+  keys      N      w  nodes  links   null     RN    RNw
+  by..the   6   3.67     17    442    426    156    572
+  chain     6   3.50      7    182    176    156    546
+  spread    6   3.50     22    572    551    156    546
+  apple..   7   7.57     25    650    626    182   1378
+```
+
+去掉根的 26 个后，`chain` 是 $$RN$$ = 156，`spread` 是 $$RNw$$ = 546  
+每个节点只有一个指向它的链接，其余全是 NULL。
+
+</Slide>
+
+<Slide>
+
+### 逐步看：折叠单分支
+::sub[空间用得过多，最大的原因是只用一个链接的节点]
+
+<TrieCompressDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 去掉单分支
+::sub[压缩字典树（radix tree, Patricia trie）]
+
+- 把没有值、只有一个子节点的节点与下面的节点合并。
+  - 只留下分叉的地方，节点上挂的是字符串片段。
+- 本主题不实现它。
+
+<br/>
+
+我们转向**直接减少链接数**的 TST。
+
+</Slide>
+
+<Slide class="center">
+
+## TST
+::sub[Ternary Search Tree · 三向搜索树]
+
+</Slide>
+
+<Slide>
+
+#### 概要
+::sub[字典树省内存的变体]
+
+- 每个节点只有 **3 个**子链接。
+  - 可以避免字典树里过多的空间消耗。
+- 用类似二叉搜索树的结构存字符。
+  - 在字典树里，链接的位置就是字符。
+  - 在 TST 里，**节点直接存字符**。
+
+</Slide>
+
+<Slide>
+
+#### 三个链接
+::sub[字典树的一个节点变成一棵小的二叉搜索树]
+
+- **left**：同一位置上比本节点字符小的字符
+- **middle**：本字符对上时，下一位置的字符
+- **right**：同一位置上比本节点字符大的字符
+
+<br/>
+
+左、右是**同一位置**，只有中间是**下一位置**。
+
+</Slide>
+
+<Slide>
+
+#### 同样六个键放进 TST
+::sub[第一位的 b、s、t 组成二叉搜索树 · 小圆点是空链接]
+
+<TrieFigure kind="tst" words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 节点写成代码
+::sub[`02_tst/tst.c` · 字典树是 17 个节点、442 个链接]
+
+```c
+typedef struct TSTNode {
+    char data;               /* 这个节点代表的字符 */
+    bool hasValue;           /* 是否有键在这个节点结束 */
+    int value;               /* 那个键的值 */
+    struct TSTNode *left;    /* 比 data 小的字符（同一位置） */
+    struct TSTNode *middle;  /* 下一位置的字符 */
+    struct TSTNode *right;   /* 比 data 大的字符（同一位置） */
+} TSTNode;
+```
+
+同样六个键是 16 个节点、48 个链接。
+
+</Slide>
+
+<Slide class="center">
+
+## 例题 2. TST 插入
+::sub[apple · application · apply · applaud · applet · appliance · applicable]
+
+</Slide>
+
+<Slide>
+
+#### TST 插入
+::sub[比较当前字符和节点的字符]
+
+- **什么都没有**就新建节点。
+- **小往左，大往右**
+  - 继续在同一位置上找。
+- **相等走中间**
+  - 只有这时才进到下一个字符。
+  - 如果是最后一个字符，就在这个节点存值。
+
+</Slide>
+
+<Slide>
+
+### 逐步看：七个键
+::sub[比较过的节点是蓝色，新节点是绿色 · 值 10, 20, …, 70]
+
+<TstDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 每次比较一步：appliance
+::sub[前五个键已经插好]
+
+<TstDemo prefill={5} detail slide />
+
+</Slide>
+
+<Slide>
+
+#### 插入 appliance 时
+::sub[一次比较一次比较地看]
+
+- 要放 `i`，`e` 已经在了，而且 `e < i`
+  - 往右走。
+- 要放 `i`，`i` 已经在了，而且 `i == i`
+  - 在这里进到下一个字符。
+- 要放 `a`，`c` 已经在了，而且 `a < c`
+  - 往左走。
+- 那里是空的，于是把 `a n c e` 新建成节点填进去。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 插入写成代码
+::sub[`02_tst/tst.pseudo` · 左、右 index 不变，只有中间 index+1]
+
+```plaintext
+ALGORITHM Insert(root, word, value, index)
+    c <- word[index]
+    if root = NULL then
+        root <- CreateTSTNode(c)        // 什么都没有就新建节点
+    if c < root.data then
+        root.left <- Insert(root.left, word, value, index)        // 同一位置
+    else if c > root.data then
+        root.right <- Insert(root.right, word, value, index)      // 同一位置
+    else if index < length(word)-1 then
+        root.middle <- Insert(root.middle, word, value, index+1)  // 下一位置
+    else
+        root.hasValue <- true           // 最后一个字符：存值
+        root.value <- value
+    return root
+```
+
+</Slide>
+
+<Slide class="center">
+
+## TST 查找与前缀查找
+::sub[Search · Prefix Search]
+
+</Slide>
+
+<Slide>
+
+### 逐步看：TST 查找
+::sub[applaud 向左绕一次，apply 向右绕两次]
+
+<TstDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+#### TST 前缀查找
+::sub[比如按前缀 app 查找]
+
+1. **来到 app 最后一个字母 p 的节点。**
+   - 那个节点有值的话，前缀本身也是键。
+2. **只收集那个节点的中间链接下面。**
+   - 左、右是同一位置上的其他字符，不看。
+3. **按左、自己、中间、右的顺序遍历。**
+   - 和二叉搜索树的中序遍历一样，结果是字典序。
+
+</Slide>
+
+<Slide>
+
+### 逐步看："app"
+::sub[收集到的节点是绿色 · 经过的节点是绿色边框]
+
+<TstDemo mode="prefix" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 收集写成代码
+::sub[`02_tst/tst.pseudo` · 左、右前缀不变，只有中间加上字符]
+
+```plaintext
+ALGORITHM GetAllWordsHelper(node, prefix, results)
+    if node = NULL then return
+    GetAllWordsHelper(node.left, prefix, results)            // 同一位置，小的字符
+    if node.hasValue then
+        把 (prefix + node.data, node.value) 加入 results
+    GetAllWordsHelper(node.middle, prefix + node.data, results)   // 下一位置
+    GetAllWordsHelper(node.right, prefix, results)           // 同一位置，大的字符
+```
+
+`GetWordsWithPrefix` 找到前缀的节点后，用它的 `middle` 调用这个函数。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`02_tst/` · 与演示相同的路径和结果]
+
+- 运行
+
+```console
+search
+  applaud     -> 40     visited 8
+  apply       -> 30     visited 7
+  application -> 20     visited 12
+  app         -> none   visited 3
+  apples      -> none   visited 6
+
+getWordsWithPrefix(appli): appliance(60) applicable(70) application(20)
+getWordsWithPrefix(apple): apple(10) applet(50)
+
+space (3 links per node)
+  keys      N  nodes  links   null  height
+  apple..   7     24     72     49      12
+  sorted    7     24     72     49      15
+```
+
+</Slide>
+
+<Slide class="center">
+
+## 字典树与 TST
+::sub[Trie vs. TST]
+
+</Slide>
+
+<Slide>
+
+### 自己改一改：同样的键，三种结构
+::sub[字典树、TST、二叉搜索树的节点与链接 · 也可以自己输入键]
+
+<TrieSpaceDemo set="apple" compare slide />
+
+</Slide>
+
+<Slide>
+
+#### 放在一起看
+::sub[用同样 7 个键（apple..）数出的链接 · n 是键的个数，m 是键长]
+
+| 特性 | 字典树 | TST |
+| --- | --- | --- |
+| 每个节点的链接 | $$R$$ 个（英文小写字母为 26） | 3 个 |
+| 同样 7 个键的链接 | 650 | 72 |
+| 找下一个节点的方法 | 直接用数组下标 | 在同一位置上做二分查找 |
+| 查找（成功） | 节点 $$m + 1$$ 个 | 中间 $$m$$ 次 + 向旁边绕几次 |
+| 查找（失败） | 平均约 $$\log_R n$$ | 平均约 $$\ln n$$ 次比较 |
+| 形状 | 与插入顺序无关 | 随插入顺序而变 |
+| 实现 | 简单 | 中等 |
+
+</Slide>
+
+<Slide>
+
+#### TST 的查找时间
+::sub[常见的写法是放宽了的上界]
+
+- 常被写成 $$O(m \log n)$$，实际要小得多。
+- 查找 `cat` 时
+  - **字典树**：每次一个数组格，$$O(1)$$ 访问三次
+  - **TST**：每个位置是一棵小二叉搜索树，有 $$k$$ 种字符时 $$O(\log k)$$
+- 向旁边绕的部分**并不是每个字符都要付一次**。
+  - 前几位就把键分开后，同一位置上剩下的字符很少。
+  - Sedgewick：随机键时，成功查找平均约 $$m + \ln n$$ 次比较
+- 运行结果：`applaud`（7 个字符）8 个节点，`application`（11 个字符）12 个节点
+
+</Slide>
+
+<Slide>
+
+#### 权衡
+::sub[省下什么，付出什么]
+
+- **字典树**：查找快 $$O(m)$$，代价是内存多
+- **TST**：内存少，代价是查找稍慢
+
+<br/>
+
+缓存效率没有放进表里。  
+字典树节点大且大多是空的，TST 节点小但要多跟几次指针。  
+哪边有利取决于实现。
+
+</Slide>
+
+<Slide>
+
+#### 作为符号表并排比较
+::sub[和主题 07、08 一起 · n 是键的个数，m 是键长]
+
+| | 二叉搜索树 | 哈希表 | 字典树 | TST |
+| --- | --- | --- | --- | --- |
+| 处理键的单位 | 比较整个键 | 用整个键算哈希 | 逐个字符 | 逐个字符 |
+| 查找（平均） | 比较 $$O(\log n)$$ 次 | $$O(m)$$ | $$O(m)$$ | 约 $$m + \ln n$$ 次比较 |
+| 按字典序取出 | 中序遍历 | 不行 | 按 a 到 z 遍历 | 中序遍历 |
+| 按前缀查找全部 | 用范围查找 | 不行 | 很自然 | 很自然 |
+| 空间 | $$n$$ 个节点 | 表 + 冲突处理 | 每个节点 $$R$$ 个 | 每个节点 3 个 |
+
+</Slide>
+
+<Slide>
+
+#### 与其他主题的联系
+::sub[已经见过的字典树，以后会见到的字典树]
+
+- **主题 06 霍夫曼编码树**
+  - 是字母表只有 0 和 1 的字典树。
+  - 没有前缀，所以字符只在叶子上。
+- **主题 09 MSD 基数排序**
+  - 先按第一个字符分组，组内再按下一个字符分。
+  - 和自上而下建字典树是同一个样子。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手试试
+::sub[亲手改改字典树和 TST]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-10-trie/`  
+打开文件，点编辑器右上角的 **▶ 按钮**就能运行。
+
+1. **在 `01_trie` 里放进自己的单词，做前缀查找。**
+   - 改 `words`，调用 `getWordsWithPrefix`。
+2. **把 `searchMiss` 的键长 7 改成 20。**
+   - 查找失败的平均几乎不变。
+3. **打乱 `02_tst` 里 `words` 的顺序。**
+   - 节点数不变，形状和高度会变。
+
+</Slide>
+
+<Slide>
+
+## 要带走的
+
+1. **字典树把键按字符逐个存成路径。**
+   - 每个节点 $$R$$ 个链接，值放在最后一个字符的节点上。
+2. **查找与插入随键长增长，与键的个数无关。**
+   - 查找失败平均约 $$\log_R n$$ 个节点就结束。
+3. **以某前缀开头的键全在该前缀的节点下面。**
+   - 删除是清掉值，再从下往上摘掉空节点。
+4. **字典树的链接大多是 NULL。**
+   - 链接数在 $$RN$$ 到 $$RNw$$ 之间。
+5. **TST 把链接减到 3 个。**
+   - 小往左，大往右，相等走中间进到下一个字符。
+
+</Slide>

@@ -1,0 +1,523 @@
+---
+// 재귀와 백트래킹으로 정규식을 맞춰 보는 데모 (search → match → matchStar).
+//
+// 위 두 줄은 텍스트와 패턴이다. 텍스트의 밑줄은 지금 시도하는 시작 위치,
+// 주황 칸은 지금 match가 보는 자리다. 오른쪽(좁으면 아래) 기록은 match 호출을
+// 실습 코드의 출력과 같은 모양으로 쌓는다. 들여쓰기가 재귀 깊이이고,
+// 호출이 끝나면 성공(초록)·실패(회색)로 칠한다.
+//
+// 절차와 결과는 algorithm-code의 regexMatch.c · regex_match.py와 같다.
+// 기본 입력 search("ab*c", "aabbc")는 위치 1에서 찾고, match를 9번 부른다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 글자, '.', 'x*'로 된 패턴 */
+  pattern?: string;
+  /** 찾을 텍스트 */
+  text?: string;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { pattern = 'ab*c', text = 'aabbc', slide = false } = Astro.props;
+const id = `rm-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '백트래킹 매칭',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    textLabel: '텍스트',
+    patternLabel: '패턴',
+    calls: '비교 ',
+    depth: '깊이 ',
+    idle: 'search("{p}", "{t}"): 시작 위치를 하나씩 옮기며 match를 부릅니다.',
+    start: '시작 위치 {i}에서 패턴을 처음부터 맞춰 봅니다.',
+    star: "{c}*: '{c}'를 {k}개 먹은 뒤 나머지를 시도합니다.",
+    empty: '패턴을 다 썼습니다. 성공!',
+    toStar: "'{c}' 뒤에 '*'가 있습니다. matchStar로 넘깁니다.",
+    ok: "'{pc}'와 '{tc}'가 맞습니다. 둘 다 한 칸 전진합니다.",
+    bad: "'{pc}' ≠ '{tc}' → 실패. 앞의 선택으로 되돌아갑니다.",
+    end: "텍스트가 끝났는데 '{pc}'가 남았습니다 → 실패. 되돌아갑니다.",
+    found: '위치 {i}에서 찾았습니다. match를 {n}번 불렀습니다.',
+    none: '어느 위치에서도 맞지 않습니다. match를 {n}번 불렀습니다.',
+  },
+  en: {
+    title: 'Backtracking match',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    textLabel: 'text',
+    patternLabel: 'pattern',
+    calls: 'calls ',
+    depth: 'depth ',
+    idle: 'search("{p}", "{t}"): move the start one position at a time and call match.',
+    start: 'Try to match the whole pattern starting at position {i}.',
+    star: "{c}*: eat {k} of '{c}', then try the rest.",
+    empty: 'The pattern is used up. Success!',
+    toStar: "'{c}' is followed by '*'. Hand over to matchStar.",
+    ok: "'{pc}' matches '{tc}'. Advance both by one.",
+    bad: "'{pc}' ≠ '{tc}' → fail. Back up to the previous choice.",
+    end: "The text ran out but '{pc}' is left → fail. Back up.",
+    found: 'Found at position {i}. match was called {n} times.',
+    none: 'No position matches. match was called {n} times.',
+  },
+  zh: {
+    title: '回溯匹配',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    textLabel: '文本',
+    patternLabel: '模式',
+    calls: '比较 ',
+    depth: '深度 ',
+    idle: 'search("{p}", "{t}")：逐个移动起始位置并调用 match。',
+    start: '从位置 {i} 开始，从头匹配模式。',
+    star: "{c}*：吃掉 {k} 个 '{c}' 后尝试剩余部分。",
+    empty: '模式已用完。成功！',
+    toStar: "'{c}' 后面是 '*'。交给 matchStar。",
+    ok: "'{pc}' 与 '{tc}' 匹配。两边各前进一格。",
+    bad: "'{pc}' ≠ '{tc}' → 失败。退回上一个选择。",
+    end: "文本已结束，但还剩 '{pc}' → 失败。退回。",
+    found: '在位置 {i} 找到。共调用 match {n} 次。',
+    none: '任何位置都不匹配。共调用 match {n} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-regex-match-demo', slide && 'is-slide']}
+  id={id}
+  data-rm-pattern={pattern}
+  data-rm-text={text}
+  data-rm-strings={JSON.stringify(t)}
+>
+  <div class="rm-bar">
+    <span class="rm-head"><strong>{t.title}</strong></span>
+    <div class="rm-controls">
+      <button type="button" data-act="back" class="rm-btn">{t.back}</button>
+      <button type="button" data-act="step" class="rm-btn">{t.step}</button>
+      <button type="button" data-act="play" class="rm-btn rm-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="rm-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="rm-body">
+    <div class="rm-main">
+      <div class="rm-row">
+        <span class="rm-label">{t.textLabel}</span>
+        <span class="rm-cells">
+          {[...text].map((c, i) => <span class="rm-cell" data-rm-t={i}>{c}</span>)}
+          <span class="rm-cell is-end" data-rm-t={text.length}></span>
+        </span>
+      </div>
+      <div class="rm-row">
+        <span class="rm-label">{t.patternLabel}</span>
+        <span class="rm-cells">
+          {[...pattern].map((c, i) => <span class="rm-cell" data-rm-p={i}>{c}</span>)}
+          <span class="rm-cell is-end" data-rm-p={pattern.length}></span>
+        </span>
+      </div>
+      <div class="rm-stats">
+        <span>{t.calls}<strong data-rm-count>0</strong></span>
+        <span>{t.depth}<strong data-rm-depth>0</strong></span>
+      </div>
+      <p class="rm-note" data-rm-note></p>
+    </div>
+    <div class="rm-log" data-rm-log></div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const P = root.dataset.rmPattern;
+    const T = root.dataset.rmText;
+    const S = JSON.parse(root.dataset.rmStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+
+    /* search → match → matchStar를 실제로 돌려 단계 배열을 만든다.
+       절차는 regexMatch.pseudo와 같다. 깊이는 matchStar도 한 단계로 센다
+       (실습 코드의 g_currentRecursion과 같다). */
+    function plan() {
+      const lines = [];      // 기록 줄: { text, call }  call은 결과를 칠할 호출 번호
+      const result = [];     // 호출 번호 → true/false (끝난 호출만)
+      const steps = [];
+      let depth = 0;
+      let calls = 0;
+      let start = 0;
+
+      const snap = (extra) => steps.push({
+        lineCount: lines.length, result: result.slice(), calls, depth, start, ...extra,
+      });
+
+      function match(p, t, reason) {
+        calls += 1;
+        depth += 1;
+        const call = calls;
+        const rest = P.slice(p);
+        lines.push({ text: `  ${' '.repeat(2 * depth)}match("${rest}", "${T.slice(t)}")`, call });
+
+        let kind;
+        if (p === P.length) kind = 'empty';
+        else if (P[p + 1] === '*') kind = 'toStar';
+        else if (t < T.length && (P[p] === '.' || P[p] === T[t])) kind = 'ok';
+        else kind = t < T.length ? 'bad' : 'end';
+        const own = fill(S[kind], { c: P[p], pc: P[p], tc: T[t] });
+        snap({ p, t, note: reason ? `${reason} ${own}` : own, kind });
+
+        let r = false;
+        if (kind === 'empty') r = true;
+        else if (kind === 'toStar') r = matchStar(P[p], p + 2, t);
+        else if (kind === 'ok') r = match(p + 1, t + 1, '');
+        depth -= 1;
+        result[call] = r;
+        return r;
+      }
+
+      function matchStar(c, p, t) {
+        depth += 1;
+        let r = false;
+        let k = 0;
+        if (match(p, t, fill(S.star, { c, k }))) {
+          r = true;
+        } else {
+          while (t < T.length && (T[t] === c || c === '.')) {
+            t += 1;
+            k += 1;
+            if (match(p, t, fill(S.star, { c, k }))) {
+              r = true;
+              break;
+            }
+          }
+        }
+        depth -= 1;
+        return r;
+      }
+
+      let found = -1;
+      for (let i = 0; i <= T.length; i++) {
+        start = i;
+        lines.push({ text: `  start ${i}`, call: 0 });
+        snap({ p: 0, t: i, note: fill(S.start, { i }), kind: 'start' });
+        if (match(0, i, '')) {
+          found = i;
+          break;
+        }
+      }
+      snap({
+        p: null, t: null, done: true, found,
+        note: found >= 0 ? fill(S.found, { i: found, n: calls }) : fill(S.none, { n: calls }),
+      });
+      return { steps, lines };
+    }
+
+    const { steps, lines } = plan();
+    const tCells = [...root.querySelectorAll('[data-rm-t]')];
+    const pCells = [...root.querySelectorAll('[data-rm-p]')];
+    const log = root.querySelector('[data-rm-log]');
+    const note = root.querySelector('[data-rm-note]');
+    const countEl = root.querySelector('[data-rm-count]');
+    const depthEl = root.querySelector('[data-rm-depth]');
+
+    /* 기록 줄은 한 번에 다 만들어 두고, 단계마다 보이는 줄 수와 색만 바꾼다. */
+    const lineEls = lines.map((ln) => {
+      const el = document.createElement('span');
+      el.className = 'rm-line';
+      el.textContent = `${ln.text}\n`;
+      log.appendChild(el);
+      return el;
+    });
+
+    function render(s) {
+      const step = s >= 0 ? steps[s] : null;
+      const shown = step ? step.lineCount : 0;
+      lineEls.forEach((el, i) => {
+        const ln = lines[i];
+        el.hidden = i >= shown;
+        const r = ln.call && step ? step.result[ln.call] : undefined;
+        el.classList.toggle('is-now', !!step && !step.done && i === shown - 1);
+        el.classList.toggle('is-yes', r === true);
+        el.classList.toggle('is-no', r === false);
+        el.classList.toggle('is-start', !ln.call);
+      });
+      const cur = lineEls[shown - 1];
+      if (cur && step && !step.done) {
+        log.scrollTop = Math.max(0, cur.offsetTop - log.clientHeight + cur.offsetHeight * 2);
+      }
+
+      const doneOk = !!(step && step.done && step.found >= 0);
+      tCells.forEach((cell, i) => {
+        const inWindow = !!step && i >= step.start && (step.t === null ? doneOk : i < step.t);
+        /* toggle의 두 번째 인자가 undefined면 강제가 아니라 뒤집기가 되므로 늘 불리언으로 넘긴다. */
+        cell.classList.toggle('is-start', !!step && i === step.start);
+        cell.classList.toggle('is-matched', inWindow && (!step.done || doneOk));
+        cell.classList.toggle('is-now', !!step && !step.done && i === step.t);
+        cell.classList.toggle('is-bad', !!step && !step.done && i === step.t
+          && (step.kind === 'bad' || step.kind === 'end'));
+      });
+      pCells.forEach((cell, i) => {
+        const p = step ? step.p : null;
+        const nowCell = p !== null && (i === p || (step.kind === 'toStar' && i === p + 1));
+        const yes = !!step && ((step.kind === 'empty' && i === p) || doneOk);
+        cell.classList.toggle('is-used', p !== null && i < p);
+        cell.classList.toggle('is-now', !!step && !step.done && nowCell);
+        cell.classList.toggle('is-bad', !!step && !step.done && i === p
+          && (step.kind === 'bad' || step.kind === 'end'));
+        cell.classList.toggle('is-yes', yes);
+      });
+      countEl.textContent = String(step ? step.calls : 0);
+      depthEl.textContent = String(step && !step.done ? step.depth : 0);
+      setLines(note, step ? step.note : fill(S.idle, { p: P, t: T }));
+      root.classList.toggle('is-done', !!(step && step.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-regex-match-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-regex-match-demo .rm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-regex-match-demo .rm-head {
+    font-size: 0.95em;
+  }
+  .aas-regex-match-demo .rm-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-regex-match-demo .rm-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-regex-match-demo .rm-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-regex-match-demo .rm-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-regex-match-demo .rm-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    align-items: flex-start;
+  }
+  .aas-regex-match-demo .rm-main {
+    flex: 1 1 18em;
+    min-width: 0;
+  }
+  .aas-regex-match-demo .rm-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    margin-bottom: 0.7em;
+  }
+  .aas-regex-match-demo .rm-label {
+    flex: 0 0 4.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-regex-match-demo .rm-cells {
+    display: flex;
+    gap: 0.25em;
+  }
+  .aas-regex-match-demo .rm-cell {
+    width: 1.9em;
+    height: 1.9em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-bottom-width: 1.5px;
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
+  }
+  .aas-regex-match-demo .rm-cell.is-end {
+    width: 0.9em;
+    border-style: dashed;
+    background: transparent;
+  }
+  .aas-regex-match-demo .rm-cell.is-start {
+    box-shadow: 0 0.3em 0 -0.05em var(--aas-role-model);
+  }
+  .aas-regex-match-demo .rm-cell.is-matched {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+  }
+  .aas-regex-match-demo .rm-cell.is-used {
+    color: var(--aas-muted);
+    background: color-mix(in srgb, var(--aas-muted) 15%, var(--aas-bg));
+  }
+  .aas-regex-match-demo .rm-cell.is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+  .aas-regex-match-demo .rm-cell.is-bad {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+  }
+  .aas-regex-match-demo .rm-cell.is-yes {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+  .aas-regex-match-demo .rm-stats {
+    display: flex;
+    gap: 1.2em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-regex-match-demo .rm-stats strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-regex-match-demo .rm-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.6em;
+  }
+  .aas-regex-match-demo.is-done .rm-note {
+    color: var(--aas-text);
+  }
+
+  .aas-regex-match-demo .rm-log {
+    flex: 1 1 16em;
+    margin: 0;
+    padding: 0.6em 0.8em;
+    white-space: pre;
+    min-height: 13.5em;
+    max-height: 13.5em;
+    overflow: auto;
+    font-size: 0.78em;
+    line-height: 1.45;
+    font-family: var(--aas-mono, monospace);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    color: var(--aas-text);
+  }
+  .aas-regex-match-demo .rm-line {
+    border-radius: 0.2em;
+  }
+  .aas-regex-match-demo .rm-line.is-start {
+    color: var(--aas-role-model);
+  }
+  .aas-regex-match-demo .rm-line.is-no {
+    color: color-mix(in srgb, var(--aas-role-guard) 75%, var(--aas-text));
+  }
+  .aas-regex-match-demo .rm-line.is-yes {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-regex-match-demo .rm-line.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, transparent);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-regex-match-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-regex-match-demo.is-slide .rm-body {
+    flex-wrap: nowrap;
+  }
+  .aas-regex-match-demo.is-slide .rm-note {
+    min-height: 2.6em;
+  }
+  .aas-regex-match-demo.is-slide .rm-log {
+    font-size: 0.7em;
+    min-height: 16em;
+    max-height: 16em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-regex-match-demo .rm-cell {
+      transition: none;
+    }
+  }
+</style>

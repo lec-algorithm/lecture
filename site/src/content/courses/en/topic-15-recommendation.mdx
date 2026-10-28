@@ -1,29 +1,705 @@
 ---
 title: "Topic 15. Recommender Systems (bonus)"
-description: "Collaborative filtering, content-based filtering, hybrids. Bonus material, outside the exam scope"
+description: "Collaborative filtering (user-based and item-based) that fills the blanks of a rating matrix, content-based filtering that picks by item features, where each falls short, and hybrids. Bonus material, outside the exam scope"
 date: 2026-08-25
 category: applied
 order: "9085"
 level: 2
+hours: "1:00"
 tags: ["Self-study"]
+slides: ["topic-15-recommendation"]
 ---
 
-> Bonus material, not on the exam. Still in preparation.
+import CosineDemo from '@components/CosineDemo.astro';
+import PearsonDemo from '@components/PearsonDemo.astro';
+import CollabFilterDemo from '@components/CollabFilterDemo.astro';
+import ColdStartDemo from '@components/ColdStartDemo.astro';
+import ContentFilterDemo from '@components/ContentFilterDemo.astro';
+import HybridDemo from '@components/HybridDemo.astro';
 
-## What it covers
+> Bonus material that is not in the syllabus. It is not on the exam.  
+> When Netflix picks your next movie or Spotify your next song, the job is
+> really **filling in the blanks of a table**.  
+> There are two clues for filling a blank: people similar to you, and the
+> properties of the item itself.  
+> Both come down to one similarity between vectors, plus sorting.
 
-- Collaborative filtering
-- Content-based filtering
-- How the two differ and where each falls short
-- Hybrid filtering
+## What a recommender system is \{#overview}
 
-## Practice code
+A **recommender system** suggests suitable items based on a user's
+interests and preferences. They are everywhere.
 
-Lands in the `src/topic-15-recommendation/` folder of the `algorithm-code` repository.
-Each example pairs one pseudocode file with a C and a Python implementation.
+- **Netflix**: movies a user is likely to enjoy
+- **Spotify**: personalized music
+- **Amazon**: products worth buying together
+
+Put users in rows and items in columns, and write ratings in the cells: that
+is a **rating matrix**. Any one person sees only a tiny fraction of all
+movies, so the matrix is mostly blank. Recommending means **predicting the
+ratings that belong in the blanks and showing the highest predictions
+first**. There are two broad ways to fill a blank.
+
+- **Collaborative filtering**: use other people's ratings as the clue.
+- **Content-based filtering**: use the item's features (genre, cast,
+  director) as the clue.
+
+## Collaborative filtering \{#collaborative}
+
+Collaborative filtering recommends by finding similar users or items from
+**users' past behavior** (ratings, purchase history). It comes in two
+flavors.
+
+- **User-based**: recommend items liked by users whose taste is similar to
+  mine.
+- **Item-based**: recommend items similar to the ones I liked. Here
+  "similar" is measured not by content but by **whether the same people
+  rated them alike**.
+
+### Looking at lists of liked movies \{#taste-lists}
+
+These are the movies four users liked.
+
+| User A | User B | User C | User D |
+| --- | --- | --- | --- |
+| The Roundup: No Way Out | Elemental | 12.12: The Day | Exit |
+| Top Gun: Maverick | Aladdin | Hansan: Rising Dragon | Parasite |
+| Avatar: The Way of Water | Avatar: The Way of Water | Avatar: The Way of Water | The Roundup |
+| Spider-Man: No Way Home | | Spider-Man: No Way Home | Avengers: Endgame |
+
+A and C share two movies, *Avatar: The Way of Water* and *Spider-Man: No
+Way Home*. A shares one with B and none with D. So **if we recommend C's
+favorite *12.12: The Day* to A**, won't A probably like it? That is the
+whole idea of user-based collaborative filtering.
+
+This approach does not need to know what a movie is. It looks at neither
+genre nor director, only at who liked what. **Needing no domain knowledge**
+is the biggest strength of collaborative filtering.
+
+## Similarity as a number: cosine similarity \{#cosine}
+
+"Number of shared movies" is crude. It cannot tell a 5-star rating from a
+1-star one. Treat one user's ratings as a vector and measure **how much two
+vectors point the same way**, and the size of the ratings counts too. That
+is **cosine similarity**.
+
+$$
+\text{cos}(a, b) = \frac{a \cdot b}{\lVert a \rVert \, \lVert b \rVert}
+= \frac{\sum_i a_i b_i}{\sqrt{\sum_i a_i^2} \, \sqrt{\sum_i b_i^2}}
+$$
+
+- Same direction gives 1, perpendicular gives 0, opposite gives -1.
+- Dividing by the lengths means it looks not at **how much** someone rated
+  but at **in what proportion**.
+
+Measure it on a small matrix: 4 users, 4 items, and 0
+means not rated yet.
+
+| | item 1 | item 2 | item 3 | item 4 |
+| --- | --- | --- | --- | --- |
+| user A | 5 | 3 | 0 | 0 |
+| user B | 4 | 0 | 0 | 0 |
+| user C | 0 | 0 | 5 | 4 |
+| user D | 0 | 0 | 4 | 0 |
+
+A and B both have 0 for items 3 and 4, so we can draw them as they are in
+the item 1–item 2 plane. Drag the tips around. Change only the length,
+keeping the direction, and the cosine stays the same; put one vector on an
+axis to make a right angle and it drops to 0. Ratings are never negative, so
+the two vectors can never be more than 90 degrees apart.
+
+<CosineDemo />
+
+$$
+\text{cos}(A, B) = \frac{5 \cdot 4 + 3 \cdot 0}{\sqrt{5^2 + 3^2} \, \sqrt{4^2}}
+= \frac{20}{5.831 \times 4} = 0.857
+$$
+
+The same way, C and D give $$\dfrac{20}{\sqrt{41} \times 4} = 0.781$$, while
+A and C share no item at all, so their dot product and similarity are 0. The
+first table of the practice code is this computation.
+
+- Run
+
+```sh
+cd src/topic-15-recommendation/01_collaborative_filtering
+make -f /work/Makefile collaborativeFiltering.out && ./collaborativeFiltering.out
+```
+
+- Result (first part)
+
+```console
+toy: users A-D, items 1-4 (0 = not rated)
+cosine        A      B      C      D
+  A       1.000  0.857  0.000  0.000
+  B       0.857  1.000  0.000  0.000
+  C       0.000  0.000  1.000  0.781
+  D       0.000  0.000  0.781  1.000
+```
+
+**A and B are alike, and C and D are alike.** So recommend each other's
+favorites: recommend item 2, which A rated, to B, and item 4, which C rated,
+to D.
+
+This computation put unrated cells in as **a rating of 0**. It is a
+simplification that cannot tell "not seen" from "disliked". The example
+below shows where
+this simplification causes trouble.
+
+## Example 1. User-based collaborative filtering \{#user-based}
+
+Now a slightly bigger matrix, all the way to a prediction. 5 users, 6
+movies, and **A's M3 and M6 are blank**. Filling those two cells decides
+what to recommend to A.
+
+| | M1 | M2 | M3 | M4 | M5 | M6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | 5 | 5 | **?** | 4 | 2 | **?** |
+| B | 5 | 4 | 5 | 4 | 3 | 1 |
+| C | 4 | 4 | 4 | 3 | 1 | 2 |
+| D | 1 | 2 | 1 | 1 | 4 | 5 |
+| E | 4 | 3 | 4 | 4 | 5 | 5 |
+
+M1 The Roundup: No Way Out · M2 Top Gun: Maverick · M3 Avatar: The Way of
+Water · M4 Spider-Man: No Way Home · M5 Elemental · M6 12.12: The Day
+
+A gave high scores to the action movies (M1, M2, M4) and a low score to
+*Elemental* (M5). The procedure has three steps.
+
+1. Measure the **similarity** between A and every other user.
+2. Among users with similarity above 0, pick the $$k$$ largest as
+   **neighbors**.
+3. For each blank, take the **similarity-weighted average** of the
+   neighbors' ratings. More similar neighbors count more.
+
+$$
+\hat{r}_{A,i} = \frac{\sum_{v \in N} \text{sim}(A, v) \, r_{v,i}}{\sum_{v \in N} \text{sim}(A, v)}
+$$
+
+### Picking neighbors by cosine \{#user-cosine}
+
+First run it with the same cosine similarity as above and $$k = 3$$.
+Similarities pile up in the right column, and users chosen as neighbors
+turn green. At the end, only the neighbors' ratings in the blank's column
+remain and are averaged.
+
+<CollabFilterDemo measure="cosine" />
+
+B 0.835, C 0.820, E 0.705, D 0.466. The neighbors are B, C and E, and M3
+comes out 4.354 and M6 **2.542**. But these numbers are a little odd.
+
+- **D's taste is the exact opposite of A's.** D gave 1 and 2 to the movies
+  A rated 5, and 4 to the movie A rated 2. Yet the similarity is a fairly
+  high 0.466.
+- **E also moves differently from A.** E gave its highest score, 5, to M5,
+  which A rated lowest. Yet at 0.705 E became a neighbor, and the 5 E gave
+  M6 pulled A's M6 prediction up.
+
+Ratings run from 1 to 5, so they are **all positive**. Positive vectors can
+never be more than 90 degrees apart, so the cosine can never go below 0,
+and even opposite tastes look fairly similar.
+
+### Pearson correlation \{#pearson}
+
+The fix is to **subtract each person's own mean** before measuring. Then all
+that is left is "did they rate this above or below their usual?" The cosine
+measured this way, over movies both have rated, is the **Pearson correlation
+coefficient**.
+
+$$
+\text{pearson}(a, b) = \frac{\sum_{i} (a_i - \bar{a})(b_i - \bar{b})}{\sqrt{\sum_{i} (a_i - \bar{a})^2} \, \sqrt{\sum_{i} (b_i - \bar{b})^2}}
+$$
+
+The sums run only over movies **both have rated**, and $$\bar{a}$$ and
+$$\bar{b}$$ are the means over those movies too.
+
+Look at it as bars first. Pick a user to compare and click **Minus the mean**.
+Only the movies both have rated remain, and each bar drops by its user's mean,
+so a movie rated below one's usual hangs below 0. With C the two sets of bars
+take exactly the same shape; with D and E they point opposite ways.
+
+<PearsonDemo />
+
+Now work it out by hand. The movies A and each of the other four have both
+rated are M1, M2, M4 and M5.
+
+| | M1 | M2 | M4 | M5 | mean | minus mean | Pearson |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A | 5 | 5 | 4 | 2 | 4 | (1, 1, 0, -2) | |
+| B | 5 | 4 | 4 | 3 | 4 | (1, 0, 0, -1) | 0.866 |
+| C | 4 | 4 | 3 | 1 | 3 | (1, 1, 0, -2) | 1.000 |
+| D | 1 | 2 | 1 | 4 | 2 | (-1, 0, -1, 2) | -0.833 |
+| E | 4 | 3 | 4 | 5 | 4 | (0, -1, 0, 1) | -0.866 |
+
+- **C has exactly A's taste; C just rates one point lower.** Subtracting the
+  mean gives the same vector as A's, so 1.000. By cosine C was 0.820, below B.
+- A and E give $$\dfrac{0 - 1 + 0 - 2}{\sqrt{6} \times \sqrt{2}} = -0.866$$:
+  **the opposite taste shows up as a negative number.** D is -0.833.
+
+Run the same demo with Pearson. Only cells both have rated stay lit.
+
+<CollabFilterDemo />
+
+The only neighbors above 0 are C and B. Even with $$k = 3$$, the negative D
+and E are left out.
+
+$$
+\hat{r}_{A,\text{M3}} = \frac{1.000 \times 4 + 0.866 \times 5}{1.000 + 0.866} = 4.464,
+\qquad
+\hat{r}_{A,\text{M6}} = \frac{1.000 \times 2 + 0.866 \times 1}{1.000 + 0.866} = 1.536
+$$
+
+- Pseudocode
+
+```plaintext
+ALGORITHM PearsonSimilarity(a, b, n)
+    common <- the i with a[i] > 0 and b[i] > 0   // only items both rated
+    if common is empty then return 0
+    ma <- mean of a over common,  mb <- mean of b over common
+    num <- 0,  da <- 0,  db <- 0
+    for i in common do                       // subtract each one's mean
+        num <- num + (a[i] - ma) * (b[i] - mb)
+        da <- da + (a[i] - ma)^2
+        db <- db + (b[i] - mb)^2
+    if da = 0 or db = 0 then return 0
+    return num / sqrt(da * db)
+
+ALGORITHM PredictUserBased(R, sim, neighbors, item)
+    num <- 0,  den <- 0
+    for v in neighbors do                    // top k with sim > 0
+        if R[v][item] > 0 then               // if the neighbor rated it
+            num <- num + sim[v] * R[v][item] // the more similar, the more weight
+            den <- den + sim[v]
+    if den = 0 then return 0
+    return num / den                         // similarity-weighted average
+```
+
+- C implementation (excerpt)
+
+```c
+double predictUserBased(const int ratings[][ITEMS], const double sim[],
+                        const int neighbors[], int count, int item) {
+    double num = 0.0, den = 0.0;
+    for (int i = 0; i < count; i++) {
+        int v = neighbors[i];
+        if (ratings[v][item] > 0) {
+            num += sim[v] * ratings[v][item];
+            den += sim[v];
+        }
+    }
+    return den == 0.0 ? 0.0 : num / den;
+}
+```
+
+`sqrt` from `math.h` needs an extra link option (`-lm`) on Linux, so the
+practice code carries its own `squareRoot` that finds square roots by
+Newton's method. Python uses the same function, so the outputs match to the
+last character.
+
+- Result (continued)
+
+```console
+ratings: users A-E, movies M1-M6 (0 = not rated)
+       M1  M2  M3  M4  M5  M6
+  A     5   5   0   4   2   0
+  B     5   4   5   4   3   1
+  C     4   4   4   3   1   2
+  D     1   2   1   1   4   5
+  E     4   3   4   4   5   5
+
+user-based: similarity to A
+  user  cosine  pearson
+  B      0.835    0.866
+  C      0.820    1.000
+  D      0.466   -0.833
+  E      0.705   -0.866
+
+predict A (k = 3, similarity > 0)
+  cosine : neighbors B C E  M3 = 4.354  M6 = 2.542
+  pearson: neighbors C B    M3 = 4.464  M6 = 1.536
+```
+
+Both similarities put M3 in the 4s. The difference is M6 (*12.12: The
+Day*). Cosine lets E in and gets **2.542**; Pearson leaves E out and gets
+**1.536**. Given that A rates dramas low, Pearson's answer is the more
+plausible one.
+
+Now change things yourself. Clicking a cell cycles its rating 0→1→…→5→0, and
+the chips above pick the similarity and $$k$$. Every change recomputes the
+similarities, neighbors and predictions and shows the final step; click
+**Reset** to follow it step by step again. With cosine, lowering $$k$$ to 2
+drops E and brings the M6 prediction down to 1.495.
+
+<CollabFilterDemo measure="cosine" edit />
+
+**Cost**: with $$m$$ users and $$n$$ items, one similarity is $$O(n)$$, and
+the target user against everyone else is $$O(mn)$$. Precomputing every pair
+of users costs $$O(m^2 n)$$. With hundreds of millions of users, that square
+becomes the problem.
+
+### Translating a harsh rater's scores \{#mean-centered}
+
+Pearson picked C as a neighbor, but the weighted average still uses C's
+**raw ratings**. C rates one point lower than A, so C's 4 is a 5 on A's
+scale. That is why the formula used in practice averages how far each
+neighbor **deviates from their own mean**, and adds that to the target
+user's mean.
+
+$$
+\hat{r}_{A,i} = \bar{r}_A + \frac{\sum_{v \in N} \text{sim}(A, v) \, (r_{v,i} - \bar{r}_v)}{\sum_{v \in N} \lvert \text{sim}(A, v) \rvert}
+$$
+
+The practice code uses the plain weighted average and leaves this formula
+as an exercise.
+
+### Item-based \{#item-based}
+
+This time we line up **columns** instead of rows. Compare the M3 column by
+cosine with each column of a movie A has already rated, pick the
+$$k = 2$$ most similar, and average **A's own ratings** of those movies,
+weighted by similarity. The column similarities pile up in the bottom row.
+
+<CollabFilterDemo mode="item" />
+
+- Result (continued)
+
+```console
+item-based: movies A rated, by cosine to the blank (k = 2)
+  M3:  M4 0.845  M1 0.836  M2 0.785  M5 0.761
+      -> (0.845*4 + 0.836*5) / (0.845 + 0.836) = 4.497
+  M6:  M5 0.909  M4 0.620  M2 0.596  M1 0.562
+      -> (0.909*2 + 0.620*4) / (0.909 + 0.620) = 2.811
+
+recommend to A (pearson): M3 (4.464)
+```
+
+- M3 (*Avatar*) is closest to M4 (*Spider-Man*) and M1 (*The Roundup*),
+  which got similar scores from the same people. A gave those two 4 and 5,
+  so **4.497**.
+- M6 (*12.12: The Day*) is closest to M5 (*Elemental*), and the 2 A gave M5
+  weighs heavily: **2.811**.
+- We never looked at a genre, yet action grouped with action and drama with
+  drama. **The fact that the same people rated them alike** is enough to
+  reveal similarity of content.
+
+Similarities between items fluctuate less than similarities between users.
+A user's taste shifts with one new rating, but the relationship between two
+movies rated by tens of thousands of people hardly moves. That makes item
+similarities good to precompute, and Amazon's "customers who bought this
+also bought" is known for working this way. Precomputing costs
+$$O(n^2 m)$$.
+
+## Where collaborative filtering falls short \{#cf-limits}
+
+### Data sparsity \{#sparsity}
+
+Collaborative filtering needs a lot of data, and a lot of data needs a lot
+of users. This is the **data sparsity** problem.
+
+- Real rating matrices are almost all blank. The competition dataset
+  Netflix once released was close to 99% empty.
+- So pairs that share only one or two rated movies are common, and their
+  similarity is hard to trust.
+
+### Cold start \{#cold-start}
+
+With no history, nothing can be done. This is the **cold start** problem,
+and it happens on both sides, people and items.
+
+- **New user**: user E just signed up and has watched only *Exit*. E shares
+  no movie with anyone, so every similarity is 0, and there are no
+  neighbors and no recommendations.
+
+| User A | User B | User C | User E (new) |
+| --- | --- | --- | --- |
+| The Roundup: No Way Out | Elemental | 12.12: The Day | Exit |
+| Top Gun: Maverick | Aladdin | Hansan: Rising Dragon | |
+| Avatar: The Way of Water | Avatar: The Way of Water | Avatar: The Way of Water | |
+| Spider-Man: No Way Home | | Spider-Man: No Way Home | |
+
+- **New item**: a new Avengers movie has just opened. Nobody has seen it,
+  so its column is all blank, and neither user-based nor item-based
+  filtering can recommend it to anyone.
+
+Let us create both cases in the Example 1 matrix. **New movie M7** adds a
+column nobody has rated, and **New user F** adds a row with no ratings. Click
+the new cells to enter ratings, and the Pearson ($$k = 3$$) predictions are
+recomputed. Give F just one rating and subtracting the mean leaves only 0, so
+the similarity still cannot be measured; F needs two or more before any
+neighbor can appear. M7 gets a prediction only once one of the neighbors
+rates it.
+
+<ColdStartDemo content={false} />
+
+## Example 2. Content-based filtering \{#content-based}
+
+Content-based filtering recommends, based on **the item's own attributes**
+(features), other items whose features resemble the ones the user liked. If
+the movies I liked were action movies, it recommends other action movies.
+Netflix rows like "Action movies for you" and "Action comedies for you" are
+this shape.
+
+### Genre vectors and taste vectors \{#genre-vector}
+
+Give each movie a vector that marks its genres with 0 and 1. A small example
+uses three genres (action, comedy, drama). The user likes action
+and comedy, so the taste vector is (1, 1, 0).
+
+| movie | action | comedy | drama | cosine with taste (1, 1, 0) |
+| --- | --- | --- | --- | --- |
+| movie 1 | 1 | 0 | 0 | 0.707 |
+| movie 2 | 1 | 1 | 0 | 1.000 |
+| movie 3 | 0 | 0 | 1 | 0.000 |
+
+Movie 2, action plus comedy, comes first, and movie 1, action only, second
+at $$\dfrac{1}{\sqrt{2}} = 0.707$$. It is cosine similarity again.
+
+### Building a profile from ratings \{#profile}
+
+Users do not write down their taste vectors. We build one from the ratings
+they gave. For each movie watched, add its genres **scaled by (rating - 3)**.
+A 3 is neutral and adds 0; genres of movies rated high go +, genres of
+movies rated low go -. This is the **user profile**.
+
+Try it on A from Example 1. Add one more genre (sci-fi), and add **M7, which
+nobody has rated yet** because it just opened (the new Avengers).
+
+| movie | action | comedy | drama | sci-fi | A's rating | weight |
+| --- | --- | --- | --- | --- | --- | --- |
+| M1 The Roundup: No Way Out | 1 | 1 | 0 | 0 | 5 | +2 |
+| M2 Top Gun: Maverick | 1 | 0 | 1 | 0 | 5 | +2 |
+| M3 Avatar: The Way of Water | 1 | 0 | 0 | 1 | | |
+| M4 Spider-Man: No Way Home | 1 | 0 | 0 | 1 | 4 | +1 |
+| M5 Elemental | 0 | 1 | 1 | 0 | 2 | -1 |
+| M6 12.12: The Day | 0 | 0 | 1 | 0 | | |
+| M7 the new Avengers | 1 | 1 | 0 | 1 | | |
+
+The profile builds up in the bottom row, then each unwatched movie gets its
+cosine with the profile on the right.
+
+<ContentFilterDemo />
+
+The profile is $$(5, 1, 1, 1)$$. Action dominates. The low score for
+*Elemental* knocked 1 off comedy and drama.
+
+- Pseudocode
+
+```plaintext
+ALGORITHM BuildProfile(F, r, n, g)
+    profile <- g zeros
+    for i <- 0 to n-1 do
+        if r[i] > 0 then
+            w <- r[i] - 3                   // 3 is neutral, higher +, lower -
+            for t <- 0 to g-1 do
+                profile[t] <- profile[t] + w * F[i][t]
+    return profile
+
+ALGORITHM RankByContent(F, r, n, g, profile)
+    candidates <- []
+    for i <- 0 to n-1 do
+        if r[i] = 0 then                    // unrated items only (new ones too)
+            score[i] <- CosineSimilarity(profile, F[i], g)
+            append i to candidates
+    sort candidates by score, descending
+    return candidates
+```
+
+- C implementation (excerpt)
+
+```c
+void buildProfile(const double features[][GENRES], const int ratings[],
+                  int n, int g, double profile[]) {
+    for (int t = 0; t < g; t++) {
+        profile[t] = 0.0;
+    }
+    for (int i = 0; i < n; i++) {
+        if (ratings[i] > 0) {
+            int w = ratings[i] - 3;
+            for (int t = 0; t < g; t++) {
+                profile[t] += w * features[i][t];
+            }
+        }
+    }
+}
+```
+
+- Run
+
+```sh
+cd src/topic-15-recommendation/02_content_based_filtering
+make -f /work/Makefile contentBasedFiltering.out && ./contentBasedFiltering.out
+```
+
+- Result
+
+```console
+toy: genres (action, comedy, drama), user likes (1 1 0)
+  movie 1 (1 0 0)  0.707
+  movie 2 (1 1 0)  1.000
+  movie 3 (0 0 1)  0.000
+
+genres: action comedy drama sf
+  M1  1 1 0 0   A rated 5  weight +2
+  M2  1 0 1 0   A rated 5  weight +2
+  M3  1 0 0 1   -
+  M4  1 0 0 1   A rated 4  weight +1
+  M5  0 1 1 0   A rated 2  weight -1
+  M6  0 0 1 0   -
+  M7  1 1 0 1   new, no ratings yet
+profile of A = sum of (rating - 3) * genres = (5 1 1 1)
+
+score = cosine(profile, genres), movies A has not rated
+  1. M3  0.802
+  2. M7  0.764
+  3. M6  0.189
+```
+
+- **M3 (*Avatar*) is first at 0.802 and M6 (*12.12: The Day*) last at
+  0.189.** Without a single rating from anyone else, it reaches the same
+  conclusion as Example 1.
+- **The new movie M7 is second at 0.764.** Nobody has rated it, but it has
+  genres, so it gets a score. That is something collaborative filtering
+  could not do.
+
+**Cost**: with $$n$$ items and $$g$$ features, building the profile and
+scoring are each $$O(ng)$$, and sorting is $$O(n \log n)$$. The number of
+other users does not matter.
+
+### Strengths and limits of content-based filtering \{#content-limits}
+
+- **It needs analysis up front.** Someone has to decide first whether a
+  movie is action or comedy. We used only genres here, but cast and
+  director work too.
+  - Other movies starring an actor you like
+  - Movies starring actors similar to one you like
+- **It solves the cold start for new items.** With features, an item can be
+  scored without any ratings.
+- **The cold start for new users remains.** With no ratings, the profile is
+  the zero vector and every score is 0. That is why it only "somewhat"
+  solves cold start.
+- **It recommends only similar things.** Someone who liked action is shown
+  only action, so they have fewer chances to meet good movies outside their
+  taste. Collaborative filtering can make genre-crossing recommendations,
+  like the *12.12: The Day* that C watched.
+
+Here is the demo from [cold start](#cold-start) with a row of content scores
+added. Turn on M7 and collaborative filtering cannot predict it, but
+content-based filtering gives it 0.764. Turn on F and the profile is the zero
+vector, so every content score is 0 too. Give F a rating and a profile
+appears at once.
+
+<ColdStartDemo />
+
+## How the two differ \{#comparison}
+
+| | Collaborative filtering | Content-based filtering |
+| --- | --- | --- |
+| Looks at | other users' ratings | item features and my ratings |
+| Content analysis | not needed | needed |
+| Moving to another domain | methods studied on movies apply directly to music or food | music needs new analysis such as genre and creator |
+| New item | cannot recommend | recommends if it has features |
+| New user | cannot recommend | cannot recommend |
+| Breadth | can cross genres | tends to get stuck on the similar |
+
+With collaborative filtering it is also **easy to change the method
+itself**. This note used cosine and Pearson, but you can experiment with a
+different similarity, a different neighbor rule, or deliberately mixing in
+lower predictions. The procedure does not care what the items are.
+
+## Hybrid filtering \{#hybrid}
+
+**Hybrid filtering** combines the two approaches. The simplest way is to
+mix the two results with a weight.
+
+$$
+\text{score}_i = \alpha \cdot \text{cf}_i + (1 - \alpha) \cdot \text{content}_i
+$$
+
+A small example first mixes collaborative scores (0.8, 0.7, 0.3) and
+content scores (0.6, 0.9, 0.4) for three items. For A,
+we divide the Pearson predictions from Example 1 by 5 to put them on a 0–1
+scale and mix them with the scores from Example 2. M7 has no collaborative
+score, so it uses its content score as is.
+
+Move $$\alpha$$. Each bar stacks the collaborative share and the content
+share, and the rows swap places by score. In the toy example item 1 overtakes
+item 2 once $$\alpha$$ goes above 0.75. A's order stays M3, M7, M6 whatever
+$$\alpha$$ is.
+
+<HybridDemo />
+
+The practice code mixes them half and half ($$\alpha = 0.5$$).
+
+- Result (`02_content_based_filtering`, continued)
+
+```console
+hybrid = 0.5 * collaborative + 0.5 * content
+  toy: 0.700 0.800 0.350
+  A: M3  cf 0.893  content 0.802  -> 0.847
+  A: M7  cf  none  content 0.764  -> 0.764
+  A: M6  cf 0.307  content 0.189  -> 0.248
+```
+
+- M3, rated high by both, is firmly first.
+- The new movie M7 made the list thanks to its content score. Once ratings
+  pile up, it will get a collaborative score as well.
+- The two cover each other's weaknesses, but you have to run both systems
+  and choose $$\alpha$$, so **the implementation gets more complex**.
+
+Real services also switch rather than add: use content-based filtering for
+a new user, then move to collaborative filtering once enough history builds
+up.
+
+## What to keep from this topic \{#takeaway}
+
+- Recommending is **predicting the blanks of a rating matrix and showing the
+  highest first**.
+- **Collaborative filtering** looks only at other people's ratings.
+  User-based averages similar people's ratings; item-based averages my own
+  ratings of similar items; both weight by similarity.
+- **Cosine similarity** measures the direction of two vectors. When ratings
+  are all positive, even opposite tastes look similar, so **Pearson
+  correlation, which subtracts each person's mean**, works better.
+- The weaknesses of collaborative filtering are **sparsity and cold start**.
+  It can recommend neither to new users nor new items.
+- **Content-based filtering** compares item features with a user profile.
+  It handles new items but not new users, and needs content analysis first.
+- **Hybrids** mix the two scores to fill each other's gaps.
+
+## Practice code \{#code}
+
+It lives in the
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main)
+repository under `src/topic-15-recommendation/`. Each example pairs one
+pseudocode file with a C and a Python implementation.
 
 ```plaintext
 src/topic-15-recommendation/
-├── 01_collaborative_filtering/
-└── 02_content_based_filtering/
+├── 01_collaborative_filtering/    # cosine 0.857, user-based and item-based
+└── 02_content_based_filtering/    # genre profile (5 1 1 1), new movie M7, hybrid
 ```
+
+Open a file and press the **▶ button** at the top right of the editor
+to run it. See
+[Setting up the practice environment](/article/setup-guide/) for how to
+run things.
+
+**Try it yourself**
+
+- Lower user-based `k` to 2. Cosine then also picks only B and C, and the M6
+  prediction drops to 1.495. One neighbor changes the prediction.
+- Switch the prediction to the [mean-centered formula](#mean-centered). The
+  harsh rater C's ratings get translated onto A's scale.
+- Set all of A's ratings to 0 and run both examples. Every prediction from
+  collaborative and content-based filtering becomes 0. That is the cold
+  start for a new user.
+- Set the hybrid's `alpha` to 1.0 and to 0.0. Even at 1.0, M7 has no
+  collaborative score and stays at its content score.
+
+## History \{#changelog}
+
+The slides and this note are versioned together. The current version is
+**v1**, shown at the bottom left of the slides.
+
+| Version | Date | Changes |
+| --- | --- | --- |
+| v1 | 2026-10-28 | First release |

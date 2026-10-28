@@ -26,6 +26,7 @@
 - `site/`: stack-site-builder 기반 Astro 강의 사이트. 강의·슬라이드·글·실습
   환경 카탈로그·용어집. 콘텐츠 작성 위치와 개발 명령은 `site/README.md` 참고
 - `docs/`: 수업계획서, 변환 계획, 규칙 문서(작성·문서화·git·배포)
+- `Makefile`: docker compose 명령의 단축 타깃. `make`로 목록을 본다.
 - `.github/workflows/deploy.yml`: `main` push → GitHub Pages 배포
 
 ## Git 워크플로: git flow (상세: `docs/git-workflow.md`)
@@ -46,6 +47,11 @@
 # repo 루트에서 — Docker (Node/pnpm 설치 불필요)
 docker compose up                            # 보기 전용 (소스 내장)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up  # site/ 바인드 마운트 + 핫리로드
+
+# 같은 일을 make로 — 목록은 make
+make up / make dev / make dev-d / make logs  # 보기 전용 · 편집용 · 백그라운드 · 로그
+make down / make clean                       # 중지 · 중지 + node_modules 볼륨 삭제 (down 대신)
+make check                                   # 컨테이너 안에서 pnpm build && pnpm check
 
 # site/ 에서 — 로컬 pnpm
 pnpm dev / pnpm build / pnpm check

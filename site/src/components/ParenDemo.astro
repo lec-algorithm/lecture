@@ -1,0 +1,679 @@
+---
+// 괄호 짝 맞추기를 상태가 k개뿐인 기계로 해 보면 어디서 틀리는지 보여 주는 데모.
+//
+// 기계는 깊이를 상태로 센다. 상태는 0부터 k-1까지 k개이고 0이 수락 상태다.
+//   - '('를 읽으면 한 칸 오른쪽으로. 이미 k-1이면 더 갈 곳이 없어 그대로 머문다.
+//   - ')'를 읽으면 한 칸 왼쪽으로. 0에서 ')'를 읽으면 실패 상태로 간다.
+// 옆에서 스택(정답)도 같은 글자를 읽으며 진짜 깊이를 센다. 둘이 어긋나는 칸을
+// 빨강으로 칠한다. '('를 k개 넘게 넣으면 기계는 깊이를 구별하지 못한다.
+// 상태를 늘려도 '('를 그보다 하나 더 넣으면 다시 틀린다(비둘기집 원리).
+//
+// 입력 칸에 괄호를 직접 적거나 아래 단추로 예를 고른다. 한 걸음에 한 글자씩 읽는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 기계의 상태 수 */
+  k?: number;
+  /** 처음 입력. 없으면 '('를 k개, ')'를 k-1개 */
+  input?: string;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { k = 3, input, slide = false } = Astro.props;
+const id = `pd-${Math.random().toString(36).slice(2, 9)}`;
+const MAX_K = 6;
+const MAX_LEN = 16;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '상태 k개로 괄호 짝 맞추기',
+    kLabel: '상태 수 k',
+    inputLabel: '입력',
+    presetOk: '짝 맞음 · 얕게',
+    presetDeep: '짝 맞음 · 깊게',
+    presetLeft: '( 하나 남음',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    rowDepth: '스택 깊이',
+    rowState: '기계 상태',
+    dead: '실패',
+    stuck: '여기서 더 못 감',
+    truthOk: '정답 · 짝이 맞음',
+    truthBad: '정답 · 짝이 안 맞음',
+    machOk: '기계 · 수락',
+    machBad: '기계 · 거부',
+    idle: '상태가 {k}개인 기계와 스택이 "{w}"를 한 글자씩 읽습니다. 기계는 깊이를 상태 0부터 {m}까지로만 셀 수 있습니다.',
+    open: "'(' 읽기: 깊이 {d}, 기계는 상태 {s}",
+    openStuck: "'(' 읽기: 깊이는 {d}인데 기계는 상태 {s}에 머뭅니다. 상태가 {k}개뿐이라 더 갈 곳이 없습니다.",
+    close: "')' 읽기: 깊이 {d}, 기계는 상태 {s}",
+    closeDead: "')' 읽기: 닫을 '('가 없습니다. 기계는 실패 상태로 갑니다.",
+    endSame: '끝: 기계와 스택의 답이 같습니다. 이 입력은 상태 {k}개로 충분합니다.',
+    endWrong: '끝: 기계가 틀렸습니다. 기계 안에서는 깊이가 {m}일 때와 그보다 깊을 때가 같은 상태입니다. k를 늘려도 \'(\'를 k개 넘게 넣으면 다시 틀립니다.',
+    empty: '빈 입력입니다. 괄호를 적거나 아래 예를 고르세요.',
+  },
+  en: {
+    title: 'Matching parentheses with k states',
+    kLabel: 'states k',
+    inputLabel: 'input',
+    presetOk: 'balanced · shallow',
+    presetDeep: 'balanced · deep',
+    presetLeft: 'one ( left over',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    rowDepth: 'stack depth',
+    rowState: 'machine state',
+    dead: 'fail',
+    stuck: 'nowhere higher',
+    truthOk: 'truth · balanced',
+    truthBad: 'truth · unbalanced',
+    machOk: 'machine · accept',
+    machBad: 'machine · reject',
+    idle: 'A machine with {k} states and a stack read "{w}" one character at a time. The machine can only count depth as states 0 to {m}.',
+    open: "Read '(': depth {d}, machine in state {s}",
+    openStuck: "Read '(': the depth is {d} but the machine stays in state {s}. With only {k} states there is nowhere higher to go.",
+    close: "Read ')': depth {d}, machine in state {s}",
+    closeDead: "Read ')': there is no '(' to close. The machine goes to the fail state.",
+    endSame: 'Done: the machine and the stack agree. {k} states are enough for this input.',
+    endWrong: "Done: the machine is wrong. Inside the machine, depth {m} and anything deeper are the same state. Add states and it fails again once more than k '(' come in.",
+    empty: 'The input is empty. Type parentheses or pick an example below.',
+  },
+  zh: {
+    title: '用 k 个状态匹配括号',
+    kLabel: '状态数 k',
+    inputLabel: '输入',
+    presetOk: '匹配 · 浅',
+    presetDeep: '匹配 · 深',
+    presetLeft: '多一个 (',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    rowDepth: '栈深度',
+    rowState: '机器状态',
+    dead: '失败',
+    stuck: '无处可升',
+    truthOk: '正确答案 · 匹配',
+    truthBad: '正确答案 · 不匹配',
+    machOk: '机器 · 接受',
+    machBad: '机器 · 拒绝',
+    idle: '有 {k} 个状态的机器和栈逐个字符读入 "{w}"。机器只能用状态 0 到 {m} 来记深度。',
+    open: "读入 '('：深度 {d}，机器处于状态 {s}",
+    openStuck: "读入 '('：深度是 {d}，机器却停在状态 {s}。只有 {k} 个状态，没有更高的地方可去。",
+    close: "读入 ')'：深度 {d}，机器处于状态 {s}",
+    closeDead: "读入 ')'：没有可以闭合的 '('。机器进入失败状态。",
+    endSame: '结束：机器与栈的答案相同。对这个输入，{k} 个状态就够了。',
+    endWrong: "结束：机器错了。在机器内部，深度 {m} 和更深的情况是同一个状态。即使增加状态，只要 '(' 超过 k 个就又会出错。",
+    empty: '输入为空。请输入括号或在下面选一个例子。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const k0 = Math.min(Math.max(1, k), MAX_K);
+const input0 = input ?? '('.repeat(k0) + ')'.repeat(k0 - 1);
+---
+
+<div
+  class:list={['aas-paren-demo', slide && 'is-slide']}
+  id={id}
+  data-pd-k={k0}
+  data-pd-input={input0}
+  data-pd-strings={JSON.stringify(t)}
+>
+  <div class="pd-bar">
+    <span class="pd-head"><strong>{t.title}</strong></span>
+    <div class="pd-controls">
+      <button type="button" data-act="back" class="pd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="pd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="pd-btn pd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="pd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="pd-opts">
+    <label class="pd-range">
+      {t.kLabel} = <strong data-pd-kval></strong>
+      <input type="range" min="1" max={MAX_K} step="1" data-pd-range />
+    </label>
+    <label class="pd-input">
+      {t.inputLabel}
+      <input type="text" maxlength={MAX_LEN} spellcheck="false" autocomplete="off" data-pd-text />
+    </label>
+    <div class="pd-presets">
+      <button type="button" class="pd-chip" data-pd-preset="ok">{t.presetOk}</button>
+      <button type="button" class="pd-chip" data-pd-preset="deep">{t.presetDeep}</button>
+      <button type="button" class="pd-chip" data-pd-preset="left">{t.presetLeft}</button>
+    </div>
+  </div>
+
+  <svg class="pd-machine" data-pd-svg role="img" aria-label={t.title}></svg>
+
+  <div class="pd-grid" data-pd-grid></div>
+
+  <div class="pd-foot">
+    <p class="pd-note" data-pd-note></p>
+    <div class="pd-verdicts">
+      <span class="pd-verdict" data-pd-truth></span>
+      <span class="pd-verdict" data-pd-mach></span>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.pdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    let K = Number(root.dataset.pdK);
+    let word = root.dataset.pdInput;
+
+    const range = root.querySelector('[data-pd-range]');
+    const kval = root.querySelector('[data-pd-kval]');
+    const textIn = root.querySelector('[data-pd-text]');
+    const svg = root.querySelector('[data-pd-svg]');
+    const grid = root.querySelector('[data-pd-grid]');
+    const note = root.querySelector('[data-pd-note]');
+    const truthEl = root.querySelector('[data-pd-truth]');
+    const machEl = root.querySelector('[data-pd-mach]');
+    range.value = String(K);
+    textIn.value = word;
+
+    /* 기계와 스택을 같이 돌려 단계 배열을 만든다. 상태 -1은 실패 상태, 깊이 -1은 짝 없는 ')' */
+    function plan() {
+      const steps = [{ pos: 0, d: 0, s: 0 }];
+      let d = 0;
+      let s = 0;
+      for (let i = 0; i < word.length; i++) {
+        const c = word[i];
+        let stuck = false;
+        if (d >= 0) d += c === '(' ? 1 : -1;
+        if (s >= 0) {
+          if (c === '(') {
+            if (s === K - 1) stuck = true;
+            else s += 1;
+          } else s -= 1; // 0에서 ')'면 -1, 곧 실패 상태
+        }
+        steps.push({ pos: i + 1, c, d, s, stuck });
+      }
+      return steps;
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [key, v] of Object.entries(attrs)) e.setAttribute(key, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+
+    /* 기계 그림: 상태 0..k-1을 한 줄로, 왼쪽 끝에 실패 상태. 마지막 상태에는 '('로 제자리 고리 */
+    let stateEls = [];
+    let deadEl = null;
+    let loopEl = null;
+    function drawMachine() {
+      const R = 22;
+      const gap = 92;
+      const x0 = 150;
+      const Y = 70;
+      const W = x0 + (K - 1) * gap + R + 120;
+      svg.setAttribute('viewBox', `0 0 ${W} 124`);
+      svg.replaceChildren();
+      const defs = el('defs', {}, svg);
+      const mk = el('marker', { id: `${id}-a`, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse', class: 'pd-tip' }, defs);
+      el('path', { d: 'M 0 0 L 10 5 L 0 10 z' }, mk);
+      const X = (i) => x0 + i * gap;
+      // 실패 상태
+      const dx = 40;
+      el('path', { d: `M ${X(0) - R - 2} ${Y + 8} L ${dx + R + 2} ${Y + 8}`, class: 'pd-edge', 'marker-end': `url(#${id}-a)` }, svg);
+      el('text', { x: (X(0) + dx) / 2, y: Y + 24, class: 'pd-elabel' }, svg).textContent = "')'";
+      deadEl = el('g', { class: 'pd-state is-dead' }, svg);
+      el('circle', { cx: dx, cy: Y, r: R }, deadEl);
+      el('text', { x: dx, y: Y, class: 'pd-sname' }, deadEl).textContent = S.dead;
+      for (let i = 0; i + 1 < K; i++) {
+        el('path', { d: `M ${X(i) + R} ${Y - 7} L ${X(i + 1) - R - 2} ${Y - 7}`, class: 'pd-edge', 'marker-end': `url(#${id}-a)` }, svg);
+        el('text', { x: (X(i) + X(i + 1)) / 2, y: Y - 14, class: 'pd-elabel' }, svg).textContent = "'('";
+        el('path', { d: `M ${X(i + 1) - R} ${Y + 8} L ${X(i) + R + 2} ${Y + 8}`, class: 'pd-edge', 'marker-end': `url(#${id}-a)` }, svg);
+        el('text', { x: (X(i) + X(i + 1)) / 2, y: Y + 24, class: 'pd-elabel' }, svg).textContent = "')'";
+      }
+      const last = X(K - 1);
+      loopEl = el('g', { class: 'pd-loop' }, svg);
+      el('path', { d: `M ${last - 10} ${Y - R + 2} C ${last - 30} ${Y - 70}, ${last + 30} ${Y - 70}, ${last + 11} ${Y - R}`, class: 'pd-edge', 'marker-end': `url(#${id}-a)` }, loopEl);
+      el('text', { x: last + 30, y: Y - 48, class: 'pd-elabel is-left is-plain' }, loopEl).textContent = `'(' · ${S.stuck}`;
+      stateEls = [];
+      for (let i = 0; i < K; i++) {
+        const g = el('g', { class: `pd-state${i === 0 ? ' is-final' : ''}` }, svg);
+        if (i === 0) el('circle', { cx: X(i), cy: Y, r: R + 4, class: 'pd-ring' }, g);
+        el('circle', { cx: X(i), cy: Y, r: R }, g);
+        el('text', { x: X(i), y: Y, class: 'pd-sname' }, g).textContent = String(i);
+        stateEls.push(g);
+      }
+    }
+
+    /* 테이프: 글자 줄, 스택 깊이 줄, 기계 상태 줄 */
+    let cols = [];
+    function drawGrid() {
+      grid.replaceChildren();
+      const head = document.createElement('div');
+      head.className = 'pd-col is-head';
+      for (const label of ['', S.rowDepth, S.rowState]) {
+        const span = document.createElement('span');
+        span.textContent = label;
+        head.appendChild(span);
+      }
+      grid.appendChild(head);
+      cols = [...word].map((c) => {
+        const col = document.createElement('div');
+        col.className = 'pd-col';
+        const ch = document.createElement('span');
+        ch.className = 'pd-ch';
+        ch.textContent = c;
+        const dd = document.createElement('span');
+        const ss = document.createElement('span');
+        col.append(ch, dd, ss);
+        grid.appendChild(col);
+        return { col, dd, ss };
+      });
+    }
+
+    let steps = plan();
+    let at = -1;
+    const showS = (s) => (s < 0 ? '✕' : String(s));
+    const showD = (d) => (d < 0 ? '✕' : String(d));
+
+    function render() {
+      const step = at >= 0 ? steps[at] : null;
+      const done = !!step && at === steps.length - 1;
+      kval.textContent = String(K);
+      const s = step ? step.s : null;
+      stateEls.forEach((g, i) => {
+        g.classList.toggle('is-now', s === i);
+        g.classList.toggle('is-wrong', s === i && step.d !== i);
+      });
+      deadEl.classList.toggle('is-now', s !== null && s < 0);
+      loopEl.classList.toggle('is-on', !!step && !!step.stuck);
+      cols.forEach(({ col, dd, ss }, i) => {
+        const st = steps[i + 1];
+        const shown = !!step && i < step.pos;
+        dd.textContent = shown ? showD(st.d) : '';
+        ss.textContent = shown ? showS(st.s) : '';
+        col.classList.toggle('is-read', shown);
+        col.classList.toggle('is-now', !!step && i === step.pos - 1);
+        col.classList.toggle('is-wrong', shown && st.d !== st.s);
+      });
+      const truth = step ? step.d === 0 : null;
+      const mach = step ? step.s === 0 : null;
+      truthEl.hidden = !done;
+      machEl.hidden = !done;
+      if (done) {
+        truthEl.textContent = truth ? S.truthOk : S.truthBad;
+        machEl.textContent = mach ? S.machOk : S.machBad;
+        truthEl.className = `pd-verdict ${truth ? 'is-yes' : 'is-no'}`;
+        machEl.className = `pd-verdict ${truth === mach ? 'is-same' : 'is-wrong'}`;
+      }
+      let msg;
+      if (!word.length) msg = S.empty;
+      else if (!step) msg = fill(S.idle, { k: K, m: K - 1, w: word });
+      else if (step.pos === 0) msg = fill(S.idle, { k: K, m: K - 1, w: word });
+      else if (step.c === '(') msg = fill(step.stuck ? S.openStuck : S.open, { d: showD(step.d), s: showS(step.s), k: K });
+      else msg = step.s < 0 && steps[at - 1].s === 0 ? S.closeDead : fill(S.close, { d: showD(step.d), s: showS(step.s) });
+      if (done && word.length) msg = truth === mach ? fill(S.endSame, { k: K }) : fill(S.endWrong, { m: K - 1 });
+      setLines(note, msg);
+      root.classList.toggle('is-done', done);
+    }
+
+    function rebuild() {
+      steps = plan();
+      at = -1;
+      drawMachine();
+      drawGrid();
+      render();
+    }
+
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    const presetWord = (kind) => {
+      if (kind === 'ok') return '('.repeat(K - 1) + ')'.repeat(K - 1) || '()';
+      if (kind === 'deep') return '('.repeat(K + 1) + ')'.repeat(K + 1);
+      return '('.repeat(K) + ')'.repeat(K - 1);
+    };
+    root.querySelectorAll('[data-pd-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        stop();
+        word = presetWord(b.dataset.pdPreset);
+        textIn.value = word;
+        rebuild();
+      }),
+    );
+    range.addEventListener('input', () => {
+      stop();
+      K = Number(range.value);
+      rebuild();
+    });
+    textIn.addEventListener('input', () => {
+      stop();
+      const clean = textIn.value.replace(/[^()]/g, '');
+      if (clean !== textIn.value) textIn.value = clean;
+      word = clean;
+      rebuild();
+    });
+
+    rebuild();
+  })();
+</script>
+
+<style is:global>
+  .aas-paren-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-paren-demo .pd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-paren-demo .pd-head {
+    font-size: 0.95em;
+  }
+  .aas-paren-demo .pd-controls,
+  .aas-paren-demo .pd-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+  }
+  .aas-paren-demo .pd-btn,
+  .aas-paren-demo .pd-chip {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-paren-demo .pd-chip {
+    border-radius: 999px;
+  }
+  .aas-paren-demo .pd-btn:hover,
+  .aas-paren-demo .pd-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-paren-demo .pd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-paren-demo .pd-opts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-paren-demo .pd-opts .pd-chip {
+    font-size: 1em;
+  }
+  .aas-paren-demo .pd-range,
+  .aas-paren-demo .pd-input {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+  }
+  .aas-paren-demo .pd-range strong {
+    min-width: 1em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-paren-demo .pd-range input {
+    width: 7em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-paren-demo .pd-input input {
+    width: 11em;
+    padding: 0.2em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-paren-demo .pd-machine {
+    display: block;
+    width: 100%;
+    max-height: 9em;
+    margin: 0.3em 0;
+  }
+  .aas-paren-demo .pd-tip path {
+    fill: var(--aas-muted);
+  }
+  .aas-paren-demo .pd-edge {
+    fill: none;
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+  }
+  .aas-paren-demo .pd-elabel {
+    font-size: 13px;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-paren-demo .pd-elabel.is-left {
+    text-anchor: start;
+  }
+  .aas-paren-demo .pd-elabel.is-plain {
+    font-family: inherit;
+  }
+  .aas-paren-demo .pd-loop.is-on .pd-edge {
+    stroke: var(--aas-role-guard);
+    stroke-width: 3;
+  }
+  .aas-paren-demo .pd-loop.is-on .pd-elabel {
+    fill: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-paren-demo .pd-state circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.6;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .aas-paren-demo .pd-state .pd-ring {
+    fill: none;
+  }
+  .aas-paren-demo .pd-state.is-dead circle {
+    stroke-dasharray: 4 3;
+    stroke: var(--aas-muted);
+  }
+  .aas-paren-demo .pd-sname {
+    font-size: 15px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-paren-demo .pd-state.is-dead .pd-sname {
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .aas-paren-demo .pd-state.is-now circle:not(.pd-ring) {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-paren-demo .pd-state.is-now .pd-sname {
+    fill: #fff;
+  }
+  .aas-paren-demo .pd-state.is-now.is-wrong circle:not(.pd-ring) {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-paren-demo .pd-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    justify-content: center;
+    margin-top: 0.2em;
+  }
+  .aas-paren-demo .pd-col {
+    display: grid;
+    grid-template-rows: repeat(3, 1.7em);
+    gap: 0.15em;
+    width: 1.9em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-paren-demo .pd-col.is-head {
+    width: auto;
+    padding-right: 0.4em;
+    text-align: right;
+    font-family: inherit;
+    font-weight: 400;
+    font-size: 0.8em;
+    grid-template-rows: repeat(3, calc(1.7em / 0.8));
+    color: var(--aas-muted);
+  }
+  .aas-paren-demo .pd-col.is-head span {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    white-space: nowrap;
+  }
+  .aas-paren-demo .pd-col:not(.is-head) span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.35em;
+  }
+  .aas-paren-demo .pd-ch {
+    border: 1.5px solid var(--aas-border);
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+  .aas-paren-demo .pd-col.is-read .pd-ch {
+    color: var(--aas-muted);
+    background: color-mix(in srgb, var(--aas-muted) 15%, var(--aas-bg));
+  }
+  .aas-paren-demo .pd-col.is-now .pd-ch {
+    color: var(--aas-text);
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-paren-demo .pd-col.is-wrong span:nth-child(3) {
+    color: #fff;
+    background: var(--aas-role-guard);
+  }
+  .aas-paren-demo .pd-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+  .aas-paren-demo .pd-note {
+    flex: 1 1 20em;
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-paren-demo.is-done .pd-note {
+    color: var(--aas-text);
+  }
+  .aas-paren-demo .pd-verdicts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    margin-top: 0.6em;
+  }
+  .aas-paren-demo .pd-verdict {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    font-weight: 700;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .aas-paren-demo .pd-verdict.is-yes,
+  .aas-paren-demo .pd-verdict.is-same {
+    color: var(--aas-text);
+    background: color-mix(in srgb, var(--aas-role-eval) 25%, var(--aas-bg));
+  }
+  .aas-paren-demo .pd-verdict.is-no {
+    color: var(--aas-text);
+    background: color-mix(in srgb, var(--aas-muted) 20%, var(--aas-bg));
+  }
+  .aas-paren-demo .pd-verdict.is-wrong {
+    color: #fff;
+    background: var(--aas-role-guard);
+  }
+  .aas-paren-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-paren-demo.is-slide .pd-machine {
+    max-height: 18vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-paren-demo * {
+      transition: none !important;
+    }
+  }
+</style>

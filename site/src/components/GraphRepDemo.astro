@@ -1,0 +1,588 @@
+---
+// 같은 그래프를 간선 목록, 인접 행렬, 인접 목록 셋으로 함께 보는 데모.
+//
+// 그래프의 간선을 누르면 빠지고, 행렬의 칸을 누르면 그 쌍의 간선이 들어오거나
+// 빠진다. 세 표현이 함께 바뀐다. 정점을 누르면 "이 정점의 이웃은 누구인가"를
+// 물을 때 두 표현이 각각 몇 칸을 보는지 칠해 보인다. 행렬은 한 행 V칸 전부,
+// 목록은 차수만큼이다.
+//
+// 기본 그래프는 BFS·DFS 예제 g7(정점 7개, 간선 9개)이고, 처음 화면의 행렬과
+// 목록은 algorithm-code 01_bfs의 앞부분 출력과 같다. 목록은 처음에 번호
+// 오름차순이고, 새로 넣은 이웃은 실제 구현처럼 목록 끝에 붙는다.
+//
+// 그림에는 모든 쌍의 간선을 미리 그려 두고, 없는 간선은 감춘다. 다른 정점을
+// 가로지르는 쌍(예: 1-6은 2를 지난다)은 그림이 헷갈리므로 넣지 않는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph, type GraphSample } from './GraphSamples';
+
+interface Props {
+  /** 처음 보여 줄 정점(이웃 찾기). 기본 -1은 고르지 않음 */
+  vertex?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { vertex = -1, slide = false } = Astro.props;
+const base = getGraph('g7');
+const n = base.nodes.length;
+const R = 26;
+/* 모든 쌍. 다른 정점의 원을 가로지르는 쌍은 막아 둔다. */
+const pairs: number[][] = [];
+const blocked: string[] = [];
+for (let a = 0; a < n; a++) {
+  for (let b = a + 1; b < n; b++) {
+    const [x1, y1] = base.nodes[a];
+    const [x2, y2] = base.nodes[b];
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const hit = base.nodes.some(([x, y], c) => {
+      if (c === a || c === b) return false;
+      const tt = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / (len * len);
+      if (tt <= 0 || tt >= 1) return false;
+      return Math.abs((x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)) / len < R;
+    });
+    pairs.push([a, b]);
+    if (hit) blocked.push(`${a}-${b}`);
+  }
+}
+const full: GraphSample = { nodes: base.nodes, edges: pairs };
+const id = `gr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '세 가지 표현',
+    hint: '간선, 행렬 칸, 정점을 눌러 보세요.',
+    reset: '처음 그래프',
+    edgeList: '간선 목록',
+    matrix: '인접 행렬',
+    list: '인접 목록',
+    none: '(없음)',
+    stats: '간선 {m}개 · 행렬 {nn}칸 중 1이 {ones}칸 · 목록은 정점 {n}칸 + 이웃 {ones}칸',
+    idle: '01_bfs와 같은 그래프입니다. 무방향 간선 하나가 행렬에서는 대칭인 두 칸, 목록에서는 양 끝의 목록에 한 칸씩입니다.',
+    scan: '{v}의 이웃 찾기: 행렬은 {v}행 {n}칸을 모두 봐야 하고, 목록은 이웃 {d}칸만 봅니다.',
+    scanNone: '{v}의 이웃 찾기: 행렬은 {v}행 {n}칸을 모두 보고서야 이웃이 없다는 것을 압니다. 목록은 비어 있으니 바로 압니다.',
+    add: '간선 {e} 넣기: 행렬은 [{a}][{b}], [{b}][{a}] 두 칸을 1로 바꾸고, 목록은 {a}·{b}의 목록 끝에 하나씩 붙입니다. 둘 다 O(1)입니다.',
+    del: '간선 {e} 빼기: 행렬은 두 칸을 0으로 바꾸면 끝입니다. 목록은 {a}와 {b}의 목록에서 그 이웃을 찾아 지워야 해서 차수만큼 봅니다.',
+    blocked: '{e}: 그림에서 다른 정점을 가로지르는 쌍이라 이 데모에서는 잇지 않습니다.',
+    self: '[{a}][{a}]: 자기 자신으로 가는 간선(self-loop)은 이 주제에서 쓰지 않습니다.',
+  },
+  en: {
+    title: 'Three representations',
+    hint: 'Click an edge, a matrix cell or a vertex.',
+    reset: 'Original graph',
+    edgeList: 'Edge list',
+    matrix: 'Adjacency matrix',
+    list: 'Adjacency list',
+    none: '(none)',
+    stats: '{m} edges · {ones} of {nn} matrix cells are 1 · the list has {n} vertex slots + {ones} neighbour slots',
+    idle: 'The same graph as 01_bfs. One undirected edge is two symmetric cells in the matrix and one slot in each end’s list.',
+    scan: 'Neighbours of {v}: the matrix has to read all {n} cells of row {v}, the list reads only its {d} neighbours.',
+    scanNone: 'Neighbours of {v}: the matrix reads all {n} cells of row {v} before it knows there are none. The list is empty, so it knows at once.',
+    add: 'Add edge {e}: the matrix sets cells [{a}][{b}] and [{b}][{a}] to 1, and the lists of {a} and {b} each get one entry at the end. Both are O(1).',
+    del: 'Remove edge {e}: the matrix just sets two cells to 0. The list has to find that neighbour in the lists of {a} and {b}, which costs the degree.',
+    blocked: '{e}: in the drawing this pair would cross another vertex, so this demo does not join it.',
+    self: '[{a}][{a}]: edges from a vertex to itself (self-loops) are not used in this topic.',
+  },
+  zh: {
+    title: '三种表示',
+    hint: '点击边、矩阵格或顶点。',
+    reset: '原来的图',
+    edgeList: '边列表',
+    matrix: '邻接矩阵',
+    list: '邻接表',
+    none: '（无）',
+    stats: '{m} 条边 · 矩阵 {nn} 格中 {ones} 格为 1 · 邻接表有顶点 {n} 格 + 邻居 {ones} 格',
+    idle: '与 01_bfs 相同的图。一条无向边在矩阵中是对称的两格，在邻接表中是两端各一格。',
+    scan: '找 {v} 的邻居：矩阵要看完第 {v} 行全部 {n} 格，邻接表只看 {d} 个邻居。',
+    scanNone: '找 {v} 的邻居：矩阵看完第 {v} 行全部 {n} 格才知道没有邻居。邻接表是空的，马上就知道。',
+    add: '加入边 {e}：矩阵把 [{a}][{b}] 和 [{b}][{a}] 两格改为 1，邻接表在 {a} 和 {b} 的表尾各加一项。两者都是 O(1)。',
+    del: '删除边 {e}：矩阵把两格改为 0 就行。邻接表要在 {a} 和 {b} 的表中找到该邻居再删，代价是度。',
+    blocked: '{e}：图中这对顶点的连线会穿过别的顶点，本演示不连接它们。',
+    self: '[{a}][{a}]：本主题不使用连到自身的边（自环）。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const idx = Array.from({ length: n }, (_, v) => v);
+---
+
+<div
+  class:list={['aas-graph-rep-demo', slide && 'is-slide']}
+  id={id}
+  data-gr-n={n}
+  data-gr-edges={JSON.stringify(base.edges)}
+  data-gr-blocked={JSON.stringify(blocked)}
+  data-gr-vertex={vertex}
+  data-gr-strings={JSON.stringify(t)}
+  style={`--gr-n: ${n}`}
+>
+  <div class="gr-bar">
+    <span class="gr-head"><strong>{t.title}</strong> <span class="gr-hint">{t.hint}</span></span>
+    <button type="button" data-act="reset" class="gr-btn">{t.reset}</button>
+  </div>
+
+  <div class="gr-body">
+    <div class="gr-graph">
+      <GraphFigure graph={full} bare slide={slide} />
+    </div>
+    <div class="gr-panel">
+      <div class="gr-two">
+        <div>
+          <div class="gr-label">{t.matrix}</div>
+          <div class="gr-matrix" role="grid">
+            <span class="gr-corner"></span>
+            {idx.map((b) => <span class="gr-colh" data-gr-colh={b}>{b}</span>)}
+            {idx.map((a) => (
+              <>
+                <span class="gr-rowh" data-gr-rowh={a}>{a}</span>
+                {idx.map((b) => (
+                  <span
+                    class:list={['gr-cell', a === b && 'is-self', blocked.includes(`${Math.min(a, b)}-${Math.max(a, b)}`) && 'is-blocked']}
+                    data-gr-cell={`${a}-${b}`}
+                    role="gridcell"
+                    tabindex="0"
+                  ></span>
+                ))}
+              </>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div class="gr-label">{t.list}</div>
+          <div class="gr-list">
+            {idx.map((v) => (
+              <div class="gr-lrow" data-gr-lrow={v}>
+                <span class="gr-lhead">{v}</span>
+                <span class="gr-litems" data-gr-litems></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div class="gr-label">{t.edgeList}</div>
+      <div class="gr-edges" data-gr-edgelist></div>
+    </div>
+  </div>
+
+  <p class="gr-stats" data-gr-stats></p>
+  <p class="gr-note" data-gr-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const S = JSON.parse(root.dataset.grStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const n = Number(root.dataset.grN);
+    const start = JSON.parse(root.dataset.grEdges);
+    const blocked = new Set(JSON.parse(root.dataset.grBlocked));
+    const key = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+    /* 상태: 행렬과 목록을 따로 들고, 넣고 뺄 때 둘 다 고친다. */
+    let A;
+    let L;
+    let order; // 간선 목록: 넣은 순서
+    function init() {
+      A = Array.from({ length: n }, () => new Array(n).fill(0));
+      L = Array.from({ length: n }, () => []);
+      order = [];
+      start.forEach(([a, b]) => {
+        A[a][b] = A[b][a] = 1;
+        L[a].push(b);
+        L[b].push(a);
+        order.push(key(a, b));
+      });
+      L.forEach((l) => l.sort((x, y) => x - y));
+    }
+    init();
+
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const cellEls = new Map();
+    root.querySelectorAll('[data-gr-cell]').forEach((el) => cellEls.set(el.dataset.grCell, el));
+    const rowHeads = [...root.querySelectorAll('[data-gr-rowh]')];
+    const lrows = [...root.querySelectorAll('[data-gr-lrow]')];
+    const edgeListEl = root.querySelector('[data-gr-edgelist]');
+    const statsEl = root.querySelector('[data-gr-stats]');
+    const noteEl = root.querySelector('[data-gr-note]');
+
+    let sel = Number(root.dataset.grVertex);
+    let hit = null; // 방금 바꾼 간선
+    let note = S.idle;
+
+    function render() {
+      const m = order.length;
+      edgeEls.forEach((el, k) => {
+        const [a, b] = k.split('-').map(Number);
+        const on = A[a][b] === 1;
+        el.classList.toggle('gr-off', !on);
+        el.classList.toggle('is-focus', on && (k === hit || (sel >= 0 && (a === sel || b === sel))));
+      });
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-focus', v === sel);
+        el.classList.toggle('is-open', sel >= 0 && v !== sel && A[sel][v] === 1);
+      });
+      cellEls.forEach((el, k) => {
+        const [a, b] = k.split('-').map(Number);
+        el.textContent = String(A[a][b]);
+        el.classList.toggle('is-one', A[a][b] === 1);
+        el.classList.toggle('is-scan', a === sel);
+        el.classList.toggle('is-hit', hit !== null && key(a, b) === hit && a !== b);
+      });
+      rowHeads.forEach((el, a) => el.classList.toggle('is-scan', a === sel));
+      lrows.forEach((row, v) => {
+        const box = row.querySelector('[data-gr-litems]');
+        box.replaceChildren(
+          ...L[v].map((w) => {
+            const s = document.createElement('span');
+            s.className = 'gr-item';
+            if (v === sel) s.classList.add('is-scan');
+            if (hit === key(v, w)) s.classList.add('is-hit');
+            s.textContent = String(w);
+            return s;
+          }),
+        );
+        row.classList.toggle('is-scan', v === sel);
+      });
+      edgeListEl.replaceChildren(
+        ...(order.length
+          ? order.map((k) => {
+              const s = document.createElement('span');
+              s.className = 'gr-chip';
+              if (k === hit) s.classList.add('is-hit');
+              s.textContent = k;
+              return s;
+            })
+          : [document.createTextNode(S.none)]),
+      );
+      statsEl.textContent = fill(S.stats, { m, nn: n * n, ones: 2 * m, n });
+      setLines(noteEl, note);
+    }
+
+    function toggle(a, b) {
+      if (a === b) {
+        note = fill(S.self, { a });
+        hit = null;
+        return render();
+      }
+      const k = key(a, b);
+      if (blocked.has(k)) {
+        note = fill(S.blocked, { e: k });
+        hit = null;
+        return render();
+      }
+      const [x, y] = k.split('-').map(Number);
+      if (A[x][y]) {
+        A[x][y] = A[y][x] = 0;
+        L[x] = L[x].filter((w) => w !== y);
+        L[y] = L[y].filter((w) => w !== x);
+        order = order.filter((e) => e !== k);
+        note = fill(S.del, { e: k, a: x, b: y });
+        hit = null;
+      } else {
+        A[x][y] = A[y][x] = 1;
+        L[x].push(y);
+        L[y].push(x);
+        order.push(k);
+        note = fill(S.add, { e: k, a: x, b: y });
+        hit = k;
+      }
+      sel = -1;
+      render();
+    }
+    function pick(v) {
+      sel = sel === v ? -1 : v;
+      hit = null;
+      const d = sel >= 0 ? L[sel].length : 0;
+      note = sel < 0 ? S.idle : fill(d ? S.scan : S.scanNone, { v: sel, n, d });
+      render();
+    }
+
+    const onKey = (fn) => (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+      }
+    };
+    edgeEls.forEach((el, k) => {
+      const [a, b] = k.split('-').map(Number);
+      /* 선이 가늘어 누르기 어려우니 투명한 굵은 선을 덧댄다. */
+      const line = el.querySelector('line');
+      const pad = line.cloneNode();
+      pad.setAttribute('class', 'gr-pad');
+      el.appendChild(pad);
+      el.addEventListener('click', () => A[a][b] && toggle(a, b));
+    });
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => pick(v));
+      el.addEventListener('keydown', onKey(() => pick(v)));
+    });
+    cellEls.forEach((el, k) => {
+      const [a, b] = k.split('-').map(Number);
+      el.addEventListener('click', () => toggle(a, b));
+      el.addEventListener('keydown', onKey(() => toggle(a, b)));
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      init();
+      sel = -1;
+      hit = null;
+      note = S.idle;
+      render();
+    });
+    if (sel >= 0) {
+      const v = sel;
+      sel = -1;
+      pick(v);
+    } else render();
+  })();
+</script>
+
+<style is:global>
+  .aas-graph-rep-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-graph-rep-demo .gr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-graph-rep-demo .gr-head {
+    font-size: 0.95em;
+  }
+  .aas-graph-rep-demo .gr-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-graph-rep-demo .gr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-graph-rep-demo .gr-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-graph-rep-demo .gr-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-graph-rep-demo .gr-graph {
+    flex: 0 1 15em;
+    min-width: 11em;
+  }
+  .aas-graph-rep-demo .gr-panel {
+    flex: 1 1 18em;
+    min-width: 0;
+  }
+  .aas-graph-rep-demo .gr-two {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.6em;
+    margin-bottom: 0.5em;
+  }
+  .aas-graph-rep-demo .gr-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-bottom: 0.25em;
+  }
+  .aas-graph-rep-demo .gr-matrix {
+    display: grid;
+    grid-template-columns: repeat(calc(var(--gr-n) + 1), 1.55em);
+    grid-auto-rows: 1.45em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    text-align: center;
+    line-height: 1.45em;
+  }
+  .aas-graph-rep-demo .gr-colh,
+  .aas-graph-rep-demo .gr-rowh {
+    color: var(--aas-muted);
+    font-weight: 700;
+  }
+  .aas-graph-rep-demo .gr-rowh.is-scan {
+    color: var(--aas-role-focus);
+  }
+  .aas-graph-rep-demo .gr-cell {
+    color: var(--aas-muted);
+    border-radius: 0.25em;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.25s, color 0.25s;
+  }
+  .aas-graph-rep-demo .gr-cell:hover,
+  .aas-graph-rep-demo .gr-cell:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--aas-accent);
+  }
+  .aas-graph-rep-demo .gr-cell.is-one {
+    color: var(--aas-text);
+    font-weight: 800;
+  }
+  .aas-graph-rep-demo .gr-cell.is-self {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-graph-rep-demo .gr-cell.is-blocked {
+    cursor: default;
+  }
+  .aas-graph-rep-demo .gr-cell.is-scan {
+    background: color-mix(in srgb, var(--aas-role-focus) 20%, transparent);
+  }
+  .aas-graph-rep-demo .gr-cell.is-scan.is-one {
+    background: var(--aas-role-model);
+    color: #fff;
+  }
+  .aas-graph-rep-demo .gr-cell.is-hit {
+    background: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-graph-rep-demo .gr-list {
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-graph-rep-demo .gr-lrow {
+    display: flex;
+    gap: 0.25em;
+    align-items: center;
+    min-height: 1.45em;
+  }
+  .aas-graph-rep-demo .gr-lhead {
+    width: 1.6em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-graph-rep-demo .gr-lrow.is-scan .gr-lhead {
+    color: var(--aas-role-focus);
+  }
+  .aas-graph-rep-demo .gr-litems {
+    display: flex;
+    gap: 0.25em;
+  }
+  .aas-graph-rep-demo .gr-item {
+    display: inline-block;
+    min-width: 1.2em;
+    padding: 0 0.15em;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+    line-height: 1.25em;
+  }
+  .aas-graph-rep-demo .gr-item.is-scan {
+    background: var(--aas-role-model);
+    border-color: var(--aas-role-model);
+    color: #fff;
+  }
+  .aas-graph-rep-demo .gr-item.is-hit {
+    background: var(--aas-role-eval);
+    border-color: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-graph-rep-demo .gr-edges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-graph-rep-demo .gr-chip {
+    padding: 0 0.35em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+  }
+  .aas-graph-rep-demo .gr-chip.is-hit {
+    background: var(--aas-role-eval);
+    border-color: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-graph-rep-demo .gr-stats {
+    margin: 0.7em 0 0;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+  .aas-graph-rep-demo .gr-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+
+  /* 그림: 없는 간선은 감추고, 있는 간선은 눌러서 뺄 수 있다. */
+  .aas-graph-rep-demo .gf-edge {
+    cursor: pointer;
+  }
+  .aas-graph-rep-demo .gf-edge.gr-off {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .aas-graph-rep-demo .gf-edge .gr-pad {
+    stroke: transparent;
+    stroke-width: 16;
+  }
+  .aas-graph-rep-demo .gf-edge:hover line:first-child {
+    stroke: var(--aas-role-guard);
+  }
+  .aas-graph-rep-demo .gf-node {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-graph-rep-demo .gf-node:hover circle,
+  .aas-graph-rep-demo .gf-node:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 4;
+  }
+
+  /* 슬라이드용 */
+  .aas-graph-rep-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-graph-rep-demo.is-slide .gr-body {
+    flex-wrap: nowrap;
+  }
+  .aas-graph-rep-demo.is-slide .gr-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 36vh;
+  }
+  .aas-graph-rep-demo.is-slide .gr-stats {
+    margin-top: 0.4em;
+  }
+  .aas-graph-rep-demo.is-slide .gr-note {
+    font-size: 0.78em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-graph-rep-demo .gr-cell {
+      transition: none;
+    }
+  }
+</style>

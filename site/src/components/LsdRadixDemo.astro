@@ -1,0 +1,554 @@
+---
+// LSD 기수 정렬을 버킷에 흩었다 모으는 모양으로 한 걸음씩 보는 데모.
+//
+// 위 줄이 배열이고, 아래에 0~9번 버킷 열 개가 있다. 패스마다 이번 자리
+// (일의 자리부터)의 숫자를 주황으로 칠하고, 배열을 앞에서부터 읽어 원소를
+// 그 숫자의 버킷에 하나씩 넣는다(흩기). 다 넣으면 버킷 0부터 9까지 차례로
+// 꺼내 배열에 다시 적는다(모으기). 이미 끝난 아래 자리는 초록이다.
+//
+// buckets="queue"(기본)면 버킷이 큐라서 먼저 넣은 것이 먼저 나온다. 같은
+// 숫자끼리 앞 패스의 순서가 지켜지고(안정), 결과는 algorithm-code의
+// 01_lsd_radix_sort와 패스마다 같다. buckets="stack"이면 나중에 넣은 것이
+// 먼저 나와 같은 숫자끼리 순서가 뒤집히고, 07_stack_queue의 stack 줄처럼
+// 결과가 틀린다. 원소끼리 비교하는 일은 어느 쪽에도 없다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 정렬할 0 이상의 정수. 기본은 실습 코드의 입력 */
+  values?: number[];
+  /** 버킷을 큐로 쓸지(안정) 스택으로 쓸지(불안정) */
+  buckets?: 'queue' | 'stack';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { values = [437, 42, 531, 8, 74], buckets = 'queue', slide = false } = Astro.props;
+const id = `lr-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 자릿수와 버킷 높이는 서버에서 정한다. 버킷 크기는 원소의 순서와 상관없이
+   그 자리의 숫자로만 정해지므로, 패스마다 세어 가장 큰 값을 높이로 쓴다. */
+const maxV = Math.max(...values);
+const exps: number[] = [];
+for (let e = 1; Math.floor(maxV / e) > 0; e *= 10) exps.push(e);
+if (exps.length === 0) exps.push(1);
+const width = exps.length;
+let maxLevel = 1;
+for (const e of exps) {
+  const c = new Array(10).fill(0);
+  for (const v of values) c[Math.floor(v / e) % 10] += 1;
+  maxLevel = Math.max(maxLevel, ...c);
+}
+const pad = (v: number) => String(v).padStart(width, '0');
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    titleQueue: 'LSD 기수 정렬 (큐 버킷)',
+    titleStack: 'LSD 기수 정렬 (스택 버킷)',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    array: '배열',
+    bucket: '버킷',
+    ruleQueue: '먼저 넣은 것부터 꺼냅니다',
+    ruleStack: '나중에 넣은 것부터 꺼냅니다',
+    passLabel: '패스',
+    compareLabel: '비교',
+    place0: '일의 자리',
+    place1: '십의 자리',
+    place2: '백의 자리',
+    placeN: '10^{p} 자리',
+    idle: '가장 낮은 자리부터 한 자리씩, 버킷에 흩었다가 0번부터 모읍니다.',
+    pass: '패스 {k}: {place}를 봅니다. 배열을 앞에서부터 읽어 버킷에 넣습니다.',
+    scatter: '{v}의 {place} 숫자는 {d} → 버킷 {d}',
+    behind: '{v}의 {place} 숫자는 {d} → 버킷 {d}. 먼저 들어온 {prev} 뒤에 섭니다.',
+    gatherQueue: '버킷 {d}를 넣은 순서대로 꺼냅니다: {list}',
+    gatherStack: '버킷 {d}를 나중에 넣은 것부터 꺼냅니다: {list}',
+    flipped: ' 같은 숫자끼리 순서가 뒤집혔습니다.',
+    passOk: '패스 {k} 끝, 아래 {k}자리만 보면 정렬되어 있습니다.',
+    passBad: '패스 {k} 끝, 아래 {k}자리로 봐도 {a}가 {b}보다 앞에 있어 정렬이 깨졌습니다.',
+    doneOk: '패스 {k}번, 원소끼리 비교 0번으로 정렬을 마쳤습니다.',
+    doneBad: '패스를 다 돌았지만 {a}가 {b}보다 앞에 있습니다. 버킷이 불안정해서 앞 패스의 순서가 깨졌습니다.',
+  },
+  en: {
+    titleQueue: 'LSD radix sort (queue buckets)',
+    titleStack: 'LSD radix sort (stack buckets)',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    array: 'array',
+    bucket: 'bucket',
+    ruleQueue: 'first in, first out',
+    ruleStack: 'last in, first out',
+    passLabel: 'pass',
+    compareLabel: 'compares',
+    place0: 'ones digit',
+    place1: 'tens digit',
+    place2: 'hundreds digit',
+    placeN: '10^{p} digit',
+    idle: 'One digit at a time from the lowest: scatter into buckets, then collect from bucket 0.',
+    pass: 'Pass {k}: look at the {place}. Read the array from the front into the buckets.',
+    scatter: '{v}: {place} is {d} → bucket {d}',
+    behind: '{v}: {place} is {d} → bucket {d}, behind {prev} that came in earlier.',
+    gatherQueue: 'Take bucket {d} out in the order it went in: {list}',
+    gatherStack: 'Take bucket {d} out last-in first: {list}',
+    flipped: ' Equal digits came out reversed.',
+    passOk: 'Pass {k} done: looking at the lowest {k} digit(s) only, the array is sorted.',
+    passBad: 'Pass {k} done: even on the lowest {k} digit(s), {a} is ahead of {b}: the order broke.',
+    doneOk: 'Sorted in {k} passes with 0 comparisons between elements.',
+    doneBad: 'All passes ran, but {a} is ahead of {b}. Unstable buckets broke the order of earlier passes.',
+  },
+  zh: {
+    titleQueue: 'LSD 基数排序（队列桶）',
+    titleStack: 'LSD 基数排序（栈桶）',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    array: '数组',
+    bucket: '桶',
+    ruleQueue: '先放入的先取出',
+    ruleStack: '后放入的先取出',
+    passLabel: '趟',
+    compareLabel: '比较',
+    place0: '个位',
+    place1: '十位',
+    place2: '百位',
+    placeN: '10^{p} 位',
+    idle: '从最低位开始逐位进行：先分散到桶中，再从 0 号桶依次收集。',
+    pass: '第 {k} 趟：看{place}。从前往后读数组，放入桶中。',
+    scatter: '{v} 的{place}是 {d} → {d} 号桶',
+    behind: '{v} 的{place}是 {d} → {d} 号桶，排在先进来的 {prev} 后面。',
+    gatherQueue: '按放入顺序取出 {d} 号桶：{list}',
+    gatherStack: '从后放入的开始取出 {d} 号桶：{list}',
+    flipped: '相同数字的顺序被颠倒了。',
+    passOk: '第 {k} 趟结束，只看最低 {k} 位，数组已经有序。',
+    passBad: '第 {k} 趟结束，即使只看最低 {k} 位，{a} 也排在 {b} 前面，顺序被破坏了。',
+    doneOk: '共 {k} 趟，元素之间比较 0 次，排序完成。',
+    doneBad: '所有趟都已完成，但 {a} 排在 {b} 前面。桶不稳定，破坏了前几趟的顺序。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const title = buckets === 'stack' ? t.titleStack : t.titleQueue;
+const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
+---
+
+<div
+  class:list={['aas-lsd-demo', slide && 'is-slide']}
+  id={id}
+  data-lr-values={JSON.stringify(values)}
+  data-lr-mode={buckets}
+  data-lr-strings={JSON.stringify(t)}
+  style={`--lr-n: ${values.length}; --lr-levels: ${maxLevel}`}
+>
+  <div class="lr-bar">
+    <span class="lr-head"><strong>{title}</strong></span>
+    <div class="lr-controls">
+      <button type="button" data-act="back" class="lr-btn">{t.back}</button>
+      <button type="button" data-act="step" class="lr-btn">{t.step}</button>
+      <button type="button" data-act="play" class="lr-btn lr-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="lr-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="lr-scroll">
+    <div class="lr-stage">
+      <span class="lr-label lr-label-array">{t.array}</span>
+      <div class="lr-slots">
+        {values.map((_, i) => <span class="lr-slot" style={`--lr-i: ${i}`}></span>)}
+      </div>
+      <span class="lr-label lr-label-bucket">{t.bucket} · {rule}</span>
+      <div class="lr-buckets">
+        {Array.from({ length: 10 }, (_, d) => (
+          <span class="lr-col" style={`--lr-d: ${d}`} data-lr-col={d}>
+            <span class="lr-col-box"></span>
+            <span class="lr-col-name">{d}</span>
+          </span>
+        ))}
+      </div>
+      {values.map((v, i) => (
+        <span class="lr-cell" data-lr-cell={i}>
+          {pad(v).split('').map((ch, k) => (
+            <span class="lr-digit" data-lr-p={width - 1 - k}>{ch}</span>
+          ))}
+        </span>
+      ))}
+    </div>
+  </div>
+
+  <div class="lr-foot">
+    <p class="lr-note" data-lr-note></p>
+    <span class="lr-count">
+      {t.passLabel} <strong data-lr-pass>0</strong>/{width} · {t.compareLabel} <strong>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id, width }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const vals = JSON.parse(root.dataset.lrValues);
+    const S = JSON.parse(root.dataset.lrStrings);
+    const useQueue = root.dataset.lrMode !== 'stack';
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const pad = (v) => String(v).padStart(width, '0');
+    const n = vals.length;
+    const place = (p) => S['place' + p] ?? fill(S.placeN, { p });
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 stackQueue.pseudo의
+       BucketRadixSort와 같고, 큐 버킷이면 lsdRadixSort.pseudo와 패스마다 같다. */
+    function plan() {
+      const steps = [];
+      let order = vals.map((_, i) => i);
+      const loc = vals.map((_, i) => ({ b: -1, at: i }));
+      const snap = (extra) =>
+        steps.push({ loc: loc.map((x) => ({ ...x })), ...extra });
+
+      for (let p = 0, exp = 1; p < width; p++, exp *= 10) {
+        snap({ pass: p + 1, place: p, cur: null, note: fill(S.pass, { k: p + 1, place: place(p) }) });
+
+        const buckets = Array.from({ length: 10 }, () => []);
+        for (const i of order) {
+          const d = Math.floor(vals[i] / exp) % 10;
+          const prev = buckets[d].length ? pad(vals[buckets[d][buckets[d].length - 1]]) : null;
+          loc[i] = { b: d, at: buckets[d].length };
+          buckets[d].push(i);
+          const tpl = prev ? S.behind : S.scatter;
+          snap({ pass: p + 1, place: p, cur: [i], note: fill(tpl, { v: pad(vals[i]), place: place(p), d, prev }) });
+        }
+
+        const next = [];
+        for (let d = 0; d < 10; d++) {
+          if (!buckets[d].length) continue;
+          const out = useQueue ? buckets[d].slice() : buckets[d].slice().reverse();
+          for (const i of out) {
+            loc[i] = { b: -1, at: next.length };
+            next.push(i);
+          }
+          const list = out.map((i) => pad(vals[i])).join(' ');
+          let note = fill(useQueue ? S.gatherQueue : S.gatherStack, { d, list });
+          if (!useQueue && out.length > 1) note += S.flipped;
+          snap({ pass: p + 1, place: p, cur: out, note });
+        }
+        order = next;
+
+        /* 아래 p+1자리로 봐서 정렬되어 있는지 확인한다. 스택이면 깨진다. */
+        const mod = exp * 10;
+        let bad = -1;
+        for (let k = 1; k < n; k++) {
+          if (vals[order[k - 1]] % mod > vals[order[k]] % mod) { bad = k; break; }
+        }
+        const note = bad < 0
+          ? fill(S.passOk, { k: p + 1 })
+          : fill(S.passBad, { k: p + 1, a: pad(vals[order[bad - 1]]), b: pad(vals[order[bad]]) });
+        snap({ pass: p + 1, place: p, done: p + 1, cur: null, bad: bad < 0 ? null : [order[bad - 1], order[bad]], note });
+      }
+
+      let bad = -1;
+      for (let k = 1; k < n; k++) {
+        if (vals[order[k - 1]] > vals[order[k]]) { bad = k; break; }
+      }
+      snap({
+        pass: width, place: -1, done: width, cur: null, finished: true,
+        bad: bad < 0 ? null : [order[bad - 1], order[bad]],
+        note: bad < 0
+          ? fill(S.doneOk, { k: width })
+          : fill(S.doneBad, { a: pad(vals[order[bad - 1]]), b: pad(vals[order[bad]]) }),
+      });
+      return steps;
+    }
+
+    const steps = plan();
+    const cells = [...root.querySelectorAll('[data-lr-cell]')];
+    const cols = [...root.querySelectorAll('[data-lr-col]')];
+    const note = root.querySelector('[data-lr-note]');
+    const passEl = root.querySelector('[data-lr-pass]');
+
+    /* 칸의 위치는 CSS 변수로만 준다. 실제 좌표 계산과 전환은 CSS가 맡는다. */
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      cells.forEach((cell, i) => {
+        const l = st ? st.loc[i] : { b: -1, at: i };
+        cell.style.setProperty('--lr-b', String(l.b));
+        cell.style.setProperty('--lr-at', String(l.at));
+        cell.classList.toggle('in-bucket', l.b >= 0);
+        cell.classList.toggle('is-now', !!(st && st.cur && st.cur.includes(i)));
+        cell.classList.toggle('is-bad', !!(st && st.bad && st.bad.includes(i)));
+        const doneDigits = st ? (st.done ?? st.pass - 1) : 0;
+        cell.querySelectorAll('[data-lr-p]').forEach((dg) => {
+          const p = Number(dg.dataset.lrP);
+          dg.classList.toggle('is-cur', !!st && !st.finished && st.done === undefined && p === st.place);
+          dg.classList.toggle('is-done', !!st && p < doneDigits);
+        });
+      });
+      const active = st && st.cur && st.loc[st.cur[0]].b >= 0 ? st.loc[st.cur[0]].b : -1;
+      cols.forEach((c, d) => c.classList.toggle('is-now', d === active));
+      passEl.textContent = String(st ? st.pass : 0);
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', !!(st && st.finished));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-lsd-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 슬라이드는 font-size만 키운다. */
+    --lr-cell-w: 2.9em;
+    --lr-cell-h: 1.75em;
+    --lr-col: 3.3em;
+    --lr-row: 2em;
+    --lr-array-top: 1.4em;
+    --lr-bucket-top: 6em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lsd-demo .lr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-lsd-demo .lr-head {
+    font-size: 0.95em;
+  }
+  .aas-lsd-demo .lr-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-lsd-demo .lr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lsd-demo .lr-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lsd-demo .lr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-lsd-demo .lr-scroll {
+    overflow-x: auto;
+  }
+  /* 무대: 배열 칸 n개가 위에, 버킷 열 개가 아래에 있다. 원소 칸은 무대 위에
+     절대 위치로 떠 있고, 배열 자리(--lr-at)나 버킷(--lr-b, --lr-at)으로 옮겨 간다. */
+  .aas-lsd-demo .lr-stage {
+    position: relative;
+    width: calc(10 * var(--lr-col));
+    height: calc(var(--lr-bucket-top) + var(--lr-levels) * var(--lr-row) + 1.8em);
+    margin: 0 auto;
+    --lr-array-left: calc((10 * var(--lr-col) - var(--lr-n) * var(--lr-col)) / 2);
+  }
+  .aas-lsd-demo .lr-label {
+    position: absolute;
+    left: 0;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-lsd-demo .lr-label-array {
+    top: 0;
+  }
+  .aas-lsd-demo .lr-label-bucket {
+    top: calc(var(--lr-bucket-top) - 1.5em);
+  }
+  .aas-lsd-demo .lr-slot {
+    position: absolute;
+    top: var(--lr-array-top);
+    left: calc(var(--lr-array-left) + var(--lr-i) * var(--lr-col) + (var(--lr-col) - var(--lr-cell-w)) / 2);
+    width: var(--lr-cell-w);
+    height: var(--lr-cell-h);
+    box-sizing: border-box;
+    border: 1px dashed var(--aas-border);
+    border-radius: 0.35em;
+  }
+  .aas-lsd-demo .lr-col {
+    position: absolute;
+    top: var(--lr-bucket-top);
+    left: calc(var(--lr-d) * var(--lr-col));
+    width: var(--lr-col);
+  }
+  .aas-lsd-demo .lr-col-box {
+    display: block;
+    margin: 0 auto;
+    width: calc(var(--lr-cell-w) + 0.3em);
+    height: calc(var(--lr-levels) * var(--lr-row) + 0.2em);
+    box-sizing: border-box;
+    border: 1.5px solid var(--aas-border);
+    border-top: none;
+    border-radius: 0 0 0.45em 0.45em;
+    transition: border-color 0.3s, background-color 0.3s;
+  }
+  .aas-lsd-demo .lr-col.is-now .lr-col-box {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 8%, transparent);
+  }
+  .aas-lsd-demo .lr-col-name {
+    display: block;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-top: 0.2em;
+  }
+  .aas-lsd-demo .lr-cell {
+    position: absolute;
+    top: var(--lr-array-top);
+    left: calc(var(--lr-array-left) + var(--lr-at) * var(--lr-col) + (var(--lr-col) - var(--lr-cell-w)) / 2);
+    width: var(--lr-cell-w);
+    height: var(--lr-cell-h);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    color: var(--aas-text);
+    transition:
+      top 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      left 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      box-shadow 0.3s,
+      border-color 0.3s;
+  }
+  .aas-lsd-demo .lr-cell.in-bucket {
+    top: calc(var(--lr-bucket-top) + 0.1em + var(--lr-at) * var(--lr-row));
+    left: calc(var(--lr-b) * var(--lr-col) + (var(--lr-col) - var(--lr-cell-w)) / 2);
+  }
+  .aas-lsd-demo .lr-cell.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-lsd-demo .lr-cell.is-bad {
+    border-color: var(--aas-role-guard);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--aas-role-guard) 55%, transparent);
+  }
+  .aas-lsd-demo .lr-digit {
+    display: inline-block;
+    width: 0.75em;
+    text-align: center;
+    border-radius: 0.2em;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  .aas-lsd-demo .lr-digit.is-done {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-lsd-demo .lr-digit.is-cur {
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .aas-lsd-demo .lr-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-lsd-demo .lr-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-lsd-demo.is-done .lr-note {
+    color: var(--aas-text);
+  }
+  .aas-lsd-demo .lr-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-lsd-demo .lr-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기 */
+  .aas-lsd-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-lsd-demo.is-slide .lr-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-lsd-demo .lr-cell,
+    .aas-lsd-demo .lr-digit,
+    .aas-lsd-demo .lr-col-box {
+      transition: none;
+    }
+  }
+</style>

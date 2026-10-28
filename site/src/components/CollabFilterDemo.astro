@@ -1,0 +1,833 @@
+---
+// 협업 필터링으로 평점 행렬의 빈칸을 한 걸음씩 채워 보는 데모.
+//
+// mode="user"(사용자 기반): 대상 사용자의 행과 다른 사용자의 행을 하나씩
+// 맞대어 유사도를 오른쪽 칸에 적는다. 유사도가 0보다 큰 사용자 중 큰 순서로
+// k명을 이웃으로 고른 뒤, 빈칸마다 그 열에서 이웃의 평점을 유사도로 가중
+// 평균해 채운다. measure로 코사인과 피어슨 상관을 고른다. 피어슨이면 둘 다
+// 본 칸만 밝게 남긴다.
+// mode="item"(아이템 기반): 빈칸의 열과 대상 사용자가 본 영화의 열을 하나씩
+// 맞대어 코사인을 아래 줄에 적고, 가장 비슷한 k편에 대상 사용자 자신이 준
+// 평점을 가중 평균해 채운다.
+//
+// 절차와 수치는 algorithm-code의 collaborativeFiltering.c ·
+// collaborative_filtering.py와 같다. 피어슨 k=3이면 이웃 C·B, M3 4.464,
+// M6 1.536. 코사인 k=3이면 이웃 B·C·E, M3 4.354, M6 2.542. 아이템 기반 k=2면
+// M3 4.497, M6 2.811이다.
+//
+// edit를 주면 칸을 눌러 평점을 0→1→…→5→0으로 바꿀 수 있고, 유사도(사용자
+// 기반)와 이웃 수 k도 칩으로 고른다. 바꿀 때마다 단계 배열을 다시 만들고 끝
+// 단계를 보여 준다. 코사인 k=2면 이웃 B·C, M6 1.495다. 기본값(edit 없음)이면
+// 예전과 똑같이 동작한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 사용자 × 아이템 평점 행렬. 0은 아직 안 본 칸 */
+  ratings?: number[][];
+  /** 사용자 이름 */
+  users?: string[];
+  /** 빈칸을 채울 대상 사용자 번호 */
+  target?: number;
+  /** 사용자 기반(user) 또는 아이템 기반(item) */
+  mode?: 'user' | 'item';
+  /** 사용자 기반에서 쓸 유사도. 아이템 기반은 언제나 코사인 */
+  measure?: 'cosine' | 'pearson';
+  /** 이웃 수. 기본은 사용자 기반 3, 아이템 기반 2 */
+  k?: number;
+  /** 칸을 눌러 평점을 바꾸고, 유사도와 k를 칩으로 고르게 한다. */
+  edit?: boolean;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  ratings = [
+    [5, 5, 0, 4, 2, 0],
+    [5, 4, 5, 4, 3, 1],
+    [4, 4, 4, 3, 1, 2],
+    [1, 2, 1, 1, 4, 5],
+    [4, 3, 4, 4, 5, 5],
+  ],
+  users = ['A', 'B', 'C', 'D', 'E'],
+  target = 0,
+  mode = 'user',
+  measure = 'pearson',
+  edit = false,
+  slide = false,
+} = Astro.props;
+const k = Astro.props.k ?? (mode === 'user' ? 3 : 2);
+const id = `cfd-${Math.random().toString(36).slice(2, 9)}`;
+const nItems = ratings[0].length;
+const items = Array.from({ length: nItems }, (_, i) => `M${i + 1}`);
+const kMax = Math.min(5, mode === 'user' ? ratings.length - 1 : nItems - 1);
+const kChoices = Array.from({ length: kMax }, (_, i) => i + 1);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    titleUser: '사용자 기반 협업 필터링',
+    titleItem: '아이템 기반 협업 필터링',
+    cosine: '코사인',
+    pearson: '피어슨',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    sim: '유사도',
+    neighbors: '이웃',
+    idleUser: '{t}의 빈칸 {blanks}을 채웁니다. 먼저 {t}와 나머지 사용자의 유사도를 잽니다.',
+    idleItem: '{t}의 빈칸 {blanks}을 채웁니다. 이번에는 열(영화)끼리 비교하고, 근거는 {t}가 이미 본 영화뿐입니다.',
+    simCos: '{t}와 {v}: 내적 {dot}, 길이 {na} · {nb} → 코사인 {s}',
+    simPear: '{t}와 {v}: 둘 다 본 {common}, 평균 {ma} · {mb} → 피어슨 {s}',
+    simPearNone: '{t}와 {v}: 둘 다 본 영화가 없어 유사도 0',
+    pick: '유사도가 0보다 큰 사용자 중 큰 순서로 최대 {k}명: {list}.',
+    pickDrop: ' {drop}는 0 이하라 뺍니다.',
+    pickNone: '유사도가 0보다 큰 사용자가 없습니다. 이웃이 없으면 예측할 수 없습니다.',
+    predictUser: '{item} = 이웃의 {item} 평점을 유사도로 가중 평균: {formula} = {p}',
+    simItem: '{item} 열과 {j} 열: 코사인 {s}',
+    pickItem: '{t}가 본 영화 중 {item}과 가장 비슷한 {k}편: {list}',
+    predictItem: '{item} = {t}가 준 평점을 유사도로 가중 평균: {formula} = {p}',
+    noBasis: '{item}: 근거가 없어 예측할 수 없습니다.',
+    done: '끝. 예측값이 가장 큰 {item}({p})을 {t}에게 추천합니다.',
+    noneDone: '끝. 어느 빈칸도 예측할 근거가 없습니다.',
+    noBlank: '빈칸이 없습니다. 대상 사용자가 모든 영화를 이미 평가했습니다.',
+    measureLabel: '유사도',
+    kLabel: '이웃 수 k',
+    restore: '원래대로',
+    editHint: '칸을 누르면 평점이 0→1→…→5→0으로 바뀝니다. 0은 안 본 칸입니다.',
+  },
+  en: {
+    titleUser: 'User-based collaborative filtering',
+    titleItem: 'Item-based collaborative filtering',
+    cosine: 'cosine',
+    pearson: 'Pearson',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    sim: 'sim',
+    neighbors: 'neighbors',
+    idleUser: 'Fill {t}’s blanks {blanks}. First measure how similar {t} is to every other user.',
+    idleItem: 'Fill {t}’s blanks {blanks}. This time compare columns (movies), using only movies {t} has already rated.',
+    simCos: '{t} and {v}: dot product {dot}, lengths {na} · {nb} → cosine {s}',
+    simPear: '{t} and {v}: both rated {common}, means {ma} · {mb} → Pearson {s}',
+    simPearNone: '{t} and {v}: no movie rated by both, similarity 0',
+    pick: 'Up to {k} users with similarity above 0, largest first: {list}.',
+    pickDrop: ' {drop} is at or below 0 and is left out.',
+    pickNone: 'No user has similarity above 0. With no neighbors there is nothing to predict from.',
+    predictUser: '{item} = neighbors’ ratings of {item}, weighted by similarity: {formula} = {p}',
+    simItem: 'column {item} and column {j}: cosine {s}',
+    pickItem: 'The {k} movies {t} rated that are most like {item}: {list}',
+    predictItem: '{item} = {t}’s own ratings, weighted by similarity: {formula} = {p}',
+    noBasis: '{item}: nothing to predict from.',
+    done: 'Done. Recommend {item} ({p}), the highest prediction, to {t}.',
+    noneDone: 'Done. No blank has anything to predict from.',
+    noBlank: 'There are no blanks. The target user has already rated every movie.',
+    measureLabel: 'similarity',
+    kLabel: 'neighbors k',
+    restore: 'Restore',
+    editHint: 'Click a cell to cycle its rating 0→1→…→5→0. A 0 means not rated.',
+  },
+  zh: {
+    titleUser: '基于用户的协同过滤',
+    titleItem: '基于物品的协同过滤',
+    cosine: '余弦',
+    pearson: '皮尔逊',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    sim: '相似度',
+    neighbors: '邻居',
+    idleUser: '填补 {t} 的空格 {blanks}。先计算 {t} 与其他每位用户的相似度。',
+    idleItem: '填补 {t} 的空格 {blanks}。这次比较列（电影），依据只有 {t} 已经评过的电影。',
+    simCos: '{t} 与 {v}：内积 {dot}，长度 {na} · {nb} → 余弦 {s}',
+    simPear: '{t} 与 {v}：共同评过 {common}，均值 {ma} · {mb} → 皮尔逊 {s}',
+    simPearNone: '{t} 与 {v}：没有共同评过的电影，相似度 0',
+    pick: '在相似度大于 0 的用户中按从大到小取最多 {k} 位：{list}。',
+    pickDrop: '{drop} 不大于 0，排除。',
+    pickNone: '没有相似度大于 0 的用户。没有邻居就无法预测。',
+    predictUser: '{item} = 邻居对 {item} 的评分按相似度加权平均：{formula} = {p}',
+    simItem: '{item} 列与 {j} 列：余弦 {s}',
+    pickItem: '{t} 评过的电影中与 {item} 最相似的 {k} 部：{list}',
+    predictItem: '{item} = {t} 自己的评分按相似度加权平均：{formula} = {p}',
+    noBasis: '{item}：没有依据，无法预测。',
+    done: '结束。把预测值最高的 {item}（{p}）推荐给 {t}。',
+    noneDone: '结束。没有任何空格有预测依据。',
+    noBlank: '没有空格。目标用户已经评过所有电影。',
+    measureLabel: '相似度',
+    kLabel: '邻居数 k',
+    restore: '还原',
+    editHint: '点击格子，评分按 0→1→…→5→0 变化。0 表示没看过。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.cosine : t.pearson}` : t.titleItem;
+---
+
+<div
+  class:list={['aas-cf-demo', slide && 'is-slide', `is-${mode}`, edit && 'is-edit']}
+  id={id}
+  data-cfd-ratings={JSON.stringify(ratings)}
+  data-cfd-users={JSON.stringify(users)}
+  data-cfd-target={target}
+  data-cfd-mode={mode}
+  data-cfd-measure={measure}
+  data-cfd-k={k}
+  data-cfd-edit={edit ? '1' : '0'}
+  data-cfd-strings={JSON.stringify(t)}
+  style={`--cfd-cols: ${nItems}`}
+>
+  <div class="cfd-bar">
+    <span class="cfd-head"><strong data-cfd-title>{title}</strong> <span class="cfd-k" data-cfd-kval>k = {k}</span></span>
+    <div class="cfd-controls">
+      <button type="button" data-act="back" class="cfd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="cfd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="cfd-btn cfd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="cfd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  {edit && (
+    <div class="cfd-edit">
+      {mode === 'user' && (
+        <span class="cfd-group">
+          <span class="cfd-group-label">{t.measureLabel}</span>
+          <button type="button" class="cfd-chip" data-cfd-measure-btn="cosine">{t.cosine}</button>
+          <button type="button" class="cfd-chip" data-cfd-measure-btn="pearson">{t.pearson}</button>
+        </span>
+      )}
+      <span class="cfd-group">
+        <span class="cfd-group-label">{t.kLabel}</span>
+        {kChoices.map((v) => <button type="button" class="cfd-chip" data-cfd-k-btn={v}>{v}</button>)}
+      </span>
+      <button type="button" class="cfd-chip" data-cfd-restore>{t.restore}</button>
+    </div>
+  )}
+
+  <div class="cfd-grid">
+    <span class="cfd-corner"></span>
+    {items.map((name, i) => <span class="cfd-colhead" data-cfd-colhead={i}>{name}</span>)}
+    {mode === 'user' && <span class="cfd-colhead cfd-simhead">{t.sim}</span>}
+    {ratings.map((row, u) => (
+      <>
+        <span class:list={['cfd-rowhead', u === target && 'is-target']} data-cfd-rowhead={u}>{users[u]}</span>
+        {row.map((x, i) => (
+          <span
+            class:list={['cfd-cell', x === 0 && 'is-empty', u === target && x === 0 && 'is-blank']}
+            data-cfd-cell={`${u}-${i}`}
+          >
+            {x === 0 ? (u === target ? '?' : '·') : x}
+          </span>
+        ))}
+        {mode === 'user' && <span class="cfd-sim" data-cfd-usim={u}></span>}
+      </>
+    ))}
+    {mode === 'item' && (
+      <>
+        <span class="cfd-rowhead cfd-simhead">{t.sim}</span>
+        {items.map((_, i) => <span class="cfd-sim" data-cfd-isim={i}></span>)}
+      </>
+    )}
+  </div>
+
+  <p class="cfd-note" data-cfd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기: 중국어 마침표 뒤에는 공백을 넣지 않는다(그래야 setLines가 끊는다). */
+    const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+
+    const R0 = JSON.parse(root.dataset.cfdRatings);
+    const R = R0.map((row) => row.slice());
+    const users = JSON.parse(root.dataset.cfdUsers);
+    const target = Number(root.dataset.cfdTarget);
+    const mode = root.dataset.cfdMode;
+    const measure0 = root.dataset.cfdMeasure;
+    const K0 = Number(root.dataset.cfdK);
+    const editable = root.dataset.cfdEdit === '1';
+    let measure = measure0;
+    let K = K0;
+    const S = JSON.parse(root.dataset.cfdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const m = R.length;
+    const n = R[0].length;
+    const iname = (i) => `M${i + 1}`;
+    const f3 = (x) => x.toFixed(3);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const tName = users[target];
+
+    /* 실습 코드와 같은 함수들. 0은 안 본 칸이다. */
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      const s = na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
+      return { s, dot, na: Math.sqrt(na), nb: Math.sqrt(nb) };
+    }
+    function pearson(a, b) {
+      const common = [];
+      for (let i = 0; i < a.length; i++) if (a[i] > 0 && b[i] > 0) common.push(i);
+      if (!common.length) return { s: 0, common };
+      let sa = 0, sb = 0;
+      for (const i of common) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / common.length, mb = sb / common.length;
+      let num = 0, da = 0, db = 0;
+      for (const i of common) {
+        num += (a[i] - ma) * (b[i] - mb);
+        da += (a[i] - ma) * (a[i] - ma);
+        db += (b[i] - mb) * (b[i] - mb);
+      }
+      const s = da === 0 || db === 0 ? 0 : num / Math.sqrt(da * db);
+      return { s, common, ma, mb };
+    }
+    /* sim이 0보다 큰 것 중 큰 순서로 최대 k개. 같으면 번호가 작은 쪽이 먼저 */
+    function topNeighbors(sim, skip, k) {
+      const out = [];
+      while (out.length < k) {
+        let best = -1;
+        sim.forEach((s, v) => {
+          if (v === skip || out.includes(v) || s === null || s <= 0) return;
+          if (best < 0 || s > sim[best]) best = v;
+        });
+        if (best < 0) break;
+        out.push(best);
+      }
+      return out;
+    }
+    const col = (j) => R.map((row) => row[j]);
+    const blanks = [];
+    function findBlanks() {
+      blanks.length = 0;
+      for (let i = 0; i < n; i++) if (R[target][i] === 0) blanks.push(i);
+    }
+    findBlanks();
+
+    /* 전체 과정을 미리 단계 배열로 만든다. 절차는 collaborativeFiltering.pseudo와 같다. */
+    function plan() {
+      const steps = [];
+      const pred = new Array(n).fill(null);
+      let best = null;
+
+      if (mode === 'user') {
+        const usim = new Array(m).fill(null);
+        for (let v = 0; v < m; v++) {
+          if (v === target) continue;
+          let note;
+          let lit = null;
+          if (measure === 'cosine') {
+            const c = cosine(R[target], R[v]);
+            usim[v] = c.s;
+            note = fill(S.simCos, { t: tName, v: users[v], dot: c.dot, na: f3(c.na), nb: f3(c.nb), s: f3(c.s) });
+          } else {
+            const p = pearson(R[target], R[v]);
+            usim[v] = p.s;
+            lit = p.common;
+            note = p.common.length
+              ? fill(S.simPear, {
+                  t: tName,
+                  v: users[v],
+                  common: p.common.map(iname).join('·'),
+                  ma: p.ma.toFixed(2),
+                  mb: p.mb.toFixed(2),
+                  s: f3(p.s),
+                })
+              : fill(S.simPearNone, { t: tName, v: users[v] });
+          }
+          steps.push({ rows: [target, v], lit, usim: usim.slice(), nb: null, pred: pred.slice(), note });
+        }
+        const nb = topNeighbors(usim, target, K);
+        const drop = users.filter((_, v) => v !== target && usim[v] !== null && usim[v] <= 0);
+        let pickNote = nb.length ? fill(S.pick, { k: K, list: nb.map((v) => users[v]).join(', ') }) : S.pickNone;
+        if (nb.length && drop.length) pickNote += fill(S.pickDrop, { drop: drop.join(', ') });
+        steps.push({ rows: [target, ...nb], usim: usim.slice(), nb, pred: pred.slice(), note: pickNote });
+        for (const b of blanks) {
+          let num = 0, den = 0;
+          const terms = [], weights = [], used = [];
+          for (const v of nb) {
+            if (R[v][b] > 0) {
+              num += usim[v] * R[v][b];
+              den += usim[v];
+              terms.push(`${f3(usim[v])}×${R[v][b]}`);
+              weights.push(f3(usim[v]));
+              used.push(v);
+            }
+          }
+          const p = den === 0 ? 0 : num / den;
+          pred[b] = p;
+          if (den > 0 && (best === null || p > best.p)) best = { item: b, p };
+          const note = den === 0
+            ? fill(S.noBasis, { item: iname(b) })
+            : fill(S.predictUser, { item: iname(b), formula: `(${terms.join(' + ')}) / (${weights.join(' + ')})`, p: f3(p) });
+          steps.push({ rows: [target, ...nb], col: b, cells: used.map((v) => [v, b]), usim: usim.slice(), nb, pred: pred.slice(), fresh: b, note });
+        }
+      } else {
+        for (const b of blanks) {
+          const isim = new Array(n).fill(null);
+          for (let j = 0; j < n; j++) {
+            if (j === b || R[target][j] === 0) continue;
+            const c = cosine(col(b), col(j));
+            isim[j] = c.s;
+            steps.push({ cols: [b, j], isim: isim.slice(), pred: pred.slice(), note: fill(S.simItem, { item: iname(b), j: iname(j), s: f3(c.s) }) });
+          }
+          const near = topNeighbors(isim, b, K);
+          steps.push({ cols: [b, ...near], picked: near, isim: isim.slice(), pred: pred.slice(), note: fill(S.pickItem, { t: tName, item: iname(b), k: K, list: near.map(iname).join(', ') }) });
+          let num = 0, den = 0;
+          for (const j of near) {
+            num += isim[j] * R[target][j];
+            den += isim[j];
+          }
+          const p = den === 0 ? 0 : num / den;
+          pred[b] = p;
+          if (den > 0 && (best === null || p > best.p)) best = { item: b, p };
+          const formula = `(${near.map((j) => `${f3(isim[j])}×${R[target][j]}`).join(' + ')}) / (${near.map((j) => f3(isim[j])).join(' + ')})`;
+          steps.push({
+            cols: [b, ...near],
+            picked: near,
+            cells: near.map((j) => [target, j]),
+            isim: isim.slice(),
+            pred: pred.slice(),
+            fresh: b,
+            note: den === 0 ? fill(S.noBasis, { item: iname(b) }) : fill(S.predictItem, { t: tName, item: iname(b), formula, p: f3(p) }),
+          });
+        }
+      }
+      const last = steps[steps.length - 1];
+      let doneNote = S.noneDone;
+      if (best) doneNote = fill(S.done, { item: iname(best.item), p: f3(best.p), t: tName });
+      else if (!blanks.length) doneNote = S.noBlank;
+      else if (mode === 'user' && last && last.nb && !last.nb.length) doneNote = S.pickNone;
+      steps.push({
+        ...last,
+        pred: pred.slice(),
+        usim: last && last.usim ? last.usim : new Array(m).fill(null),
+        isim: last && last.isim ? last.isim : new Array(n).fill(null),
+        rows: undefined,
+        cols: undefined,
+        cells: undefined,
+        lit: null,
+        fresh: undefined,
+        done: true,
+        best: best ? best.item : null,
+        note: doneNote,
+      });
+      return steps;
+    }
+
+    let steps = plan();
+    const cells = new Map([...root.querySelectorAll('[data-cfd-cell]')].map((el) => [el.dataset.cfdCell, el]));
+    const rowHeads = [...root.querySelectorAll('[data-cfd-rowhead]')];
+    const colHeads = [...root.querySelectorAll('[data-cfd-colhead]')];
+    const usimEls = [...root.querySelectorAll('[data-cfd-usim]')];
+    const isimEls = [...root.querySelectorAll('[data-cfd-isim]')];
+    const note = root.querySelector('[data-cfd-note]');
+    const idleText = () => {
+      let text = blanks.length ? fill(mode === 'user' ? S.idleUser : S.idleItem, { t: tName, blanks: blanks.map(iname).join('·') }) : S.noBlank;
+      if (editable) text = cat(text, S.editHint);
+      return text;
+    };
+
+    function render(s, animate) {
+      const st = s >= 0 ? steps[s] : null;
+      root.classList.toggle('is-still', !animate || reduceMotion);
+      const rows = st && st.rows ? st.rows : [];
+      const cols = st && st.cols ? st.cols : [];
+      const hot = new Set((st && st.cells ? st.cells : []).map(([u, i]) => `${u}-${i}`));
+      const focusing = rows.length > 0 || cols.length > 0;
+
+      for (let u = 0; u < m; u++) {
+        rowHeads[u].classList.toggle('is-on', rows.includes(u));
+        rowHeads[u].classList.toggle('is-nb', !!(st && st.nb && st.nb.includes(u)));
+        for (let i = 0; i < n; i++) {
+          const el = cells.get(`${u}-${i}`);
+          let on = rows.includes(u) || cols.includes(i);
+          if (mode === 'user' && st && st.col !== undefined) on = rows.includes(u) && i === st.col;
+          if (mode === 'user' && st && st.lit && rows.includes(u)) on = st.lit.includes(i);
+          if (mode === 'item' && cols.length) on = cols.includes(i);
+          el.classList.toggle('is-on', focusing && on);
+          el.classList.toggle('is-dim', focusing && !on);
+          el.classList.toggle('is-hot', hot.has(`${u}-${i}`));
+          if (u === target && R[u][i] === 0) {
+            const p = st ? st.pred[i] : null;
+            el.textContent = p === null ? '?' : f3(p);
+            el.classList.toggle('is-filled', p !== null);
+            el.classList.toggle('is-fresh', !!(st && st.fresh === i));
+            el.classList.toggle('is-best', !!(st && st.done && st.best === i));
+          }
+        }
+      }
+      colHeads.forEach((h, i) => h.classList.toggle('is-on', cols.includes(i) || (st && st.col === i)));
+      if (mode === 'user') {
+        usimEls.forEach((el, u) => {
+          const v = st ? st.usim[u] : null;
+          el.textContent = v === null || v === undefined ? '' : f3(v);
+          el.classList.toggle('is-neg', v !== null && v !== undefined && v <= 0);
+          el.classList.toggle('is-nb', !!(st && st.nb && st.nb.includes(u)));
+        });
+      } else {
+        isimEls.forEach((el, i) => {
+          const v = st ? st.isim[i] : null;
+          el.textContent = v === null || v === undefined ? '' : f3(v);
+          el.classList.toggle('is-nb', !!(st && st.picked && st.picked.includes(i)));
+        });
+      }
+      setLines(note, st ? st.note : idleText());
+      root.classList.toggle('is-done', !!(st && st.done));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at, true);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at, true);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1, true);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1, true);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1500);
+    });
+
+    /* edit: 칸을 누르면 평점이 바뀌고, 단계 배열을 다시 만들어 끝 단계를 보여 준다. */
+    function paint() {
+      for (let u = 0; u < m; u++) {
+        for (let i = 0; i < n; i++) {
+          const el = cells.get(`${u}-${i}`);
+          const x = R[u][i];
+          const blank = u === target && x === 0;
+          el.classList.toggle('is-empty', x === 0);
+          el.classList.toggle('is-blank', blank);
+          if (!blank) {
+            el.textContent = x === 0 ? '·' : String(x);
+            el.classList.remove('is-filled', 'is-fresh', 'is-best');
+          }
+        }
+      }
+      const title = root.querySelector('[data-cfd-title]');
+      if (mode === 'user') title.textContent = `${S.titleUser} · ${measure === 'cosine' ? S.cosine : S.pearson}`;
+      root.querySelector('[data-cfd-kval]').textContent = `k = ${K}`;
+      root.querySelectorAll('[data-cfd-measure-btn]').forEach((b) => b.classList.toggle('is-on', b.dataset.cfdMeasureBtn === measure));
+      root.querySelectorAll('[data-cfd-k-btn]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.cfdKBtn) === K));
+    }
+    function replan(toEnd) {
+      stop();
+      findBlanks();
+      steps = plan();
+      at = toEnd ? steps.length - 1 : -1;
+      paint();
+      render(at, false);
+    }
+    if (editable) {
+      cells.forEach((el, key) => {
+        const [u, i] = key.split('-').map(Number);
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        const bump = () => {
+          R[u][i] = (R[u][i] + 1) % 6;
+          replan(true);
+        };
+        el.addEventListener('click', bump);
+        el.addEventListener('keydown', (ev) => {
+          if (ev.key !== 'Enter' && ev.key !== ' ') return;
+          ev.preventDefault();
+          bump();
+        });
+      });
+      root.querySelectorAll('[data-cfd-measure-btn]').forEach((b) =>
+        b.addEventListener('click', () => {
+          measure = b.dataset.cfdMeasureBtn;
+          replan(true);
+        }),
+      );
+      root.querySelectorAll('[data-cfd-k-btn]').forEach((b) =>
+        b.addEventListener('click', () => {
+          K = Number(b.dataset.cfdKBtn);
+          replan(true);
+        }),
+      );
+      root.querySelector('[data-cfd-restore]').addEventListener('click', () => {
+        R0.forEach((row, u) => row.forEach((x, i) => (R[u][i] = x)));
+        measure = measure0;
+        K = K0;
+        replan(false);
+      });
+      paint();
+    }
+
+    render(-1, false);
+  })();
+</script>
+
+<style is:global>
+  .aas-cf-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-cf-demo .cfd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-cf-demo .cfd-head {
+    font-size: 0.95em;
+  }
+  .aas-cf-demo .cfd-k {
+    margin-left: 0.4em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-cf-demo .cfd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-cf-demo .cfd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cf-demo .cfd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cf-demo .cfd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  /* edit: 유사도·k 칩과 누를 수 있는 칸 */
+  .aas-cf-demo .cfd-edit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    margin-bottom: 0.8em;
+  }
+  .aas-cf-demo .cfd-group {
+    display: flex;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-cf-demo .cfd-group-label {
+    margin-right: 0.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-cf-demo .cfd-chip {
+    min-width: 2em;
+    padding: 0.2em 0.6em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cf-demo .cfd-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cf-demo .cfd-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-cf-demo.is-edit .cfd-cell {
+    cursor: pointer;
+  }
+  .aas-cf-demo.is-edit .cfd-cell:hover {
+    border-color: var(--aas-accent);
+  }
+
+  /* 평점 행렬. 사용자 기반이면 오른쪽에 유사도 칸, 아이템 기반이면 아래에 유사도 줄 */
+  .aas-cf-demo .cfd-grid {
+    display: grid;
+    grid-template-columns: 2.4em repeat(var(--cfd-cols), minmax(2.6em, 3.4em));
+    gap: 0.3em;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-cf-demo.is-user .cfd-grid {
+    grid-template-columns: 2.4em repeat(var(--cfd-cols), minmax(2.6em, 3.4em)) 4.6em;
+  }
+  .aas-cf-demo .cfd-colhead,
+  .aas-cf-demo .cfd-rowhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    font-weight: 700;
+    color: var(--aas-muted);
+    transition: color 0.3s;
+  }
+  .aas-cf-demo .cfd-colhead.is-on,
+  .aas-cf-demo .cfd-rowhead.is-on {
+    color: var(--aas-text);
+  }
+  .aas-cf-demo .cfd-rowhead.is-target {
+    color: var(--aas-role-focus);
+  }
+  .aas-cf-demo .cfd-rowhead.is-nb {
+    color: var(--aas-role-eval);
+  }
+  .aas-cf-demo .cfd-simhead {
+    font-family: inherit;
+    font-size: 0.75em;
+  }
+  .aas-cf-demo .cfd-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.2em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    font-weight: 700;
+    transition:
+      opacity 0.3s,
+      background-color 0.3s,
+      border-color 0.3s,
+      box-shadow 0.3s,
+      transform 0.35s;
+  }
+  .aas-cf-demo .cfd-cell.is-empty {
+    color: var(--aas-muted);
+    font-weight: 400;
+  }
+  .aas-cf-demo .cfd-cell.is-blank {
+    border-style: dashed;
+    border-color: var(--aas-role-focus);
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-cf-demo .cfd-cell.is-dim {
+    opacity: 0.3;
+  }
+  .aas-cf-demo .cfd-cell.is-on {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-cf-demo .cfd-cell.is-hot {
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-cf-demo .cfd-cell.is-filled {
+    opacity: 1;
+    border-style: solid;
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, var(--aas-bg));
+    font-size: 0.85em;
+  }
+  .aas-cf-demo .cfd-cell.is-fresh {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-cf-demo .cfd-cell.is-best {
+    background: var(--aas-role-focus);
+    color: #fff;
+  }
+  .aas-cf-demo .cfd-sim {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.2em;
+    font-size: 0.85em;
+    font-weight: 700;
+    color: var(--aas-text);
+    border-radius: 0.4em;
+    transition:
+      color 0.3s,
+      background-color 0.3s;
+  }
+  .aas-cf-demo .cfd-sim.is-neg {
+    color: var(--aas-role-guard);
+  }
+  .aas-cf-demo .cfd-sim.is-nb {
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, transparent);
+  }
+  .aas-cf-demo.is-still .cfd-cell,
+  .aas-cf-demo.is-still .cfd-sim {
+    transition: none;
+  }
+
+  .aas-cf-demo .cfd-note {
+    margin: 0.8em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.6em;
+  }
+  .aas-cf-demo.is-done .cfd-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-cf-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-cf-demo.is-slide .cfd-cell,
+  .aas-cf-demo.is-slide .cfd-sim {
+    height: 1.9em;
+    min-height: 1.9em;
+  }
+  .aas-cf-demo.is-slide .cfd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-cf-demo .cfd-cell,
+    .aas-cf-demo .cfd-sim {
+      transition: none;
+    }
+  }
+</style>

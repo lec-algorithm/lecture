@@ -1,0 +1,450 @@
+---
+// 키가 해시 함수를 거쳐 배열의 칸으로 들어가는 모습을 한 걸음씩 보는 데모.
+//
+// 위에 키들이 줄 서 있고, 한 걸음마다 하나씩 "코드 mod M = 칸"을 계산해 그
+// 칸으로 내려보낸다. 이미 키가 있는 칸에 또 들어가면 충돌이고, 칸이 붉어진다.
+// 충돌 수와 쓰인 칸 수를 크게 띄운다.
+//
+// 글자 키는 ASCII 코드를, 정수 키는 그 값을 그대로 M으로 나눈다. 기본값은
+// A B C K, M = 8이다. algorithm-code의 hashFunction.c ·
+// hash_function.py와 같은 결과를 낸다(1번과 2번 덩어리).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 넣을 키. 글자면 ASCII 코드, 정수면 그 값으로 해시한다. */
+  keys?: (string | number)[];
+  /** 배열 크기 M */
+  m?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { keys = ['A', 'B', 'C', 'K'], m = 8, slide = false } = Astro.props;
+const id = `hs-${Math.random().toString(36).slice(2, 9)}`;
+const items = keys.map((k) => {
+  const code = typeof k === 'number' ? k : k.charCodeAt(0);
+  return { label: typeof k === 'number' ? String(k) : `${k} (${code})`, short: String(k), code, slot: code % m };
+});
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '모듈러 해싱',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    collisions: '충돌',
+    used: '쓰인 칸',
+    idle: '키 {n}개를 크기 {m}인 배열에 넣습니다. 칸 번호는 코드 mod {m}입니다.',
+    put: '{s}번 칸이 비어 있어 {k} 키를 넣습니다.',
+    clash: '{s}번 칸에는 이미 {o} 키가 있어 충돌입니다.',
+    done: '모두 넣으니 충돌 {x}번, {m}칸 중 {u}칸을 썼습니다.',
+  },
+  en: {
+    title: 'Modular hashing',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    collisions: 'collisions',
+    used: 'slots used',
+    idle: 'Put {n} keys into an array of size {m}. The slot is the code mod {m}.',
+    put: 'Slot {s} is empty, so {k} goes in.',
+    clash: 'Slot {s} already holds {o}, a collision.',
+    done: 'All in: {u} of {m} slots used, collisions: {x}.',
+  },
+  zh: {
+    title: '取模哈希',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    collisions: '冲突',
+    used: '用到的格',
+    idle: '把 {n} 个键放进大小为 {m} 的数组。格号是编码除以 {m} 的余数。',
+    put: '{s} 号格为空，放入 {k}。',
+    clash: '{s} 号格已有 {o}，发生冲突。',
+    done: '全部放完：冲突 {x} 次，{m} 格中用了 {u} 格。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const slots = Array.from({ length: m }, (_, i) => i);
+---
+
+<div
+  class:list={['aas-hash-slot-demo', slide && 'is-slide']}
+  id={id}
+  data-hs-items={JSON.stringify(items)}
+  data-hs-strings={JSON.stringify(t)}
+  style={`--hs-m: ${m}`}
+>
+  <div class="hs-bar">
+    <span class="hs-head"><strong>{t.title}</strong> · M = {m}</span>
+    <div class="hs-controls">
+      <button type="button" data-act="back" class="hs-btn">{t.back}</button>
+      <button type="button" data-act="step" class="hs-btn">{t.step}</button>
+      <button type="button" data-act="play" class="hs-btn hs-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="hs-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="hs-top">
+    <div class="hs-queue">
+      {items.map((it, i) => <span class="hs-key" data-hs-key={i}>{it.label}</span>)}
+    </div>
+    <div class="hs-stats">
+      <span class="hs-big">
+        <span class="hs-big-label">{t.collisions}</span>
+        <strong data-hs-coll>0</strong>
+      </span>
+      <span class="hs-big">
+        <span class="hs-big-label">{t.used}</span>
+        <strong data-hs-used>0</strong><span class="hs-of">/ {m}</span>
+      </span>
+    </div>
+  </div>
+
+  <p class="hs-formula" data-hs-formula>&nbsp;</p>
+
+  <div class="hs-scroll">
+    <div class="hs-grid">
+      {
+        slots.map((s) => (
+          <div class="hs-col" data-hs-col={s}>
+            <span class="hs-idx">{s}</span>
+            <span class="hs-stack" data-hs-stack={s} />
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <p class="hs-note" data-hs-note></p>
+</div>
+
+<script is:inline define:vars={{ id, m }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const items = JSON.parse(root.dataset.hsItems);
+    const S = JSON.parse(root.dataset.hsStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    /* 단계 배열: 키 하나에 한 걸음. 칸 번호는 code mod m(modularHash와 같다). */
+    const steps = [];
+    const placed = Array.from({ length: m }, () => []);
+    let coll = 0;
+    items.forEach((it, i) => {
+      const clash = placed[it.slot].length > 0;
+      const other = clash ? items[placed[it.slot][0]].short : '';
+      placed[it.slot].push(i);
+      if (clash) coll += 1;
+      const used = placed.filter((p) => p.length > 0).length;
+      const vars = { k: it.short, c: it.code, m, s: it.slot, o: other };
+      steps.push({
+        upto: i,
+        clash,
+        coll,
+        used,
+        formula: `${it.label} mod ${m} = ${it.slot}`,
+        note: fill(clash ? S.clash : S.put, vars),
+      });
+    });
+    const last = steps[steps.length - 1];
+    last.note = join(last.note, fill(S.done, { x: last.coll, m, u: last.used }));
+
+    const keyEls = [...root.querySelectorAll('[data-hs-key]')];
+    const stacks = [...root.querySelectorAll('[data-hs-stack]')];
+    const cols = [...root.querySelectorAll('[data-hs-col]')];
+    const collEl = root.querySelector('[data-hs-coll]');
+    const usedEl = root.querySelector('[data-hs-used]');
+    const formula = root.querySelector('[data-hs-formula]');
+    const note = root.querySelector('[data-hs-note]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const upto = st ? st.upto : -1;
+      keyEls.forEach((el, i) => {
+        el.classList.toggle('is-gone', i < upto);
+        el.classList.toggle('is-now', i === upto);
+      });
+      stacks.forEach((el, slot) => {
+        const here = [];
+        for (let i = 0; i <= upto; i++) if (items[i].slot === slot) here.push(i);
+        el.innerHTML = here
+          .map((i) => `<span class="hs-chip${i === upto ? ' is-new' : ''}">${items[i].short}</span>`)
+          .join('');
+        cols[slot].classList.toggle('is-clash', here.length > 1);
+        cols[slot].classList.toggle('is-now', !!st && items[upto].slot === slot);
+      });
+      collEl.textContent = String(st ? st.coll : 0);
+      collEl.classList.toggle('is-bad', !!st && st.coll > 0);
+      usedEl.textContent = String(st ? st.used : 0);
+      formula.textContent = st ? st.formula : ' ';
+      formula.classList.toggle('is-clash', !!st && st.clash);
+      setLines(note, st ? st.note : fill(S.idle, { n: items.length, m }));
+      root.classList.toggle('is-done', s >= steps.length - 1);
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-hash-slot-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --hs-col: 3.2em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-hash-slot-demo .hs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-hash-slot-demo .hs-head {
+    font-size: 0.95em;
+  }
+  .aas-hash-slot-demo .hs-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-hash-slot-demo .hs-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-hash-slot-demo .hs-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-hash-slot-demo .hs-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-hash-slot-demo .hs-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6em 1.5em;
+  }
+  .aas-hash-slot-demo .hs-queue {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
+  .aas-hash-slot-demo .hs-key {
+    padding: 0.25em 0.55em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.45em;
+    background: color-mix(in srgb, var(--aas-role-model) 15%, var(--aas-bg));
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    transition:
+      opacity 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-hash-slot-demo .hs-key.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-hash-slot-demo .hs-key.is-gone {
+    opacity: 0.35;
+  }
+  .aas-hash-slot-demo .hs-stats {
+    display: flex;
+    gap: 1.4em;
+  }
+  .aas-hash-slot-demo .hs-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+  .aas-hash-slot-demo .hs-big-label,
+  .aas-hash-slot-demo .hs-of {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-slot-demo .hs-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-hash-slot-demo .hs-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-hash-slot-demo .hs-formula {
+    margin: 0.7em 0 0.5em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.3em;
+    font-weight: 700;
+  }
+  .aas-hash-slot-demo .hs-formula.is-clash {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-hash-slot-demo .hs-scroll {
+    overflow-x: auto;
+  }
+  .aas-hash-slot-demo .hs-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--hs-m), var(--hs-col));
+    gap: 0.3em;
+    width: max-content;
+    margin: 0 auto;
+  }
+  .aas-hash-slot-demo .hs-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3em;
+    min-height: 7.2em;
+    padding: 0.3em 0.2em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    transition:
+      border-color 0.3s,
+      background-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-hash-slot-demo .hs-col.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-hash-slot-demo .hs-col.is-clash {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, var(--aas-bg));
+  }
+  .aas-hash-slot-demo .hs-idx {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-slot-demo .hs-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+    align-items: center;
+  }
+  .aas-hash-slot-demo .hs-chip {
+    min-width: 2.2em;
+    padding: 0.2em 0.3em;
+    text-align: center;
+    border-radius: 0.4em;
+    background: var(--aas-role-model);
+    color: #fff;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-hash-slot-demo .hs-col.is-clash .hs-chip {
+    background: var(--aas-role-guard);
+  }
+  .aas-hash-slot-demo .hs-chip.is-new {
+    animation: hs-drop 0.45s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  .aas-hash-slot-demo .hs-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-hash-slot-demo.is-done .hs-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes hs-drop {
+    from {
+      transform: translateY(-2.5em);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-hash-slot-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-hash-slot-demo.is-slide .hs-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-hash-slot-demo .hs-key,
+    .aas-hash-slot-demo .hs-col {
+      transition: none;
+    }
+    .aas-hash-slot-demo .hs-chip.is-new {
+      animation: none;
+    }
+  }
+</style>

@@ -1,0 +1,471 @@
+---
+// "이 트리가 BST인가"를 두 가지 방식으로 검사해 보는 데모.
+//
+// - 자식과만 비교: 노드마다 왼쪽 자식이 작고 오른쪽 자식이 큰지만 본다.
+//   흔한 오해이고, 기본 트리(5, 3, 8, 그리고 3의 오른쪽 7)는 이 검사를 통과한다.
+// - 범위로 검사: 루트는 (−∞, ∞)에서 시작한다. 왼쪽으로 내려갈 때는 위 끝을,
+//   오른쪽으로 내려갈 때는 아래 끝을 지금 노드의 키로 좁혀 내려보낸다. 노드의
+//   키가 그 범위 안에 있어야 한다. 7은 (3, 5)에 들어가지 않으므로 걸린다.
+// 위 탭으로 방식을 바꾸고, 한 걸음씩 전위 순서로 노드를 본다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+export interface CheckNode {
+  v: number;
+  l?: CheckNode;
+  r?: CheckNode;
+}
+interface Props {
+  tree?: CheckNode;
+  check?: 'naive' | 'range';
+  slide?: boolean;
+}
+const { tree = { v: 5, l: { v: 3, r: { v: 7 } }, r: { v: 8 } }, check = 'naive', slide = false } = Astro.props;
+const id = `bc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'BST인지 검사하기',
+    naive: '자식과만 비교',
+    range: '범위로 검사',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    left: '왼쪽',
+    right: '오른쪽',
+    noKids: '자식이 없습니다',
+    idleNaive: '노드마다 왼쪽 자식이 작고 오른쪽 자식이 큰지만 봅니다.',
+    idleRange: '루트는 (−∞, ∞)에서 시작합니다. 왼쪽으로는 위 끝을, 오른쪽으로는 아래 끝을 지금 키로 좁혀 내려보냅니다.',
+    naiveVisit: '{v}: {checks}',
+    naiveDoneOk: '모든 부모·자식 쌍이 규칙을 지킵니다. 이것만 보면 BST 같습니다. 범위로 검사해 보세요.',
+    naiveDoneBad: '부모·자식 쌍에서 이미 규칙이 깨집니다. BST가 아닙니다.',
+    rangeOk: '✓ {v}: 범위 ({lo}, {hi}) 안입니다.',
+    rangeBad: '✕ {v}: 범위 ({lo}, {hi}) 밖입니다.',
+    rangeDoneOk: '모든 노드가 자기 범위 안에 있습니다. BST입니다.',
+    rangeDoneBad: 'BST가 아닙니다. 범위를 벗어난 노드: {list}',
+    checked: '본 노드',
+  },
+  en: {
+    title: 'Is it a BST?',
+    naive: 'Children only',
+    range: 'Check ranges',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    left: 'left',
+    right: 'right',
+    noKids: 'no children',
+    idleNaive: 'For each node, check only that the left child is smaller and the right child larger.',
+    idleRange: 'The root starts with (−∞, ∞). Going left, the upper end narrows to the current key; going right, the lower end does.',
+    naiveVisit: '{v}: {checks}',
+    naiveDoneOk: 'Every parent-child pair follows the rule. By this check it looks like a BST. Now check the ranges.',
+    naiveDoneBad: 'A parent-child pair already breaks the rule. Not a BST.',
+    rangeOk: '✓ {v}: inside its range ({lo}, {hi}).',
+    rangeBad: '✕ {v}: outside its range ({lo}, {hi}).',
+    rangeDoneOk: 'Every node is inside its range. It is a BST.',
+    rangeDoneBad: 'Not a BST. Nodes outside their range: {list}',
+    checked: 'checked',
+  },
+  zh: {
+    title: '检查是否为 BST',
+    naive: '只和子节点比',
+    range: '按范围检查',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    left: '左',
+    right: '右',
+    noKids: '没有子节点',
+    idleNaive: '对每个节点，只看左子节点是否更小、右子节点是否更大。',
+    idleRange: '根从 (−∞, ∞) 开始。往左走时把上界收紧为当前键，往右走时把下界收紧为当前键。',
+    naiveVisit: '{v}：{checks}',
+    naiveDoneOk: '所有父子对都遵守规则。只看这一点，它像是 BST。再按范围检查试试。',
+    naiveDoneBad: '父子对已经违反规则。不是 BST。',
+    rangeOk: '✓ {v}：在范围 ({lo}, {hi}) 之内。',
+    rangeBad: '✕ {v}：在范围 ({lo}, {hi}) 之外。',
+    rangeDoneOk: '所有节点都在自己的范围之内。是 BST。',
+    rangeDoneBad: '不是 BST。超出范围的节点：{list}',
+    checked: '已检查',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-bst-check-demo', slide && 'is-slide']}
+  id={id}
+  data-bc-tree={JSON.stringify(tree)}
+  data-bc-check={check}
+  data-bc-strings={JSON.stringify(t)}
+>
+  <div class="bc-bar">
+    <div class="bc-tabs" role="tablist">
+      <span class="bc-head"><strong>{t.title}</strong></span>
+      <button type="button" class="bc-tab" data-bc-tab="naive" role="tab">{t.naive}</button>
+      <button type="button" class="bc-tab" data-bc-tab="range" role="tab">{t.range}</button>
+    </div>
+    <div class="bc-controls">
+      <button type="button" data-act="back" class="bc-btn">{t.back}</button>
+      <button type="button" data-act="step" class="bc-btn">{t.step}</button>
+      <button type="button" data-act="play" class="bc-btn bc-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="bc-btn">{t.reset}</button>
+    </div>
+  </div>
+  <svg class="bc-svg" data-bc-svg role="img" aria-label={t.title}></svg>
+  <p class="bc-note" data-bc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.bcStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const tree = JSON.parse(root.dataset.bcTree);
+    let mode = root.dataset.bcCheck;
+    const INF = '∞';
+    const fmt = (x) => (x === -Infinity ? `−${INF}` : x === Infinity ? INF : String(x));
+
+    /* 배치: x는 중위 순서, y는 깊이 */
+    const nodes = [];
+    let order = 0;
+    const walk = (n, d, parent, side) => {
+      if (!n) return null;
+      const me = { v: n.v, d, parent, side, x: 0, l: null, r: null };
+      me.l = walk(n.l, d + 1, me, 'l');
+      me.x = order++;
+      nodes.push(me);
+      me.r = walk(n.r, d + 1, me, 'r');
+      return me;
+    };
+    const top = walk(tree, 0, null, null);
+    const depth = Math.max(...nodes.map((n) => n.d));
+    const UNIT = 92;
+    const GAP = 92;
+    const R = 23;
+    const PAD = 70;
+    const W = Math.max(360, (order - 1) * UNIT + 2 * PAD);
+    const H = depth * GAP + 2 * R + 40;
+    const left = (W - (order - 1) * UNIT) / 2;
+    const X = (n) => left + n.x * UNIT;
+    const Y = (n) => R + 8 + n.d * GAP;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const svg = root.querySelector('[data-bc-svg]');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    nodes.forEach((n) => {
+      if (n.parent) n.edge = el('line', { x1: X(n.parent), y1: Y(n.parent), x2: X(n), y2: Y(n), class: 'bc-edge' }, svg);
+    });
+    nodes.forEach((n) => {
+      n.g = el('g', { class: 'bc-node' }, svg);
+      el('circle', { cx: X(n), cy: Y(n), r: R }, n.g);
+      const tx = el('text', { x: X(n), y: Y(n), class: 'bc-text' }, n.g);
+      tx.textContent = String(n.v);
+      n.range = el('text', { x: X(n), y: Y(n) + R + 17, class: 'bc-range' }, svg);
+    });
+
+    /* 전위 순서 */
+    const pre = [];
+    const visit = (n, lo, hi) => {
+      if (!n) return;
+      pre.push({ n, lo, hi });
+      visit(n.l, lo, n.v);
+      visit(n.r, n.v, hi);
+    };
+    visit(top, -Infinity, Infinity);
+
+    function plan() {
+      const steps = [];
+      if (mode === 'naive') {
+        let bad = false;
+        pre.forEach(({ n }) => {
+          const checks = [];
+          const marks = {};
+          if (n.l) {
+            const ok = n.l.v < n.v;
+            checks.push(`${S.left} ${n.l.v} ${ok ? '<' : '≥'} ${n.v} ${ok ? '✓' : '✕'}`);
+            marks.l = ok;
+            bad = bad || !ok;
+          }
+          if (n.r) {
+            const ok = n.r.v > n.v;
+            checks.push(`${S.right} ${n.r.v} ${ok ? '>' : '≤'} ${n.v} ${ok ? '✓' : '✕'}`);
+            marks.r = ok;
+            bad = bad || !ok;
+          }
+          steps.push({ cur: n, marks, note: fill(S.naiveVisit, { v: n.v, checks: checks.length ? checks.join(' · ') : S.noKids }) });
+        });
+        steps.push({ cur: null, done: true, bad, note: bad ? S.naiveDoneBad : S.naiveDoneOk });
+      } else {
+        const badList = [];
+        pre.forEach(({ n, lo, hi }) => {
+          const ok = lo < n.v && n.v < hi;
+          if (!ok) badList.push(n.v);
+          steps.push({ cur: n, ok, lo, hi, note: fill(ok ? S.rangeOk : S.rangeBad, { v: n.v, lo: fmt(lo), hi: fmt(hi) }) });
+        });
+        steps.push({
+          cur: null, done: true, bad: badList.length > 0,
+          note: badList.length ? fill(S.rangeDoneBad, { list: badList.join(', ') }) : S.rangeDoneOk,
+        });
+      }
+      return steps;
+    }
+
+    const note = root.querySelector('[data-bc-note]');
+    const tabs = [...root.querySelectorAll('[data-bc-tab]')];
+    const playBtn = root.querySelector('[data-act="play"]');
+    let steps = plan();
+    let at = -1;
+    let timer = null;
+
+    function render() {
+      const upto = at >= 0 ? at : -1;
+      const step = at >= 0 ? steps[at] : null;
+      // 지금까지 본 노드의 상태를 처음부터 다시 쌓는다.
+      const state = new Map();
+      const edgeState = new Map();
+      for (let k = 0; k <= upto; k++) {
+        const s = steps[k];
+        if (!s.cur) continue;
+        if (mode === 'naive') {
+          state.set(s.cur, 'ok');
+          if (s.cur.l && s.marks.l !== undefined) edgeState.set(s.cur.l, s.marks.l ? 'ok' : 'bad');
+          if (s.cur.r && s.marks.r !== undefined) edgeState.set(s.cur.r, s.marks.r ? 'ok' : 'bad');
+        } else {
+          state.set(s.cur, s.ok ? 'ok' : 'bad');
+          s.cur.rangeText = `(${fmt(s.lo)}, ${fmt(s.hi)})`;
+        }
+      }
+      nodes.forEach((n) => {
+        const st = state.get(n);
+        n.g.classList.toggle('is-ok', st === 'ok');
+        n.g.classList.toggle('is-bad', st === 'bad');
+        n.g.classList.toggle('is-now', !!step && step.cur === n);
+        n.range.textContent = mode === 'range' && st ? n.rangeText : '';
+        n.range.classList.toggle('is-bad', st === 'bad');
+        if (n.edge) {
+          const es = edgeState.get(n);
+          n.edge.classList.toggle('is-ok', es === 'ok');
+          n.edge.classList.toggle('is-bad', es === 'bad');
+        }
+      });
+      setLines(note, step ? step.note : mode === 'naive' ? S.idleNaive : S.idleRange);
+      root.classList.toggle('is-done', !!step && !!step.done);
+      root.classList.toggle('is-bad', !!step && !!step.done && step.bad);
+      tabs.forEach((tab) => {
+        const on = tab.dataset.bcTab === mode;
+        tab.classList.toggle('is-on', on);
+        tab.setAttribute('aria-selected', String(on));
+      });
+    }
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    tabs.forEach((tab) =>
+      tab.addEventListener('click', () => {
+        stop();
+        mode = tab.dataset.bcTab;
+        steps = plan();
+        at = -1;
+        render();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-bst-check-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-bst-check-demo .bc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-bst-check-demo .bc-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-bst-check-demo .bc-head {
+    font-size: 0.95em;
+    margin-right: 0.4em;
+  }
+  .aas-bst-check-demo .bc-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-bst-check-demo .bc-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-bst-check-demo .bc-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-bst-check-demo .bc-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-bst-check-demo .bc-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-bst-check-demo .bc-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-bst-check-demo .bc-svg {
+    display: block;
+    width: 100%;
+    max-height: 17em;
+    margin: 0.3em auto 0;
+  }
+  .aas-bst-check-demo .bc-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+    transition: stroke 0.2s;
+  }
+  .aas-bst-check-demo .bc-edge.is-ok {
+    stroke: var(--aas-role-eval);
+    stroke-width: 4;
+  }
+  .aas-bst-check-demo .bc-edge.is-bad {
+    stroke: var(--aas-role-guard);
+    stroke-width: 4;
+  }
+  .aas-bst-check-demo .bc-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition: fill 0.2s, stroke 0.2s;
+  }
+  .aas-bst-check-demo .bc-text {
+    font-size: 18px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-bst-check-demo .bc-range {
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-bst-check-demo .bc-range.is-bad {
+    fill: var(--aas-role-guard);
+  }
+  .aas-bst-check-demo .bc-node.is-ok circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-bst-check-demo .bc-node.is-bad circle {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-bst-check-demo .bc-node.is-ok .bc-text,
+  .aas-bst-check-demo .bc-node.is-bad .bc-text {
+    fill: #fff;
+  }
+  .aas-bst-check-demo .bc-node.is-now circle {
+    stroke: var(--aas-role-focus);
+    stroke-width: 5;
+  }
+  .aas-bst-check-demo .bc-note {
+    margin: 0.4em 0 0;
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-bst-check-demo.is-done .bc-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-bst-check-demo.is-bad .bc-note {
+    color: var(--aas-role-guard);
+  }
+  .aas-bst-check-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-bst-check-demo.is-slide .bc-svg {
+    max-height: 40vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-bst-check-demo * {
+      transition: none !important;
+    }
+  }
+</style>

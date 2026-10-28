@@ -1,0 +1,649 @@
+---
+// BFS와 DFS를 한 걸음씩 해 보는 데모. mode로 고른다.
+//
+// 왼쪽은 그래프(GraphFigure), 오른쪽은 큐(BFS) 또는 스택(DFS)의 내용과
+// 정점마다 from 표다. 정점 색은 초록이 방문을 마친 것, 파랑이 큐·스택에
+// 들어 있는 것, 주황이 지금 꺼낸 것이다. 초록 굵은 간선이 from을 따라
+// 이은 탐색 트리다.
+//
+// 절차는 algorithm-code의 01_bfs · 02_dfs와 같다. 이웃은 작은 번호부터
+// 보고, BFS는 넣을 때, DFS는 꺼낼 때 방문 표시를 한다. 기본 그래프에서
+// BFS는 0 1 2 5 6 3 4, DFS는 0 6 4 5 3 2 1 순서로 방문한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  mode?: 'bfs' | 'dfs';
+  /** GraphSamples의 이름. 기본은 g7 */
+  graph?: string;
+  start?: number;
+  /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
+  initial?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { mode = 'bfs', graph = 'g7', start = 0, initial = -1, slide = false } = Astro.props;
+const g = getGraph(graph);
+const n = g.nodes.length;
+const id = `gs-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    bfs: '폭 우선 검색 (BFS)',
+    dfs: '깊이 우선 검색 (DFS)',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    queue: '큐',
+    stack: '스택',
+    front: '앞 (꺼냄)',
+    top: '위 (꺼냄)',
+    order: '방문 순서',
+    from: 'from',
+    dist: 'dist',
+    nth: '순서',
+    countPre: '방문 ',
+    countPost: '',
+    empty: '비었음',
+    idle: '시작 정점 {s}에서 출발합니다.',
+    bfsStart: '{s|을} 표시하고 큐에 넣습니다. 거리는 0입니다.',
+    bfsDeq: '{v|을} 꺼냅니다. 이웃 {nb|을} 봅니다.',
+    bfsDeqNone: '{v|을} 꺼냅니다. 이웃 {nb|은} 모두 표시되어 있어 넣을 것이 없습니다.',
+    bfsEnq: '표시 안 된 {list|을} 표시하고 큐 뒤에 넣습니다. 거리는 {d}입니다.',
+    dfsStart: '{s|을} 스택에 넣습니다.',
+    dfsPop: '{v|을} 꺼내 방문합니다. 이웃 {nb|을} 봅니다.',
+    dfsPopNone: '{v|을} 꺼내 방문합니다. 이웃 {nb|은} 모두 방문해서 넣을 것이 없습니다.',
+    dfsPush: '방문 안 한 {list|을} 스택 위에 넣습니다. 맨 위 {top|이} 다음 차례입니다.',
+    dfsSkip: '{v|을} 꺼냈지만 이미 방문했으므로 버립니다.',
+    done: '끝. 방문 순서는 {order}입니다.',
+  },
+  en: {
+    bfs: 'Breadth-first search (BFS)',
+    dfs: 'Depth-first search (DFS)',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    queue: 'Queue',
+    stack: 'Stack',
+    front: 'front (out)',
+    top: 'top (out)',
+    order: 'Visit order',
+    from: 'from',
+    dist: 'dist',
+    nth: 'order',
+    countPre: 'visited ',
+    countPost: '',
+    empty: 'empty',
+    idle: 'Start from vertex {s}.',
+    bfsStart: 'Mark {s} and put it in the queue. Its distance is 0.',
+    bfsDeq: 'Take {v} out. Look at its neighbours {nb}.',
+    bfsDeqNone: 'Take {v} out. Its neighbours {nb} are all marked, nothing to add.',
+    bfsEnq: 'Mark the unmarked {list} and add them to the back of the queue. Distance {d}.',
+    dfsStart: 'Push {s} onto the stack.',
+    dfsPop: 'Pop {v} and visit it. Look at its neighbours {nb}.',
+    dfsPopNone: 'Pop {v} and visit it. Its neighbours {nb} are all visited, nothing to push.',
+    dfsPush: 'Push the unvisited {list} on top. The top one, {top}, comes next.',
+    dfsSkip: 'Popped {v}, but it is already visited, so drop it.',
+    done: 'Done. Visit order: {order}',
+  },
+  zh: {
+    bfs: '广度优先搜索 (BFS)',
+    dfs: '深度优先搜索 (DFS)',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    queue: '队列',
+    stack: '栈',
+    front: '队头 (取出)',
+    top: '栈顶 (取出)',
+    order: '访问顺序',
+    from: 'from',
+    dist: 'dist',
+    nth: '顺序',
+    countPre: '已访问 ',
+    countPost: '',
+    empty: '空',
+    idle: '从起点 {s} 出发。',
+    bfsStart: '标记 {s} 并放入队列。距离为 0。',
+    bfsDeq: '取出 {v}，查看邻居 {nb}。',
+    bfsDeqNone: '取出 {v}。邻居 {nb} 都已标记，没有要放入的。',
+    bfsEnq: '标记未标记的 {list}，放到队尾。距离为 {d}。',
+    dfsStart: '把 {s} 压入栈。',
+    dfsPop: '弹出 {v} 并访问。查看邻居 {nb}。',
+    dfsPopNone: '弹出 {v} 并访问。邻居 {nb} 都已访问，没有要压入的。',
+    dfsPush: '把未访问的 {list} 压到栈顶。栈顶的 {top} 是下一个。',
+    dfsSkip: '弹出 {v}，但它已访问过，丢弃。',
+    done: '结束。访问顺序为 {order}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const rows = Array.from({ length: n }, (_, v) => v);
+---
+
+<div
+  class:list={['aas-graph-search-demo', slide && 'is-slide']}
+  id={id}
+  data-gs-mode={mode}
+  data-gs-n={n}
+  data-gs-edges={JSON.stringify(g.edges)}
+  data-gs-start={start}
+  data-gs-initial={initial}
+  data-gs-strings={JSON.stringify(t)}
+>
+  <div class="gs-bar">
+    <span class="gs-head"><strong>{mode === 'bfs' ? t.bfs : t.dfs}</strong></span>
+    <div class="gs-controls">
+      <button type="button" data-act="back" class="gs-btn">{t.back}</button>
+      <button type="button" data-act="step" class="gs-btn">{t.step}</button>
+      <button type="button" data-act="play" class="gs-btn gs-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="gs-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="gs-body">
+    <div class="gs-graph">
+      <GraphFigure graph={graph} bare slide={slide} />
+    </div>
+    <div class="gs-panel">
+      <div class="gs-box">
+        <div class="gs-box-head">
+          <span>{mode === 'bfs' ? t.queue : t.stack}</span>
+          <span class="gs-hint">{mode === 'bfs' ? `← ${t.front}` : `${t.top} →`}</span>
+        </div>
+        <div class="gs-cells" data-gs-cells></div>
+      </div>
+      <div class="gs-order">{t.order}: <strong data-gs-order></strong></div>
+      <div class="gs-table" role="table">
+        <div class="gs-tr gs-th" role="row">
+          <span role="columnheader">v</span>
+          <span role="columnheader">{t.from}</span>
+          <span role="columnheader">{mode === 'bfs' ? t.dist : t.nth}</span>
+        </div>
+        {rows.map((v) => (
+          <div class="gs-tr" role="row" data-gs-row={v}>
+            <span role="cell">{v}</span>
+            <span role="cell" data-gs-from></span>
+            <span role="cell" data-gs-val></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <div class="gs-foot">
+    <p class="gs-note" data-gs-note></p>
+    <span class="gs-count">
+      {t.countPre}<strong data-gs-count>0</strong> / {n}{t.countPost}
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const mode = root.dataset.gsMode;
+    const n = Number(root.dataset.gsN);
+    const edges = JSON.parse(root.dataset.gsEdges);
+    const s = Number(root.dataset.gsStart);
+    const S = JSON.parse(root.dataset.gsStrings);
+    /* 문구의 {v}는 값으로 바꾼다. 한국어 조사는 {v|을}처럼 받침 있는 꼴로 적으면
+       값을 읽은 소리에 맞춰 을/를, 이/가, 은/는, 과/와, 으로/로를 고른다.
+       {~v|을}은 조사만 붙인다(괄호 뒤에 쓴다). 숫자는 끝자리 소리로 정한다. */
+    const JOSA = { 을: '를', 이: '가', 은: '는', 과: '와', 으로: '로' };
+    const batchim = (val) => {
+      const ch = String(val).trim().slice(-1);
+      if (/[0-9]/.test(ch)) return [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][Number(ch)] ? (ch === '1' || ch === '7' || ch === '8' ? 'l' : 'y') : '';
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return '';
+      const fin = code % 28;
+      return fin === 0 ? '' : fin === 8 ? 'l' : 'y';
+    };
+    const josa = (val, p) => {
+      const b = batchim(val);
+      if (p === '으로') return b === 'y' ? '으로' : '로';
+      return b ? p : JOSA[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(~?)(\w+)(?:\|([^}]+))?\}/g, (_, only, k, p) =>
+        p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k],
+      );
+
+    /* 인접 목록. 무방향이므로 양쪽에 넣고, 이웃은 작은 번호부터 본다. */
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+
+    /* 단계 하나는 화면 전체의 모습이다. 상태를 복사해 담는다. */
+    function snapshot(st, extra) {
+      return {
+        cells: st.cells.slice(),
+        done: st.done.slice(),
+        open: st.open.slice(),
+        from: st.from.slice(),
+        val: st.val.slice(),
+        order: st.order.slice(),
+        cur: null,
+        look: [],
+        ...extra,
+      };
+    }
+
+    function planBfs() {
+      const st = {
+        cells: [s],
+        done: new Array(n).fill(false),
+        open: new Array(n).fill(false),
+        from: new Array(n).fill(null),
+        val: new Array(n).fill(null),
+        order: [],
+      };
+      const marked = new Array(n).fill(false);
+      const steps = [];
+      marked[s] = true;
+      st.open[s] = true;
+      st.val[s] = 0;
+      steps.push(snapshot(st, { note: fill(S.bfsStart, { s }) }));
+      while (st.cells.length) {
+        const v = st.cells.shift();
+        st.open[v] = false;
+        st.done[v] = true;
+        st.order.push(v);
+        const fresh = adj[v].filter((w) => !marked[w]);
+        const nb = adj[v].join(' ');
+        steps.push(
+          snapshot(st, {
+            cur: v,
+            look: adj[v].map((w) => [v, w]),
+            note: fill(fresh.length ? S.bfsDeq : S.bfsDeqNone, { v, nb }),
+          }),
+        );
+        if (!fresh.length) continue;
+        fresh.forEach((w) => {
+          marked[w] = true;
+          st.open[w] = true;
+          st.from[w] = v;
+          st.val[w] = st.val[v] + 1;
+          st.cells.push(w);
+        });
+        steps.push(
+          snapshot(st, {
+            cur: v,
+            note: fill(S.bfsEnq, { list: fresh.join(' '), d: st.val[v] + 1 }),
+          }),
+        );
+      }
+      return steps;
+    }
+
+    /* 스택 칸에는 [정점, 넣은 정점]을 둔다. 꺼낼 때 방문 표시를 한다. */
+    function planDfs() {
+      const st = {
+        cells: [s],
+        done: new Array(n).fill(false),
+        open: new Array(n).fill(false),
+        from: new Array(n).fill(null),
+        val: new Array(n).fill(null),
+        order: [],
+      };
+      const stack = [[s, null]];
+      const steps = [];
+      st.open[s] = true;
+      steps.push(snapshot(st, { note: fill(S.dfsStart, { s }) }));
+      while (stack.length) {
+        const [v, p] = stack.pop();
+        st.cells = stack.map((e) => e[0]);
+        if (st.done[v]) {
+          steps.push(snapshot(st, { cur: v, note: fill(S.dfsSkip, { v }) }));
+          continue;
+        }
+        st.done[v] = true;
+        st.from[v] = p;
+        st.order.push(v);
+        st.val[v] = st.order.length;
+        st.open = st.open.map((_, x) => !st.done[x] && st.cells.includes(x));
+        const fresh = adj[v].filter((w) => !st.done[w]);
+        const nb = adj[v].join(' ');
+        steps.push(
+          snapshot(st, {
+            cur: v,
+            look: adj[v].map((w) => [v, w]),
+            note: fill(fresh.length ? S.dfsPop : S.dfsPopNone, { v, nb }),
+          }),
+        );
+        if (!fresh.length) continue;
+        fresh.forEach((w) => stack.push([w, v]));
+        st.cells = stack.map((e) => e[0]);
+        st.open = st.open.map((_, x) => !st.done[x] && st.cells.includes(x));
+        steps.push(
+          snapshot(st, {
+            cur: v,
+            note: fill(S.dfsPush, { list: fresh.join(' '), top: fresh[fresh.length - 1] }),
+          }),
+        );
+      }
+      return steps;
+    }
+
+    const steps = mode === 'dfs' ? planDfs() : planBfs();
+    const last = steps[steps.length - 1];
+    steps.push({ ...last, cur: null, look: [], end: true, note: fill(S.done, { order: last.order.join(' ') }) });
+
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => {
+      const [a, b] = el.dataset.gfEdge.split('-');
+      edgeEls.set(`${a}-${b}`, el);
+      edgeEls.set(`${b}-${a}`, el);
+    });
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const cellsEl = root.querySelector('[data-gs-cells]');
+    const orderEl = root.querySelector('[data-gs-order]');
+    const rowEls = [...root.querySelectorAll('[data-gs-row]')];
+    const note = root.querySelector('[data-gs-note]');
+    const countEl = root.querySelector('[data-gs-count]');
+
+    function render(i) {
+      const st = i >= 0 ? steps[i] : null;
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', !!st && st.done[v] && st.cur !== v);
+        el.classList.toggle('is-open', !!st && st.open[v] && st.cur !== v);
+        el.classList.toggle('is-focus', !!st && st.cur === v);
+        el.classList.toggle('is-ring', v === s);
+      });
+      const tree = new Set();
+      const look = new Set();
+      if (st) {
+        st.from.forEach((p, v) => p !== null && tree.add(`${p}-${v}`));
+        st.look.forEach(([a, b]) => look.add(`${a}-${b}`));
+      }
+      edgeEls.forEach((el, key) => {
+        const [a, b] = key.split('-');
+        if (Number(a) > Number(b)) return;
+        const rev = `${b}-${a}`;
+        el.classList.toggle('is-tree', tree.has(key) || tree.has(rev));
+        el.classList.toggle('is-focus', !tree.has(key) && !tree.has(rev) && (look.has(key) || look.has(rev)));
+      });
+      badgeEls.forEach((el, v) => {
+        el.textContent = st && st.val[v] !== null && mode === 'bfs' ? String(st.val[v]) : '';
+      });
+      cellsEl.innerHTML = '';
+      const cells = st ? st.cells : [];
+      if (!cells.length) {
+        const e = document.createElement('span');
+        e.className = 'gs-empty';
+        e.textContent = st ? S.empty : '';
+        cellsEl.appendChild(e);
+      }
+      cells.forEach((v, k) => {
+        const c = document.createElement('span');
+        c.className = 'gs-cell';
+        const out = mode === 'bfs' ? k === 0 : k === cells.length - 1;
+        if (out) c.classList.add('is-next');
+        c.textContent = String(v);
+        cellsEl.appendChild(c);
+      });
+      orderEl.textContent = st ? st.order.join(' ') : '';
+      rowEls.forEach((row, v) => {
+        const f = row.querySelector('[data-gs-from]');
+        const val = row.querySelector('[data-gs-val]');
+        if (!st) f.textContent = '';
+        else if (st.from[v] !== null) f.textContent = String(st.from[v]);
+        else f.textContent = v === s && (st.done[v] || st.open[v]) ? '-' : '';
+        val.textContent = st && st.val[v] !== null ? String(st.val[v]) : '';
+        row.classList.toggle('is-now', !!st && st.cur === v);
+      });
+      countEl.textContent = String(st ? st.order.length : 0);
+      setLines(note, st ? st.note : fill(S.idle, { s }));
+      root.classList.toggle('is-done', !!(st && st.end));
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1200);
+    });
+    at = Math.min(Number(root.dataset.gsInitial), steps.length - 1);
+    render(at);
+  })();
+</script>
+
+<style is:global>
+  .aas-graph-search-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-graph-search-demo .gs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-graph-search-demo .gs-head {
+    font-size: 0.95em;
+  }
+  .aas-graph-search-demo .gs-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-graph-search-demo .gs-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-graph-search-demo .gs-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-graph-search-demo .gs-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-graph-search-demo .gs-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-graph-search-demo .gs-graph {
+    flex: 0 1 17em;
+    min-width: 12em;
+  }
+  .aas-graph-search-demo .gs-panel {
+    flex: 1 1 14em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+  }
+  .aas-graph-search-demo .gs-box-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-bottom: 0.3em;
+  }
+  .aas-graph-search-demo .gs-cells {
+    display: flex;
+    gap: 0.3em;
+    min-height: 2.2em;
+    align-items: center;
+  }
+  .aas-graph-search-demo .gs-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2em;
+    height: 2em;
+    border-radius: 0.4em;
+    background: var(--aas-role-model);
+    color: #fff;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    animation: gs-in 0.3s ease-out;
+  }
+  .aas-graph-search-demo .gs-cell.is-next {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-graph-search-demo .gs-empty {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  @keyframes gs-in {
+    from {
+      transform: translateY(-0.4em);
+      opacity: 0;
+    }
+  }
+  .aas-graph-search-demo .gs-order {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-graph-search-demo .gs-order strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
+  .aas-graph-search-demo .gs-table {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(3.2em, max-content));
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-graph-search-demo .gs-tr {
+    display: contents;
+  }
+  .aas-graph-search-demo .gs-tr > span {
+    padding: 0.1em 0.9em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+    min-height: 1.45em;
+  }
+  .aas-graph-search-demo .gs-th > span {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-graph-search-demo .gs-tr.is-now > span {
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+
+  .aas-graph-search-demo .gs-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-graph-search-demo .gs-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-graph-search-demo.is-done .gs-note {
+    color: var(--aas-text);
+  }
+  .aas-graph-search-demo .gs-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-graph-search-demo .gs-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-graph-search-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  /* 데모 상자는 슬라이드 폭을 다 쓰고, 그래프는 높이를 정해 그만큼 키운다. */
+  .aas-graph-search-demo.is-slide .gs-body {
+    flex-wrap: nowrap;
+  }
+  .aas-graph-search-demo.is-slide .gs-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+  /* 표와 큐는 조금 줄여 데모가 슬라이드 높이 안에 들게 한다. */
+  .aas-graph-search-demo.is-slide .gs-table {
+    font-size: 0.7em;
+  }
+  .aas-graph-search-demo.is-slide .gs-panel {
+    gap: 0.45em;
+  }
+  .aas-graph-search-demo.is-slide .gs-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-graph-search-demo .gs-cell {
+      animation: none;
+    }
+  }
+</style>

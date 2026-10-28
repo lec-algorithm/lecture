@@ -1,0 +1,673 @@
+---
+// 간선을 정확히 k개 써서 가는 최단 경로를 메모이제이션으로 구하는 데모.
+//
+// 왼쪽은 그래프, 오른쪽은 memo 표다(행 k, 열 출발 정점 u, 도착은 고정).
+// S(u, k)를 부르면 u에서 나가는 간선들이 파랑 점선으로 켜지고, 답이 나오면
+// 참조한 칸 S(x, k-1)들이 파랑으로, 값을 준 간선이 진하게 칠해진다.
+// 표를 다 채우면 next를 따라 출발점부터 길을 복원한다(분홍 화살표).
+// k = 0 줄은 기저라 처음부터 채워 둔다(도착점만 0, 나머지는 INF).
+//
+// 단계는 스크립트가 재귀를 실제로 돌려 만든다. 이웃을 보는 순서와 동점
+// 처리는 algorithm-code topic-14의 05_shortest_path(shortestPath)와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+type Edge = [number, number, number];
+interface Props {
+  /** [u, v, 비용] */
+  edges?: Edge[];
+  /** 정점 좌표 (viewBox 560 x 420 기준) */
+  pos?: [number, number][];
+  src?: number;
+  dst?: number;
+  k?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  edges = [
+    [0, 1, 1],
+    [0, 2, 2],
+    [1, 3, 6],
+    [2, 1, 2],
+    [2, 3, 4],
+    [2, 4, 3],
+    [3, 5, 3],
+    [4, 3, 1],
+    [4, 5, 5],
+  ],
+  pos = [
+    [50, 210],
+    [180, 80],
+    [180, 340],
+    [370, 80],
+    [370, 340],
+    [500, 210],
+  ],
+  src = 0,
+  dst = 3,
+  k = 3,
+  slide = false,
+} = Astro.props;
+const id = `pd-${Math.random().toString(36).slice(2, 9)}`;
+const V = pos.length;
+const R = 26;
+
+// 간선 그림: 원 둘레에서 둘레까지, 화살촉은 따로 그린다(상태에 따라 색을 바꾸려고).
+const geo = edges.map(([u, v, w]) => {
+  const [x0, y0] = pos[u];
+  const [x1, y1] = pos[v];
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  const ux = dx / len;
+  const uy = dy / len;
+  const sx = x0 + ux * R;
+  const sy = y0 + uy * R;
+  const ex = x1 - ux * (R + 2);
+  const ey = y1 - uy * (R + 2);
+  const s = 14;
+  const tip = `M ${ex} ${ey} L ${ex - ux * s - uy * s * 0.5} ${ey - uy * s + ux * s * 0.5} L ${ex - ux * s + uy * s * 0.5} ${ey - uy * s - ux * s * 0.5} Z`;
+  // 비용 글자는 선의 가운데에서 법선 방향으로 조금 비켜 둔다.
+  const lx = (sx + ex) / 2 - uy * 16;
+  const ly = (sy + ey) / 2 + ux * 16;
+  return { u, v, w, line: { x1: sx, y1: sy, x2: ex - ux * 8, y2: ey - uy * 8 }, tip, lx, ly };
+});
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '간선 {k}개로 {s} → {d}',
+    graph: '그래프',
+    table: 'memo (도착 {d})',
+    corner: 'k \\ u',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    calls: '구한 칸',
+    idle: 'k = 0 줄은 기저입니다. 도착점 {d}만 0이고 나머지는 갈 수 없습니다(INF).',
+    enter: 'S({u}, k={k}) 호출: {u}에서 나가는 간선은 {list}입니다. 하나씩 봅니다.',
+    leaf: 'S({u}, k={k}) 호출: {u}에서 나가는 간선이 없습니다.',
+    hit: 'S({u}, k={k}) = {v}, 이미 구한 칸입니다. 다시 풀지 않고 꺼냅니다.',
+    try: '{u}→{x}: {w} + {r}',
+    ret: 'S({u}, k={k}) = {v}   ({list})',
+    restore: 'next[{k}][{u}] = {x}: {u}에서 {x} 쪽으로 갑니다(비용 {w}).',
+    done: '{path} = {sum} = {v}. memo {n}칸 중 {c}칸만 구했습니다.',
+    none: '간선 {k}개로 {s}에서 {d}에 가는 길이 없습니다.',
+  },
+  en: {
+    title: '{s} → {d} with {k} edges',
+    graph: 'Graph',
+    table: 'memo (to {d})',
+    corner: 'k \\ u',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    calls: 'solved',
+    idle: 'Row k = 0 is the base case. Only the destination {d} is 0; every other vertex is unreachable (INF).',
+    enter: 'Call S({u}, k={k}): try each edge out of {u}: {list}.',
+    leaf: 'Call S({u}, k={k}): no edge leaves {u}.',
+    hit: 'S({u}, k={k}): memo already holds {v}. Take it instead of solving again.',
+    try: '{u}→{x}: {w} + {r}',
+    ret: 'S({u}, k={k}) = {v}   ({list})',
+    restore: 'next[{k}][{u}] = {x}: go from {u} to {x} (cost {w}).',
+    done: '{path} = {sum} = {v}. Only {c} of the {n} memo cells were solved.',
+    none: 'There is no way from {s} to {d} with exactly {k} edges.',
+  },
+  zh: {
+    title: '用 {k} 条边从 {s} 到 {d}',
+    graph: '图',
+    table: 'memo（终点 {d}）',
+    corner: 'k \\ u',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    calls: '已求',
+    idle: 'k = 0 这一行是基本情况。只有终点 {d} 为 0，其余都到不了（INF）。',
+    enter: '调用 S({u}, k={k})：逐一尝试从 {u} 出发的边 {list}。',
+    leaf: '调用 S({u}, k={k})：{u} 没有出边。',
+    hit: 'S({u}, k={k})：memo 里已有 {v}。直接取出，不再重算。',
+    try: '{u}→{x}：{w} + {r}',
+    ret: 'S({u}, k={k}) = {v}   （{list}）',
+    restore: 'next[{k}][{u}] = {x}：从 {u} 走到 {x}（代价 {w}）。',
+    done: '{path} = {sum} = {v}。{n} 个 memo 格子中只求了 {c} 个。',
+    none: '恰好用 {k} 条边无法从 {s} 到 {d}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const fillT = (tpl: string, vars: Record<string, string | number>) =>
+  tpl.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+const config = { edges, V, src, dst, k };
+---
+
+<div
+  class:list={['aas-path-dp-demo', slide && 'is-slide']}
+  id={id}
+  data-pd-strings={JSON.stringify(t)}
+  data-pd-config={JSON.stringify(config)}
+  style={`--pd-cols: ${V}; --pd-rows: ${k + 1}`}
+>
+  <div class="pd-bar">
+    <span class="pd-head"><strong>{fillT(t.title, { k, s: src, d: dst })}</strong></span>
+    <span class="pd-controls">
+      <button type="button" class="pd-btn" data-pd-back>{t.back}</button>
+      <button type="button" class="pd-btn" data-pd-step>{t.step}</button>
+      <button type="button" class="pd-btn pd-btn-primary" data-pd-play>{t.play}</button>
+      <button type="button" class="pd-btn" data-pd-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="pd-body">
+    <svg class="pd-graph" viewBox="0 0 560 420" role="img" aria-label={t.graph}>
+      {
+        geo.map((g, i) => (
+          <g class="pd-edge" data-pd-edge={i} data-pd-u={g.u} data-pd-v={g.v}>
+            <line x1={g.line.x1} y1={g.line.y1} x2={g.line.x2} y2={g.line.y2} />
+            <path d={g.tip} />
+            <text x={g.lx} y={g.ly} text-anchor="middle" dominant-baseline="central">
+              {g.w}
+            </text>
+          </g>
+        ))
+      }
+      {
+        pos.map(([x, y], u) => (
+          <g
+            class:list={['pd-node', u === src && 'is-src', u === dst && 'is-dst']}
+            data-pd-node={u}
+          >
+            <circle cx={x} cy={y} r={R} />
+            <text x={x} y={y} text-anchor="middle" dominant-baseline="central">
+              {u}
+            </text>
+          </g>
+        ))
+      }
+    </svg>
+
+    <div class="pd-table-col">
+      <h4>{fillT(t.table, { d: dst })}</h4>
+      <div class="pd-table">
+        <span class="pd-corner">{t.corner}</span>
+        {Array.from({ length: V }, (_, u) => <span class="pd-colhead">{u}</span>)}
+        {
+          Array.from({ length: k + 1 }, (_, kk) => (
+            <>
+              <span class="pd-rowhead">{kk}</span>
+              {Array.from({ length: V }, (_, u) => (
+                <span class="pd-cell" data-pd-k={kk} data-pd-cell={u} />
+              ))}
+            </>
+          ))
+        }
+      </div>
+      <p class="pd-count">{t.calls} <strong data-pd-count>0</strong> / {k * V}</p>
+    </div>
+  </div>
+
+  <p class="pd-note" data-pd-note></p>
+</div>
+
+<script>
+  (() => {
+    const INF = Infinity;
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다.
+       끝맺음 문장을 덧붙일 때 쓰는 줄바꿈 문자에서도 끊는다. */
+    const setLines = (node: HTMLElement, text: string) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)|\s*\n\s*/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl: string, vars: Record<string, string | number>) =>
+      tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+    const show = (v: number | undefined) => (v === undefined ? '' : v === INF ? 'INF' : String(v));
+
+    type Step = {
+      memo: Record<string, number>;
+      curU: number | null;
+      curK: number | null;
+      tryEdges: number[];
+      bestEdge: number | null;
+      refs: [number, number][];
+      pathEdges: number[];
+      pathCells: [number, number][];
+      note: string;
+      done?: boolean;
+    };
+
+    /* 단계를 만든다. 재귀와 이웃 순서는 shortestPath.c와 같다(x 오름차순). */
+    function plan(cfg: any, S: Record<string, string>): Step[] {
+      const edges: [number, number, number][] = cfg.edges;
+      const V: number = cfg.V;
+      const dst: number = cfg.dst;
+      const out = (u: number) =>
+        edges
+          .map((e, i) => ({ x: e[1], w: e[2], i, from: e[0] }))
+          .filter((e) => e.from === u)
+          .sort((a, b) => a.x - b.x);
+      const memo: Record<string, number> = {};
+      const next: Record<string, number> = {};
+      const nextEdge: Record<string, number> = {};
+      const steps: Step[] = [];
+      const push = (s: Partial<Step>) =>
+        steps.push({
+          memo: { ...memo },
+          curU: null,
+          curK: null,
+          tryEdges: [],
+          bestEdge: null,
+          refs: [],
+          pathEdges: [],
+          pathCells: [],
+          note: '',
+          ...s,
+        });
+      const key = (k: number, u: number) => `${k},${u}`;
+
+      const solve = (u: number, k: number): number => {
+        if (k === 0) return u === dst ? 0 : INF;
+        if (memo[key(k, u)] !== undefined) {
+          push({ curU: u, curK: k, note: fill(S.hit, { u, k, v: show(memo[key(k, u)]) }) });
+          return memo[key(k, u)];
+        }
+        const nbrs = out(u);
+        push({
+          curU: u,
+          curK: k,
+          tryEdges: nbrs.map((e) => e.i),
+          note:
+            nbrs.length === 0
+              ? fill(S.leaf, { u, k })
+              : fill(S.enter, { u, k, list: nbrs.map((e) => `${u}→${e.x}`).join(', ') }),
+        });
+        let best = INF;
+        let bestEdge: number | null = null;
+        const parts: string[] = [];
+        for (const e of nbrs) {
+          const r = solve(e.x, k - 1);
+          parts.push(fill(S.try, { u, x: e.x, w: e.w, r: show(r) }));
+          if (r !== INF && e.w + r < best) {
+            best = e.w + r;
+            bestEdge = e.i;
+            next[key(k, u)] = e.x;
+            nextEdge[key(k, u)] = e.i;
+          }
+        }
+        memo[key(k, u)] = best;
+        push({
+          curU: u,
+          curK: k,
+          tryEdges: nbrs.map((e) => e.i),
+          bestEdge,
+          refs: nbrs.map((e) => [k - 1, e.x] as [number, number]),
+          note: fill(S.ret, { u, k, v: show(best), list: parts.join(', ') }),
+        });
+        return best;
+      };
+
+      const ans = solve(cfg.src, cfg.k);
+      if (ans === INF) {
+        push({ done: true, note: fill(S.none, { k: cfg.k, s: cfg.src, d: dst }) });
+        return steps;
+      }
+      const pathEdges: number[] = [];
+      const pathCells: [number, number][] = [];
+      const nodes = [cfg.src];
+      const ws: number[] = [];
+      let u = cfg.src;
+      for (let k = cfg.k; k > 0; k--) {
+        const x = next[key(k, u)];
+        const ei = nextEdge[key(k, u)];
+        pathEdges.push(ei);
+        pathCells.push([k, u]);
+        ws.push(edges[ei][2]);
+        push({
+          curU: x,
+          pathEdges: pathEdges.slice(),
+          pathCells: pathCells.slice(),
+          note: fill(S.restore, { k, u, x, w: edges[ei][2] }),
+        });
+        nodes.push(x);
+        u = x;
+      }
+      push({
+        pathEdges,
+        pathCells,
+        done: true,
+        note: fill(S.done, {
+          path: nodes.join(' → '),
+          sum: ws.join(' + '),
+          v: ans,
+          n: cfg.k * V,
+          c: Object.keys(memo).length,
+        }),
+      });
+      return steps;
+    }
+
+    document.querySelectorAll<HTMLElement>('.aas-path-dp-demo').forEach((root) => {
+      if (root.dataset.pdWired) return;
+      root.dataset.pdWired = '1';
+
+      const S = JSON.parse(root.dataset.pdStrings || '{}');
+      const cfg = JSON.parse(root.dataset.pdConfig || '{}');
+      const steps = plan(cfg, S);
+      const edgeEls = [...root.querySelectorAll<SVGGElement>('[data-pd-edge]')];
+      const nodeEls = [...root.querySelectorAll<SVGGElement>('[data-pd-node]')];
+      const cellEls = [...root.querySelectorAll<HTMLElement>('[data-pd-cell]')];
+      const note = root.querySelector<HTMLElement>('[data-pd-note]')!;
+      const count = root.querySelector<HTMLElement>('[data-pd-count]')!;
+      const stepBtn = root.querySelector<HTMLButtonElement>('[data-pd-step]')!;
+      const playBtn = root.querySelector<HTMLButtonElement>('[data-pd-play]')!;
+
+      let at = -1;
+      let timer: number | null = null;
+
+      function render() {
+        const s = at >= 0 ? steps[at] : null;
+        const memo = s ? s.memo : {};
+        cellEls.forEach((el) => {
+          const k = Number(el.dataset.pdK);
+          const u = Number(el.dataset.pdCell);
+          const v = k === 0 ? (u === cfg.dst ? 0 : INF) : memo[`${k},${u}`];
+          el.textContent = show(v);
+          el.classList.toggle('is-base', k === 0);
+          el.classList.toggle('is-filled', k > 0 && v !== undefined);
+          el.classList.toggle('is-inf', v === INF);
+          el.classList.toggle('is-cur', !!s && s.curK === k && s.curU === u);
+          el.classList.toggle('is-ref', !!s && s.refs.some(([a, b]) => a === k && b === u));
+          el.classList.toggle('is-path', !!s && s.pathCells.some(([a, b]) => a === k && b === u));
+        });
+        edgeEls.forEach((el, i) => {
+          el.classList.toggle('is-try', !!s && s.tryEdges.includes(i));
+          el.classList.toggle('is-best', !!s && s.bestEdge === i);
+          el.classList.toggle('is-path', !!s && s.pathEdges.includes(i));
+        });
+        nodeEls.forEach((el, u) => {
+          el.classList.toggle('is-cur', !!s && s.curU === u);
+        });
+        count.textContent = String(Object.keys(memo).length);
+        setLines(note, s ? s.note : fill(S.idle, { d: cfg.dst }));
+        const last = at === steps.length - 1;
+        root.classList.toggle('is-done', last);
+        stepBtn.disabled = last;
+        if (last) stop();
+      }
+
+      function stop() {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+          playBtn.textContent = S.play;
+        }
+      }
+      function step() {
+        if (at < steps.length - 1) at++;
+        render();
+      }
+
+      root.querySelector('[data-pd-back]')!.addEventListener('click', () => {
+        stop();
+        if (at > -1) at--;
+        render();
+      });
+      stepBtn.addEventListener('click', () => {
+        stop();
+        step();
+      });
+      playBtn.addEventListener('click', () => {
+        if (timer !== null) {
+          stop();
+          return;
+        }
+        if (at >= steps.length - 1) at = -1;
+        playBtn.textContent = S.stop;
+        timer = window.setInterval(step, 1500);
+      });
+      root.querySelector('[data-pd-reset]')!.addEventListener('click', () => {
+        stop();
+        at = -1;
+        render();
+      });
+
+      render();
+    });
+  })();
+</script>
+
+<style is:global>
+  .aas-path-dp-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다. 루트 하나로 전체가 함께 커진다. */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-path-dp-demo .pd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-path-dp-demo .pd-head {
+    font-size: 0.95em;
+  }
+  .aas-path-dp-demo .pd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-path-dp-demo .pd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-path-dp-demo .pd-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-path-dp-demo .pd-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-path-dp-demo .pd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-path-dp-demo .pd-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) auto;
+    gap: 1.25em;
+    align-items: center;
+  }
+  @media (max-width: 640px) {
+    .aas-path-dp-demo:not(.is-slide) .pd-body {
+      grid-template-columns: 1fr;
+    }
+  }
+  .aas-path-dp-demo .pd-graph {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .aas-path-dp-demo .pd-edge line {
+    stroke: var(--aas-muted);
+    stroke-width: 2.5;
+    transition: stroke 0.25s;
+  }
+  .aas-path-dp-demo .pd-edge path {
+    fill: var(--aas-muted);
+    transition: fill 0.25s;
+  }
+  .aas-path-dp-demo .pd-edge text {
+    fill: var(--aas-text);
+    font-size: 20px;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-path-dp-demo .pd-edge.is-try line {
+    stroke: var(--aas-role-model);
+    stroke-dasharray: 9 6;
+  }
+  .aas-path-dp-demo .pd-edge.is-try path {
+    fill: var(--aas-role-model);
+  }
+  .aas-path-dp-demo .pd-edge.is-best line {
+    stroke: var(--aas-role-model);
+    stroke-width: 5;
+    stroke-dasharray: none;
+  }
+  .aas-path-dp-demo .pd-edge.is-path line {
+    stroke: var(--aas-role-guard);
+    stroke-width: 6;
+    stroke-dasharray: none;
+  }
+  .aas-path-dp-demo .pd-edge.is-path path {
+    fill: var(--aas-role-guard);
+  }
+  .aas-path-dp-demo .pd-edge.is-path text,
+  .aas-path-dp-demo .pd-edge.is-best text {
+    font-weight: 700;
+  }
+  .aas-path-dp-demo .pd-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-bg);
+    stroke-width: 2;
+    transition:
+      fill 0.25s,
+      stroke 0.25s;
+  }
+  .aas-path-dp-demo .pd-node text {
+    fill: var(--aas-bg);
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-path-dp-demo .pd-node.is-src circle {
+    fill: var(--aas-role-eval);
+  }
+  .aas-path-dp-demo .pd-node.is-dst circle {
+    fill: var(--aas-role-focus);
+  }
+  .aas-path-dp-demo .pd-node.is-cur circle {
+    stroke: var(--aas-role-model);
+    stroke-width: 7;
+  }
+
+  .aas-path-dp-demo h4 {
+    margin: 0 0 0.4em;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-path-dp-demo .pd-table {
+    display: grid;
+    grid-template-columns: 2.6em repeat(var(--pd-cols), 2.9em);
+    grid-auto-rows: 2.3em;
+    gap: 0.18em;
+  }
+  .aas-path-dp-demo .pd-corner,
+  .aas-path-dp-demo .pd-colhead,
+  .aas-path-dp-demo .pd-rowhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-path-dp-demo .pd-corner {
+    font-size: 0.65em;
+  }
+  .aas-path-dp-demo .pd-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    color: var(--aas-text);
+    transition:
+      background-color 0.25s,
+      border-color 0.25s,
+      box-shadow 0.25s;
+  }
+  .aas-path-dp-demo .pd-cell.is-base {
+    color: var(--aas-muted);
+    border-style: dotted;
+  }
+  .aas-path-dp-demo .pd-cell.is-filled {
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-path-dp-demo .pd-cell.is-inf {
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-path-dp-demo .pd-cell.is-ref {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-path-dp-demo .pd-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-path-dp-demo .pd-cell.is-path {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 24%, var(--aas-bg));
+  }
+  .aas-path-dp-demo .pd-count {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-path-dp-demo .pd-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  .aas-path-dp-demo .pd-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-path-dp-demo.is-done .pd-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
+  .aas-path-dp-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-path-dp-demo.is-slide .pd-graph {
+    max-height: 46vh;
+  }
+  .aas-path-dp-demo.is-slide .pd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-path-dp-demo .pd-cell,
+    .aas-path-dp-demo .pd-edge line,
+    .aas-path-dp-demo .pd-edge path,
+    .aas-path-dp-demo .pd-node circle {
+      transition: none;
+    }
+  }
+</style>

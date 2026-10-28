@@ -1,0 +1,932 @@
+---
+// 트라이를 한 걸음씩 보는 데모. 모드가 넷이다.
+//
+// - insert: 키를 하나씩 넣는다. 이미 있는 노드를 지나는 길은 파랑, 새로 만든
+//   노드는 초록이다. 공유하는 접두사는 노드를 다시 쓴다.
+// - search: get(키)를 차례로 돌린다. 문자마다 링크 하나를 따라 내려가고,
+//   값이 있는 노드에서 끝나면 성공, 값이 없거나 링크가 없으면 실패다.
+// - prefix: 접두사의 마지막 문자 노드까지 내려간 뒤, 그 아래를 a부터 z 순서로
+//   돌며 값이 있는 노드의 키를 모은다.
+// - delete: 키의 값을 지우고, 값도 자식도 없는 노드를 아래에서부터 떼어 낸다.
+//   값이 있거나 다른 자식이 있는 노드에서 멈춘다.
+//
+// 그림의 자리는 가장 큰 트라이(모든 키를 넣은 것)로 한 번 정한다. 단계가
+// 바뀌어도 노드가 움직이지 않고, 생기는 노드는 제자리에서 나타나고 지우는
+// 노드는 제자리에서 사라진다.
+//
+// 절차와 숫자는 algorithm-code의 topic-10-trie/01_trie와 같다. 기본 키는
+// by=4 sea=2 sells=1 she=0 shells=3 the=5이고, prefix·delete는 실습 코드처럼
+// shore=7을 더한 트라이에서 시작한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+type Mode = 'insert' | 'search' | 'prefix' | 'delete';
+interface Props {
+  mode?: Mode;
+  /** 넣을 키와 값. 기본은 실습 코드와 같다. */
+  words?: [string, number][];
+  /** prefix·delete 모드에서 더 넣고 시작하는 키 */
+  extra?: [string, number][];
+  /** search 모드에서 찾을 키 */
+  queries?: string[];
+  /** prefix 모드의 접두사 */
+  prefix?: string;
+  /** delete 모드에서 지울 키 */
+  target?: string;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const {
+  mode = 'insert',
+  words = [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+  extra = [['shore', 7]],
+  queries = ['shells', 'shell', 'she', 'shore'],
+  prefix = 'sh',
+  target = 'shells',
+  slide = false,
+} = Astro.props;
+const id = `tr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    'title.insert': '트라이 삽입',
+    'title.search': '트라이 검색',
+    'title.prefix': '접두사로 모두 찾기',
+    'title.delete': '트라이 삭제',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    root: '루트',
+    key: '키',
+    value: '값',
+    query: '찾는 키',
+    result: '결과',
+    found: '모은 키',
+    nodes: '노드',
+    links: '링크',
+    empty: '빈 링크',
+    visited: '거친 노드',
+    keys: '모은 키',
+    none: 'NULL',
+    'insert.idle': '빈 트라이에서 시작합니다. 루트 하나에 링크 26개가 모두 비어 있습니다.',
+    'insert.word': '{w} = {v}: 있는 노드 {k}개를 지나고 새 노드 {m}개를 만듭니다. 마지막 문자 {c}의 노드에 값을 둡니다.',
+    'insert.done': '키 {n}개, 노드 {nodes}개(루트 포함). 링크 {links}개 중 {used}개만 씁니다.',
+    'search.idle': '찾을 키 {n}개를 차례로 찾습니다. 루트에서 키의 문자를 하나씩 따라 내려갑니다.',
+    'search.start': 'get("{w}"): 루트에서 출발합니다.',
+    'search.move': '{c} 링크를 따라 내려갑니다.',
+    'search.hit': '마지막 문자 {c}의 노드에 값이 있습니다. 결과는 {v}입니다.',
+    'search.noValue': '마지막 문자 {c}까지 왔지만 이 노드에는 값이 없습니다. 실패(NULL)입니다.',
+    'search.noLink': '다음 문자 {c}의 링크가 비어 있습니다. 실패(NULL)입니다.',
+    'search.done': '성공이든 실패든 키의 문자 수만큼만 내려갑니다. 키가 몇 개 들어 있는지는 상관없습니다.',
+    'prefix.idle': '접두사가 "{p}"인 키를 모두 찾습니다. 먼저 접두사를 따라 내려갑니다.',
+    'prefix.move': '{c} 링크를 따라 내려갑니다.',
+    'prefix.reach': '접두사의 마지막 문자 {c}에 왔습니다. 이 서브트리에 접두사가 "{p}"인 키가 전부 있습니다.',
+    'prefix.visit': '{s}: 값이 없습니다. a부터 z 순서로 자식에게 내려갑니다.',
+    'prefix.take': '{s}: 값({v})이 있으니 결과에 넣습니다.',
+    'prefix.noLink': '{c} 링크가 비어 있습니다. 이 접두사로 시작하는 키는 없습니다.',
+    'prefix.done': '접두사가 "{p}"인 키 {n}개를 사전 순으로 모았습니다.',
+    'delete.idle': 'delete("{w}"): 먼저 키의 마지막 문자 노드를 찾아 내려갑니다.',
+    'delete.find': '{w}의 마지막 문자 노드를 찾았습니다.',
+    'delete.clear': '이 노드의 값을 NULL로 바꿉니다. 이제 값도 자식도 없는지 봅니다.',
+    'delete.remove': '{c}: 값도 자식 링크도 없습니다. 노드를 지우고 부모의 링크를 NULL로 만듭니다.',
+    'delete.keepValue': '{c}: 값({v})이 있습니다. 노드를 남기고 여기서 멈춥니다.',
+    'delete.keepLink': '{c}: 다른 자식 링크가 있습니다. 노드를 남기고 여기서 멈춥니다.',
+    'delete.done': '노드 {n}개({cs})를 지웠습니다. 노드가 {before}개에서 {after}개가 되었습니다.',
+  },
+  en: {
+    'title.insert': 'Trie insertion',
+    'title.search': 'Trie search',
+    'title.prefix': 'Keys with a prefix',
+    'title.delete': 'Trie deletion',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    root: 'root',
+    key: 'Key',
+    value: 'Value',
+    query: 'Query',
+    result: 'Result',
+    found: 'Collected',
+    nodes: 'nodes',
+    links: 'links',
+    empty: 'null links',
+    visited: 'nodes visited',
+    keys: 'keys collected',
+    none: 'NULL',
+    'insert.idle': 'Start from an empty trie: one root whose 26 links are all null.',
+    'insert.word': '{w} = {v}: pass {k} existing nodes and create {m} new ones. The node for the last character {c} gets the value {v}.',
+    'insert.done': '{n} keys, {nodes} nodes including the root. Only {used} of the {links} links are used.',
+    'search.idle': 'Look up {n} keys in turn, following the characters of the key down from the root.',
+    'search.start': 'get("{w}"): start at the root.',
+    'search.move': 'Follow the link for {c}.',
+    'search.hit': 'The node for the last character {c} holds the value {v}. Return {v}.',
+    'search.noValue': 'We reached the last character {c}, but this node holds no value. Miss (NULL).',
+    'search.noLink': 'The link for the next character {c} is null. Miss (NULL).',
+    'search.done': 'Hit or miss, a search goes down at most as many levels as the key has characters, however many keys the trie holds.',
+    'prefix.idle': 'Collect every key that starts with "{p}". First follow the prefix down.',
+    'prefix.move': 'Follow the link for {c}.',
+    'prefix.reach': 'This is the node for the last prefix character {c}. Every key starting with "{p}" lies in this subtrie.',
+    'prefix.visit': '{s}: no value. Go down to the children from a to z.',
+    'prefix.take': '{s}: holds the value {v}. Add {s} to the results.',
+    'prefix.noLink': 'The link for {c} is null. No key starts with this prefix.',
+    'prefix.done': 'Collected {n} keys starting with "{p}", in alphabetical order.',
+    'delete.idle': 'delete("{w}"): first walk down to the node for the last character of the key.',
+    'delete.find': 'Found the node for the last character of {w}.',
+    'delete.clear': 'Set its value to NULL. Now check whether it has neither a value nor children.',
+    'delete.remove': '{c}: no value and no child links. Remove the node and set the parent link to NULL.',
+    'delete.keepValue': '{c}: holds the value {v}. Keep the node and stop here.',
+    'delete.keepLink': '{c}: has another child link. Keep the node and stop here.',
+    'delete.done': 'Removed {n} nodes ({cs}). The trie went from {before} nodes to {after}.',
+  },
+  zh: {
+    'title.insert': '字典树插入',
+    'title.search': '字典树查找',
+    'title.prefix': '按前缀查找全部',
+    'title.delete': '字典树删除',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    root: '根',
+    key: '键',
+    value: '值',
+    query: '查找的键',
+    result: '结果',
+    found: '收集的键',
+    nodes: '节点',
+    links: '链接',
+    empty: '空链接',
+    visited: '经过的节点',
+    keys: '收集的键',
+    none: 'NULL',
+    'insert.idle': '从空字典树开始：只有一个根，它的 26 个链接全是空的。',
+    'insert.word': '{w} = {v}：经过已有的 {k} 个节点，新建 {m} 个节点。最后一个字符 {c} 的节点存值 {v}。',
+    'insert.done': '{n} 个键，{nodes} 个节点（含根）。{links} 个链接里只用了 {used} 个。',
+    'search.idle': '依次查找 {n} 个键。从根出发，沿着键的字符一个个往下走。',
+    'search.start': 'get("{w}")：从根出发。',
+    'search.move': '沿 {c} 的链接往下走。',
+    'search.hit': '最后一个字符 {c} 的节点存有值 {v}。返回 {v}。',
+    'search.noValue': '走到了最后一个字符 {c}，但这个节点没有值。查找失败 (NULL)。',
+    'search.noLink': '下一个字符 {c} 的链接是空的。查找失败 (NULL)。',
+    'search.done': '无论成功还是失败，最多只往下走键的字符数那么多层，与树里有多少个键无关。',
+    'prefix.idle': '收集所有以 "{p}" 开头的键。先沿着前缀往下走。',
+    'prefix.move': '沿 {c} 的链接往下走。',
+    'prefix.reach': '到了前缀最后一个字符 {c} 的节点。以 "{p}" 开头的键全在这棵子树里。',
+    'prefix.visit': '{s}：没有值。按 a 到 z 的顺序走向子节点。',
+    'prefix.take': '{s}：存有值 {v}。把 {s} 放进结果。',
+    'prefix.noLink': '{c} 的链接是空的。没有以这个前缀开头的键。',
+    'prefix.done': '按字典序收集到 {n} 个以 "{p}" 开头的键。',
+    'delete.idle': 'delete("{w}")：先找到键的最后一个字符的节点。',
+    'delete.find': '找到了 {w} 的最后一个字符的节点。',
+    'delete.clear': '把这个节点的值设为 NULL。接着看它是否既没有值也没有子节点。',
+    'delete.remove': '{c}：没有值也没有子链接。删除节点，并把父节点的链接设为 NULL。',
+    'delete.keepValue': '{c}：存有值 {v}。保留节点，到此为止。',
+    'delete.keepLink': '{c}：还有别的子链接。保留节点，到此为止。',
+    'delete.done': '删除了 {n} 个节点（{cs}）。节点从 {before} 个变成 {after} 个。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const config = { mode, words, extra, queries, prefix, target };
+const chip =
+  mode === 'search'
+    ? queries.join(' · ')
+    : mode === 'prefix'
+      ? `"${prefix}"`
+      : mode === 'delete'
+        ? target
+        : words.map(([w, v]) => `${w}=${v}`).join(' ');
+---
+
+<div
+  class:list={['aas-trie-demo', slide && 'is-slide']}
+  id={id}
+  data-tr-config={JSON.stringify(config)}
+  data-tr-strings={JSON.stringify(t)}
+>
+  <div class="tr-bar">
+    <span class="tr-head">
+      <strong>{t[`title.${mode}`]}</strong>
+      <span class="tr-chip">{chip}</span>
+    </span>
+    <div class="tr-controls">
+      <button type="button" data-act="back" class="tr-btn">{t.back}</button>
+      <button type="button" data-act="step" class="tr-btn">{t.step}</button>
+      <button type="button" data-act="play" class="tr-btn tr-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="tr-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="tr-body">
+    <svg class="tr-svg" data-tr-svg role="img" aria-label={t[`title.${mode}`]}></svg>
+    <table class="tr-table">
+      <thead>
+        <tr data-tr-head></tr>
+      </thead>
+      <tbody data-tr-rows></tbody>
+    </table>
+  </div>
+
+  <div class="tr-foot">
+    <p class="tr-note" data-tr-note></p>
+    <span class="tr-count" data-tr-count></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const cfg = JSON.parse(root.dataset.trConfig);
+    const S = JSON.parse(root.dataset.trStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const R = 26;
+
+    /* plan:start (아래 함수들은 algorithm-code의 trie와 같은 절차를 돌려 단계를 만든다) */
+    /* 노드의 id는 루트에서 그 노드까지의 문자열이다. 루트는 ''. */
+    function newTrie() {
+      return new Map([['', { id: '', ch: '', parent: null, kids: [], value: null }]]);
+    }
+    function addKid(trie, parentId, ch) {
+      const nid = parentId + ch;
+      trie.set(nid, { id: nid, ch, parent: parentId, kids: [], value: null });
+      const kids = trie.get(parentId).kids;
+      kids.push(nid);
+      kids.sort();
+      return nid;
+    }
+    /* 삽입: 있는 노드는 지나가고, 없으면 만든다. 지나간 것과 만든 것을 돌려준다. */
+    function insert(trie, word, value) {
+      let cur = '';
+      const passed = [];
+      const made = [];
+      for (const ch of word) {
+        const next = cur + ch;
+        if (trie.has(next)) passed.push(next);
+        else made.push(addKid(trie, cur, ch));
+        cur = next;
+      }
+      trie.get(cur).value = value;
+      return { passed, made };
+    }
+    const values = (trie) => {
+      const out = {};
+      for (const [nid, n] of trie) if (n.value !== null) out[nid] = n.value;
+      return out;
+    };
+
+    function plan() {
+      const steps = [];
+      const trie = newTrie();
+      const base = cfg.mode === 'prefix' || cfg.mode === 'delete' ? cfg.words.concat(cfg.extra) : cfg.words;
+      const head = [];
+      const rows = [];
+
+      if (cfg.mode === 'insert') {
+        head.push(S.key, S.value);
+        cfg.words.forEach(([w, v]) => rows.push([w, String(v)]));
+        const counters = () => {
+          const nodes = trie.size;
+          return [[S.nodes, nodes], [S.links, nodes * R], [S.empty, nodes * R - (nodes - 1)]];
+        };
+        steps.push({
+          present: [...trie.keys()], mark: {}, values: {}, note: S['insert.idle'],
+          rows: rows.map(() => 'todo'), counters: counters(),
+        });
+        cfg.words.forEach(([w, v], i) => {
+          const { passed, made } = insert(trie, w, v);
+          const mark = {};
+          passed.forEach((n) => (mark[n] = 'path'));
+          made.forEach((n) => (mark[n] = 'new'));
+          steps.push({
+            present: [...trie.keys()], mark, values: values(trie), fresh: made,
+            note: fill(S['insert.word'], { w, v, k: passed.length, m: made.length, c: w[w.length - 1] }),
+            rows: rows.map((_, j) => (j < i ? 'done' : j === i ? 'cur' : 'todo')), counters: counters(),
+          });
+        });
+        const nodes = trie.size;
+        steps.push({
+          present: [...trie.keys()], mark: {}, values: values(trie),
+          note: fill(S['insert.done'], { n: cfg.words.length, nodes, links: nodes * R, used: nodes - 1 }),
+          rows: rows.map(() => 'done'), counters: counters(), done: true,
+        });
+        return { steps, head, rows, layoutTrie: trie };
+      }
+
+      base.forEach(([w, v]) => insert(trie, w, v));
+      const all = [...trie.keys()];
+      const vals = values(trie);
+
+      if (cfg.mode === 'search') {
+        head.push(S.query, S.result);
+        cfg.queries.forEach((q) => rows.push([q, '']));
+        const results = cfg.queries.map(() => '');
+        const rowState = (i) => rows.map((_, j) => (j < i ? 'done' : j === i ? 'cur' : 'todo'));
+        steps.push({
+          present: all, mark: {}, values: vals, note: fill(S['search.idle'], { n: cfg.queries.length }),
+          rows: rowState(-1), results: results.slice(), counters: [[S.visited, 0]],
+        });
+        cfg.queries.forEach((q, i) => {
+          let cur = '';
+          const path = [''];
+          const mk = () => {
+            const m = {};
+            path.forEach((n) => (m[n] = 'path'));
+            m[cur] = 'cur';
+            return m;
+          };
+          steps.push({
+            present: all, mark: mk(), values: vals, note: fill(S['search.start'], { w: q }),
+            rows: rowState(i), results: results.slice(), counters: [[S.visited, path.length]],
+          });
+          let miss = null;
+          for (const ch of q) {
+            const next = cur + ch;
+            if (!trie.has(next)) {
+              miss = ch;
+              break;
+            }
+            cur = next;
+            path.push(cur);
+            steps.push({
+              present: all, mark: mk(), values: vals, note: fill(S['search.move'], { c: ch }),
+              rows: rowState(i), results: results.slice(), counters: [[S.visited, path.length]],
+            });
+          }
+          const m = mk();
+          let note;
+          if (miss !== null) {
+            m[cur] = 'miss';
+            note = fill(S['search.noLink'], { c: miss });
+            results[i] = S.none;
+          } else if (trie.get(cur).value !== null) {
+            m[cur] = 'hit';
+            const v = trie.get(cur).value;
+            note = fill(S['search.hit'], { c: q[q.length - 1], v });
+            results[i] = String(v);
+          } else {
+            m[cur] = 'miss';
+            note = fill(S['search.noValue'], { c: q[q.length - 1] });
+            results[i] = S.none;
+          }
+          steps.push({
+            present: all, mark: m, values: vals, note,
+            rows: rowState(i), results: results.slice(), counters: [[S.visited, path.length]],
+            finished: i,
+          });
+        });
+        steps.push({
+          present: all, mark: {}, values: vals, note: S['search.done'],
+          rows: rowState(cfg.queries.length), results: results.slice(), counters: [[S.visited, 0]], done: true,
+        });
+        return { steps, head, rows, layoutTrie: trie };
+      }
+
+      if (cfg.mode === 'prefix') {
+        head.push(S.found, S.value);
+        const p = cfg.prefix;
+        const found = [];
+        const path = [''];
+        let cur = '';
+        const snap = (extraMark, note, done) => {
+          const m = {};
+          path.forEach((n) => (m[n] = 'path'));
+          Object.assign(m, extraMark);
+          found.forEach(([n]) => (m[n] = 'take'));
+          return {
+            present: all, mark: m, values: vals, note, found: found.map(([n]) => n),
+            counters: [[S.keys, found.length]], done,
+          };
+        };
+        steps.push(snap({ '': 'cur' }, fill(S['prefix.idle'], { p })));
+        for (const ch of p) {
+          const next = cur + ch;
+          if (!trie.has(next)) {
+            steps.push(snap({ [cur]: 'miss' }, fill(S['prefix.noLink'], { c: ch })));
+            steps.push(snap({}, fill(S['prefix.done'], { p, n: 0 }), true));
+            return { steps, head, rows, layoutTrie: trie };
+          }
+          cur = next;
+          path.push(cur);
+          if (cur.length < p.length) steps.push(snap({ [cur]: 'cur' }, fill(S['prefix.move'], { c: ch })));
+        }
+        steps.push(snap({ [cur]: 'cur' }, fill(S['prefix.reach'], { c: p[p.length - 1] || S.root, p })));
+        /* getAllWordsHelper: 값이 있으면 넣고, 자식을 a부터 z 순서로 */
+        const seen = [];
+        (function collect(nid) {
+          const n = trie.get(nid);
+          seen.push(nid);
+          const m = {};
+          seen.forEach((s) => (m[s] = 'seen'));
+          if (n.value !== null) {
+            found.push([nid, n.value]);
+            rows.push([nid, String(n.value)]);
+            steps.push(snap({ ...m, [nid]: 'take' }, fill(S['prefix.take'], { s: nid, v: n.value })));
+          } else if (nid !== cur) {
+            steps.push({ ...snap({ ...m, [nid]: 'cur' }, fill(S['prefix.visit'], { s: nid })), collect: true });
+          }
+          n.kids.forEach(collect);
+        })(cur);
+        const m = {};
+        seen.forEach((s) => (m[s] = 'seen'));
+        steps.push(snap(m, fill(S['prefix.done'], { p, n: found.length }), true));
+        steps.forEach((s) => (s.rows = rows.map(([w]) => (s.found.includes(w) ? 'done' : 'hidden'))));
+        return { steps, head, rows, layoutTrie: trie };
+      }
+
+      /* delete */
+      head.push(S.key, S.value);
+      base.forEach(([w, v]) => rows.push([w, String(v)]));
+      const w = cfg.target;
+      const ti = rows.findIndex(([k]) => k === w);
+      const present = new Set(all);
+      const before = present.size;
+      const valNow = { ...vals };
+      const rowStates = (state) => rows.map((_, j) => (j === ti ? state : 'done'));
+      const path = [''];
+      for (let i = 1; i <= w.length; i++) path.push(w.slice(0, i));
+      const snap = (mark, note, rowState, done) => ({
+        present: [...present], mark, values: { ...valNow }, note, rows: rowStates(rowState),
+        results: rows.map(([k, v]) => (k === w && valNow[w] === undefined ? S.none : v)),
+        counters: [[S.nodes, present.size]], done,
+      });
+      const pathMark = (upTo) => {
+        const m = {};
+        path.slice(0, upTo + 1).forEach((n) => present.has(n) && (m[n] = 'path'));
+        return m;
+      };
+      steps.push(snap({ '': 'cur' }, fill(S['delete.idle'], { w }), 'cur'));
+      steps.push(snap({ ...pathMark(path.length - 1), [w]: 'cur' }, fill(S['delete.find'], { w }), 'cur'));
+      delete valNow[w];
+      steps.push(snap({ ...pathMark(path.length - 1), [w]: 'cur' }, S['delete.clear'], 'cur'));
+      /* deleteHelper가 돌아오며 하는 일: 값도 자식도 없으면 지우고, 아니면 멈춘다 */
+      const removed = [];
+      for (let i = path.length - 1; i >= 1; i--) {
+        const nid = path[i];
+        const n = trie.get(nid);
+        const kidsLeft = n.kids.filter((k) => present.has(k));
+        const c = n.ch;
+        if (valNow[nid] === undefined && kidsLeft.length === 0) {
+          steps.push(snap({ ...pathMark(i), [nid]: 'del' }, fill(S['delete.remove'], { c }), 'cur'));
+          present.delete(nid);
+          removed.push(c);
+        } else {
+          const note = valNow[nid] !== undefined
+            ? fill(S['delete.keepValue'], { c, v: valNow[nid] })
+            : fill(S['delete.keepLink'], { c });
+          steps.push(snap({ ...pathMark(i), [nid]: 'keep' }, note, 'cur'));
+          break;
+        }
+      }
+      steps.push(snap({}, fill(S['delete.done'], {
+        n: removed.length, cs: removed.join(', '), before, after: present.size,
+      }), 'gone', true));
+      return { steps, head, rows, layoutTrie: trie };
+    }
+    /* plan:end */
+
+    const { steps, head, rows, layoutTrie } = plan();
+
+    /* 자리: 잎은 한 칸씩, 부모는 첫 자식과 마지막 자식의 가운데 */
+    const UNIT = 50;
+    const LEVEL = 50;
+    const RAD = 15;
+    const pos = new Map();
+    let slot = 0;
+    let maxDepth = 0;
+    (function place(nid, d) {
+      const n = layoutTrie.get(nid);
+      maxDepth = Math.max(maxDepth, d);
+      if (n.kids.length === 0) {
+        pos.set(nid, { x: slot * UNIT, y: d * LEVEL });
+        slot += 1;
+        return;
+      }
+      n.kids.forEach((k) => place(k, d + 1));
+      const a = pos.get(n.kids[0]);
+      const b = pos.get(n.kids[n.kids.length - 1]);
+      pos.set(nid, { x: (a.x + b.x) / 2, y: d * LEVEL });
+    })('', 0);
+    const W = (slot - 1) * UNIT;
+    const svg = root.querySelector('[data-tr-svg]');
+    const PAD = 30;
+    svg.setAttribute('viewBox', `${-PAD} ${-RAD - 18} ${W + 2 * PAD} ${maxDepth * LEVEL + 2 * RAD + 26}`);
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+
+    const edgeLayer = el('g', {});
+    const nodeLayer = el('g', {});
+    svg.appendChild(edgeLayer);
+    svg.appendChild(nodeLayer);
+    const nodeEls = new Map();
+    const edgeEls = new Map();
+    for (const [nid, n] of layoutTrie) {
+      const p = pos.get(nid);
+      if (n.parent !== null) {
+        const q = pos.get(n.parent);
+        const line = el('line', { class: 'tr-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+        edgeLayer.appendChild(line);
+        edgeEls.set(nid, line);
+      }
+      const g = el('g', { class: nid === '' ? 'tr-node is-root' : 'tr-node', transform: `translate(${p.x} ${p.y})` });
+      if (nid === '') {
+        g.appendChild(el('circle', { r: RAD * 0.8 }));
+        g.appendChild(el('text', { class: 'tr-root', y: -RAD - 4 }, S.root));
+      } else {
+        g.appendChild(el('circle', { r: RAD }));
+        g.appendChild(el('text', { class: 'tr-ch' }, n.ch));
+        g.appendChild(el('text', { class: 'tr-val', x: RAD + 3, y: RAD * 0.55 }));
+      }
+      nodeLayer.appendChild(g);
+      nodeEls.set(nid, g);
+    }
+
+    /* 표 */
+    const headRow = root.querySelector('[data-tr-head]');
+    head.forEach((h) => headRow.appendChild(Object.assign(document.createElement('th'), { textContent: h })));
+    const body = root.querySelector('[data-tr-rows]');
+    const rowEls = rows.map(([a, b]) => {
+      const tr = document.createElement('tr');
+      tr.appendChild(Object.assign(document.createElement('td'), { className: 'tr-key', textContent: a }));
+      tr.appendChild(Object.assign(document.createElement('td'), { className: 'tr-v', textContent: b }));
+      body.appendChild(tr);
+      return tr;
+    });
+
+    const MARKS = ['path', 'cur', 'new', 'hit', 'miss', 'take', 'seen', 'del', 'keep'];
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function render(s, animate) {
+      const step = steps[s];
+      const present = new Set(step.present);
+      const fresh = step.fresh || [];
+      for (const [nid, g] of nodeEls) {
+        const on = present.has(nid);
+        g.classList.toggle('is-off', !on);
+        for (const m of MARKS) g.classList.toggle(`is-${m}`, step.mark[nid] === m);
+        const i = fresh.indexOf(nid);
+        g.style.transitionDelay = animate && !reduceMotion && i >= 0 ? `${i * 0.12}s` : '0s';
+        const vt = g.querySelector('.tr-val');
+        if (vt) {
+          const v = step.values[nid];
+          vt.textContent = v === undefined ? '' : String(v);
+        }
+        const line = edgeEls.get(nid);
+        if (line) {
+          line.classList.toggle('is-off', !on);
+          const mark = step.mark[nid];
+          const curTake = mark === 'cur' && step.collect;
+          line.classList.toggle('is-path', ['path', 'cur', 'hit', 'miss', 'del', 'keep'].includes(mark) && !curTake);
+          line.classList.toggle('is-new', mark === 'new');
+          line.classList.toggle('is-take', ['take', 'seen'].includes(mark) || curTake);
+          line.style.transitionDelay = g.style.transitionDelay;
+        }
+      }
+      rowEls.forEach((tr, j) => {
+        const st = step.rows[j];
+        tr.className = `is-${st}`;
+        if (step.results) tr.querySelector('.tr-v').textContent = step.results[j];
+      });
+      setLines(root.querySelector('[data-tr-note]'), step.note);
+      const count = root.querySelector('[data-tr-count]');
+      count.textContent = '';
+      step.counters.forEach(([label, value], k) => {
+        if (k > 0) count.appendChild(document.createTextNode(' · '));
+        count.appendChild(document.createTextNode(`${label} `));
+        count.appendChild(Object.assign(document.createElement('strong'), { textContent: String(value) }));
+      });
+      root.classList.toggle('is-done', !!step.done);
+    }
+
+    let at = 0;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    };
+    const step = () => {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at, true);
+      if (at >= steps.length - 1) stop();
+    };
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at, false);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0, false);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render(0, false);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, cfg.mode === 'insert' ? 1500 : 1000);
+    });
+
+    render(0, false);
+  })();
+</script>
+
+<!-- 노드·가지·표의 칸은 스크립트가 만들므로 Astro의 scoped 스타일이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-trie-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-trie-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-demo .tr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-trie-demo .tr-head {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.7em;
+    font-size: 0.95em;
+  }
+  .aas-trie-demo .tr-chip {
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-trie-demo .tr-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-trie-demo .tr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-demo .tr-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-demo .tr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-trie-demo .tr-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    align-items: flex-start;
+  }
+  .aas-trie-demo .tr-svg {
+    flex: 1 1 20em;
+    min-width: 0;
+    width: 100%;
+    max-height: 24em;
+  }
+
+  /* 가지 */
+  .aas-trie-demo .tr-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    transition:
+      opacity 0.35s,
+      stroke 0.2s;
+  }
+  .aas-trie-demo .tr-edge.is-path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-trie-demo .tr-edge.is-new {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-trie-demo .tr-edge.is-take {
+    stroke: var(--aas-role-eval);
+    stroke-width: 2.5;
+  }
+  .aas-trie-demo .tr-edge.is-off {
+    opacity: 0;
+  }
+
+  /* 노드: 기본은 검게 채운 원에 흰 글자(트라이 그림의 관례) */
+  .aas-trie-demo .tr-node {
+    transition: opacity 0.35s;
+  }
+  .aas-trie-demo .tr-node.is-off {
+    opacity: 0;
+  }
+  .aas-trie-demo .tr-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.2s,
+      stroke 0.2s;
+  }
+  .aas-trie-demo .tr-node.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .aas-trie-demo .tr-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-demo .tr-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-trie-demo .tr-val {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-demo .tr-node.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-trie-demo .tr-node.is-cur circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-trie-demo .tr-node.is-root.is-cur circle {
+    stroke: var(--aas-text);
+    stroke-width: 3;
+  }
+  .aas-trie-demo .tr-node.is-new circle,
+  .aas-trie-demo .tr-node.is-take circle,
+  .aas-trie-demo .tr-node.is-hit circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-trie-demo .tr-node.is-seen circle {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-trie-demo .tr-node.is-miss circle,
+  .aas-trie-demo .tr-node.is-del circle {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-trie-demo .tr-node.is-del circle {
+    stroke-dasharray: 4 3;
+    fill: color-mix(in srgb, var(--aas-role-guard) 60%, var(--aas-bg));
+  }
+  .aas-trie-demo .tr-node.is-keep circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-eval);
+    stroke-width: 4;
+  }
+  .aas-trie-demo .tr-node.is-hit .tr-val,
+  .aas-trie-demo .tr-node.is-take .tr-val {
+    fill: var(--aas-role-eval);
+  }
+
+  /* 키 표 */
+  .aas-trie-demo .tr-table {
+    flex: 0 0 auto;
+    width: auto !important;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .aas-trie-demo .tr-table th,
+  .aas-trie-demo .tr-table td {
+    padding: 0.2em 0.8em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+  }
+  .aas-trie-demo .tr-table th {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-trie-demo .tr-key,
+  .aas-trie-demo .tr-v {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-trie-demo .tr-table tr {
+    transition:
+      opacity 0.3s,
+      background 0.2s;
+  }
+  .aas-trie-demo .tr-table tr.is-todo {
+    opacity: 0.4;
+  }
+  .aas-trie-demo .tr-table tr.is-hidden {
+    opacity: 0;
+  }
+  .aas-trie-demo .tr-table tr.is-cur {
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-trie-demo .tr-table tr.is-gone {
+    opacity: 0.45;
+    text-decoration: line-through;
+  }
+
+  .aas-trie-demo .tr-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-trie-demo .tr-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+    flex: 1 1 20em;
+  }
+  .aas-trie-demo .tr-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-trie-demo .tr-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-demo.is-slide {
+    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-demo.is-slide .tr-body {
+    flex-wrap: nowrap;
+  }
+  .aas-trie-demo.is-slide .tr-svg {
+    flex: 1 1 auto;
+    max-height: 50vh;
+  }
+  .aas-trie-demo.is-slide .tr-table {
+    font-size: 0.75em;
+  }
+  .aas-trie-demo.is-slide .tr-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-demo .tr-edge,
+    .aas-trie-demo .tr-node,
+    .aas-trie-demo .tr-node circle,
+    .aas-trie-demo .tr-table tr {
+      transition: none;
+    }
+  }
+</style>

@@ -1,0 +1,903 @@
+---
+title: "Topic 10. Tries and Ternary Search Trees"
+description: "The trie, which stores string keys one character at a time along a path; its search, insertion, prefix search, deletion and space cost; and the TST, which cuts the links down to three"
+date: "Topic 10 · v1"
+order: 10
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import TrieDemo from '@components/TrieDemo.astro';
+import TstDemo from '@components/TstDemo.astro';
+import TrieFigure from '@components/TrieFigure.astro';
+import TrieNodeDemo from '@components/TrieNodeDemo.astro';
+import TrieOrderDemo from '@components/TrieOrderDemo.astro';
+import TrieMissDemo from '@components/TrieMissDemo.astro';
+import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
+import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+
+{/* Slide rules follow the slide section of docs/writing-rules.md.
+    Numbers match the practice code (topic-10-trie) exactly. */}
+
+<Slide class="cover">
+
+# Tries and Ternary Search Trees
+
+Topic 10
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## Split the key to store it
+::sub[Topic 07 was the binary search tree, Topic 08 the hash table]
+
+- **Binary search tree**: walks down comparing whole keys.
+- **Hash table**: hashes the whole key.
+- **Trie**: **splits a string key into characters** and stores it as a path in a tree.
+
+<br/>
+
+Lookup time depends not on how many keys there are but on **how many characters the key has**.  
+Finding every key with a given prefix comes for free.
+
+</Slide>
+
+<Slide>
+
+#### A little more efficient
+::sub[Properties that hold even for a very large table]
+
+- **On a search hit**
+  - The time is proportional to the length of the key.
+- **On a search miss**
+  - Only a few characters are examined.
+
+</Slide>
+
+<Slide class="center">
+
+## Tries
+::sub[Trie · prefix tree, digital tree]
+
+</Slide>
+
+<Slide>
+
+#### The trie
+::sub[The name comes from retrieval]
+
+- A tree built for string search.
+  - Also called a prefix tree or a digital tree.
+- A structure designed for storing and searching a set of strings.
+- Each node stands for one character.
+  - The path from the root to a node spells out a string.
+- The value goes in the node for the key's last character.
+
+</Slide>
+
+<Slide>
+
+#### The node
+::sub[TrieNode]
+
+- **children[26]**: an array of links to the next nodes
+  - The character is used directly as an index: `b` is slot 1, `s` is slot 18
+- **hasValue**: whether some key ends at this node
+- **value**: that key's value
+
+</Slide>
+
+<Slide class="compact">
+
+#### The node in code
+::sub[`01_trie/trie.c`]
+
+```c
+#define ALPHABET_SIZE 26 /* R: alphabet size (a-z) */
+
+typedef struct TrieNode {
+    struct TrieNode *children[ALPHABET_SIZE]; /* links a-z, NULL if absent */
+    bool hasValue;                            /* does a key end here? */
+    int value;                                /* that key's value */
+} TrieNode;
+```
+
+A missing link is NULL; a new node starts with all 26 slots set to NULL.
+
+</Slide>
+
+<Slide>
+
+### A trie with six keys
+::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · click a node to see its link array]
+
+<TrieNodeDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Reading the picture
+::sub[A node's letter is the character of its incoming link]
+
+- The node does not store a letter.
+  - Which slot of the parent it hangs from is the letter.
+- The blue number next to a node is its value.
+  - The last character `e` of `she` holds 0.
+- Below the `s` link lie **all keys that start with s**.
+  - Below `sh` lie all keys that start with sh.
+
+</Slide>
+
+<Slide>
+
+#### Characteristics
+::sub[What it shares and what it wastes]
+
+- **Shared common prefixes**
+  - `sea` and `sells` share `se`; `she` and `shells` share `she`.
+- **Fast search**: $$O(m)$$ for key length $$m$$
+- **Key-value storage**: each word carries its value.
+- **Memory-hungry**
+  - 26 links per node; only 16 of the 442 are in use.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 1. Trie insertion
+::sub[Insert]
+
+</Slide>
+
+<Slide>
+
+#### Insertion
+::sub[Walk down from the root, guided by the key's characters]
+
+- **A NULL link before the last character**
+  - Create a new node and hang it there.
+- **Reaching the last character's node**
+  - Store the value in that node.
+  - If it already had a value, replace it.
+
+</Slide>
+
+<Slide>
+
+### Step by step: six keys
+::sub[Nodes passed are blue, newly created nodes green]
+
+<TrieDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Insertion in code
+::sub[`01_trie/trie.pseudo`]
+
+```plaintext
+ALGORITHM Insert(root, word, value)
+    current <- root
+    for i <- 0 to length(word)-1 do
+        index <- word[i] - 'a'          // character to array index (a=0, b=1, ...)
+        if current.children[index] = NULL then
+            current.children[index] <- CreateTrieNode()   // no link: new node
+        current <- current.children[index]
+    current.hasValue <- true            // value goes in the last character's node
+    current.value <- value
+```
+
+</Slide>
+
+<Slide class="center">
+
+## Trie search
+::sub[Search]
+
+</Slide>
+
+<Slide>
+
+#### Search
+::sub[Start at the root and follow the key's characters in turn]
+
+- Repeat until a NULL link or the last character.
+- **Hit**: the last character's node holds a value.
+- **Miss**, in two forms
+  - No link to go down.
+  - Reached the end, but that node has no value.
+
+</Slide>
+
+<Slide>
+
+### Step by step: four gets
+::sub[shells · shell · she · shore]
+
+<TrieDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+#### The four results
+::sub[Misses come in two shapes too]
+
+- **get("shells")**: the last `s` holds 3, a hit
+- **get("shell")**: we reach the last `l`, but there is no value.
+  - `shell` is only a prefix of `shells`, not a key.
+- **get("she")**: an inner node is fine if it holds a value; a hit, 0
+- **get("shore")**: no `o` link after `sh`.
+  - A miss after just three nodes.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Search in code
+::sub[`01_trie/trie.pseudo` · the practice code returns -1 on a miss]
+
+```plaintext
+ALGORITHM Search(root, word)
+    current <- root
+    for i <- 0 to length(word)-1 do
+        index <- word[i] - 'a'
+        if current.children[index] = NULL then
+            return -1                   // no link: miss
+        current <- current.children[index]
+    if current.hasValue then
+        return current.value
+    return -1                           // node exists but has no value: miss
+```
+
+</Slide>
+
+<Slide class="center">
+
+## Keys with a prefix
+::sub[Keys with Prefix · autocomplete]
+
+</Slide>
+
+<Slide>
+
+#### Keys with a prefix
+::sub[Type sh into a search box and she, shells, shore appear]
+
+**Every key that starts with sh** lies below the `sh` node.
+
+1. Follow the prefix down to the node for its last character.
+2. Walk the subtrie below it and collect the keys of nodes with values.
+
+<br/>
+
+Children are visited from a to z, so the results are in **alphabetical order**.
+
+</Slide>
+
+<Slide>
+
+### Step by step: "sh"
+::sub[The trie with shore=7 added · collected nodes are green]
+
+<TrieDemo mode="prefix" slide />
+
+</Slide>
+
+<Slide>
+
+### Try it: autocomplete
+::sub[Type a prefix and the keys below it appear in alphabetical order]
+
+<TrieNodeDemo mode="complete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Collecting in code
+::sub[`01_trie/trie.pseudo` · check the value first, then go down to the children]
+
+```plaintext
+ALGORITHM GetAllWordsHelper(node, prefix, results)
+    if node = NULL then return
+    if node.hasValue then
+        append (prefix, node.value) to results
+    for i <- 0 to 25 do                 // a to z, so results are alphabetical
+        if node.children[i] != NULL then
+            GetAllWordsHelper(node.children[i], prefix + ('a' + i), results)
+```
+
+`GetWordsWithPrefix` walks down to the prefix's node and then calls this.
+
+</Slide>
+
+<Slide class="center">
+
+## Trie deletion
+::sub[Delete]
+
+</Slide>
+
+<Slide>
+
+#### Deletion
+::sub[Remove the value, then detach useless nodes from the bottom up]
+
+1. **Search for the key's node and set its value to NULL**
+2. **Clean up on the way back**
+   - If any child link is non-NULL, delete nothing.
+   - If there is no value and all child links are NULL, delete the node.
+   - If that leaves all of the parent's child links NULL, delete the parent too.
+
+</Slide>
+
+<Slide>
+
+### Step by step: delete("shells")
+::sub[Nodes to delete get a red dashed outline; the node where it stops gets a green ring]
+
+<TrieDemo mode="delete" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Deletion in code
+::sub[`01_trie/trie.pseudo` · the root is never deleted]
+
+```plaintext
+ALGORITHM DeleteHelper(node, word, index)
+    if index = length(word) then        // reached the key's last node
+        if not node.hasValue then return false    // no such key
+        node.hasValue <- false
+        return node has no children at all
+    child <- node.children[word[index] - 'a']
+    if child = NULL then return false   // no such key
+    if DeleteHelper(child, word, index + 1) then
+        free child and set that link to NULL
+        return (not node.hasValue) and node has no children at all
+    return false
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`01_trie/` · the four scenes from the demos, as they were]
+
+- Run
+
+```console
+search
+  shells -> 3      visited 7: root s h e l l s
+  shell  -> none   visited 6: root s h e l l (no value)
+  she    -> 0      visited 4: root s h e
+  shore  -> none   visited 3: root s h (no link 'o')
+
+insert shore=7
+getWordsWithPrefix(sh): she(0) shells(3) shore(7)
+getWordsWithPrefix(se): sea(2) sells(1)
+
+delete shells: removed s l l
+  shells -> none   visited 4: root s h e (no link 'l')
+nodes = 17
+```
+
+</Slide>
+
+<Slide class="center">
+
+## Analyzing tries
+::sub[Shape, time, space]
+
+</Slide>
+
+<Slide>
+
+#### The key set decides the shape
+::sub[The link structure does not depend on insertion or deletion order]
+
+- **Trie**: once the key set is fixed, the shape is fixed.
+  - The six keys give the same picture in any order.
+- **Binary search tree**: the shape depends on insertion order.
+  - Inserted in sorted order, it becomes a single line: the worst case from Topic 07.
+
+</Slide>
+
+<Slide>
+
+### Step by step: insertion order
+::sub[Insert the same six keys in another order and only the binary search tree changes shape]
+
+<TrieOrderDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Worst case for search and insertion
+::sub[Nodes passed when searching for or inserting a key]
+
+- At most **the key length plus 1**, root included.
+  - One link per character; stop at the end of the key.
+  - Written recursively, the depth starts at 0 and stops at the key length.
+- $$O(m)$$ for key length $$m$$
+  - **No matter how many keys there are.**
+
+<br/>
+
+From the output: `shells` (6 letters) gives `visited 7`
+
+</Slide>
+
+<Slide>
+
+#### Expected cost of a search miss
+::sub[A trie built from N random keys over an alphabet of size R]
+
+- A search miss examines about $$\log_R N$$ nodes on average.
+- **The time for a search miss does not depend on the key length.**
+  - Look up `xmcwkeicowalcoeks` in an English dictionary and three or four letters tell you it is not there.
+- In a trie holding a million random keys
+  - 7-character plates or 20-digit account numbers alike, a miss ends after four or five nodes.
+
+</Slide>
+
+<Slide>
+
+### Count it yourself: search misses
+::sub[A trie of N random keys, searched 1000 times with random keys]
+
+<TrieMissDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Experiment: random 7-letter keys
+::sub[`01_trie/` · average nodes passed (root included) over 1000 random searches]
+
+- Run
+
+```console
+search miss, random keys of length 7, 1000 searches
+  N = 100    average visited = 2.15
+  N = 1000   average visited = 2.82
+  N = 10000  average visited = 3.45
+```
+
+Each tenfold increase in keys adds about 0.6\~0.7 nodes.  
+$$\log_{26} 10 \approx 0.71$$, so it grows like $$\log_R N$$.
+
+</Slide>
+
+<Slide>
+
+#### Space
+::sub[N keys over an alphabet of size R, average key length w]
+
+- Every node has $$R$$ links.
+- The number of links is **between $$RN$$ and $$RNw$$**.
+  - The root's $$R$$ links are counted separately.
+- **Short keys, or many shared prefixes**: close to $$RN$$.
+- **Long keys that differ from each other**: close to $$RNw$$.
+- Reducing $$R$$ can save a great deal of space.
+
+</Slide>
+
+<Slide>
+
+### Try it: between RN and RNw
+::sub[chain shares every prefix, spread shares none · you can type your own keys]
+
+<TrieSpaceDemo set="chain" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Counting the links
+::sub[`01_trie/` · R = 26]
+
+- Run
+
+```console
+space (R = 26, w = average key length)
+  keys      N      w  nodes  links   null     RN    RNw
+  by..the   6   3.67     17    442    426    156    572
+  chain     6   3.50      7    182    176    156    546
+  spread    6   3.50     22    572    551    156    546
+  apple..   7   7.57     25    650    626    182   1378
+```
+
+Without the root's 26, `chain` is $$RN$$ = 156 and `spread` is $$RNw$$ = 546  
+Each node has only one incoming link, so all the rest are NULL.
+
+</Slide>
+
+<Slide>
+
+### Step by step: folding one-way branches
+::sub[The biggest cause of wasted space is nodes that use only one link]
+
+<TrieCompressDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Removing one-way branches
+::sub[Compressed trie (radix tree, Patricia trie)]
+
+- Merge each node with no value and a single child into the node below.
+  - Only the branching points remain, and nodes carry string fragments.
+- We do not implement it in this topic.
+
+<br/>
+
+Instead we move on to the TST, which **cuts the number of links itself**.
+
+</Slide>
+
+<Slide class="center">
+
+## TST
+::sub[Ternary Search Tree]
+
+</Slide>
+
+<Slide>
+
+#### Overview
+::sub[A memory-efficient variant of the trie]
+
+- Each node has **only 3** child links.
+  - It avoids the trie's excessive space consumption.
+- It stores characters in a structure similar to a binary search tree.
+  - In a trie, the position of a link was the character.
+  - In a TST, **the node holds the character itself**.
+
+</Slide>
+
+<Slide>
+
+#### Three links
+::sub[One trie node becomes a small binary search tree]
+
+- **left**: a smaller character at the same position
+- **middle**: the character at the next position, once this one matches
+- **right**: a larger character at the same position
+
+<br/>
+
+Left and right stay at **the same position**; only the middle moves to **the next position**.
+
+</Slide>
+
+<Slide>
+
+#### The same six keys as a TST
+::sub[The first-position b, s, t form a binary search tree · small dots are empty links]
+
+<TrieFigure kind="tst" words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The node in code
+::sub[`02_tst/tst.c` · the trie had 17 nodes and 442 links]
+
+```c
+typedef struct TSTNode {
+    char data;               /* the character this node stands for */
+    bool hasValue;           /* does a key end here? */
+    int value;               /* that key's value */
+    struct TSTNode *left;    /* smaller than data (same position) */
+    struct TSTNode *middle;  /* character at the next position */
+    struct TSTNode *right;   /* larger than data (same position) */
+} TSTNode;
+```
+
+The same six keys take 16 nodes and 48 links.
+
+</Slide>
+
+<Slide class="center">
+
+## Example 2. TST insertion
+::sub[apple · application · apply · applaud · applet · appliance · applicable]
+
+</Slide>
+
+<Slide>
+
+#### TST insertion
+::sub[Compare the current character with the node's character]
+
+- **If there is nothing**, create a new node.
+- **Smaller goes left, larger goes right**
+  - Keep looking for the character at the same position.
+- **Equal goes down the middle**
+  - Only here do we move on to the next character.
+  - If it was the last character, store the value in that node.
+
+</Slide>
+
+<Slide>
+
+### Step by step: seven keys
+::sub[Compared nodes are blue, new nodes green · values 10, 20, …, 70]
+
+<TstDemo slide />
+
+</Slide>
+
+<Slide>
+
+### One comparison at a time: appliance
+::sub[The first five keys are already in]
+
+<TstDemo prefill={5} detail slide />
+
+</Slide>
+
+<Slide>
+
+#### Inserting appliance
+::sub[One comparison at a time]
+
+- To place `i`, `e` is already there and `e < i`
+  - Go right.
+- To place `i`, `i` is already there and `i == i`
+  - Move on to the next character here.
+- To place `a`, `c` is already there and `a < c`
+  - Go left.
+- That spot is empty, so fill it with new nodes `a n c e`.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Insertion in code
+::sub[`02_tst/tst.pseudo` · left and right keep index; only the middle uses index+1]
+
+```plaintext
+ALGORITHM Insert(root, word, value, index)
+    c <- word[index]
+    if root = NULL then
+        root <- CreateTSTNode(c)        // nothing here: new node
+    if c < root.data then
+        root.left <- Insert(root.left, word, value, index)        // same position
+    else if c > root.data then
+        root.right <- Insert(root.right, word, value, index)      // same position
+    else if index < length(word)-1 then
+        root.middle <- Insert(root.middle, word, value, index+1)  // next position
+    else
+        root.hasValue <- true           // last character: store the value
+        root.value <- value
+    return root
+```
+
+</Slide>
+
+<Slide class="center">
+
+## TST search and prefix search
+::sub[Search · Prefix Search]
+
+</Slide>
+
+<Slide>
+
+### Step by step: TST search
+::sub[applaud steps aside left once; apply steps aside right twice]
+
+<TstDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+#### TST prefix search
+::sub[Say we search with the prefix app]
+
+1. **Come to the node for p, the last letter of app.**
+   - If that node holds a value, the prefix itself is a key.
+2. **Collect only below that node's middle link.**
+   - Left and right are other characters at the same position, so skip them.
+3. **Visit left, self, middle, right.**
+   - This is an in-order traversal of a binary search tree, so the results are alphabetical.
+
+</Slide>
+
+<Slide>
+
+### Step by step: "app"
+::sub[Collected nodes are green · nodes passed get a green ring]
+
+<TstDemo mode="prefix" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Collecting in code
+::sub[`02_tst/tst.pseudo` · left and right pass the prefix unchanged; only the middle appends a character]
+
+```plaintext
+ALGORITHM GetAllWordsHelper(node, prefix, results)
+    if node = NULL then return
+    GetAllWordsHelper(node.left, prefix, results)            // same position, smaller
+    if node.hasValue then
+        append (prefix + node.data, node.value) to results
+    GetAllWordsHelper(node.middle, prefix + node.data, results)   // next position
+    GetAllWordsHelper(node.right, prefix, results)           // same position, larger
+```
+
+`GetWordsWithPrefix` finds the prefix's node and calls this on its `middle`.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`02_tst/` · same paths and results as the demos]
+
+- Run
+
+```console
+search
+  applaud     -> 40     visited 8
+  apply       -> 30     visited 7
+  application -> 20     visited 12
+  app         -> none   visited 3
+  apples      -> none   visited 6
+
+getWordsWithPrefix(appli): appliance(60) applicable(70) application(20)
+getWordsWithPrefix(apple): apple(10) applet(50)
+
+space (3 links per node)
+  keys      N  nodes  links   null  height
+  apple..   7     24     72     49      12
+  sorted    7     24     72     49      15
+```
+
+</Slide>
+
+<Slide class="center">
+
+## Tries and TSTs
+::sub[Trie vs. TST]
+
+</Slide>
+
+<Slide>
+
+### Try it: same keys, three structures
+::sub[Nodes and links of a trie, a TST and a binary search tree · you can type your own keys]
+
+<TrieSpaceDemo set="apple" compare slide />
+
+</Slide>
+
+<Slide>
+
+#### Side by side
+::sub[Links counted with the same 7 keys (apple..) · n is the number of keys, m the key length]
+
+| Property | Trie | TST |
+| --- | --- | --- |
+| Links per node | $$R$$ (26 for lowercase English) | 3 |
+| Links for the same 7 keys | 650 | 72 |
+| Finding the next node | direct array index | binary search at the same position |
+| Search hit | $$m + 1$$ nodes | $$m$$ middle steps + a few sideways |
+| Search miss | about $$\log_R n$$ on average | about $$\ln n$$ compares on average |
+| Shape | independent of insertion order | depends on insertion order |
+| Implementation | simple | moderate |
+
+</Slide>
+
+<Slide>
+
+#### TST search time
+::sub[The usual bound is generous]
+
+- It is often written as $$O(m \log n)$$, but the real cost is far smaller.
+- Looking up `cat`
+  - **Trie**: one array slot per character, three $$O(1)$$ accesses
+  - **TST**: a small binary search tree per position; $$O(\log k)$$ for $$k$$ distinct characters
+- The sideways steps are **not paid for every character**.
+  - Once keys diverge in the first few positions, few characters remain at each position.
+  - Sedgewick: for random keys a search hit takes about $$m + \ln n$$ compares on average
+- From the output: `applaud` (7 letters) 8 nodes, `application` (11 letters) 12 nodes
+
+</Slide>
+
+<Slide>
+
+#### Trade-off
+::sub[What you save and what you give up]
+
+- **Trie**: fast search, $$O(m)$$, at the price of a lot of memory
+- **TST**: little memory, at the price of slightly slower search
+
+<br/>
+
+Cache efficiency is left out of the table.  
+A trie node is large and mostly empty; a TST node is small but the search follows more pointers.  
+Which one wins depends on the implementation.
+
+</Slide>
+
+<Slide>
+
+#### Side by side as symbol tables
+::sub[With Topics 07 and 08 · n is the number of keys, m the key length]
+
+| | Binary search tree | Hash table | Trie | TST |
+| --- | --- | --- | --- | --- |
+| Unit of key handling | compares whole keys | hashes the whole key | one character at a time | one character at a time |
+| Search (average) | $$O(\log n)$$ comparisons | $$O(m)$$ | $$O(m)$$ | about $$m + \ln n$$ compares |
+| Keys in sorted order | in-order traversal | no | a-to-z traversal | in-order traversal |
+| All keys with a prefix | via a range search | no | natural | natural |
+| Space | $$n$$ nodes | table + collision handling | $$R$$ per node | 3 per node |
+
+</Slide>
+
+<Slide>
+
+#### Where it connects
+::sub[Tries we have already met, and tries to come]
+
+- **Topic 06 Huffman code tree**
+  - A trie whose alphabet is just 0 and 1.
+  - Being prefix-free, it has characters only at leaves.
+- **Topic 09 MSD radix sort**
+  - Splits by the first character, then splits each group by the next.
+  - The same shape as building a trie from the top down.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Try it now
+::sub[Change the trie and the TST yourself]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-10-trie/`  
+Open a file and press the **▶ button** at the top right of the editor to run it.
+
+1. **Put your own words into `01_trie` and run a prefix search.**
+   - Change `words` and call `getWordsWithPrefix`.
+2. **Change the key length in `searchMiss` from 7 to 20.**
+   - The average for a search miss barely moves.
+3. **Shuffle the order of `words` in `02_tst`.**
+   - The node count stays the same, but the shape and height change.
+
+</Slide>
+
+<Slide>
+
+## What to keep
+
+1. **A trie stores a key one character at a time along a path.**
+   - $$R$$ links per node; the value goes in the last character's node.
+2. **Search and insertion grow with the key length, not the number of keys.**
+   - A search miss ends after about $$\log_R n$$ nodes on average.
+3. **Every key with a prefix lies below the prefix's node.**
+   - Deletion removes the value and detaches empty nodes from the bottom up.
+4. **Most of a trie's links are NULL.**
+   - The link count lies between $$RN$$ and $$RNw$$.
+5. **A TST cuts the links down to 3.**
+   - Smaller goes left, larger goes right, equal goes down the middle to the next character.
+
+</Slide>

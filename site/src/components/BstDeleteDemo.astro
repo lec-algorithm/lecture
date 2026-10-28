@@ -1,0 +1,678 @@
+---
+// 이진 탐색 트리의 삭제를 한 걸음씩 해 보는 데모.
+//
+// 지울 값을 찾아 내려간 뒤(주황), 지울 노드(빨강)의 자식 수에 따라 세 경우로
+// 나뉜다.
+//   - 자식 0개: 그냥 떼어 낸다.
+//   - 자식 1개: 그 자식(과 그 아래 서브트리 전체)이 지운 자리로 올라온다.
+//   - 자식 2개: 오른쪽으로 한 번, 왼쪽 끝까지 내려가 후속자(초록)를 찾고,
+//     후속자의 키를 지울 자리에 복사한 뒤 원래 후속자를 지운다.
+//
+// 노드의 x는 처음 트리의 중위 순번으로 고정한다. 그래서 자식이 올라올 때는
+// 곧장 위로 움직이고, 지운 자리는 비어 있는 채로 남는다. 위치는 매 프레임
+// 직접 계산한다(SVG의 선 좌표는 CSS 전환이 안 된다).
+//
+// 절차와 결과는 algorithm-code의 bstDelete.c · bst_delete.py와 같다.
+// 기본 입력(B A D C G F E에서 D 삭제)이면 후속자 E가 올라와 A B C E F G가 된다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+type Key = number | string;
+interface Props {
+  /** 넣는 순서. 문자열이면 글자 하나씩. 기본은 실습 코드의 B A D C G F E */
+  keys?: Key[] | string;
+  /** 지울 값 */
+  del?: Key;
+  /** 자식이 둘일 때 올릴 노드. 기본은 실습 코드와 같은 후속자, pred면 선행자 */
+  use?: 'succ' | 'pred';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { keys: rawKeys = 'BADCGFE', del = 'D', use = 'succ', slide = false } = Astro.props;
+const keys = typeof rawKeys === 'string' ? [...rawKeys] : rawKeys;
+const id = `dd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '이진 탐색 트리: 삭제',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    target: '지울 값',
+    caseLabel: '경우',
+    case0: '자식 0개',
+    case1: '자식 1개',
+    case2: '자식 2개',
+    inorder: '중위 순서',
+    idle: '{k} 노드를 지웁니다. 먼저 그 노드를 찾아 내려갑니다.',
+    less: '{k} < {v} → 왼쪽으로 갑니다.',
+    greater: '{k} > {v} → 오른쪽으로 갑니다.',
+    found0: '{k} 노드를 찾았습니다. 자식이 없는 잎입니다.',
+    found1: '{k} 노드를 찾았습니다. 자식은 {c} 하나뿐입니다.',
+    found2: '{k} 노드를 찾았습니다. 자식이 둘({a}, {b})입니다. 아무 자식이나 올리면 BST가 깨집니다.',
+    remove0: '그냥 떼어 냅니다. 부모의 그 자리는 비게 됩니다.',
+    remove0root: '그냥 떼어 냅니다. 트리가 비었습니다.',
+    remove1: '{c} 노드가 그 아래 서브트리째 {k}의 자리로 올라옵니다. 순서는 그대로입니다.',
+    succRight: '후속자를 찾습니다. 오른쪽 서브트리로 한 번: {v}',
+    succLeft: '왼쪽이 있으면 계속 왼쪽으로: {v}',
+    succFound: '후속자는 {s}입니다. 오른쪽 서브트리에서 가장 작은 값, 곧 {k} 바로 다음 값입니다.',
+    copy: '{k}의 자리에 {s} 값을 복사합니다. 이제 {s} 값이 두 군데 있습니다.',
+    removeSucc0: '원래 {s} 노드를 지웁니다. 자식이 없으니 그냥 떼어 냅니다.',
+    removeSucc1: '원래 {s} 노드를 지웁니다. 왼쪽 자식이 없으니 오른쪽 자식 {c} 노드가 올라옵니다.',
+    predLeft: '선행자를 찾습니다. 왼쪽 서브트리로 한 번: {v}',
+    predRight: '오른쪽이 있으면 계속 오른쪽으로: {v}',
+    predFound: '선행자는 {s}입니다. 왼쪽 서브트리에서 가장 큰 값, 곧 {k} 바로 앞 값입니다.',
+    removePred1: '원래 {s} 노드를 지웁니다. 오른쪽 자식이 없으니 왼쪽 자식 {c} 노드가 올라옵니다.',
+    missing: '비어 있는 자리에 닿았습니다. 트리에 없는 값이라 지울 것이 없습니다.',
+    done: '끝. 중위 순서는 지운 값만 빠지고 그대로입니다: {list}',
+  },
+  en: {
+    title: 'Binary search tree: delete',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    target: 'delete',
+    caseLabel: 'case',
+    case0: '0 children',
+    case1: '1 child',
+    case2: '2 children',
+    inorder: 'inorder',
+    idle: 'Delete {k}. First go down to find {k}.',
+    less: '{k} < {v} → go left.',
+    greater: '{k} > {v} → go right.',
+    found0: 'Found {k}. It is a leaf with no children.',
+    found1: 'Found {k}. It has only one child, {c}.',
+    found2: 'Found {k}. It has two children ({a}, {b}). Lifting either child would break the BST.',
+    remove0: 'Just detach it. That spot under the parent becomes empty.',
+    remove0root: 'Just detach it. The tree is now empty.',
+    remove1: '{c} (and everything below it) moves up into {k}’s place. The order is unchanged.',
+    succRight: 'Look for the successor. Step into the right subtree once: {v}',
+    succLeft: 'Keep going left while you can: {v}',
+    succFound: '{s} is the successor: the smallest key in the right subtree, the very next key after {k}.',
+    copy: 'Copy {s} into {k}’s place. Now {s} appears twice.',
+    removeSucc0: 'Delete the original {s}. It has no children, so just detach it.',
+    removeSucc1: 'Delete the original {s}. It has no left child, so its right child {c} moves up.',
+    predLeft: 'Look for the predecessor. Step into the left subtree once: {v}',
+    predRight: 'Keep going right while you can: {v}',
+    predFound: '{s} is the predecessor: the largest key in the left subtree, the key right before {k}.',
+    removePred1: 'Delete the original {s}. It has no right child, so its left child {c} moves up.',
+    missing: '{k} is not in the tree. Nothing to delete.',
+    done: 'Done. The inorder sequence only lost the deleted key: {list}',
+  },
+  zh: {
+    title: '二叉搜索树：删除',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    target: '删除',
+    caseLabel: '情形',
+    case0: '0 个子节点',
+    case1: '1 个子节点',
+    case2: '2 个子节点',
+    inorder: '中序',
+    idle: '删除 {k}。先向下找到 {k}。',
+    less: '{k} < {v} → 向左。',
+    greater: '{k} > {v} → 向右。',
+    found0: '找到 {k}。它是没有子节点的叶子。',
+    found1: '找到 {k}。它只有一个子节点 {c}。',
+    found2: '找到 {k}。它有两个子节点（{a}、{b}）。随便提上来一个都会破坏 BST。',
+    remove0: '直接摘掉。父节点的那个位置变空。',
+    remove0root: '直接摘掉。树变空了。',
+    remove1: '{c}（连同它下面的全部）上移到 {k} 的位置。顺序不变。',
+    succRight: '寻找后继。先进入右子树一次：{v}',
+    succLeft: '只要有左子节点就继续向左：{v}',
+    succFound: '{s} 是后继：右子树中最小的键，也就是紧跟在 {k} 后面的键。',
+    copy: '把 {s} 复制到 {k} 的位置。现在 {s} 出现了两次。',
+    removeSucc0: '删除原来的 {s}。它没有子节点，直接摘掉。',
+    removeSucc1: '删除原来的 {s}。它没有左子节点，右子节点 {c} 上移。',
+    predLeft: '寻找前驱。先进入左子树一次：{v}',
+    predRight: '只要有右子节点就继续向右：{v}',
+    predFound: '{s} 是前驱：左子树中最大的键，也就是紧挨在 {k} 前面的键。',
+    removePred1: '删除原来的 {s}。它没有右子节点，左子节点 {c} 上移。',
+    missing: '树中没有 {k}。没有可删除的。',
+    done: '结束。中序序列只少了被删除的键：{list}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-bst-delete-demo', slide && 'is-slide']}
+  id={id}
+  data-dd-keys={JSON.stringify(keys)}
+  data-dd-del={JSON.stringify(del)}
+  data-dd-use={use}
+  data-dd-strings={JSON.stringify(t)}
+>
+  <div class="dd-bar">
+    <span class="dd-head">
+      <strong>{t.title}</strong>
+      <span class="dd-chip">{t.target} = <strong>{del}</strong></span>
+      <span class="dd-chip dd-case" data-dd-case></span>
+    </span>
+    <div class="dd-controls">
+      <button type="button" data-act="back" class="dd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="dd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="dd-btn dd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="dd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <svg class="dd-tree" data-dd-svg role="img" aria-label={t.title}></svg>
+
+  <p class="dd-order"><span>{t.inorder}</span> <strong data-dd-order></strong></p>
+  <p class="dd-note" data-dd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const keys = JSON.parse(root.dataset.ddKeys);
+    const del = JSON.parse(root.dataset.ddDel);
+    const usePred = root.dataset.ddUse === 'pred';
+    const S = JSON.parse(root.dataset.ddStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+
+    /* 트리: id → { key, left, right }. 단계마다 통째로 복사해 둔다. */
+    let nextId = 0;
+    let tree = { root: null, nodes: {} };
+    const clone = (tr) => ({ root: tr.root, nodes: JSON.parse(JSON.stringify(tr.nodes)) });
+    for (const k of keys) {
+      if (tree.root === null) {
+        tree.root = nextId;
+        tree.nodes[nextId++] = { key: k, left: null, right: null };
+        continue;
+      }
+      let v = tree.root;
+      for (;;) {
+        const node = tree.nodes[v];
+        if (k === node.key) break;
+        const side = k < node.key ? 'left' : 'right';
+        if (node[side] === null) {
+          node[side] = nextId;
+          tree.nodes[nextId++] = { key: k, left: null, right: null };
+          break;
+        }
+        v = node[side];
+      }
+    }
+
+    /* x는 처음 트리의 중위 순번으로 고정한다. */
+    const rank = {};
+    let order = 0;
+    (function walk(v) {
+      if (v === null) return;
+      walk(tree.nodes[v].left);
+      rank[v] = order++;
+      walk(tree.nodes[v].right);
+    })(tree.root);
+    const depthOf = (tr) => {
+      const d = {};
+      (function walk(v, depth) {
+        if (v === null) return;
+        d[v] = depth;
+        walk(tr.nodes[v].left, depth + 1);
+        walk(tr.nodes[v].right, depth + 1);
+      })(tr.root, 0);
+      return d;
+    };
+    const inorderKeys = (tr) => {
+      const out = [];
+      (function walk(v) {
+        if (v === null) return;
+        walk(tr.nodes[v].left);
+        out.push(tr.nodes[v].key);
+        walk(tr.nodes[v].right);
+      })(tr.root);
+      return out;
+    };
+    const firstDepth = depthOf(tree);
+    const maxDepth = Math.max(0, ...Object.values(firstDepth));
+
+    /* 단계 배열. 절차는 bstDelete.c의 deleteNode와 같다(후속자 방식). */
+    const steps = [];
+    const push = (extra) => steps.push({ tree: clone(tree), focus: [], path: [], target: null, succ: null, caseId: null, ...extra });
+    push({ note: fill(S.idle, { k: del }) });
+
+    const path = [];
+    let parent = null;
+    let parentSide = null;
+    let v = tree.root;
+    while (v !== null && tree.nodes[v].key !== del) {
+      const node = tree.nodes[v];
+      const side = del < node.key ? 'left' : 'right';
+      path.push(v);
+      push({ focus: [v], path: path.slice(), note: fill(side === 'left' ? S.less : S.greater, { k: del, v: node.key }) });
+      parent = v;
+      parentSide = side;
+      v = node[side];
+    }
+
+    /* 부모의 링크를 child로 바꾼다. 부모가 없으면 루트를 바꾼다. */
+    const relink = (par, side, child) => {
+      if (par === null) tree.root = child;
+      else tree.nodes[par][side] = child;
+    };
+
+    if (v === null) {
+      push({ path: path.slice(), note: fill(S.missing, { k: del }), done: true });
+    } else {
+      const node = tree.nodes[v];
+      const kids = [node.left, node.right].filter((c) => c !== null);
+      const caseId = kids.length;
+      if (caseId === 0) {
+        push({ target: v, path: path.slice(), caseId, note: fill(S.found0, { k: del }) });
+        relink(parent, parentSide, null);
+        delete tree.nodes[v];
+        push({ caseId, note: tree.root === null ? S.remove0root : S.remove0 });
+      } else if (caseId === 1) {
+        const child = kids[0];
+        push({ target: v, path: path.slice(), caseId, note: fill(S.found1, { k: del, c: tree.nodes[child].key }) });
+        relink(parent, parentSide, child);
+        delete tree.nodes[v];
+        push({ caseId, moved: child, note: fill(S.remove1, { k: del, c: tree.nodes[child].key }) });
+      } else {
+        push({ target: v, path: path.slice(), caseId, note: fill(S.found2, { k: del, a: tree.nodes[node.left].key, b: tree.nodes[node.right].key }) });
+        /* 후속자: 오른쪽으로 한 번, 그다음 왼쪽 끝까지.
+           선행자(use="pred"): 왼쪽으로 한 번, 그다음 오른쪽 끝까지. 좌우만 뒤집힌다. */
+        const first = usePred ? 'left' : 'right';
+        const then = usePred ? 'right' : 'left';
+        const walk = [node[first]];
+        push({ target: v, focus: [node[first]], succPath: walk.slice(), caseId, note: fill(usePred ? S.predLeft : S.succRight, { v: tree.nodes[node[first]].key }) });
+        let s = node[first];
+        let sParent = v;
+        let sSide = first;
+        while (tree.nodes[s][then] !== null) {
+          sParent = s;
+          sSide = then;
+          s = tree.nodes[s][then];
+          walk.push(s);
+          push({ target: v, focus: [s], succPath: walk.slice(), caseId, note: fill(usePred ? S.predRight : S.succLeft, { v: tree.nodes[s].key }) });
+        }
+        const sKey = tree.nodes[s].key;
+        push({ target: v, succ: s, focus: [s], succPath: walk.slice(), caseId, note: fill(usePred ? S.predFound : S.succFound, { s: sKey, k: del }) });
+        tree.nodes[v].key = sKey;
+        push({ target: v, copied: v, succ: s, caseId, note: fill(S.copy, { s: sKey, k: del }) });
+        /* 원래 후속자 지우기: 왼쪽 자식이 없으므로 오른쪽 자식(있으면)이 올라온다.
+           선행자면 오른쪽 자식이 없으므로 왼쪽 자식이 올라온다. */
+        const sRest = tree.nodes[s][first];
+        relink(sParent, sSide, sRest);
+        delete tree.nodes[s];
+        push({
+          copied: v, caseId, moved: sRest,
+          note: sRest === null ? fill(S.removeSucc0, { s: sKey }) : fill(usePred ? S.removePred1 : S.removeSucc1, { s: sKey, c: tree.nodes[sRest].key }),
+        });
+      }
+      push({ caseId, note: fill(S.done, { list: inorderKeys(tree).join(' ') }), done: true });
+    }
+
+    /* 그림 */
+    const UNIT = 50;
+    const LEVEL = 64;
+    const R = 18;
+    const PAD = 28;
+    const W = (order - 1) * UNIT + 2 * PAD;
+    const H = maxDepth * LEVEL + 2 * R + 12;
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = root.querySelector('[data-dd-svg]');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, val] of Object.entries(attrs)) node.setAttribute(k, String(val));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const edgeLayer = el('g', {});
+    const nodeLayer = el('g', {});
+    svg.appendChild(edgeLayer);
+    svg.appendChild(nodeLayer);
+    const nodeEls = {};
+    const edgeEls = {};
+    for (const nid of Object.keys(rank)) {
+      const line = el('line', { class: 'dd-edge is-gone' });
+      edgeLayer.appendChild(line);
+      edgeEls[nid] = line;
+      const g = el('g', { class: 'dd-node' });
+      g.appendChild(el('circle', { r: R }));
+      g.appendChild(el('text', { class: 'dd-label' }, ''));
+      nodeLayer.appendChild(g);
+      nodeEls[nid] = g;
+    }
+    const X = (nid) => PAD + rank[nid] * UNIT;
+    const Y = (d) => R + 6 + d * LEVEL;
+
+    /* 지금 그려진 좌표. 사라진 노드는 마지막 자리에 남아 흐려진다. */
+    const shown = {};
+    const shownEdge = {};
+    let frame = null;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+
+    function render(s, animate) {
+      const step = steps[s];
+      const tr = step.tree;
+      const depth = depthOf(tr);
+      const targetPos = {};
+      const targetEdge = {};
+      for (const nid of Object.keys(tr.nodes)) {
+        targetPos[nid] = { x: X(nid), y: Y(depth[nid]) };
+      }
+      for (const [nid, node] of Object.entries(tr.nodes)) {
+        for (const c of [node.left, node.right]) {
+          if (c !== null) targetEdge[c] = { x1: targetPos[nid].x, y1: targetPos[nid].y, x2: targetPos[c].x, y2: targetPos[c].y };
+        }
+      }
+      const onPath = new Set((step.path || []).map(String));
+      const onSucc = new Set((step.succPath || []).map(String));
+      for (const nid of Object.keys(nodeEls)) {
+        const g = nodeEls[nid];
+        const alive = nid in tr.nodes;
+        g.classList.toggle('is-gone', !alive);
+        if (alive) g.querySelector('text').textContent = String(tr.nodes[nid].key);
+        g.classList.toggle('is-path', onPath.has(nid));
+        g.classList.toggle('is-focus', step.focus.map(String).includes(nid));
+        g.classList.toggle('is-target', String(step.target) === nid && String(step.copied) !== nid);
+        g.classList.toggle('is-succ', String(step.succ) === nid || String(step.copied) === nid || onSucc.has(nid));
+        const line = edgeEls[nid];
+        line.classList.toggle('is-gone', !(nid in targetEdge));
+        line.classList.toggle('is-path', onPath.has(nid) || String(step.target) === nid && onPath.size > 0);
+        line.classList.toggle('is-succ', onSucc.has(nid));
+        line.classList.toggle('is-moved', String(step.moved) === nid);
+        if (alive && !(nid in shown)) shown[nid] = targetPos[nid];
+        if (nid in targetEdge && !(nid in shownEdge)) shownEdge[nid] = targetEdge[nid];
+      }
+
+      const from = {};
+      const fromEdge = {};
+      for (const nid of Object.keys(targetPos)) from[nid] = shown[nid];
+      for (const nid of Object.keys(targetEdge)) fromEdge[nid] = shownEdge[nid];
+      const draw = (u) => {
+        for (const nid of Object.keys(targetPos)) {
+          const a = from[nid];
+          const b = targetPos[nid];
+          const p = { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u };
+          shown[nid] = p;
+          nodeEls[nid].setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);
+        }
+        for (const nid of Object.keys(targetEdge)) {
+          const a = fromEdge[nid];
+          const b = targetEdge[nid];
+          const e = {};
+          for (const k of ['x1', 'y1', 'x2', 'y2']) e[k] = a[k] + (b[k] - a[k]) * u;
+          shownEdge[nid] = e;
+          const line = edgeEls[nid];
+          for (const k of ['x1', 'y1', 'x2', 'y2']) line.setAttribute(k, e[k].toFixed(2));
+        }
+      };
+      if (frame) cancelAnimationFrame(frame);
+      frame = null;
+      if (!animate || reduceMotion) {
+        draw(1);
+      } else {
+        const t0 = performance.now();
+        const tick = (now) => {
+          const u = ease(Math.min(1, (now - t0) / 600));
+          draw(u);
+          frame = u < 1 ? requestAnimationFrame(tick) : null;
+        };
+        draw(0);
+        frame = requestAnimationFrame(tick);
+      }
+
+      const caseEl = root.querySelector('[data-dd-case]');
+      caseEl.textContent = step.caseId === null ? '' : `${S.caseLabel}: ${S['case' + step.caseId]}`;
+      caseEl.classList.toggle('is-empty', step.caseId === null);
+      root.querySelector('[data-dd-order]').textContent = inorderKeys(tr).join(' ');
+      setLines(root.querySelector('[data-dd-note]'), step.note);
+      root.classList.toggle('is-done', !!step.done);
+    }
+
+    let at = 0;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at, true);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render(at, true);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render(0, true);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render(0, true);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+
+    render(0, false);
+  })();
+</script>
+
+<!-- 그림은 스크립트가 만들므로 Astro의 scoped 스타일 속성이 붙지 않는다.
+     그래서 is:global로 두고, 선택자를 .aas-bst-delete-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-bst-delete-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-bst-delete-demo .dd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-bst-delete-demo .dd-head {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6em;
+    font-size: 0.95em;
+  }
+  .aas-bst-delete-demo .dd-chip {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    border-radius: 0.5em;
+    padding: 0.1em 0.5em;
+    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-bst-delete-demo .dd-chip strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-bst-delete-demo .dd-case {
+    color: var(--aas-text);
+    font-weight: 600;
+    border-color: color-mix(in srgb, var(--aas-role-guard) 55%, transparent);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, transparent);
+  }
+  .aas-bst-delete-demo .dd-case.is-empty {
+    visibility: hidden;
+  }
+  .aas-bst-delete-demo .dd-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-bst-delete-demo .dd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-bst-delete-demo .dd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-bst-delete-demo .dd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-bst-delete-demo .dd-tree {
+    display: block;
+    width: 100%;
+    max-width: 30em;
+    max-height: 22em;
+    margin: 0.3em auto 0;
+  }
+  .aas-bst-delete-demo .dd-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+    transition:
+      opacity 0.35s,
+      stroke 0.2s;
+  }
+  .aas-bst-delete-demo .dd-edge.is-path {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-bst-delete-demo .dd-edge.is-succ,
+  .aas-bst-delete-demo .dd-edge.is-moved {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-bst-delete-demo .dd-node {
+    transition: opacity 0.35s;
+  }
+  .aas-bst-delete-demo .is-gone {
+    opacity: 0;
+  }
+  .aas-bst-delete-demo .dd-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 1.6;
+    transition:
+      fill 0.2s,
+      stroke 0.2s;
+  }
+  .aas-bst-delete-demo .dd-label {
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-bst-delete-demo .dd-node.is-path circle {
+    fill: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+    stroke-width: 2.5;
+  }
+  .aas-bst-delete-demo .dd-node.is-path .dd-label {
+    fill: var(--aas-text);
+  }
+  .aas-bst-delete-demo .dd-node.is-succ circle {
+    fill: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+    stroke: var(--aas-role-eval);
+    stroke-width: 2.5;
+  }
+  .aas-bst-delete-demo .dd-node.is-succ .dd-label {
+    fill: var(--aas-text);
+  }
+  .aas-bst-delete-demo .dd-node.is-focus circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-bst-delete-demo .dd-node.is-focus .dd-label {
+    fill: #fff;
+  }
+  .aas-bst-delete-demo .dd-node.is-succ.is-focus circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-bst-delete-demo .dd-node.is-target circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-role-guard);
+    stroke-width: 4;
+  }
+  .aas-bst-delete-demo .dd-node.is-target .dd-label {
+    fill: var(--aas-role-guard);
+  }
+
+  .aas-bst-delete-demo .dd-order {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-bst-delete-demo .dd-order strong {
+    margin-left: 0.4em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    letter-spacing: 0.05em;
+  }
+  .aas-bst-delete-demo .dd-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-bst-delete-demo.is-done .dd-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-bst-delete-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-bst-delete-demo.is-slide .dd-tree {
+    max-width: none;
+    max-height: 39vh;
+  }
+  .aas-bst-delete-demo.is-slide .dd-note {
+    min-height: 1.6em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-bst-delete-demo .dd-node,
+    .aas-bst-delete-demo .dd-node circle,
+    .aas-bst-delete-demo .dd-edge {
+      transition: none;
+    }
+  }
+</style>

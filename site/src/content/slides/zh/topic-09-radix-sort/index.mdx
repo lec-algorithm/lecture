@@ -1,0 +1,1188 @@
+---
+title: "主题 09. 基数排序与后缀数组"
+description: "每一位重复做计数排序的 LSD·MSD 基数排序，把所有后缀排好序的后缀数组与 LCP 数组，以及在其上求解的最长重复子串与最长公共子串"
+date: "主题 09 · v1"
+order: 9
+transition: none
+toc_level: 4
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import LsdRadixDemo from '@components/LsdRadixDemo.astro';
+import LsdStringDemo from '@components/LsdStringDemo.astro';
+import MsdRadixDemo from '@components/MsdRadixDemo.astro';
+import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
+import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
+import KasaiDemo from '@components/KasaiDemo.astro';
+import LcpScanDemo from '@components/LcpScanDemo.astro';
+import LrsBruteDemo from '@components/LrsBruteDemo.astro';
+import StackQueueDemo from '@components/StackQueueDemo.astro';
+
+{/* 幻灯片的编写规则见 docs/writing-rules.md 中关于幻灯片的一节。
+    数字与实践代码（topic-09-radix-sort）的运行结果一致。 */}
+
+<Slide class="cover">
+
+# 基数排序与后缀数组
+
+主题 09
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 本主题
+::sub[从主题 03 的计数排序出发]
+
+- **基数排序**：把键拆成位，每一位做一次计数排序。
+  - 从低位开始（LSD），从高位开始（MSD）
+- **后缀数组**：把字符串的所有后缀排好序。
+  - LCP 数组、最长重复子串、最长公共子串
+- **栈与队列**：基数排序的桶应该是哪一种？
+
+</Slide>
+
+<Slide class="center">
+
+## 从计数排序到基数排序
+::sub[Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### 计数排序的局限
+::sub[主题 03：不做比较，O(n + k)]
+
+- 数出每个值有几个，做累加，再从后往前放到该放的位置。
+- 元素之间不做比较，所以处在 $$\Omega(n \log n)$$ 下界的**前提之外**。
+- **代价是需要与值域 $$k$$ 一样大的计数数组**。
+  - 值在 0 到 999 之间，就要 1000 格。
+  - 范围是一百万，就有近百万格闲着、几乎全是 0。
+
+</Slide>
+
+<Slide>
+
+#### 把键拆成位
+::sub[基数（radix）= 进制的底 = 一位能取的值的个数]
+
+- 十进制的一位只有 0 到 9 这**十种**。
+- 三位数不跑一次 1000 格的计数排序，  
+  而是**跑三次 10 格的计数排序**。
+- 字符串的话一个字符就是一位，一个字节有 256 种取值。
+
+<br/>
+
+| 方向 | 名称 |
+| --- | --- |
+| 最低位 → 最高位 | **LSD**（least significant digit） |
+| 最高位 → 最低位 | **MSD**（most significant digit） |
+
+</Slide>
+
+<Slide class="center">
+
+## 例 1. LSD 基数排序
+::sub[LSD Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### LSD 基数排序
+::sub[从最低位开始，不做比较的排序]
+
+- **核心思想**
+  - 对每一位应用计数排序。
+  - 这个计数排序必须是**稳定**的。
+  - 按从低位到高位的顺序排序。
+
+<br/>
+
+`437 42 531 8 74` → 对齐位数成 `437 042 531 008 074`  
+按个位、十位、百位的顺序排三次。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：字符串也一样
+::sub[12 个三字母单词，按第 2、1、0 位字符的顺序 · 点击单词可在每一行标出它]
+
+<LsdStringDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 一步一步：分配到桶里再收集
+::sub[当前位是橙色，处理完的低位是绿色。从 0 号桶起按放入顺序取出]
+
+<LsdRadixDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成过程
+::sub[`01_lsd_radix_sort/lsdRadixSort.pseudo`]
+
+```plaintext
+ALGORITHM LsdRadixSort(A, n)
+    max <- A 的最大值
+    exp <- 1
+    while max / exp > 0 do              // exp = 1, 10, 100, ...
+        CountingSortByDigit(A, n, exp)
+        exp <- exp * 10
+
+ALGORITHM CountingSortByDigit(A, n, exp)   // 主题 03 的计数排序，键是一位
+    for i <- 0 to n-1 do                   // 1) 计数
+        count[(A[i] / exp) mod 10] += 1
+    for d <- 1 to 9 do                     // 2) 累加
+        count[d] += count[d-1]
+    for i <- n-1 downto 0 do               // 3) 从后往前放：稳定
+        d <- (A[i] / exp) mod 10
+        count[d] -= 1
+        B[count[d]] <- A[i]
+    A <- B
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`01_lsd_radix_sort/lsdRadixSort.c`]
+
+```c
+void countingSortByDigit(int a[], int n, int exp) {
+    int output[MAX_N];
+    int count[RADIX] = {0};
+    for (int i = 0; i < n; i++) {               /* 1) 计数 */
+        count[(a[i] / exp) % RADIX]++;
+    }
+    for (int d = 1; d < RADIX; d++) {           /* 2) 累加 */
+        count[d] += count[d - 1];
+    }
+    for (int i = n - 1; i >= 0; i--) {          /* 3) 从后往前放 */
+        int d = (a[i] / exp) % RADIX;
+        output[--count[d]] = a[i];
+    }
+    /* 4) 把 output 复制回 a */
+}
+```
+
+`lsdRadixSort` 以 `exp = 1, 10, 100` 调用这个函数三次。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[数字前面补 0 打印]
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/01_lsd_radix_sort
+make -f /work/Makefile lsdRadixSort.out && ./lsdRadixSort.out
+```
+
+- 结果
+
+```console
+input   : 437 042 531 008 074
+exp 1   : 531 042 074 437 008
+exp 10  : 008 531 437 042 074
+exp 100 : 008 042 074 437 531
+sorted  : 008 042 074 437 531
+```
+
+在 `exp 10` 中，十位相同的 `531` 和 `437` 保持了前一趟的顺序。
+
+</Slide>
+
+<Slide>
+
+#### 为什么必须稳定
+::sub[每一趟都保持的一条性质]
+
+> **第 $$p$$ 趟结束后，只看低 $$p$$ 位就是有序的**。
+
+<br/>
+
+第 $$p + 1$$ 趟中，两个元素的第 $$(p + 1)$$ 位
+
+- **不同**：这一趟会把顺序排对。
+- **相同**：顺序该由低 $$p$$ 位决定，而这个顺序已经在数组里了。
+  - 这一趟**不能去动**这个顺序。这就是稳定性。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：从前往后放
+::sub[计数排序第 3 步改为从前往后放，相同字符的顺序就会颠倒 · 用标签切换比较]
+
+<LsdStringDemo placement="unstable" slide />
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[d：位数，k：一位能取的值的个数]
+
+- **时间** $$O(d(n + k))$$
+  - 做 $$d$$ 次 $$O(n + k)$$ 的计数排序。
+  - 不管输入如何都要看完所有位，所以最好、平均、最坏都一样。
+- **空间** $$O(n + k)$$
+  - 输出数组 $$n$$ 格加计数数组 $$k$$ 格
+
+</Slide>
+
+<Slide>
+
+#### 优缺点
+::sub[LSD Radix Sort]
+
+| 优点 | 缺点 |
+| --- | --- |
+| 稳定排序，相同键的顺序得以保持 | 需要额外内存 $$O(n + k)$$ |
+| 位数固定时是线性时间 $$O(n)$$ | 只适用于能拆成位的键（整数、定长字符串） |
+| 性能与输入无关，始终如一 | 位数一多，趟数增加，速度变慢 |
+
+</Slide>
+
+<Slide>
+
+#### 怎样避开比较排序的下界
+::sub[不是违反了下界，而是处在下界的前提之外]
+
+- 决策树论证的前提是**只要靠比较元素来排序**。
+- 基数排序的元素之间一次也不比较。
+  - 读出一个数字，直接用这个值算出位置。
+  - 决策树的分叉是两路，基数排序的一步是 $$k$$ 路。
+
+</Slide>
+
+<Slide>
+
+#### 并不是免费的
+::sub[位数 d 随 n 一起增长时]
+
+- 要装下 $$n$$ 个互不相同的值，位数至少是 $$\log_k n$$。
+- 值的范围随 $$n$$ 增长时，$$O(d \cdot n)$$ 又回到 $$O(n \log n)$$ 的形状。
+
+<br/>
+
+基数排序大放异彩的地方是**键长固定**的数据。  
+像 32 位整数、身份证号、邮政编码这样 $$d$$ 已经定好，就是 $$O(n)$$。
+
+</Slide>
+
+<Slide>
+
+#### 运行时间
+::sub[不同大小整数数组的排序时间 · LSD 的一位 = 一个字节（R = 256）]
+
+| n | 插入排序 | 归并排序 | 快速排序 | LSD 基数排序 |
+| --- | --- | --- | --- | --- |
+| 1,000 | 0.67 | 0.099 | 0.078 | 0.04 |
+| 10,000 | 66.551 | 1.4 | 1.115 | 0.372 |
+| 100,000 | 6,624.052 | 17.069 | 13.737 | 3.712 |
+| 1,000,000 | 664,056.755 | 203.398 | 165.979 | 44.333 |
+
+- $$n$$ 变成 10 倍时，插入排序约变成 100 倍，LSD 几乎正好 10 倍。
+- 一百万个元素时，LSD 比快速排序快约四倍。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 2. MSD 基数排序
+::sub[MSD Radix Sort]
+
+</Slide>
+
+<Slide>
+
+#### MSD 基数排序
+::sub[从最高位开始，分治]
+
+- 按最高位做计数排序，相同数字的元素聚在同一段里。
+  - 这一段就是**桶**。桶与桶之间的顺序已经定了。
+- 只有**元素不少于两个的桶**才对下一位递归。
+- 只有一个元素的桶就此结束。
+
+<br/>
+
+来给 `170 45 75 90 2 802 24 66` 排序。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：一次一个递归调用
+::sub[上方橙色括号是当前区间，下方括号是桶。只有橙色桶递归，绿色是处理完的元素]
+
+<MsdRadixDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成过程
+::sub[`02_msd_radix_sort/msdRadixSort.pseudo`]
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return     // 元素不超过一个，或者没有位了
+
+    // 1) 只对 A[lo..hi] 按 exp 位做稳定的计数排序
+    //    size[d]：数字为 d 的元素个数 = 桶 d 的大小
+    CountingSortByDigit(A, lo, hi, exp, size)
+
+    // 2) 每个桶对下一位递归
+    start <- lo
+    for d <- 0 to 9 do
+        if size[d] > 1 then
+            MsdRecursive(A, start, start + size[d] - 1, exp / 10)
+        start <- start + size[d]
+```
+
+第一次调用是 `MsdRecursive(A, 0, n-1, 100)`。802 的最高位是百位。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成代码
+::sub[`02_msd_radix_sort/msdRadixSort.c`]
+
+```c
+void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
+    if (lo >= hi || exp == 0) {
+        return;
+    }
+
+    int size[RADIX];                             /* 桶的大小 */
+    countingSortByDigit(a, lo, hi, exp, size);   /* 只排 a[lo..hi] */
+
+    int start = lo;
+    for (int d = 0; d < RADIX; d++) {
+        if (size[d] > 1) {
+            msdRecursive(a, start, start + size[d] - 1,
+                         exp / RADIX, depth + 1);
+        }
+        start += size[d];
+    }
+}
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[缩进表示递归深度]
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/02_msd_radix_sort
+make -f /work/Makefile msdRadixSort.out && ./msdRadixSort.out
+```
+
+- 结果
+
+```console
+input : 170 045 075 090 002 802 024 066
+exp 100 [0..7]: 045 075 090 002 024 066 170 802
+  buckets: 0=6 1=1 8=1
+  exp 10  [0..5]: 002 024 045 066 075 090
+    buckets: 0=1 2=1 4=1 6=1 7=1 9=1
+sorted: 002 024 045 066 075 090 170 802
+digits examined = 14 (LSD: 8 x 3 = 24)
+```
+
+个位根本没有看。读位 14 次，LSD 是 24 次。
+
+</Slide>
+
+<Slide>
+
+#### 用在字符串上
+::sub[很适合长度各不相同的键]
+
+- 先按首字符分，再把每个桶按第二个字符分，……
+  - 桶里只剩一个时，其余字符就不再看。
+- **字符串的结尾排在任何字符之前**。
+  - `she` 和 `shells` 前三个字符相同，先结束的 `she` 在前。
+- **完全相同的键必须看到最后**。
+  - 相同的键一多，MSD 也要读完所有字符。
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[MSD Radix Sort]
+
+- **最好** $$O(n + k)$$：在第一位上就全部分进了不同的桶。
+- **最坏**：一直分不开时，会像 LSD 那样读 $$n \times d$$ 次位。
+  - 此外**每次递归调用**还要加上清空并累加计数数组的 $$O(k)$$。
+- **空间** $$O(n + dk)$$：输出数组，加上随递归深度叠起来的计数数组
+
+<br/>
+
+小桶一多，扫描空计数格的时间反而比处理元素还多。  
+所以实际的实现会在桶变小时改用插入排序。
+
+</Slide>
+
+<Slide>
+
+#### LSD 与 MSD
+::sub[LSD vs. MSD]
+
+| 特点 | LSD 基数排序 | MSD 基数排序 |
+| --- | --- | --- |
+| 排序方向 | 低位 → 高位 | 高位 → 低位 |
+| 方式 | 迭代 | 递归（分治） |
+| 提前结束 | 不可能 | 可能 |
+| 变长键 | 不利 | 有利 |
+| 局部性 | 每一趟扫描整个数组 | 只在一个桶内 |
+| 实现 | 简单 | 复杂 |
+
+</Slide>
+
+<Slide>
+
+#### 八种排序并排比较
+::sub[上面五种是比较排序，下面三种是不做比较的排序]
+
+| 排序 | 最好 | 平均 | 最坏 | 空间 | 稳定性 |
+| --- | --- | --- | --- | --- | --- |
+| 选择排序 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 不稳定 |
+| 插入排序 | $$O(n)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 稳定 |
+| 希尔排序 | $$O(n \log n)$$ | $$O(n^{1.5})$$ | $$O(n^2)$$ | $$O(1)$$ | 不稳定 |
+| 冒泡排序 | $$O(n^2)$$ | $$O(n^2)$$ | $$O(n^2)$$ | $$O(1)$$ | 稳定 |
+| 归并排序 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | 稳定 |
+| 计数排序 | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | 稳定 |
+| LSD 基数排序 | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + k)$$ | 稳定 |
+| MSD 基数排序 | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | 稳定 |
+
+</Slide>
+
+<Slide class="center">
+
+## 例 3. 后缀数组
+::sub[Suffix Array]
+
+</Slide>
+
+<Slide>
+
+#### 后缀数组
+::sub[字符串处理的核心数据结构]
+
+- **后缀**（suffix）：从某个位置一直截到末尾的子串
+  - 长度为 $$n$$ 的字符串有 $$n$$ 个后缀。
+- **后缀数组**（suffix array）：把所有后缀按字典序排好，  
+  再按这个顺序**只记下起始位置**的数组
+  - $$SA[j]$$ = 字典序第 $$j$$ 个后缀的起始位置
+
+</Slide>
+
+<Slide>
+
+### 一步一步：逐个插入后缀
+::sub[橙色是新后缀，蓝色是比较对象 · 绿色是相同的字符，红色是第一个不同的字符]
+
+<SuffixInsertDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 例：banana$
+::sub[第 1 步：列出所有后缀 · 第 2 步：按字典序排序]
+
+| 起始位置 | 后缀 | | $$j$$ | $$SA[j]$$ | 后缀 |
+| --- | --- | --- | --- | --- | --- |
+| 0 | `banana$` | | 0 | 6 | `$` |
+| 1 | `anana$` | | 1 | 5 | `a$` |
+| 2 | `nana$` | | 2 | 3 | `ana$` |
+| 3 | `ana$` | | 3 | 1 | `anana$` |
+| 4 | `na$` | | 4 | 0 | `banana$` |
+| 5 | `a$` | | 5 | 4 | `na$` |
+| 6 | `$` | | 6 | 2 | `nana$` |
+
+$$SA = [6, 5, 3, 1, 0, 4, 2]$$
+
+</Slide>
+
+<Slide>
+
+#### 结束字符 $
+::sub[约定它比其他任何字符都小 · ASCII 36]
+
+- 没有 `$` 的话，`a` 是 `ana` 的前缀。
+  - 就得另外规定"短的在前"。
+- 加上最小的结束字符，这条规则就融进了字符比较里。
+- 任何后缀都不会成为另一个后缀的前缀。
+
+<br/>
+
+把后缀当作字符串存起来要 $$O(n^2)$$ 空间，只记起始位置是 $$O(n)$$。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 朴素方法
+::sub[把所有后缀造出来，按字符串比较来排序]
+
+```c
+static int compareSuffix(const void *a, const void *b) {
+    int i = *(const int *)a;
+    int j = *(const int *)b;
+    return strcmp(gText + i, gText + j);
+}
+
+void buildSuffixArrayNaive(const char *text, int sa[], int n) {
+    for (int i = 0; i < n; i++) {
+        sa[i] = i;
+    }
+    gText = text;
+    qsort(sa, n, sizeof(int), compareSuffix);
+}
+```
+
+- 实现很简单，但对大数据效率很低。
+- 比较 $$O(n \log n)$$ 次，每次最多 $$n$$ 个字符：最坏 $$O(n^2 \log n)$$
+
+</Slide>
+
+<Slide>
+
+#### 倍增
+::sub[比较的长度 1 → 2 → 4 → 8 个字符，每次翻倍]
+
+后缀 $$i$$ 的前 $$2h$$ 个字符分成两段。
+
+- 前 $$h$$ 个字符：后缀 $$i$$ 的前 $$h$$ 个字符，排名 $$rank[i]$$
+- 后 $$h$$ 个字符：后缀 $$i + h$$ 的前 $$h$$ 个字符，排名 $$rank[i + h]$$
+
+<br/>
+
+**比较数对 $$(rank[i], rank[i + h])$$ 就等于比较了前 $$2h$$ 个字符**。  
+不用重新读字符，只比较两个整数。越界则记为 $$-1$$。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：banana$
+::sub[一个数对代替涂色的前 k 个字符。排名相同的行用橙色框在一起]
+
+<SuffixArrayDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 两轮
+::sub[k = 2 时排名 5 种，k = 4 时 7 种]
+
+- **k = 2**：数对是（首字符，第二个字符）的字符编码
+  - `anana$` 与 `ana$` 都是 (97, 110)，`nana$` 与 `na$` 都是 (110, 97)
+- **k = 4**：数对是（前 2 个字符的排名，往后 2 格的后缀的排名）
+  - `ana$`：位置 3，往后 2 格 `a$` 的排名 1 → (2, 1)
+  - `anana$`：位置 1，往后 2 格 `ana$` 的排名 2 → (2, 2)
+  - 现在分开了。排名全都不同就结束。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成过程
+::sub[`03_suffix_array/suffixArray.pseudo`]
+
+```plaintext
+ALGORITHM BuildSuffixArrayDoubling(T, n)
+    for i <- 0 to n-1 do
+        rank[i] <- T[i]                // 最初的排名：首字符的字符编码
+        SA[i] <- i
+    k <- 2
+    loop
+        for i <- 0 to n-1 do
+            key[i] <- (rank[i], 若 i + k/2 < n 则 rank[i + k/2] 否则 -1)
+        按 key[SA[j]] 对 SA 排序
+        按排好的顺序赋予新排名（key 相同则排名相同）
+        if 排名全都不同 then break
+        k <- k * 2
+    return SA
+```
+
+C 实现让 `qsort` 的比较函数去看数对。  
+数对相同时按起始位置排，得到与 Python 相同的顺序。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果：k = 2
+::sub[`03_suffix_array` · 数对相同的两组，排名也相同]
+
+```console
+k = 2
+   j  SA[j]  key         rank  suffix
+   0      6  ( 36,  -1)     0  $
+   1      5  ( 97,  36)     1  a$
+   2      1  ( 97, 110)     2  anana$
+   3      3  ( 97, 110)     2  ana$
+   4      0  ( 98,  97)     3  banana$
+   5      2  (110,  97)     4  nana$
+   6      4  (110,  97)     4  na$
+  distinct ranks = 5 of 7
+```
+
+`anana$` 排在 `ana$` 前面，只是因为数对相同而按起始位置（1 < 3）排了。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果：k = 4
+::sub[`03_suffix_array` · 七个排名全都不同]
+
+```console
+k = 4
+   j  SA[j]  key         rank  suffix
+   0      6  (  0,  -1)     0  $
+   1      5  (  1,  -1)     1  a$
+   2      3  (  2,   1)     2  ana$
+   3      1  (  2,   2)     3  anana$
+   4      0  (  3,   4)     4  banana$
+   5      4  (  4,   0)     5  na$
+   6      2  (  4,   4)     6  nana$
+  distinct ranks = 7 of 7
+
+doubling SA = 6 5 3 1 0 4 2
+same = yes
+```
+
+与朴素方法得到相同的后缀数组。
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[基数排序在这里又派上用场]
+
+- 轮数最多 $$\lceil \log_2 n \rceil$$ 轮。
+- 每轮对 $$n$$ 个数对做比较排序是 $$O(n \log n)$$，总共 $$O(n \log^2 n)$$
+- **数对是两位数**。每一位的取值从 $$-1$$ 到 $$n - 1$$
+  - 用 LSD 基数排序两趟来排，一轮就是 $$O(n)$$
+  - 总共 $$O(n \log n)$$，更进一步还有 $$O(n)$$ 的算法（SA-IS、DC3）。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 4. LCP 数组
+::sub[Longest Common Prefix]
+
+</Slide>
+
+<Slide>
+
+#### LCP 数组
+::sub[相邻后缀从开头起共享几个字符]
+
+| $$j$$ | $$SA[j]$$ | 后缀 | $$LCP[j]$$ | 说明 |
+| --- | --- | --- | --- | --- |
+| 0 | 6 | `$` | - | 不定义 |
+| 1 | 5 | `a$` | 0 | `$` 与 `a$` |
+| 2 | 3 | `ana$` | 1 | 公共前缀 `a` |
+| 3 | 1 | `anana$` | 3 | 公共前缀 `ana` |
+| 4 | 0 | `banana$` | 0 | `anana$` 与 `banana$` |
+| 5 | 4 | `na$` | 0 | `banana$` 与 `na$` |
+| 6 | 2 | `nana$` | 2 | 公共前缀 `na` |
+
+$$LCP[j]$$ = 后缀 $$SA[j-1]$$ 与 $$SA[j]$$ 的最长公共前缀长度
+
+</Slide>
+
+<Slide>
+
+#### Kasai 算法
+::sub[不按排序顺序，而按文本位置顺序 i = 0, 1, 2, ...]
+
+> 如果后缀 $$i$$ 与它前一个邻居的 LCP 是 $$h$$，  
+> 那么后缀 $$i + 1$$ 与它前一个邻居的 LCP **至少**是 $$h - 1$$。
+
+<br/>
+
+- 后缀 $$i + 1$$ 就是后缀 $$i$$ 去掉首字符。
+- 前一个邻居 $$j$$ 去掉首字符成为 $$j + 1$$，两者仍共享 $$h - 1$$ 个字符。
+- 所以这 $$h - 1$$ 个字符**不比较、直接跳过**。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：Kasai
+::sub[橙色是后缀 i，蓝色是前一个邻居 j · 灰色是跳过的字符，绿色是匹配，红色是不匹配]
+
+<KasaiDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 写成过程
+::sub[`04_lcp/lcp.pseudo`]
+
+```plaintext
+ALGORITHM BuildLcpKasai(T, SA, n)
+    for j <- 0 to n-1 do rank[SA[j]] <- j  // 第 1 步：SA 的逆
+    h <- 0
+    for i <- 0 to n-1 do                   // 第 2 步：按文本位置顺序
+        if rank[i] > 0 then
+            j <- SA[rank[i] - 1]           // 排序中紧挨着的前一个邻居
+            while T[i + h] = T[j + h] do   // 跳过 h 个字符后比较
+                h <- h + 1
+            LCP[rank[i]] <- h
+            if h > 0 then h <- h - 1       // 下一个至少共享 h-1 个字符
+        else
+            h <- 0                         // 最前面的后缀没有邻居
+```
+
+省略了 while 的范围检查（`i + h < n and j + h < n`）。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[`04_lcp` · start h 是跳过的字符数]
+
+```console
+   i  suffix    rank  j  start h  lcp  compares
+   0  banana$      4  1        0    0         1
+   1  anana$       3  3        0    3         4
+   2  nana$        6  4        2    2         1
+   3  ana$         2  5        1    1         1
+   4  na$          5  0        0    0         1
+   5  a$           1  6        0    0         1
+   6  $            0  -        -    -         -
+char compares: kasai 9, naive 12
+```
+
+- `i = 2` 的 `nana$` 是 `anana$` 去掉 `a` 得到的，所以跳过 2 个字符。
+- 换成 `aaaaaaaa$`，Kasai 是 15 次，从头比较是 36 次。
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[Kasai 是 O(n)]
+
+- $$h$$ 每个位置最多减 1，而且不会超过 $$n$$。
+- 所以 while 里 $$h$$ 增加的次数加起来不超过 $$2n$$。
+- 不匹配的比较每个位置一次。
+
+<br/>
+
+有了后缀数组，LCP 数组就能在 $$O(n)$$ 内**几乎白送**。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 5. 最长重复子串
+::sub[Longest Repeated Substring, LRS]
+
+</Slide>
+
+<Slide class="compact">
+
+#### 最长重复子串
+::sub[在一个字符串里出现两次以上的最长子串]
+
+```plaintext
+aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
+tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
+cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg
+gtatagatagatagacccctagatacacatacatagatctagctagc
+tagctcatcgatacacactctcacactcaagagttatactggtcaac
+acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
+```
+
+- 答案是位置 31 和 217 处的 15 个字符 `agagttatactggtc`。
+- DNA 的重复片段、抄袭检测、音乐中反复出现的小节，都是这个问题。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：暴力法
+::sub[Brute-force · 右边每一格 (i, j) 是一对，数字是公共前缀长度 · 点击格子跳到该对]
+
+<LrsBruteDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 暴力法的代价
+::sub[aacaagtttacaagc$ 共 16 个字符：120 对，字符比较 161 次]
+
+- 位置对有 $$\dfrac{n(n-1)}{2}$$ 个，每对最多比较 $$D$$ 个字符
+- 运行时间 $$\le D n^2$$，$$D$$ 是最长匹配的长度
+- $$n$$ 为 10 亿时根本不可能。
+
+</Slide>
+
+<Slide>
+
+#### 用排序来解
+::sub[重复的子串 = 两个后缀的公共前缀]
+
+- `acaag` 在位置 1 和 9 出现，意思是  
+  后缀 `acaagtttacaagc$` 与 `acaagc$` 共享前 5 个字符。
+- 把后缀排好序，公共前缀长的后缀会**紧挨在一起**。
+- 只看相邻的对就够了，这就是 LCP 数组。
+
+<br/>
+
+> **LRS = LCP 数组的最大值所指的那段公共前缀**
+
+</Slide>
+
+<Slide>
+
+### 一步一步：banana$
+::sub[一次一对邻居，把公共前缀（橙色）与目前的最大值比较]
+
+<LcpScanDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 一步一步：15 个字符的碱基序列
+::sub[aacaagtttacaagc · 排好序后 acaagc$ 与 acaagtttacaagc$ 相邻]
+
+<LcpScanDemo text="aacaagtttacaagc$" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[`05_lrs` · 两个输入各自的最后两行]
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/05_lrs
+make -f /work/Makefile lrs.out && ./lrs.out
+```
+
+- 结果（部分）
+
+```console
+suffix sort: max LCP = 3 at j = 3 -> "ana" (positions 3, 1), 6 adjacent pairs
+brute force: "ana", 21 pairs, 28 char compares
+
+suffix sort: max LCP = 5 at j = 5 -> "acaag" (positions 9, 1), 15 adjacent pairs
+brute force: "acaag", 120 pairs, 161 char compares
+```
+
+经过排序只看 15 对邻居，暴力法要看 120 个位置对。
+
+</Slide>
+
+<Slide>
+
+#### 性能
+::sub[Sedgewick·Wayne《Algorithms》 · † 是估计值]
+
+| 输入文件 | 字符数 | 暴力法 | 后缀排序 |
+| --- | --- | --- | --- |
+| `LRS.java` | 2,162 | 0.6 秒 | 0.14 秒 |
+| `amendments.txt` | 18,369 | 37 秒 | 0.25 秒 |
+| `aesop.txt` | 191,945 | 1.2 小时 | 1.0 秒 |
+| `mobydick.txt` | 120 万 | 43 小时† | 7.6 秒 |
+| `chromosome11.txt` | 710 万 | 2 个月† | 61 秒 |
+| `pi.txt` | 1000 万 | 4 个月† | 84 秒 |
+
+</Slide>
+
+<Slide>
+
+#### 思考题
+::sub[在超过 10 亿个核苷酸中寻找很长的重复序列]
+
+谁的方法更有可能得出答案？
+
+- **A**：让研究生用手去找。
+- **B**：用检查所有位置对的暴力法。
+- **C**：用插入排序给后缀排序。
+- **D**：用 LSD 字符串排序给后缀排序。
+
+</Slide>
+
+<Slide>
+
+#### 四种都很难
+::sub[n 为 10 亿时，O(n²) 完不成]
+
+- **B**：$$Dn^2$$，按上表的趋势要几百年。
+- **C**：插入排序光比较就要 $$O(n^2)$$ 次。
+- **D**：LSD 以**长度相同的键**为前提。
+  - 后缀的长度从 1 到 $$n$$ 各不相同。
+  - 把长度补齐到 $$n$$，就是 $$n$$ 趟 × $$O(n)$$ = $$O(n^2)$$
+
+<br/>
+
+后缀排序必须做到 $$O(n \log n)$$ 以下。  
+适合变长键的 MSD 一类排序，或者用上基数排序的倍增，才是出路。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 6. 最长公共子串
+::sub[Longest Common Substring, LCS]
+
+</Slide>
+
+<Slide>
+
+#### LRS 与 LCS
+::sub[名字相似，却是不同的问题]
+
+| | LRS | LCS |
+| --- | --- | --- |
+| 输入 | 一个字符串 | 两个字符串 |
+| 要找的 | 在一个字符串里出现两次以上的 | 两个字符串里都出现的 |
+| 候选 | 所有相邻的对 | 从不同字符串开始的相邻对 |
+
+<br/>
+
+**要注意的是**：一个字符串的 LCP 最大值不是 LCS，而是 LRS。
+
+</Slide>
+
+<Slide>
+
+#### 把两个字符串连成一个
+::sub[T = S1 + "#" + S2 + "$"]
+
+1. **在两个字符串之间放一个两边都没有的分隔符 `#`**。
+2. **构造 $$T$$ 的后缀数组与 LCP 数组**。
+3. **只把从不同字符串开始的邻居当作候选**。
+   - 同一字符串之间的 LCP 是那个字符串内部的重复。
+
+<br/>
+
+`#` 只出现一次，所以公共前缀不可能越过 `#`。  
+因此 LCP 就是公共子串的长度。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：mississippi 与 kiss
+::sub[来源 1、2 是后缀开始的字符串 · 灰色行是同一字符串之间的对，跳过]
+
+<LcpScanDemo mode="lcs" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[`06_lcs` · * 是候选对]
+
+```console
+   j  SA[j]  from  LCP[j]  suffix
+   3      7     1       1  ippi#kiss$
+   4     13     2       1  iss$  *
+   5      4     1       3  issippi#kiss$  *
+   6      1     1       4  ississippi#kiss$
+   7     12     2       0  kiss$  *
+max LCP over all pairs = 4
+LCS = "iss" (length 3) at j = 5
+```
+
+- 整体最大值 4（`issi`）的两个后缀都在 `mississippi` 一侧。那是 LRS。
+- 候选中的最大值是 j = 5 处的 3，是与 `kiss` 的 `iss` 相遇的地方。
+
+</Slide>
+
+<Slide>
+
+#### 后缀数组的用途：KWIC
+::sub[Keyword in context · 把查询词出现的所有位置连同上下文一起显示]
+
+- **预处理**：先为文本构造一次后缀数组。
+- **查询**：以查询词开头的后缀，在排序中**聚在同一段里**。
+  - 用二分查找找出这一段的起点和终点。$$O(m \log n)$$
+- **应用**：语言学、数据库、网络搜索、文字处理软件
+
+</Slide>
+
+<Slide class="compact">
+
+#### KWIC：在《双城记》中找 search
+::sub[前后 15 个字符的上下文 · Sedgewick·Wayne 的例子]
+
+```console
+% java KWIC tale.txt 15
+search
+o st giless to search for contraband
+her unavailing search for your fathe
+le and gone in search of her husband
+t provinces in search of impoverishe
+ dispersing in search of other carri
+n that bed and search the straw hold
+```
+
+文本再长，每次查询也只是在后缀数组上做一次二分查找。
+
+</Slide>
+
+<Slide class="center">
+
+## 例 7. 栈与队列
+::sub[Stack, Queue]
+
+</Slide>
+
+<Slide>
+
+#### 栈与队列
+::sub[区别在于从哪一端取出]
+
+- **栈**（stack）：从放进去的那一端取出。
+  - **后放进去的先出来**，LIFO（last in, first out）
+  - push（放入），pop（取出）
+- **队列**（queue）：从后面放入，从前面取出。
+  - **先放进去的先出来**，FIFO（first in, first out）
+  - enqueue（放入），dequeue（取出）
+
+</Slide>
+
+<Slide>
+
+### 动手试试：栈与队列
+::sub[按按钮放入、取出 · 播放会向两者放入 A B C D 再全部取出]
+
+<StackQueueDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 桶就是队列
+::sub[LSD 演示里的桶，先放进去的先取出来]
+
+- 因为是队列桶，相同数字之间保留了前一趟的顺序。
+- 计数排序的"从后往前放"，是用一个数组完成十个队列桶的工作。
+
+<br/>
+
+如果把桶换成**栈**，会怎样？
+
+</Slide>
+
+<Slide>
+
+### 一步一步：栈桶
+::sub[同样的输入 437 042 531 008 074 · 最后顺序错了的两个元素是红色]
+
+<LsdRadixDemo buckets="stack" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[`07_stack_queue/stackQueue.c`]
+
+```console
+push   : A B C D
+pop    : D C B A
+enqueue: A B C D
+dequeue: A B C D
+
+input        : 437 042 531 008 074
+queue exp 1  : 531 042 074 437 008
+queue exp 10 : 008 531 437 042 074
+queue exp 100: 008 042 074 437 531
+stack exp 1  : 531 042 074 437 008
+stack exp 10 : 008 437 531 042 074
+stack exp 100: 074 042 008 437 531
+queue sorted = yes, stack sorted = no
+```
+
+十位上 `531` 和 `437` 被颠倒，百位上 `008 042 074` 被颠倒。
+
+</Slide>
+
+<Slide>
+
+#### 栈也藏在 MSD 里
+::sub[调用栈]
+
+- `MsdRecursive` 为每个桶调用自己时，返回的位置堆在**调用栈**上。
+- 最后调用的最先结束。这是 LIFO。
+- 不用递归来写，就把"还没处理的区间"亲手压进栈、再弹出来。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 现在动手
+::sub[亲眼确认稳定性与提前结束]
+
+[lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-09-radix-sort/`  
+打开文件，按编辑器右上角的 **▶ 按钮**运行。
+
+1. **把 LSD 的第 3 步改成从前往后放**。
+   - 会得到与栈桶相同的错误结果。
+2. **给 MSD 输入 `{111, 112, 113, 114}` 和 `{100, 200, 300, 400}`**。
+   - 读位次数分别是 12 次和 4 次。
+3. **把 LCS 的 `s2` 换成 `"sip"`**。
+   - 不会被同一字符串内部的重复（`issi`）骗到，而是找出 `sip`。
+
+</Slide>
+
+<Slide>
+
+## 要带走的
+
+1. **基数排序把键拆成位，每一位做一次计数排序**。
+   - 时间 $$O(d(n + k))$$，不做比较，所以处在下界的前提之外。
+2. **LSD 从低位开始，每一趟都必须稳定**。
+   - MSD 从高位开始分桶，分开了就不再往下读。
+3. **后缀数组是把所有后缀排好序后的起始位置数组**。
+   - 倍增用前 $$h$$ 个字符的排名对求出前 $$2h$$ 个字符的顺序。
+4. **LCP 数组用 Kasai 在 $$O(n)$$ 内构造**。
+   - LRS 是 LCP 的最大值，LCS 只看来自不同字符串的邻居。
+5. **栈是 LIFO，队列是 FIFO**。
+   - LSD 的桶必须是队列。
+
+</Slide>

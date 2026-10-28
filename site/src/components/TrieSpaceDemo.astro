@@ -1,0 +1,611 @@
+---
+// 키 집합을 바꿔 가며 트라이의 링크 수를 세어 보는 데모.
+//
+// 탭으로 실습 코드의 키 집합(by..the · chain · spread · apple..)을 고르거나,
+// 입력창에 단어를 직접 쳐서 바꾼다. 트라이를 그 자리에서 만들어 그리고, 노드·링크·
+// 빈 링크 수와 함께 "루트를 뺀 링크 수"가 RN과 RNw 사이 어디에 있는지 막대로 보인다.
+// 접두사를 다 공유하면 RN 쪽 끝, 서로 하나도 공유하지 않으면 RNw 쪽 끝에 붙는다.
+//
+// compare를 주면 같은 키로 만든 TST와 이진 탐색 트리의 노드·링크 수를 막대로
+// 나란히 놓는다. TST는 실습 코드(02_tst)의 삽입을 그대로 돌려 센다.
+//
+// 숫자는 algorithm-code의 topic-10-trie/01_trie의 space 표와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 고른 키 집합 */
+  set?: 'byThe' | 'chain' | 'spread' | 'apple';
+  /** 보일 탭 */
+  sets?: ('byThe' | 'chain' | 'spread' | 'apple')[];
+  /** TST·이진 탐색 트리와 나란히 */
+  compare?: boolean;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { set = 'byThe', sets = ['byThe', 'chain', 'spread', 'apple'], compare = false, slide = false } = Astro.props;
+const id = `sp-${Math.random().toString(36).slice(2, 9)}`;
+
+const SETS: Record<string, { label: string; words: string[] }> = {
+  byThe: { label: 'by..the', words: ['by', 'sea', 'sells', 'she', 'shells', 'the'] },
+  chain: { label: 'chain', words: ['s', 'she', 'sh', 'shells', 'shel', 'shell'] },
+  spread: { label: 'spread', words: ['shells', 'an', 'bat', 'the', 'yell', 'ear'] },
+  apple: { label: 'apple..', words: ['apple', 'application', 'apply', 'applaud', 'applet', 'appliance', 'applicable'] },
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    sep: ' ',
+    title: '트라이의 링크 수',
+    titleCompare: '같은 키, 세 구조',
+    input: '키',
+    root: '루트',
+    keys: '키 N',
+    avg: '평균 길이 w',
+    nodes: '노드',
+    links: '링크',
+    empty: '빈 링크',
+    rest: '루트를 뺀 링크',
+    trie: '트라이',
+    tst: 'TST',
+    bst: '이진 탐색 트리',
+    perNode: '노드마다 링크 {r}개',
+    note: '루트를 뺀 링크 {l}개는 RN = {rn}, RNw = {rnw} 사이에서 {pct}% 자리입니다.',
+    noteLow: '키들이 접두사를 다 공유해서 RN 쪽 끝에 붙었습니다.',
+    noteHigh: '키들이 첫 글자부터 서로 갈라져서 RNw 쪽 끝에 붙었습니다.',
+    noteCompare: '노드 수는 트라이가 {tn}개, TST가 {sn}개로 루트 하나 차이입니다. 링크는 노드마다 26개에서 3개로 줄어 {tl}개가 {sl}개가 됩니다.',
+    bad: 'a부터 z까지의 소문자 단어만 받습니다. 단어는 10개, 한 단어는 12글자까지입니다.',
+  },
+  en: {
+    sep: ' ',
+    title: 'Counting trie links',
+    titleCompare: 'Same keys, three structures',
+    input: 'Keys',
+    root: 'root',
+    keys: 'keys N',
+    avg: 'avg length w',
+    nodes: 'nodes',
+    links: 'links',
+    empty: 'null links',
+    rest: 'links below the root',
+    trie: 'Trie',
+    tst: 'TST',
+    bst: 'Binary search tree',
+    perNode: '{r} links per node',
+    note: 'The {l} links below the root sit at {pct}% of the way from RN = {rn} to RNw = {rnw}.',
+    noteLow: 'The keys share all their prefixes, so it lands on the RN end.',
+    noteHigh: 'The keys part ways at the first character, so it lands on the RNw end.',
+    noteCompare: 'The trie has {tn} nodes and the TST {sn}, one root apart. Links drop from 26 to 3 per node, so {tl} links become {sl}.',
+    bad: 'Only lowercase words a to z are accepted, up to 10 words of up to 12 letters.',
+  },
+  zh: {
+    sep: '',
+    title: '数一数字典树的链接',
+    titleCompare: '同样的键，三种结构',
+    input: '键',
+    root: '根',
+    keys: '键 N',
+    avg: '平均长度 w',
+    nodes: '节点',
+    links: '链接',
+    empty: '空链接',
+    rest: '根以外的链接',
+    trie: '字典树',
+    tst: 'TST',
+    bst: '二叉搜索树',
+    perNode: '每个节点 {r} 个链接',
+    note: '根以外的 {l} 个链接在 RN = {rn} 到 RNw = {rnw} 之间处于 {pct}% 的位置。',
+    noteLow: '这些键共享全部前缀，所以落在 RN 一端。',
+    noteHigh: '这些键从第一个字符就分开，所以落在 RNw 一端。',
+    noteCompare: '节点数字典树 {tn} 个，TST {sn} 个，只差一个根。链接从每个节点 26 个减到 3 个，{tl} 个变成 {sl} 个。',
+    bad: '只接受由小写字母 a 到 z 组成的单词，最多 10 个，每个最多 12 个字母。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = Object.fromEntries(sets.map((s) => [s, SETS[s].words]));
+---
+
+<div
+  class:list={['aas-trie-space-demo', slide && 'is-slide', compare && 'is-compare']}
+  id={id}
+  data-sp-config={JSON.stringify({ set, presets, compare })}
+  data-sp-strings={JSON.stringify(t)}
+>
+  <div class="sp-bar">
+    <span class="sp-head"><strong>{compare ? t.titleCompare : t.title}</strong></span>
+    <label class="sp-input">
+      <span>{t.input}</span>
+      <input type="text" data-sp-input autocomplete="off" spellcheck="false" />
+    </label>
+    <div class="sp-tabs">
+      {
+        sets.map((s) => (
+          <button type="button" class="sp-btn" data-sp-tab={s}>
+            {SETS[s].label}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="sp-body">
+    <svg class="sp-svg" data-sp-svg role="img" aria-label={t.trie}></svg>
+    <div class="sp-side">
+      {
+        compare ? (
+          <div class="sp-cmp" data-sp-cmp />
+        ) : (
+          <>
+            <table class="sp-table">
+              <tbody data-sp-stats />
+            </table>
+            <div class="sp-gauge">
+              <div class="sp-gauge-label">{t.rest}</div>
+              <div class="sp-track">
+                <span class="sp-dot" data-sp-dot>
+                  <span data-sp-dotv />
+                </span>
+              </div>
+              <div class="sp-ends">
+                <span>
+                  RN <strong data-sp-rn />
+                </span>
+                <span>
+                  RNw <strong data-sp-rnw />
+                </span>
+              </div>
+            </div>
+          </>
+        )
+      }
+    </div>
+  </div>
+  <p class="sp-note" data-sp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const cfg = JSON.parse(root.dataset.spConfig);
+    const S = JSON.parse(root.dataset.spStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const R = 26;
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+
+    /* 트라이: 노드 id는 루트에서의 문자열 */
+    function buildTrie(words) {
+      const trie = new Map([['', { kids: [], ch: '', parent: null, value: null }]]);
+      words.forEach((w, i) => {
+        let cur = '';
+        for (const ch of w) {
+          const next = cur + ch;
+          if (!trie.has(next)) {
+            trie.set(next, { kids: [], ch, parent: cur, value: null });
+            trie.get(cur).kids.push(next);
+            trie.get(cur).kids.sort();
+          }
+          cur = next;
+        }
+        trie.get(cur).value = i;
+      });
+      return trie;
+    }
+    /* TST: 실습 코드의 insert와 같다. 작으면 왼쪽, 크면 오른쪽, 같으면 가운데로 다음 문자 */
+    function tstNodes(words) {
+      const nodes = new Map(); /* id(루트에서 간 방향 L·M·R) -> 문자 */
+      for (const w of words) {
+        let id = '';
+        let i = 0;
+        for (;;) {
+          if (!nodes.has(id)) nodes.set(id, w[i]);
+          const c = nodes.get(id);
+          if (w[i] < c) id += 'L';
+          else if (w[i] > c) id += 'R';
+          else if (i < w.length - 1) {
+            id += 'M';
+            i += 1;
+          } else break;
+        }
+      }
+      return nodes.size;
+    }
+
+    const svg = root.querySelector('[data-sp-svg]');
+    function draw(trie) {
+      const deepest = Math.max(1, ...[...trie.keys()].map((k) => k.length));
+      const UNIT = 46;
+      const LEVEL = Math.min(46, Math.max(30, Math.floor(330 / deepest)));
+      const RAD = 14;
+      const pos = new Map();
+      let slot = 0;
+      (function place(nid, d) {
+        const n = trie.get(nid);
+        if (n.kids.length === 0) {
+          pos.set(nid, { x: slot * UNIT, y: d * LEVEL });
+          slot += 1;
+          return;
+        }
+        n.kids.forEach((k) => place(k, d + 1));
+        pos.set(nid, { x: (pos.get(n.kids[0]).x + pos.get(n.kids[n.kids.length - 1]).x) / 2, y: d * LEVEL });
+      })('', 0);
+      const W = Math.max(1, slot - 1) * UNIT;
+      svg.setAttribute('viewBox', `${-RAD - 14} ${-RAD - 18} ${W + 2 * RAD + 28} ${deepest * LEVEL + 2 * RAD + 22}`);
+      svg.replaceChildren();
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      svg.append(edges, nodes);
+      for (const [nid, n] of trie) {
+        const p = pos.get(nid);
+        if (n.parent !== null) {
+          const q = pos.get(n.parent);
+          edges.appendChild(el('line', { class: 'sp-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y }));
+        }
+        const g = el('g', { class: `sp-nd${nid === '' ? ' is-root' : ''}${n.value !== null ? ' has-value' : ''}`, transform: `translate(${p.x} ${p.y})` });
+        if (nid === '') g.append(el('circle', { r: RAD * 0.8 }), el('text', { class: 'sp-root', y: -RAD - 4 }, S.root));
+        else g.append(el('circle', { r: RAD }), el('text', { class: 'sp-ch' }, n.ch));
+        nodes.appendChild(g);
+      }
+    }
+
+    const input = root.querySelector('[data-sp-input]');
+    const note = root.querySelector('[data-sp-note]');
+    function show(words, bad) {
+      const trie = buildTrie(words);
+      draw(trie);
+      const N = words.length;
+      const chars = words.reduce((a, w) => a + w.length, 0);
+      const nodes = trie.size;
+      const links = nodes * R;
+      const rn = R * N;
+      const rnw = R * chars;
+      const rest = links - R;
+      const pct = rnw === rn ? 0 : Math.round(((rest - rn) / (rnw - rn)) * 100);
+      let text = '';
+      if (bad) text += S.bad + S.sep;
+      if (cfg.compare) {
+        const sn = tstNodes(words);
+        const rows = [
+          [S.trie, nodes, links, R],
+          [S.tst, sn, sn * 3, 3],
+          [S.bst, N, N * 2, 2],
+        ];
+        const max = Math.max(...rows.map((r) => r[2]));
+        const box = root.querySelector('[data-sp-cmp]');
+        box.replaceChildren(
+          ...rows.map(([name, nn, ll, r], i) => {
+            const row = Object.assign(document.createElement('div'), { className: `sp-row is-${['trie', 'tst', 'bst'][i]}` });
+            const head = Object.assign(document.createElement('div'), { className: 'sp-row-head' });
+            head.append(
+              Object.assign(document.createElement('strong'), { textContent: name }),
+              Object.assign(document.createElement('span'), { textContent: `${S.nodes} ${nn} · ${fill(S.perNode, { r })}` }),
+            );
+            const bar = Object.assign(document.createElement('div'), { className: 'sp-bar-track' });
+            const fillEl = Object.assign(document.createElement('span'), { className: 'sp-bar-fill' });
+            fillEl.style.width = `${Math.max(0.6, (ll / max) * 100)}%`;
+            const val = Object.assign(document.createElement('span'), { className: 'sp-bar-val', textContent: `${S.links} ${ll}` });
+            bar.append(fillEl, val);
+            row.append(head, bar);
+            return row;
+          }),
+        );
+        text += fill(S.noteCompare, { tn: nodes, sn, tl: links, sl: sn * 3 });
+      } else {
+        const stats = root.querySelector('[data-sp-stats]');
+        const rows = [
+          [S.keys, N],
+          [S.avg, (chars / N).toFixed(2)],
+          [S.nodes, nodes],
+          [S.links, `${nodes} × ${R} = ${links}`],
+          [S.empty, links - (nodes - 1)],
+        ];
+        stats.replaceChildren(
+          ...rows.map(([a, b]) => {
+            const tr = document.createElement('tr');
+            tr.append(Object.assign(document.createElement('th'), { textContent: a }), Object.assign(document.createElement('td'), { textContent: String(b) }));
+            return tr;
+          }),
+        );
+        root.querySelector('[data-sp-rn]').textContent = String(rn);
+        root.querySelector('[data-sp-rnw]').textContent = String(rnw);
+        root.querySelector('[data-sp-dotv]').textContent = String(rest);
+        root.querySelector('[data-sp-dot]').style.left = `${pct}%`;
+        text += fill(S.note, { l: rest, rn, rnw, pct });
+        if (rest === rn && rn !== rnw) text += S.sep + S.noteLow;
+        else if (rest === rnw && rn !== rnw) text += S.sep + S.noteHigh;
+      }
+      setLines(note, text);
+    }
+
+    const parse = (raw) => {
+      const words = [];
+      for (const w of raw.toLowerCase().split(/[^a-z]+/)) if (w && !words.includes(w)) words.push(w.slice(0, 12));
+      return words.slice(0, 10);
+    };
+    let tab = cfg.set;
+    const markTab = () => root.querySelectorAll('[data-sp-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.spTab === tab));
+    const pick = (s) => {
+      tab = s;
+      input.value = cfg.presets[s].join(' ');
+      markTab();
+      show(cfg.presets[s], false);
+    };
+    root.querySelectorAll('[data-sp-tab]').forEach((b) => b.addEventListener('click', () => pick(b.dataset.spTab)));
+    input.addEventListener('input', () => {
+      const words = parse(input.value);
+      tab = Object.keys(cfg.presets).find((k) => cfg.presets[k].join(' ') === words.join(' ')) || '';
+      markTab();
+      if (words.length === 0) return;
+      const raw = input.value.toLowerCase().split(/[\s,]+/).filter(Boolean);
+      const bad = raw.some((w) => /[^a-z]/.test(w) || w.length > 12) || raw.length > 10;
+      show(words, bad);
+    });
+    pick(cfg.presets[tab] ? tab : Object.keys(cfg.presets)[0]);
+  })();
+</script>
+
+<style is:global>
+  .aas-trie-space-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-space-demo .sp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-trie-space-demo .sp-head {
+    font-size: 0.95em;
+  }
+  .aas-trie-space-demo .sp-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-trie-space-demo .sp-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-space-demo .sp-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-space-demo .sp-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-trie-space-demo .sp-input {
+    flex: 1 1 16em;
+    display: flex;
+    gap: 0.6em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-space-demo .sp-input input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.3em 0.6em;
+    font-size: 1em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.5em;
+  }
+  .aas-trie-space-demo .sp-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 1.5em;
+    align-items: center;
+    margin-top: 0.6em;
+  }
+  .aas-trie-space-demo .sp-svg {
+    flex: 1.3 1 18em;
+    min-width: 0;
+    max-height: 20em;
+  }
+  .aas-trie-space-demo .sp-side {
+    flex: 1 1 14em;
+  }
+  .aas-trie-space-demo .sp-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+  }
+  .aas-trie-space-demo .sp-nd circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+  }
+  .aas-trie-space-demo .sp-nd.has-value circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-trie-space-demo .sp-nd.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .aas-trie-space-demo .sp-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-space-demo .sp-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-trie-space-demo .sp-table {
+    width: auto !important;
+    margin: 0 0 0.8em;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .aas-trie-space-demo .sp-table th,
+  .aas-trie-space-demo .sp-table td {
+    padding: 0.15em 0.7em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: left;
+  }
+  .aas-trie-space-demo .sp-table th {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-trie-space-demo .sp-table td {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-trie-space-demo .sp-gauge-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-bottom: 1.9em;
+  }
+  .aas-trie-space-demo .sp-track {
+    position: relative;
+    height: 0.55em;
+    margin: 0 0.6em;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--aas-role-eval), var(--aas-role-guard));
+  }
+  .aas-trie-space-demo .sp-dot {
+    position: absolute;
+    top: 50%;
+    width: 1.1em;
+    height: 1.1em;
+    border: 3px solid var(--aas-bg);
+    border-radius: 50%;
+    background: var(--aas-role-focus);
+    box-shadow: 0 0 0 1px var(--aas-role-focus);
+    transform: translate(-50%, -50%);
+    transition: left 0.35s ease;
+  }
+  .aas-trie-space-demo .sp-dot span {
+    position: absolute;
+    bottom: 1.2em;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.9em;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-role-focus);
+    white-space: nowrap;
+  }
+  .aas-trie-space-demo .sp-ends {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-space-demo .sp-ends strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 세 구조 비교 */
+  .aas-trie-space-demo .sp-row {
+    margin-bottom: 0.7em;
+  }
+  .aas-trie-space-demo .sp-row-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0 0.8em;
+    font-size: 0.85em;
+  }
+  .aas-trie-space-demo .sp-row-head span {
+    color: var(--aas-muted);
+  }
+  .aas-trie-space-demo .sp-bar-track {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-top: 0.2em;
+  }
+  .aas-trie-space-demo .sp-bar-fill {
+    display: block;
+    height: 1.1em;
+    border-radius: 0.25em;
+    background: var(--aas-role-guard);
+    transition: width 0.35s ease;
+  }
+  .aas-trie-space-demo .is-tst .sp-bar-fill {
+    background: var(--aas-role-eval);
+  }
+  .aas-trie-space-demo .is-bst .sp-bar-fill {
+    background: var(--aas-role-model);
+  }
+  .aas-trie-space-demo .sp-bar-val {
+    flex: 0 0 auto;
+    font-size: 0.85em;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    white-space: nowrap;
+  }
+  .aas-trie-space-demo .sp-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-trie-space-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-space-demo.is-slide .sp-body {
+    flex-wrap: nowrap;
+  }
+  /* 슬라이드: 트리를 칸 높이에 맞춰 키운다. 폭은 viewBox 비율을 따른다. */
+  .aas-trie-space-demo.is-slide .sp-svg {
+    flex: 0 0 auto;
+    height: 47vh;
+    width: auto;
+    max-width: 58%;
+    max-height: none;
+  }
+  .aas-trie-space-demo.is-slide .sp-note {
+    min-height: 1.6em;
+  }
+  .aas-trie-space-demo.is-slide .sp-body {
+    justify-content: space-around;
+  }
+  .aas-trie-space-demo.is-slide .sp-side {
+    flex: 0 1 26em;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-space-demo .sp-dot,
+    .aas-trie-space-demo .sp-bar-fill {
+      transition: none;
+    }
+  }
+</style>

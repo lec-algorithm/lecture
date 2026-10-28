@@ -1,0 +1,620 @@
+---
+// 거스름돈 메모이제이션(coinChangeMemo)을 한 걸음씩 돌려 보는 데모.
+//
+// 실제 호출 트리를 그려 두고 하나씩 밝힌다. 노드 위 숫자는 금액, 아래 숫자는
+// 그 금액의 답(최소 동전 수)이다. 간선의 -c는 낸 동전이다.
+// - 주황 테두리: 지금 푸는 금액 (memo가 -1이라 동전마다 내려간다)
+// - 노랑: memo에서 꺼낸 호출. 아래로 갈라지지 않는다.
+// - 회색 점선: 음수 금액. 만들 수 없다(INF).
+// - 진한 간선: 최솟값을 준 동전
+// 위의 memo 줄은 값이 적히는 순간(초록)과 읽히는 순간(노랑)을 보인다. 끝까지
+// -1로 남는 칸이 "필요한 것만 푼다(lazy)"의 증거다.
+//
+// 절차는 algorithm-code topic-14 02_coin_change(coin_change_memo)와 같다.
+// 0원과 음수는 메모를 보기 전에 돌려주므로 memo[0]은 -1로 남는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  coins?: number[];
+  amount?: number;
+  slide?: boolean;
+}
+const { coins = [2, 3, 5], amount = 6, slide = false } = Astro.props;
+const id = `cm-${Math.random().toString(36).slice(2, 9)}`;
+
+type Node = {
+  id: number;
+  a: number;
+  depth: number;
+  coin: number;
+  kind: 'solve' | 'hit' | 'zero' | 'neg';
+  children: Node[];
+  x: number;
+};
+type Part = { c: number; r: number | null; x: number | null };
+type Ev = {
+  k: 'call' | 'zero' | 'neg' | 'hit' | 'store' | 'done';
+  id: number;
+  a: number;
+  p?: number;
+  c?: number;
+  v?: number | null;
+  parts?: Part[];
+  best?: number;
+};
+
+// 1. 메모이제이션을 실제로 돌리며 호출 트리와 사건 목록을 함께 만든다. INF는 null
+let nextId = 0;
+const all: Node[] = [];
+const events: Ev[] = [];
+const memo: (number | null)[] = new Array(amount + 1).fill(-1);
+const run = (a: number, depth: number, p: number, coin: number): [number | null, Node] => {
+  const node: Node = { id: nextId++, a, depth, coin, kind: 'solve', children: [], x: 0 };
+  all.push(node);
+  if (a === 0) {
+    node.kind = 'zero';
+    events.push({ k: 'zero', id: node.id, a, p, c: coin, v: 0 });
+    return [0, node];
+  }
+  if (a < 0) {
+    node.kind = 'neg';
+    events.push({ k: 'neg', id: node.id, a, p, c: coin, v: null });
+    return [null, node];
+  }
+  if (memo[a] !== -1) {
+    node.kind = 'hit';
+    events.push({ k: 'hit', id: node.id, a, p, c: coin, v: memo[a] });
+    return [memo[a], node];
+  }
+  events.push({ k: 'call', id: node.id, a });
+  let best: number | null = null;
+  let bestChild = -1;
+  const parts: Part[] = [];
+  for (const c of coins) {
+    const [r, child] = run(a - c, depth + 1, a, c);
+    node.children.push(child);
+    parts.push({ c, r, x: r === null ? null : r + 1 });
+    if (r !== null && (best === null || r + 1 < best)) {
+      best = r + 1;
+      bestChild = child.id;
+    }
+  }
+  memo[a] = best;
+  events.push({ k: 'store', id: node.id, a, v: best, parts, best: bestChild });
+  return [best, node];
+};
+const [answer, tree] = run(amount, 0, -1, 0);
+const solved = events.filter((e) => e.k === 'call').length;
+const unsolved = Array.from({ length: amount - 1 }, (_, i) => i + 1).filter((a) => memo[a] === -1);
+events.push({ k: 'done', id: tree.id, a: amount, v: answer });
+
+let leafSlot = 0;
+const layout = (node: Node): number => {
+  if (node.children.length === 0) node.x = leafSlot++;
+  else {
+    const xs = node.children.map(layout);
+    node.x = (xs[0] + xs[xs.length - 1]) / 2;
+  }
+  return node.x;
+};
+layout(tree);
+const levels = Math.max(...all.map((d) => d.depth)) + 1;
+const COL = slide ? 62 : 60;
+const ROW = slide ? 64 : 72;
+const NW = slide ? 50 : 44;
+const NH = slide ? 46 : 42;
+const cx = (d: Node) => (d.x + 0.5) * COL;
+const cy = (d: Node) => d.depth * ROW + NH / 2 + 4;
+const viewW = leafSlot * COL;
+const viewH = (levels - 1) * ROW + NH + 8;
+const edges = all.flatMap((p) => p.children.map((c) => ({ p, c })));
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '거스름돈 메모이제이션',
+    amount: '금액',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    calls: '호출',
+    solved: '푼 금액',
+    start: '동전 {coins}, 금액 {A}원. memo는 전부 -1(아직 모름)입니다.',
+    call: 'solve {a}: memo[{a}] = -1, 아직 모릅니다. 동전마다 하나씩 내 봅니다.',
+    zero: '{p} - {c} = 0. 0원은 동전 0개(기저)입니다.',
+    neg: '{p} - {c} = {a}. 음수 금액은 만들 수 없습니다(INF).',
+    hit: '{p} - {c} = {a}. memo[{a}] = {v}, 이미 구한 금액입니다. 다시 풀지 않고 꺼냅니다.',
+    part: '동전 {c} → {r}+1 = {x}',
+    partNo: '동전 {c} → 불가',
+    store: '{a}원: {list} ⇒ memo[{a}] ← {v}',
+    done: '{A}원은 동전 {v}개입니다. 푼 금액은 {s}개뿐입니다. -1로 남은 {list}은 {A}원을 만드는 데 필요하지 않았습니다.',
+    doneAll: '{A}원은 동전 {v}개입니다. 1원부터 {A}원까지 모든 금액을 풀었습니다.',
+    doneInf: '{A}원은 만들 수 없습니다.',
+    won: '{a}원',
+  },
+  en: {
+    title: 'Coin change with a memo',
+    amount: 'amount',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    calls: 'calls',
+    solved: 'solved',
+    start: 'Coins {coins}, amount {A}. Every memo cell starts at -1 (unknown).',
+    call: 'solve {a}: memo[{a}] = -1, not known yet. Try each coin in turn.',
+    zero: '{p} - {c} = 0. Amount 0 takes 0 coins (base case).',
+    neg: '{p} - {c} = {a}. A negative amount cannot be made (INF).',
+    hit: '{p} - {c} = {a}. memo[{a}] = {v} is already there. Take it instead of solving again.',
+    part: 'coin {c} → {r}+1 = {x}',
+    partNo: 'coin {c} → no',
+    store: 'amount {a}: {list} ⇒ memo[{a}] ← {v}',
+    done: '{A} takes {v} coins. Only {s} amounts were solved. The cells left at -1 ({list}) were never needed for {A}.',
+    doneAll: '{A} takes {v} coins. Every amount from 1 to {A} was solved.',
+    doneInf: '{A} cannot be made.',
+    won: '{a}',
+  },
+  zh: {
+    title: '找零的记忆化',
+    amount: '金额',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    calls: '调用',
+    solved: '已解金额',
+    start: '硬币 {coins}，金额 {A}。memo 全部为 -1（尚未知道）。',
+    call: 'solve {a}：memo[{a}] = -1，还不知道。逐一试付每种硬币。',
+    zero: '{p} - {c} = 0。0 元需要 0 枚硬币（基本情况）。',
+    neg: '{p} - {c} = {a}。负数金额凑不出（INF）。',
+    hit: '{p} - {c} = {a}。memo[{a}] = {v} 已经求过。直接取出，不再重算。',
+    part: '硬币 {c} → {r}+1 = {x}',
+    partNo: '硬币 {c} → 不行',
+    store: '{a} 元：{list} ⇒ memo[{a}] ← {v}',
+    done: '{A} 元需要 {v} 枚硬币。只解了 {s} 个金额。仍为 -1 的 {list}，凑出 {A} 元时并不需要。',
+    doneAll: '{A} 元需要 {v} 枚硬币。从 1 到 {A} 的所有金额都解了。',
+    doneInf: '{A} 元凑不出。',
+    won: '{a} 元',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const config = { coins, amount, solved, unsolved };
+---
+
+<div
+  class:list={['aas-coin-memo-demo', slide && 'is-slide']}
+  id={id}
+  data-cm-strings={JSON.stringify(t)}
+  data-cm-events={JSON.stringify(events)}
+  data-cm-config={JSON.stringify(config)}
+>
+  <div class="cm-bar">
+    <span class="cm-head"><strong>{t.title}</strong></span>
+    <span class="cm-counts">
+      <span>{t.calls} <strong data-cm-calls>0</strong></span>
+      <span>{t.solved} <strong data-cm-solved>0</strong></span>
+    </span>
+    <span class="cm-controls">
+      <button type="button" class="cm-btn" data-cm-back>{t.back}</button>
+      <button type="button" class="cm-btn" data-cm-step>{t.step}</button>
+      <button type="button" class="cm-btn cm-btn-primary" data-cm-play>{t.play}</button>
+      <button type="button" class="cm-btn" data-cm-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="cm-memo" style={`--cm-cols: ${amount + 1}`}>
+    <span class="cm-memo-label">{t.amount}</span>
+    {Array.from({ length: amount + 1 }, (_, a) => <span class="cm-idx">{a}</span>)}
+    <span class="cm-memo-label">memo</span>
+    {Array.from({ length: amount + 1 }, (_, a) => <span class="cm-cell" data-cm-cell={a}>-1</span>)}
+  </div>
+
+  <svg class="cm-tree" viewBox={`0 0 ${viewW} ${viewH}`} role="img" aria-label={t.title}>
+    {
+      edges.map(({ p, c }) => (
+        <g class="cm-edge" data-cm-edge={c.id}>
+          <path
+            d={`M ${cx(p)} ${cy(p) + NH / 2} C ${cx(p)} ${cy(p) + ROW / 2}, ${cx(c)} ${cy(c) - ROW / 2}, ${cx(c)} ${cy(c) - NH / 2}`}
+          />
+          <text x={cx(c) + NW * 0.42} y={cy(c) - NH / 2 - 9}>
+            {`-${c.coin}`}
+          </text>
+        </g>
+      ))
+    }
+    {
+      all.map((d) => (
+        <g class:list={['cm-node', `is-${d.kind}`]} data-cm-node={d.id}>
+          <rect x={cx(d) - NW / 2} y={cy(d) - NH / 2} width={NW} height={NH} rx="7" />
+          <text class="cm-a" x={cx(d)} y={cy(d)} data-cm-a>
+            {d.a}
+          </text>
+          <text class="cm-v" x={cx(d)} y={cy(d) + NH * 0.24} data-cm-v></text>
+        </g>
+      ))
+    }
+  </svg>
+
+  <p class="cm-note" data-cm-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.cmStrings);
+    const events = JSON.parse(root.dataset.cmEvents);
+    const cfg = JSON.parse(root.dataset.cmConfig);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+    const show = (v) => (v === null ? 'INF' : String(v));
+
+    const nodes = new Map();
+    root.querySelectorAll('[data-cm-node]').forEach((el) => nodes.set(Number(el.dataset.cmNode), el));
+    const edges = new Map();
+    root.querySelectorAll('[data-cm-edge]').forEach((el) => edges.set(Number(el.dataset.cmEdge), el));
+    const cells = [...root.querySelectorAll('[data-cm-cell]')];
+    const note = root.querySelector('[data-cm-note]');
+    const callsEl = root.querySelector('[data-cm-calls]');
+    const solvedEl = root.querySelector('[data-cm-solved]');
+    const stepBtn = root.querySelector('[data-cm-step]');
+    const playBtn = root.querySelector('[data-cm-play]');
+
+    let at = -1;
+    let timer = null;
+
+    function noteFor(e) {
+      if (e.k === 'store') {
+        const list = e.parts
+          .map((p) => (p.r === null ? fill(S.partNo, { c: p.c }) : fill(S.part, { c: p.c, r: p.r, x: p.x })))
+          .join(' · ');
+        return fill(S.store, { a: e.a, list, v: show(e.v) });
+      }
+      if (e.k === 'done') {
+        if (e.v === null) return fill(S.doneInf, { A: e.a });
+        if (cfg.unsolved.length === 0) return fill(S.doneAll, { A: e.a, v: e.v });
+        const list = cfg.unsolved.map((a) => fill(S.won, { a })).join(', ');
+        return fill(S.done, { A: e.a, v: e.v, s: cfg.solved, list });
+      }
+      return fill(S[e.k], { a: e.a, p: e.p, c: e.c, v: show(e.v) });
+    }
+
+    /* 상태는 매번 처음부터 다시 쌓는다. 되감기가 공짜이고 그림과 숫자가 어긋날 수 없다. */
+    function render() {
+      const seen = new Set();
+      const val = new Map();
+      const best = new Set();
+      const stack = [];
+      const memo = new Array(cfg.amount + 1).fill(-1);
+      let calls = 0;
+      let solved = 0;
+      for (let i = 0; i <= at; i++) {
+        const e = events[i];
+        if (e.k === 'call') {
+          seen.add(e.id);
+          stack.push(e.id);
+          calls++;
+          solved++;
+        } else if (e.k === 'zero' || e.k === 'neg' || e.k === 'hit') {
+          seen.add(e.id);
+          val.set(e.id, e.v);
+          calls++;
+        } else if (e.k === 'store') {
+          stack.pop();
+          val.set(e.id, e.v);
+          memo[e.a] = e.v;
+          if (e.best >= 0) best.add(e.best);
+        }
+      }
+      const cur = at >= 0 ? events[at] : null;
+      const live = stack[stack.length - 1];
+      nodes.forEach((el, nid) => {
+        const has = val.has(nid);
+        el.classList.toggle('is-seen', seen.has(nid));
+        el.classList.toggle('is-live', nid === live && !has);
+        el.classList.toggle('is-now', !!cur && cur.k !== 'done' && cur.id === nid);
+        el.classList.toggle('is-known', has);
+        el.querySelector('[data-cm-v]').textContent = has ? show(val.get(nid)) : '';
+        el.classList.toggle('has-v', has);
+      });
+      edges.forEach((el, cid) => {
+        el.classList.toggle('is-seen', seen.has(cid));
+        el.classList.toggle('is-best', best.has(cid));
+      });
+      cells.forEach((c, a) => {
+        c.textContent = memo[a] === -1 ? '-1' : show(memo[a]);
+        c.classList.toggle('is-set', memo[a] !== -1);
+        c.classList.toggle('is-write', !!cur && cur.k === 'store' && cur.a === a);
+        c.classList.toggle('is-read', !!cur && cur.k === 'hit' && cur.a === a);
+        c.classList.toggle('is-left', !!cur && cur.k === 'done' && a > 0 && memo[a] === -1);
+      });
+      callsEl.textContent = String(calls);
+      solvedEl.textContent = String(solved);
+      setLines(
+        note,
+        cur ? noteFor(cur) : fill(S.start, { coins: `{${cfg.coins.join(', ')}}`, A: cfg.amount }),
+      );
+      const last = at === events.length - 1;
+      root.classList.toggle('is-done', last);
+      stepBtn.disabled = last;
+      if (last) stop();
+    }
+
+    function stop() {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+        playBtn.textContent = S.play;
+      }
+    }
+    function step() {
+      if (at < events.length - 1) at++;
+      render();
+    }
+    root.querySelector('[data-cm-back]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at--;
+      render();
+    });
+    stepBtn.addEventListener('click', () => {
+      stop();
+      step();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer !== null) {
+        stop();
+        return;
+      }
+      if (at >= events.length - 1) at = -1;
+      playBtn.textContent = S.stop;
+      timer = window.setInterval(step, 1300);
+    });
+    root.querySelector('[data-cm-reset]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-coin-memo-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-coin-memo-demo .cm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-coin-memo-demo .cm-head {
+    font-size: 0.95em;
+  }
+  .aas-coin-memo-demo .cm-counts {
+    display: flex;
+    gap: 1em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-memo-demo .cm-counts strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-coin-memo-demo .cm-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-coin-memo-demo .cm-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-coin-memo-demo .cm-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-coin-memo-demo .cm-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-coin-memo-demo .cm-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-coin-memo-demo .cm-memo {
+    display: grid;
+    grid-template-columns: 4em repeat(var(--cm-cols), 3em);
+    gap: 0.2em;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0.4em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-coin-memo-demo .cm-memo-label,
+  .aas-coin-memo-demo .cm-idx {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    text-align: center;
+  }
+  .aas-coin-memo-demo .cm-memo-label {
+    text-align: right;
+    padding-right: 0.5em;
+  }
+  .aas-coin-memo-demo .cm-cell {
+    padding: 0.2em 0;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    text-align: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    transition: background-color 0.25s;
+  }
+  .aas-coin-memo-demo .cm-cell.is-set {
+    color: var(--aas-text);
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-coin-memo-demo .cm-cell.is-write {
+    background: color-mix(in srgb, var(--aas-role-eval) 40%, var(--aas-bg));
+    border-color: var(--aas-role-eval);
+  }
+  .aas-coin-memo-demo .cm-cell.is-read {
+    background: color-mix(in srgb, var(--aas-role-trace) 50%, var(--aas-bg));
+    border-color: var(--aas-role-trace);
+  }
+  .aas-coin-memo-demo .cm-cell.is-left {
+    border-color: var(--aas-role-focus);
+    border-style: dashed;
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-coin-memo-demo .cm-tree {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 22em;
+  }
+  .aas-coin-memo-demo .cm-edge path {
+    fill: none;
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+    opacity: 0.3;
+  }
+  .aas-coin-memo-demo .cm-edge text {
+    font-family: var(--aas-mono, monospace);
+    font-size: 12px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+    opacity: 0.35;
+    paint-order: stroke;
+    stroke: var(--aas-panel);
+    stroke-width: 5px;
+    stroke-linejoin: round;
+  }
+  .aas-coin-memo-demo .cm-edge.is-seen path,
+  .aas-coin-memo-demo .cm-edge.is-seen text {
+    opacity: 1;
+  }
+  .aas-coin-memo-demo .cm-edge.is-best path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3.5;
+  }
+  .aas-coin-memo-demo .cm-edge.is-best text {
+    fill: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-coin-memo-demo .cm-node rect {
+    fill: var(--aas-bg);
+    stroke: var(--aas-border);
+    stroke-width: 1.2;
+    transition:
+      fill 0.2s,
+      stroke 0.2s;
+  }
+  .aas-coin-memo-demo .cm-node text {
+    font-family: var(--aas-mono, monospace);
+    text-anchor: middle;
+    dominant-baseline: central;
+    fill: var(--aas-text);
+  }
+  .aas-coin-memo-demo .cm-a {
+    font-size: 16px;
+    font-weight: 700;
+    transition: transform 0.2s;
+  }
+  .aas-coin-memo-demo .cm-node.has-v .cm-a {
+    transform: translateY(-9px);
+  }
+  .aas-coin-memo-demo .cm-v {
+    font-size: 12px;
+  }
+  .aas-coin-memo-demo .cm-node:not(.is-seen) {
+    opacity: 0.3;
+  }
+  .aas-coin-memo-demo .cm-node.is-live rect {
+    fill: color-mix(in srgb, var(--aas-role-focus) 16%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+  }
+  .aas-coin-memo-demo .cm-node.is-known rect {
+    fill: color-mix(in srgb, var(--aas-role-eval) 24%, var(--aas-bg));
+    stroke: var(--aas-role-eval);
+  }
+  .aas-coin-memo-demo .cm-node.is-hit.is-known rect {
+    fill: color-mix(in srgb, var(--aas-role-trace) 45%, var(--aas-bg));
+    stroke: var(--aas-role-trace);
+  }
+  .aas-coin-memo-demo .cm-node.is-neg rect {
+    fill: transparent;
+    stroke: var(--aas-muted);
+    stroke-dasharray: 4 3;
+  }
+  .aas-coin-memo-demo .cm-node.is-neg text {
+    fill: var(--aas-muted);
+  }
+  .aas-coin-memo-demo .cm-node.is-now rect {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-coin-memo-demo .cm-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-coin-memo-demo.is-done .cm-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-coin-memo-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-coin-memo-demo.is-slide .cm-tree {
+    max-height: 34vh;
+  }
+  .aas-coin-memo-demo.is-slide .cm-a {
+    font-size: 19px;
+  }
+  .aas-coin-memo-demo.is-slide .cm-v {
+    font-size: 15px;
+  }
+  .aas-coin-memo-demo.is-slide .cm-edge text {
+    font-size: 15px;
+  }
+  .aas-coin-memo-demo.is-slide .cm-node:not(.is-seen) {
+    opacity: 0.5;
+  }
+  .aas-coin-memo-demo.is-slide .cm-note {
+    min-height: 1.6em;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-coin-memo-demo .cm-cell,
+    .aas-coin-memo-demo .cm-node rect,
+    .aas-coin-memo-demo .cm-a {
+      transition: none;
+    }
+  }
+</style>

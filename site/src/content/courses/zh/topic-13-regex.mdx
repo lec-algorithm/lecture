@@ -1,30 +1,728 @@
 ---
 title: "主题 13. 正则表达式与自动机"
-description: "用语言描述模式，再把它当作状态机运行"
+description: "把要找的字符串写成集合（语言）的正则表达式，用递归去匹配它的回溯法的局限，以及用状态与转移、绝不回头地匹配的有限状态自动机与 NFA"
 date: 2026-08-25
 category: applied
 order: "9087"
 level: 4
 hours: "3:00"
+slides: ["topic-13-regex"]
 ---
 
-> 材料准备中，会在讲授该主题之前补齐本页。
+import RegexMatchDemo from '@components/RegexMatchDemo.astro';
+import FsaDemo from '@components/FsaDemo.astro';
+import NfaDemo from '@components/NfaDemo.astro';
+import LanguageDemo from '@components/LanguageDemo.astro';
+import RegexPlayDemo from '@components/RegexPlayDemo.astro';
+import BlowupDemo from '@components/BlowupDemo.astro';
+import ParenDemo from '@components/ParenDemo.astro';
 
-## 涵盖内容
+> 主题 10 的字典树是在确切知道要找的字符串时使用的工具。  
+> 这次是**不确切知道**要找什么的时候。只知道形状，比如"三个数字、一个连字符、
+> 四个数字"。  
+> 描述这种形状的语言就是正则表达式，运行它的机器就是自动机。  
+> 先学会写正则表达式，再看用递归匹配为什么会爆炸，最后走到用状态与转移、
+> 绝不回头地匹配的方法。
 
-- 三种运算：连接、或、闭包
-- 字符集、缩写与转义序列
-- 子串查找与有效性验证
-- 正则表达式做不到的事
-- 有限状态自动机与匹配器的实现
+## 把模式写成语言 \{#pattern}
 
-## 实验代码
+到目前为止，要找的东西都是确定的。找键 13，找字符串 `"tea"`。可实际上
+想找的往往是这样的东西。
 
-位于 `algorithm-code` 仓库的 `src/topic-13-regex/` 文件夹。
-每个示例都由一份伪代码与 C、Python 两种实现组成。
+- 看起来像电话号码的东西
+- 以 `.edu` 结尾的电子邮件地址
+- 以 `gcg` 开头、`cgg` 重复若干次、以 `ctg` 结尾的基因片段
+
+这是**在要找的子串信息不充分的情况下进行的查找**。一个模式指的不是一个字符串，
+而是**字符串的集合**。这个集合叫作**语言**（language）。描述语言的写法是
+[[regular-expression|正则表达式]]，英文是 regular expression，简称正则。
+网页搜索、编辑器的查找、输入校验等几乎所有地方都在用。
+
+本主题结束时得到的结果是这样的。
+
+- 无论模式多复杂，只要长度是 $$M$$
+- 在长度为 $$N$$ 的文本中
+- **即使最坏情况也在与 $$MN$$ 成正比的时间内**找出来。
+
+## 正则表达式的三种运算 \{#three-operations}
+
+正则表达式从单个字符出发，用**三种运算加括号**构造。
+
+### 连接 \{#concatenation}
+
+`AB` 表示 A 后面跟着 B。作为语言是 `{AB}`，即只含一个长度为 2 的字符串的
+集合。连接没有专门的运算符，并排写就是连接。
+
+### 或 \{#or}
+
+可选的备选项。`A|B` 是 `{A, B}`，`A|E|I|O|U` 是五个元音的集合
+`{A, E, I, O, U}`。
+
+### 闭包 \{#closure}
+
+模式的一部分**重复任意次**。0 次也算任意次。在下面把 `*` 部分的展开次数从 0
+开始一次次增加看看。同一颜色的一组格子是展开一次的部分。在字符串框里输入，
+它还会告诉你这个字符串是否属于该语言。
+
+<LanguageDemo regexes={['AB*', 'A*B', '(AB)*']} tests={{ 'AB*': ['ABAB', 'B'], 'A*B': ['AABB', 'BA'], '(AB)*': ['ABA', 'BA'] }} />
+
+- `AB*`：A 后面跟着 0 个以上 B 的字符串构成的语言 `{A, AB, ABB, …}`
+- `A*B`：0 个以上 A 之后接一个 B 的字符串构成的语言 `{B, AB, AAB, …}`
+
+`*` **只作用于紧挨着的前一个字符**。`AB*` 中重复的只有 B。
+
+### 括号 \{#parentheses}
+
+运算的默认优先级依次是**闭包、连接、或**。想改变它时就用括号。切换标签，
+看看括号如何改变语言。`C(AC|B)D` 和 `CAC|BD` 字符相同，语言却完全不同。
+
+<LanguageDemo regexes={['C(AC|B)D', 'CAC|BD', '(A|C)((B|C)D)', 'A(B|C)*D']} tests={{ 'C(AC|B)D': ['CD', 'CACBD'], 'CAC|BD': ['CACD', 'CBD'], '(A|C)((B|C)D)': ['ABCD'], 'A(B|C)*D': ['ABAD'] }} k={1} />
+
+整理如下。
+
+| 正则表达式 | 语言 | 属于的例子 | 不属于的例子 |
+| --- | --- | --- | --- |
+| `C(AC\|B)D` | `{CACD, CBD}` | `CBD` | `CD`、`CACBD` |
+| `(A\|C)((B\|C)D)` | `{ABD, CBD, ACD, CCD}` | `CCD` | `ABCD` |
+| `(AB)*` | AB 连接任意次 | 空字符串、`ABAB` | `ABA`、`BA` |
+| `A(B\|C)*D` | A 与 D 之间随意夹着 B 和 C | `AD`、`ABCBD` | `ABAD` |
+
+没有括号的话，`C(AC|B)D` 就成了 `CAC|BD`，也就是 `{CAC, BD}` 这个完全不同的
+语言。因为连接比或先结合。
+
+## 缩写 \{#shorthand}
+
+只用三种运算就能写出所有正则语言，但会很长。"一个数字"得写成
+`0|1|2|3|4|5|6|7|8|9`。所以实际工具为了简明地描述语言，会加上**针对具体应用的
+扩展规则**。下面的缩写都能用三种运算展开写出。它们不是新能力，只是简写。
+
+### 字符集 \{#char-class}
+
+简洁地表示特定的字符集合。
+
+| 写法 | 含义 | 例子 |
+| --- | --- | --- |
+| `.` | 任意一个字符（通配符） | `A.B` 匹配 `AAB`、`A7B`、`A B` 等 |
+| `[ ]` | 方括号中列出的字符之一 | `[AEIOU]*` 是只由元音组成的字符串 |
+| `[A-Z]` | 范围内的一个字符 | `[A-Z]` 是大写字母，`[0-9]` 是数字 |
+| `[^ ]` | 列表以 `^` 开头时，表示**不是**这些字符的一个字符 | `[^AEIOU]*` 是不含元音的字符串 |
+
+### 闭包缩写 \{#closure-shorthand}
+
+`*` 表示"0 次以上"。想规定别的次数时用的简写如下。
+
+| 写法 | 重复次数 | 例子 | 用三种运算展开 |
+| --- | --- | --- | --- |
+| `+` | 一次以上 | `A+` | `AA*` |
+| `?` | 至多一次（含 0 次） | `AB?` | `A\|AB` |
+| `{n}` | 恰好 n 次 | `[0-9]{3}` | `[0-9][0-9][0-9]` |
+| `{m,n}` | m 次以上 n 次以下 | `A{2,3}` | `AA\|AAA` |
+| `{m,}` | m 次以上 | `A{2,}` | `AAA*` |
+
+### 转义序列 \{#escape}
+
+想把 `.`、`*`、`(` 这类在正则表达式里有特殊含义的字符**按字面**使用时，
+在前面加 `\`。看不见的字符和常用的集合也有名字。
+
+| 写法 | 含义 |
+| --- | --- |
+| `\\` | 反斜杠 `\` 本身 |
+| `\.` `\(` `\*` | 点、括号、星号本身 |
+| `\t` | 制表符 |
+| `\n` | 换行符 |
+| `\s` | 空白字符（空格、制表符、换行等） |
+| `\d` | 一个数字，等同于 `[0-9]` |
+
+## 实用示例 \{#practical}
+
+### 子串查找 \{#substring-search}
+
+正则表达式算法要解决的问题归结为一个。
+
+> 判断给定的字符串**是否属于正则表达式所表示的语言**。
+
+在文本 txt 中**查找**模式 pat 也能转化为这个问题。只要问 txt 整体是否属于
+`.*pat.*` 即可。前面的 `.*` 是 pat 之前的任意字符串，后面的 `.*` 是 pat
+之后的任意字符串。`grep` 之类的查找工具对每一行都提出这个问题。
+
+在下面的练习场里直接改一改正则和文本。判断用的正是后面 [NFA](#nfa) 一节构造的
+方法。每读一个位置都重新放入开始状态，所以和 `.*pat` 相同。绿点表示有匹配在那里
+结束，格子下的数字是读完那个字符后状态集合的大小。语法限定为字符、`.`、`*`、
+`|` 和括号，同样的问题也交给浏览器的 `RegExp`，显示两者答案是否相同。
+
+<RegexPlayDemo />
+
+### 有效性校验 \{#validation}
+
+检查输入是否符合规定的形状，是正则表达式最常见的用途。
+
+**电话号码**：`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`
+
+| 片段 | 含义 |
+| --- | --- |
+| `\(` `\)` | 括号字符本身（转义序列） |
+| `[0-9]` | 数字 0\~9 之一 |
+| `{3}` | 前一项重复 3 次 |
+| `\ ` | 一个空格（反斜杠 + 空格） |
+
+`(800) 867-5309` 属于它。韩国的手机号码可以写成 `\d{3}-\d{3,4}-\d{4}`。
+`010-1234-5678` 属于它。
+
+**电子邮件地址**：`[a-z]+@([a-z]+\.)+(edu|com)`
+
+| 片段 | 含义 |
+| --- | --- |
+| `+` | 重复一次以上 |
+| `\.` | 不是任意字符，而是真正的点 |
+| `(edu\|com)` | 限定为 edu 或 com |
+
+`rs@cs.princeton.edu` 属于它。`@` 后面的 `([a-z]+\.)+` 依次吃掉 `cs.` 和
+`princeton.`。实际使用的检查会放宽到接受大写字母、数字和一些符号。
+
+```plaintext
+[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
+```
+
+**URL**：`https?://[^\s/$.?#].[^\s]*`
+
+- `https?`：`s` 可有可无。http 和 https 都行
+- `[^\s/$.?#]`：地址的第一个字符不是空白，也不是 `/ $ . ? #`。
+- `[^\s]*`：之后一直到出现空白为止
+
+### 应用 \{#applications}
+
+- **程序员的便利工具**：`grep StdIn *.java` 在 Java 文件中查找含有 `StdIn`
+  的行。后面的 `*.java` 不是正则表达式，而是 shell 的文件名模式。
+- **基因组学**：`gcg(cgg)*ctg` 是与脆性 X 综合征相关的基因重复区段的形状。
+  `cgg` 重复得过多就与疾病相关。
+- **网页搜索**：搜索引擎和日志分析工具支持模式查找。
+- **可能性**：正则表达式能描述的东西比想象的多。`(0|1(01*0)*1)*` 正好是
+  **用二进制写出的 3 的倍数**的全体。
+  - `11`(3)、`110`(6)、`1001`(9)、`1100`(12) 属于它。
+  - `10`(2)、`1011`(11)、`10000`(16) 不属于它。
+  - 这个正则表达式会在后面的 [NFA](#nfa) 一节里实际运行。
+
+把 0 到 15 的二进制放进去，涂成绿色的正好是 3 的倍数。也可以在文本框里输入更长的
+二进制数。
+
+<RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary />
+
+### 局限 \{#limits}
+
+**也存在正则表达式无法表示的语言**。
+
+- 检查括号是否配对：`(()())` 可以，`(()` 不行。
+- 检查字符串中 A 和 B 的个数是否相同
+
+两者都是**需要无限计数**的问题。后面会看到，正则表达式运行在状态有限的机器上。
+下面的机器用状态来记深度。有 $$k$$ 个状态时只能分辨深度 $$0 \dots k-1$$，左括号
+再多就只能停在最后一个状态。让它和读同样字符的栈（正确答案）并排运行。
+
+<ParenDemo />
+
+增加状态也没有用。读了 0 个、1 个、…、$$k$$ 个左括号的 $$k+1$$ 种情况要装进
+$$k$$ 个状态，按鸽巢原理，必有两种情况落在同一个状态。之后读同样的右括号，两者
+只能给出同样的答案，可配对的只有其中一个。这类语言交给带栈的更强的机器（下推
+自动机）或一般程序。
+
+## 示例 1. 用递归匹配 \{#backtracking}
+
+匹配正则表达式最直接的方法是**递归**。先从只有 `.` 和 `x*` 的正则表达式开始。
+
+- 模式的第一个字符与文本的第一个字符相符，就两边各前进一格，匹配剩余部分。
+- 模式以 `x*` 开头时，先**吃 0 个** x 再试剩余部分，不行就**吃 1 个**，
+  还不行就**吃 2 个**……这样一个个地增加。
+- 模式用完就成功。
+
+不行就退回到前一个选择、改试别的，这种方式就是**回溯**（backtracking）。
+用 `ab*c` 在 `aabbc` 中查找。逐个移动起始位置，在那个位置从头匹配模式。
+右边的记录与实践代码打印的调用列表相同，缩进就是递归深度。
+
+<RegexMatchDemo />
+
+在起始位置 0，`a` 相符，`b*` 一个 b 也没吃到，`c` 与 `a` 对不上而失败。
+在位置 1，`b*` 依次试吃 0 个、1 个、2 个 b，第三次时 `c` 相符。
+**一共调用了 9 次 match**。
+
+```plaintext
+ALGORITHM Match(pattern, text)
+    if pattern为空 then
+        return true                              // 模式用完就成功
+    if pattern[1] = '*' then
+        return MatchStar(pattern[0], pattern[2..], text)
+    if text还有剩余 且 (pattern[0] = '.' 或 pattern[0] = text[0]) then
+        return Match(pattern[1..], text[1..])    // 一个字符一个字符地匹配
+    return false
+
+ALGORITHM MatchStar(c, pattern, text)
+    if Match(pattern, text) then                 // 吃 0 个 c，试剩余部分
+        return true
+    while text还有剩余 且 (text[0] = c 或 c = '.') do
+        text <- text[1..]                        // 再吃一个 c
+        if Match(pattern, text) then             // 剩余部分再从头试
+            return true
+    return false                                 // 所有情况都失败
+
+ALGORITHM Search(pattern, text)
+    for i <- 0 to |text| do                      // 等同于正则表达式 .*pattern
+        if Match(pattern, text[i..]) then
+            return i
+    return -1
+```
+
+写成 C 是这样。实践代码还会统计调用次数（`g_comparisons`）和递归深度
+（`g_maxRecursion`），这里把那些行去掉了。
+
+```c
+bool match(const char *pattern, const char *text) {
+    if (*pattern == '\0') {                       /* 模式结束即成功 */
+        return true;
+    }
+    if (*(pattern + 1) == '*') {                  /* 下一个字符是 '*'（x* 模式） */
+        return matchStar(*pattern, pattern + 2, text);
+    }
+    if (*text != '\0' && (*pattern == '.' || *pattern == *text)) {
+        return match(pattern + 1, text + 1);      /* 匹配一个字符并前进 */
+    }
+    return false;
+}
+
+static bool matchStar(char c, const char *pattern, const char *text) {
+    if (match(pattern, text)) {                   /* 尝试匹配 0 个 */
+        return true;
+    }
+    while (*text != '\0' && (*text == c || c == '.')) {   /* 1 个以上 */
+        text++;
+        if (match(pattern, text)) {
+            return true;
+        }
+    }
+    return false;                                 /* 所有情况都失败 */
+}
+```
+
+- 运行
+
+```sh
+cd src/topic-13-regex/01_regular_expression
+make -f /work/Makefile regexMatch.out && ./regexMatch.out
+```
+
+- 结果
+
+```console
+search("ab*c", "aabbc")
+  start 0
+    match("ab*c", "aabbc")
+      match("b*c", "abbc")
+          match("c", "abbc")
+  start 1
+    match("ab*c", "abbc")
+      match("b*c", "bbc")
+          match("c", "bbc")
+          match("c", "bc")
+          match("c", "c")
+            match("", "")
+  -> found at 1, comparisons = 9
+
+tests
+  pattern  text        at  comparisons
+  ab*c     ac           0            4
+  ab*c     abbbbc       0            8
+  ab*c     abd         -1            7
+  a.c      xxabcxx      2            6
+  .*ab*c   zzabbbcz     0           10
+
+blow-up: match((a*)^n b, a^n)
+  n   result        comparisons  max depth
+  2   no match               10          5
+  4   no match              126          9
+  6   no match             1716         13
+  8   no match            24310         17
+  10  no match           352716         21
+```
+
+`.*ab*c` 是在模式前面加上 `.*`、只在位置 0 匹配的结果。它给出与 `search`
+相同的答案，因为 `.*` 代替了移动起始位置的工作。
+
+### 回溯的陷阱 \{#blow-up}
+
+最后一张表就是这种方法的弱点。模式是 `a*a*…a*b`（`a*` 出现 $$n$$ 次），
+文本是 $$n$$ 个 a。文本里没有 b，答案显然是"不匹配"。可引擎为了得出这个结论，
+要把**a 分给哪个 `a*`、各分几个的所有情况**都试一遍。用滑块增大 $$n$$ 看看。
+柱子用的是对数刻度，每一格是下一格的 10 倍。
+
+<BlowupDemo />
+
+| $$n$$ | 模式长度 | 比较次数 |
+| --- | --- | --- |
+| 2 | 5 | 10 |
+| 4 | 9 | 126 |
+| 6 | 13 | 1,716 |
+| 8 | 17 | 24,310 |
+| 10 | 21 | 352,716 |
+
+$$n$$ 每增加 2，比较次数就增加 10 倍以上。情况数是二项式系数
+$$\binom{2n+1}{n}$$，几乎像 $$4^n$$ 那样增长，是**指数时间**。现实中确实发生过
+网络服务因为一个正则表达式而停摆的事故，这种攻击叫作 ReDoS（正则表达式拒绝
+服务）。递归深度随模式长度加深，也是负担。
+
+问题的根源在于**一次只带着一种可能性走**。错了就退回去，从头再追下一种可能性。
+下一节的工具把这一点反过来。
+
+## 示例 2. 有限状态自动机 \{#fsa}
+
+[[finite-automaton|有限状态自动机]] （finite state automaton，FSA）利用
+**状态与转移**进行模式匹配。它能解决递归回溯的低效。
+
+- **状态**（state）：匹配过程中当前的位置与情况
+- **转移**（transition）：随输入字符发生的状态变化
+- **接受状态**（accept state）：模式匹配成功完成的状态
+- **ε 转移**（ε-transition）：不读输入就发生的状态转移
+
+逐个字符读入输入、移动状态，输入结束时若处于接受状态就接纳它。这叫作接受。
+遇到无处可去的字符，或者结束时不在接受状态，就拒绝。**读过的字符绝不回头**。
+
+### 简单的例子：模式 ab\*c \{#fsa-example}
+
+状态有五个。
+
+| 状态 | 含义 |
+| --- | --- |
+| S0 | 开始状态 |
+| S1 | 读到 `a` 的状态 |
+| S2 | `b*` 的开始状态（允许 0 个 `b`） |
+| S3 | 读到 1 个以上 `b` 的状态 |
+| S4 | 读到 `c`，模式匹配完成（接受状态） |
+
+从 S1 到 S2 不读字符直接过去。这就是 ε 转移。S2 和 S3 读到 `c` 都去 S4。
+`b` 为 0 个时从 S2 去，1 个以上时从 S3 去。输入 `abbbbc` 试试。
+
+<FsaDemo />
+
+```plaintext
+S0 -a-> S1 -ε-> S2 -b-> S3 -b-> S3 -b-> S3 -b-> S3 -c-> S4   接受
+```
+
+在 S3 读到 `b` 时留在 S3。把这个转移画成从 S3 回到 S2，接受的字符串也一样，
+但那样 S3 就成了"读到奇数个 b 的状态"，与上表的说明不符。留在 S3，
+每个状态就只有一个含义。
+
+再看被拒绝的情形。`abd` 在 S3 遇到 `d`，而 S3 没有读 `d` 的转移。
+
+<FsaDemo input="abd" />
+
+```plaintext
+ALGORITHM Accept(input)
+    state <- S0
+    for 输入字符 ch in input do
+        if state = S0 and ch = 'a' then
+            state <- S1
+            state <- S2                     // ε 转移：不读输入直接到 S2
+        else if state ∈ {S2, S3} and ch = 'b' then
+            state <- S3
+        else if state ∈ {S2, S3} and ch = 'c' then
+            state <- S4
+        else
+            return false                    // 无处可去就拒绝
+    return state = S4                       // 结束时必须在接受状态才接受
+```
+
+C 里把状态写成枚举，用 `switch` 写出转移规则。输出的行去掉了。
+
+```c
+typedef enum { S0, S1, S2, S3, S4 } State;
+
+bool accept(const char *input) {
+    State currentState = S0;
+    for (int i = 0; input[i] != '\0'; i++) {
+        char ch = input[i];
+        switch (currentState) {
+        case S0:
+            if (ch != 'a') return false;
+            currentState = S2;      /* 读 'a' 到 S1，再经 ε 转移到 S2 */
+            break;
+        case S2:                    /* b* 的开始状态 */
+        case S3:                    /* 读到 1 个以上 'b' 的状态 */
+            if (ch == 'b') currentState = S3;
+            else if (ch == 'c') currentState = S4;
+            else return false;      /* 拒绝 */
+            break;
+        default:                    /* S4：接受之后不能再有输入 */
+            return false;
+        }
+    }
+    return currentState == S4;      /* 检查最终状态是否为接受状态 */
+}
+```
+
+- 运行
+
+```sh
+cd src/topic-13-regex/02_finite_state_automaton
+make -f /work/Makefile fsaSimple.out && ./fsaSimple.out
+```
+
+- 结果（后半部分）
+
+```console
+input "abd"
+  start S0
+  'a' -> S1
+  eps -> S2
+  'b' -> S3
+  'd' -> no move from S3: reject
+
+input "abcc"
+  start S0
+  'a' -> S1
+  eps -> S2
+  'b' -> S3
+  'c' -> S4
+  'c' -> no move from S4: reject
+
+summary
+  abc      accept
+  abbbbc   accept
+  ac       accept
+  ab       reject
+  abd      reject
+  abcc     reject
+```
+
+被拒绝的情形有两种。
+
+- 遇到无处可去的字符时：`abd` 的 `d`，`abcc` 的第二个 `c`
+- 输入结束却不在接受状态时：`ab` 停在 S3。
+
+### 分析 \{#fsa-analysis}
+
+- **一个字符一次转移**。文本长度为 $$N$$ 时在 $$O(N)$$ 内结束。不会像前面的
+  回溯那样重复查看同一个字符。
+- 这个自动机在任何状态下，看到下一个字符后要去的地方都**只有一个**。这样的
+  自动机叫作确定性有限自动机（DFA）。唯一的 ε 转移只是跳过 S1，不破坏确定性。
+- 不过这张图是**手工**画的。模式一变，状态就得重新设计。能不能从正则表达式
+  自动造出自动机呢？
+
+## 示例 3. 从正则表达式到 NFA \{#nfa}
+
+答案是**克莱尼定理**（Kleene's theorem）。能用正则表达式描述的语言与有限状态
+自动机识别的语言**完全相同**。只要有正则表达式，就总能造出识别它的自动机。
+
+直接造成 DFA 的话，状态数可能随正则表达式长度呈指数增长。所以要造的是
+**非确定性有限自动机**（NFA）。NFA 在一个状态下可以有多个去处，ε 转移也可以
+随意使用。
+
+### 构造方法 \{#nfa-build}
+
+把整个正则表达式再用一对括号包起来，**一个字符就是一个状态**。长度为 $$M$$ 时，
+状态是 $$0 \dots M$$，$$M$$ 是接受状态。
+
+- **匹配转移**：字符状态 $$i$$ 读入那个字符（若是 `.` 则任意字符）后去
+  $$i+1$$。
+- **ε 转移**：由符号产生。
+  - `(`、`)`、`*` 不读字符直接去下一个状态。
+  - `x*` 或 `(…)*`：从块的开头到 `*`（0 次），从 `*` 回到块的开头（再来一次）。
+  - `(A|B)`：从 `(` 到 B 的开头（跳过 A），从 `|` 到 `)`（走完 A 之后）。
+
+括号的配对用栈来找。遇到 `(` 和 `|` 就压入，遇到 `)` 就弹出。用实践代码练习题里的
+`(A*B|AC)D` 来构造看看。包上括号是 `((A*B|AC)D)`，状态是 0 到 11。每一步查看正则的
+一个字符，把这时添加的转移涂成橙色。蓝色边框是栈里的状态，淡色的转移是还没添加的。
+
+<NfaDemo regex="(A*B|AC)D" mode="build" />
+
+```plaintext
+ALGORITHM BuildNFA(re)
+    ops <- 空栈
+    for i <- 0 to M-1 do
+        lp <- i                              // '*' 所作用的块的开头
+        if re[i] = '(' 或 re[i] = '|' then
+            把 i 压入 ops
+        else if re[i] = ')' then
+            or <- 从 ops 弹出
+            if re[or] = '|' then
+                lp <- 从 ops 弹出            // 配对的 '('
+                在 G 中加 lp -> or+1         // 跳过左分支，进入右分支
+                在 G 中加 or -> i            // 从左分支末尾到 ')'
+            else
+                lp <- or
+        if i < M-1 且 re[i+1] = '*' then
+            在 G 中加 lp -> i+1              // 块重复 0 次（跳过）
+            在 G 中加 i+1 -> lp              // 块再来一次（重复）
+        if re[i] ∈ { '(', '*', ')' } then
+            在 G 中加 i -> i+1               // 符号不读字符直接到下一个
+```
+
+### 用状态集合运行 \{#nfa-simulate}
+
+NFA 有多个去处，所以"当前状态"不止一个。于是**把所有可能处于的状态作为集合**
+带着走。每个字符分两步。
+
+1. **读字符**：集合中的字符状态里，只有与读入字符相符的前进一格。
+2. **ε 闭包**（ε-closure）：从那里加上仅沿 ε 转移能到达的所有状态。这是图搜索
+   （DFS）。
+
+文本读完时，集合里有接受状态就接受。用前面见过的 3 的倍数正则表达式
+`(0|1(01*0)*1)*` 读入 `1001`(9)。包上括号的 `((0|1(01*0)*1)*)` 有 16 个字符，
+所以状态是 0\~16，16 是接受状态。黑色实线是匹配转移，蓝色虚线是 ε 转移。
+
+<NfaDemo />
+
+```plaintext
+ALGORITHM Recognizes(re, text)
+    G <- BuildNFA(re)
+    pc <- Closure(G, {0})                    // 当前可能处于的状态
+    for 字符 ch in text do
+        match <- { i+1 : i ∈ pc, re[i]是字符 且 (re[i] = ch 或 re[i] = '.') }
+        pc <- Closure(G, match)
+    return M ∈ pc
+```
+
+C 实现的核心是 `recognizes`。集合是 `bool` 数组，`closure` 沿 ε 转移用 DFS
+做标记。
+
+```c
+bool recognizes(const char *text, bool trace) {
+    bool start[MAX_STATES + 1] = {false};
+    bool pc[MAX_STATES + 1];
+    bool match[MAX_STATES + 1];
+
+    start[0] = true;
+    closure(start, pc);
+    for (int k = 0; text[k] != '\0'; k++) {
+        memset(match, 0, sizeof match);
+        for (int i = 0; i < M; i++) {
+            if (pc[i] && isLiteral(re[i])
+                && (re[i] == text[k] || re[i] == '.')) {
+                match[i + 1] = true;              /* 读入字符后到 i+1 */
+            }
+        }
+        closure(match, pc);
+        /* trace 时打印 match 和 pc */
+    }
+    return pc[M];
+}
+```
+
+- 运行
+
+```sh
+cd src/topic-13-regex/03_nfa_regex
+make -f /work/Makefile nfaRegex.out && ./nfaRegex.out
+```
+
+- 结果
+
+```console
+regex = (0|1(01*0)*1)*
+nfa   = ((0|1(01*0)*1)*), states 0..16, accept 16
+
+  state  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
+  char   (  (  0  |  1  (  0  1  *  0  )  *  1  )  *  )
+
+  eps   0->1 1->2 5->6 7->8 8->7 8->9 5->11 11->5 10->11
+        11->12 1->4 3->13 1->14 14->1 13->14 14->15 15->16
+
+text = 1001
+  start      {0 1 2 4 14 15 16}
+  read '1'   {5}
+  closure    {5 6 11 12}
+  read '0'   {7}
+  closure    {7 8 9}
+  read '0'   {10}
+  closure    {5 6 10 11 12}
+  read '1'   {13}
+  closure    {1 2 4 13 14 15 16}
+  -> accept
+
+  text   value  result
+  11         3  accept
+  110        6  accept
+  1001       9  accept
+  1100      12  accept
+  10         2  reject
+  1011      11  reject
+  10000     16  reject
+
+blow-up: (a*)^n b on a^n
+  n      M    N  result      work
+  2      7    2  no match      16
+  4     11    4  no match      46
+  6     15    6  no match      92
+  8     19    8  no match     154
+  10    23   10  no match     232
+```
+
+演示中的八个集合从 `start` 到最后一个 `closure` 原样出现。开始集合里就已经有
+16，是因为空字符串也代表 0，而 0 是 3 的倍数。原资料举的七个例子也都被正确区分。
+
+### 分析 \{#nfa-analysis}
+
+- **构造**：扫描一遍正则表达式，每个字符至多加几条 ε 转移。状态和转移都是
+  $$O(M)$$，时间也是 $$O(M)$$。
+- **运行**：每读一个字符重新构造一次集合。集合里的状态至多 $$M+1$$ 个，ε 闭包的
+  DFS 对每个状态和每条 ε 转移只看一次。实践代码每次都从头扫描边列表，所以比
+  这慢，但用邻接表就是这样。因此每个字符 $$O(M)$$，整体最坏 $$O(MN)$$。
+  这正是本主题开头许下的那个结果。
+- **与回溯对照**：最后一张表是让示例 1 比较了 35 万次以上的输入。NFA 放进集合的
+  状态数之和（`work`）只有 232。在下面换成线性刻度，NFA 的柱子就贴着底部看不见了。
+
+<BlowupDemo compare n={10} />
+
+| $$n$$ | 回溯比较次数 | NFA 工作量 |
+| --- | --- | --- |
+| 2 | 10 | 16 |
+| 4 | 126 | 46 |
+| 6 | 1,716 | 92 |
+| 8 | 24,310 | 154 |
+| 10 | 352,716 | 232 |
+
+回溯**一个接一个地**追踪可能性，NFA **同时全部**追踪。即使两条路到达同一个
+状态，在集合里也只算一次，所以分支不会成倍膨胀。肯·汤普森（Ken Thompson）
+1968 年发表的就是这个方法，最早的 `grep` 也建立在这个思路之上。
+
+## 要带走的 \{#takeaway}
+
+- **正则表达式**描述字符串的集合（语言）。运算有**连接、或（`|`）、闭包（`*`）**
+  三种，用括号改变优先级。
+- `.`、`[ ]`、`+`、`?`、`{n}`、`\d` 这类缩写都是三种运算的简写，不是新能力。
+- 在文本中查找，等于问它是否属于 `.*pat.*`。
+- 正则表达式写不出**需要无限计数的语言**（括号配对、A 与 B 的个数）。
+- **递归与回溯**实现简短，但 `a*` 连续出现时，要尝试的情况呈指数增长。
+- **有限状态自动机**一个字符一次转移，在 $$O(N)$$ 内判定。绝不回头。
+- 从正则表达式在 $$O(M)$$ 内造出 **NFA**，再用状态集合运行，最坏 $$O(MN)$$。
+
+## 实践代码 \{#code}
+
+在 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main)
+仓库的 `src/topic-13-regex/` 文件夹里。每个示例都由一份伪代码加 C 和 Python
+实现组成。Python 也不用 `re` 模块，而是直接实现同样的步骤。
 
 ```plaintext
 src/topic-13-regex/
-├── 01_regular_expression/
-└── 02_finite_state_automaton/
+├── 01_regular_expression/      # 递归与回溯，(a*)^n b 上比较次数爆炸
+├── 02_finite_state_automaton/  # 用五个状态识别 ab*c，一个字符一次转移
+└── 03_nfa_regex/               # 从正则表达式构造 NFA，用状态集合运行
 ```
+
+打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
+[实践环境准备](/article/setup-guide/)。
+
+**亲手试试**
+
+- 把 `regexMatch.c` 最后一张表的 `n` 增加到 12。比较次数超过 500 万次。
+  `nfaRegex.c` 的最后一张表也增加到 12 时，工作量是 326。
+- 修改 `fsaSimple.c`，让它识别 `ab*c*`。要把哪个状态加为接受状态、加上哪些转移？
+- 把 `nfaRegex.c` 的 `regex` 换成 `((A*B|AC)D)`，文本换成 `AABD`，跟着看状态
+  集合如何变化。
+- 在 `nfaRegex.c` 的 `texts` 里加入 `1111`(15) 和 `10010`(18)，确认 3 的倍数
+  判定。
+
+## 版本记录 \{#changelog}
+
+幻灯片与本资料一起升版。当前版本是 **v1**，幻灯片左下角
+可以看到同一版本号。
+
+| 版本 | 日期 | 内容 |
+| --- | --- | --- |
+| v1 | 2026-10-28 | 首次公开 |

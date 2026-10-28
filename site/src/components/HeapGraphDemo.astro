@@ -1,0 +1,1037 @@
+---
+// 우선순위 큐(최소 힙)로 그래프를 넓혀 가는 세 알고리즘을 한 걸음씩 보는 데모.
+// mode로 고른다: prim, dijkstra, astar
+//
+// 세 알고리즘은 같은 틀이다. 힙에서 가장 작은 항목을 꺼내 그 정점을
+// 확정하고(초록), 그 정점에서 나가는 간선으로 이웃의 값을 고쳐 힙에
+// 새로 넣는다(파랑). 다른 것은 힙에 넣는 값 하나다.
+//   prim:     key  = 트리에 붙는 간선 하나의 가중치
+//   dijkstra: dist = 출발점부터 쌓인 거리
+//   astar:    f    = g(쌓인 거리) + h(목표까지 남은 거리의 추정)
+// 값을 고치면 예전 항목은 힙에 남는다. 꺼냈을 때 이미 확정한 정점이면
+// 버린다(목록에서 흐리게 보인다). 같은 값이면 먼저 넣은 항목이 먼저다.
+//
+// 절차와 결과는 algorithm-code의 05_mst_prim, 06_dijkstra, 07_a_star와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  mode?: 'prim' | 'dijkstra' | 'astar';
+  /** GraphSamples의 이름. 기본은 prim이면 mst, 나머지는 sp */
+  graph?: string;
+  start?: number;
+  /** astar: 목표 정점 */
+  goal?: number;
+  /** astar: 정점마다 목표까지 남은 거리의 추정값 */
+  h?: number[];
+  /** astar: 닫힌 정점으로 가는 더 짧은 길을 찾으면 다시 연다. */
+  reopen?: boolean;
+  /** astar: 휴리스틱을 고르는 칩(예제 h, h = 0, h = h*, h = 2h*)을 보인다. 기본은 끔 */
+  hChoices?: boolean;
+  /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
+  initial?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  mode = 'dijkstra',
+  graph = mode === 'prim' ? 'mst' : 'sp',
+  start = 0,
+  goal = 6,
+  h = [14, 10, 4, 2, 11, 6, 0, 8],
+  reopen = true,
+  hChoices = false,
+  initial = -1,
+  slide = false,
+} = Astro.props;
+const g = getGraph(graph);
+const n = g.nodes.length;
+const id = `hg-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    prim: 'Prim 알고리즘',
+    dijkstra: 'Dijkstra 알고리즘',
+    astar: 'A* 알고리즘',
+    astarNo: 'A* 알고리즘 (닫힌 정점을 다시 열지 않음)',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    pq: '우선순위 큐 (꺼낼 순서)',
+    pqOpen: '열린 목록 (꺼낼 순서)',
+    empty: '비었음',
+    inTree: '트리',
+    done: '확정',
+    closed: '닫힘',
+    countPrim: '총 가중치',
+    countDone: '확정',
+    countClosed: '닫힘',
+    idle: '{s}에서 시작합니다.',
+    sep: ', ',
+    primStart: '{v}에서 시작합니다.',
+    primAdd: 'key가 가장 작은 {v}({k}){~v|을} 꺼내 간선 {e|으로} 트리에 붙입니다.',
+    primUps: ' key 갱신: {ups}.',
+    primNoUps: ' 고칠 key는 없습니다.',
+    primSkip: '{v}({k}){~v|은} 이미 트리에 있습니다. 낡은 항목이라 버립니다.',
+    primDone: '간선이 V-1 = {k}개가 되어 멈춥니다. 총 가중치 {total}',
+    via: '{v} ← {k} ({u} 쪽)',
+    dPop: '가장 가까운 {v}(거리 {d}){~v|을} 확정합니다.',
+    dUps: ' 거리 갱신: {ups}.',
+    dKeeps: ' 그대로: {keeps}.',
+    dLate: ' {u}→{v}: {nd} < {old}이지만 {v|은} 이미 확정되어 고치지 않습니다.',
+    dNone: ' 나가는 간선으로 고칠 거리가 없습니다.',
+    dSkip: '{v}(거리 {d}){~v|은} 이미 확정했습니다. 낡은 항목이라 버립니다.',
+    dDone: '큐가 비었습니다. 확정 순서는 {order}입니다.',
+    upd: '{v} ← {d} ({u} 경유)',
+    keep: '{u}→{v} {nd} ≥ {old}',
+    aPop: 'f가 가장 작은 {v}(f {f} = {g} + {h}){~v|을} 닫습니다.',
+    aUps: ' 열기: {ups}.',
+    aKeeps: ' 그대로: {keeps}.',
+    aClosed: ' {v|으로} 가는 더 짧은 길(g {ng} < {old})을 찾았지만 {v|은} 닫혀 있어 지나갑니다.',
+    aReopen: ' {v|으로} 가는 더 짧은 길(g {ng} < {old})을 찾아 {v|을} 다시 엽니다.',
+    aNone: ' 고칠 것이 없습니다.',
+    aSkip: '{v}(f {f}){~v|은} 이미 닫혔습니다. 낡은 항목이라 버립니다.',
+    aGoal: '목표 {v|을} 꺼냈습니다(f {f}). 경로 {path}, 비용 {g}',
+    aUpd: '{v} (g {g}, f {f})',
+    hLabel: '휴리스틱',
+    hEx: '예제 h',
+    hZero: 'h = 0',
+    hStar: 'h = h*',
+    hOver: 'h = 2h*',
+    hNoteEx: '예제 h: 허용적이지만 일관적이지 않아서 2를 다시 열어야 합니다.',
+    hNoteZero: 'h = 0: 추정이 없으니 Dijkstra와 같은 순서로 닫습니다.',
+    hNoteStar: 'h = h*: 실제 남은 거리를 알면 최단 경로 위의 정점만 닫습니다.',
+    hNoteOver: 'h = 2h*: 남은 거리를 두 배로 부풀리면 일찍 끝나지만 최단 경로를 놓칩니다.',
+    hSum: '끝까지 돌리면 닫기 {k}번 · 경로 {path} · 비용 {g}',
+  },
+  en: {
+    prim: "Prim's algorithm",
+    dijkstra: "Dijkstra's algorithm",
+    astar: 'A* search',
+    astarNo: 'A* search (closed nodes never reopened)',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    pq: 'Priority queue (pop order)',
+    pqOpen: 'Open list (pop order)',
+    empty: 'empty',
+    inTree: 'tree',
+    done: 'done',
+    closed: 'closed',
+    countPrim: 'total weight',
+    countDone: 'done',
+    countClosed: 'closed',
+    idle: 'Start from {s}.',
+    sep: ', ',
+    primStart: 'Start from {v}.',
+    primAdd: 'Pop {v} with the smallest key ({k}) and attach it by edge {e}.',
+    primUps: ' Key updates: {ups}.',
+    primNoUps: ' No key to update.',
+    primSkip: '{v} ({k}) is already in the tree. A stale entry, drop it.',
+    primDone: 'V-1 = {k} edges, stop. Total weight {total}',
+    via: '{v} ← {k} (from {u})',
+    dPop: 'The closest vertex is {v} (distance {d}). Make it final.',
+    dUps: ' Updates: {ups}.',
+    dKeeps: ' Unchanged: {keeps}.',
+    dLate: ' {u}→{v}: {nd} < {old}, but {v} is already final, so it is not fixed.',
+    dNone: ' No distance to update.',
+    dSkip: '{v} (distance {d}) is already final. A stale entry, drop it.',
+    dDone: 'The queue is empty. Final order: {order}',
+    upd: '{v} ← {d} (via {u})',
+    keep: '{u}→{v} {nd} ≥ {old}',
+    aPop: 'Close {v}, the smallest f ({f} = {g} + {h}).',
+    aUps: ' Open: {ups}.',
+    aKeeps: ' Unchanged: {keeps}.',
+    aClosed: ' Found g {ng} < {old} to {v}, but {v} is closed, so move on.',
+    aReopen: ' Found g {ng} < {old} to {v}, so reopen {v}.',
+    aNone: ' Nothing to update.',
+    aSkip: '{v} (f {f}) is already closed. A stale entry, drop it.',
+    aGoal: 'Popped the goal {v} (f {f}). Path {path}, cost {g}',
+    aUpd: '{v} (g {g}, f {f})',
+    hLabel: 'Heuristic',
+    hEx: 'sample h',
+    hZero: 'h = 0',
+    hStar: 'h = h*',
+    hOver: 'h = 2h*',
+    hNoteEx: 'Sample h: admissible but not consistent, so vertex 2 has to be reopened.',
+    hNoteZero: 'h = 0: with no estimate it closes vertices in the same order as Dijkstra.',
+    hNoteStar: 'h = h*: knowing the true remaining distance, it closes only the vertices on the shortest path.',
+    hNoteOver: 'h = 2h*: doubling the remaining distance ends early but misses the shortest path.',
+    hSum: 'Run to the end: {k} closes · path {path} · cost {g}',
+  },
+  zh: {
+    prim: 'Prim 算法',
+    dijkstra: 'Dijkstra 算法',
+    astar: 'A* 算法',
+    astarNo: 'A* 算法（不重新打开已关闭的顶点）',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    pq: '优先队列（取出顺序）',
+    pqOpen: '开放列表（取出顺序）',
+    empty: '空',
+    inTree: '树',
+    done: '确定',
+    closed: '关闭',
+    countPrim: '总权重',
+    countDone: '确定',
+    countClosed: '关闭',
+    idle: '从 {s} 开始。',
+    sep: '，',
+    primStart: '从 {v} 开始。',
+    primAdd: '取出 key 最小的 {v}（{k}），用边 {e} 接到树上。',
+    primUps: '更新 key：{ups}。',
+    primNoUps: '没有要更新的 key。',
+    primSkip: '{v}（{k}）已在树中。是过时的项，丢弃。',
+    primDone: '边数达到 V-1 = {k}，停止。总权重 {total}',
+    via: '{v} ← {k}（来自 {u}）',
+    dPop: '确定最近的 {v}（距离 {d}）。',
+    dUps: '更新距离：{ups}。',
+    dKeeps: '不变：{keeps}。',
+    dLate: '{u}→{v}：{nd} < {old}，但 {v} 已确定，不再修改。',
+    dNone: '没有要更新的距离。',
+    dSkip: '{v}（距离 {d}）已确定。是过时的项，丢弃。',
+    dDone: '队列已空。确定顺序为 {order}。',
+    upd: '{v} ← {d}（经 {u}）',
+    keep: '{u}→{v} {nd} ≥ {old}',
+    aPop: '关闭 f 最小的 {v}（f {f} = {g} + {h}）。',
+    aUps: '打开：{ups}。',
+    aKeeps: '不变：{keeps}。',
+    aClosed: '找到到 {v} 的 g {ng} < {old}，但 {v} 已关闭，跳过。',
+    aReopen: '找到到 {v} 的 g {ng} < {old}，重新打开 {v}。',
+    aNone: '没有要更新的。',
+    aSkip: '{v}（f {f}）已关闭。是过时的项，丢弃。',
+    aGoal: '取出目标 {v}（f {f}）。路径 {path}，代价 {g}',
+    aUpd: '{v}（g {g}，f {f}）',
+    hLabel: '启发式',
+    hEx: '示例 h',
+    hZero: 'h = 0',
+    hStar: 'h = h*',
+    hOver: 'h = 2h*',
+    hNoteEx: '示例 h：可采纳但不一致，所以必须重新打开 2。',
+    hNoteZero: 'h = 0：没有估计，按与 Dijkstra 相同的顺序关闭。',
+    hNoteStar: 'h = h*：知道真实的剩余距离，就只关闭最短路径上的顶点。',
+    hNoteOver: 'h = 2h*：把剩余距离放大一倍会提早结束，但错过最短路径。',
+    hSum: '运行到底：关闭 {k} 次 · 路径 {path} · 代价 {g}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const title = mode === 'prim' ? t.prim : mode === 'dijkstra' ? t.dijkstra : reopen ? t.astar : t.astarNo;
+const cols =
+  mode === 'prim'
+    ? ['v', 'key', 'via', t.inTree]
+    : mode === 'dijkstra'
+      ? ['v', 'dist', 'from', t.done]
+      : ['v', 'h', 'g', 'f', 'from', t.closed];
+const rows = Array.from({ length: n }, (_, v) => v);
+---
+
+<div
+  class:list={['aas-heap-graph-demo', slide && 'is-slide']}
+  id={id}
+  data-hg-mode={mode}
+  data-hg-n={n}
+  data-hg-edges={JSON.stringify(g.edges)}
+  data-hg-directed={g.directed ? '1' : '0'}
+  data-hg-scale={g.scale ?? 1}
+  data-hg-start={start}
+  data-hg-goal={goal}
+  data-hg-h={JSON.stringify(h)}
+  data-hg-reopen={reopen ? '1' : '0'}
+  data-hg-choices={mode === 'astar' && hChoices ? '1' : '0'}
+  data-hg-initial={initial}
+  data-hg-strings={JSON.stringify(t)}
+  style={`--hg-cols: ${cols.length}`}
+>
+  <div class="hg-bar">
+    <span class="hg-head"><strong>{title}</strong></span>
+    <div class="hg-controls">
+      <button type="button" data-act="back" class="hg-btn">{t.back}</button>
+      <button type="button" data-act="step" class="hg-btn">{t.step}</button>
+      <button type="button" data-act="play" class="hg-btn hg-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="hg-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  {mode === 'astar' && hChoices && (
+    <div class="hg-hbar">
+      <span class="hg-hlabel">{t.hLabel}</span>
+      {['ex', 'zero', 'star', 'over'].map((k, i) => (
+        <button type="button" class:list={['hg-hchip', i === 0 && 'is-on']} data-hg-hchip={k}>
+          {k === 'ex' ? t.hEx : k === 'zero' ? t.hZero : k === 'star' ? t.hStar : t.hOver}
+        </button>
+      ))}
+      <p class="hg-hnote" data-hg-hnote></p>
+    </div>
+  )}
+
+  <div class="hg-body">
+    <div class="hg-graph">
+      <GraphFigure graph={graph} bare slide={slide} />
+    </div>
+    <div class="hg-panel">
+      <div class="hg-label">{mode === 'astar' ? t.pqOpen : t.pq}</div>
+      <div class="hg-pq" data-hg-pq></div>
+      <div class="hg-table" role="table">
+        <div class="hg-tr hg-th" role="row">
+          {cols.map((c) => <span role="columnheader">{c}</span>)}
+        </div>
+        {rows.map((v) => (
+          <div class="hg-tr" role="row" data-hg-row={v}>
+            {cols.map((_, k) => <span role="cell" data-hg-cell={k}>{k === 0 ? v : ''}</span>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <div class="hg-foot">
+    <p class="hg-note" data-hg-note></p>
+    <span class="hg-count">
+      {mode === 'prim' ? t.countPrim : mode === 'dijkstra' ? t.countDone : t.countClosed}
+      <strong data-hg-count></strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+
+    const mode = root.dataset.hgMode;
+    const n = Number(root.dataset.hgN);
+    const edges = JSON.parse(root.dataset.hgEdges);
+    const directed = root.dataset.hgDirected === '1';
+    const scale = Number(root.dataset.hgScale);
+    const s = Number(root.dataset.hgStart);
+    const goal = Number(root.dataset.hgGoal);
+    const H0 = JSON.parse(root.dataset.hgH);
+    let H = H0;
+    const choices = root.dataset.hgChoices === '1';
+    const reopen = root.dataset.hgReopen === '1';
+    const S = JSON.parse(root.dataset.hgStrings);
+    /* 문구의 {v}는 값으로 바꾼다. 한국어 조사는 {v|을}처럼 받침 있는 꼴로 적으면
+       값을 읽은 소리에 맞춰 을/를, 이/가, 은/는, 과/와, 으로/로를 고른다.
+       {~v|을}은 조사만 붙인다(괄호 뒤에 쓴다). 숫자는 끝자리 소리로 정한다. */
+    const JOSA = { 을: '를', 이: '가', 은: '는', 과: '와', 으로: '로' };
+    const batchim = (val) => {
+      const ch = String(val).trim().slice(-1);
+      if (/[0-9]/.test(ch)) return [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][Number(ch)] ? (ch === '1' || ch === '7' || ch === '8' ? 'l' : 'y') : '';
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return '';
+      const fin = code % 28;
+      return fin === 0 ? '' : fin === 8 ? 'l' : 'y';
+    };
+    const josa = (val, p) => {
+      const b = batchim(val);
+      if (p === '으로') return b === 'y' ? '으로' : '로';
+      return b ? p : JOSA[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(~?)(\w+)(?:\|([^}]+))?\}/g, (_, only, k, p) =>
+        p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k],
+      );
+    const fmt = (w) => (scale === 1 ? String(w) : (w / scale).toFixed(2));
+    const INF = Infinity;
+    const show = (x) => (x === INF ? '∞' : fmt(x));
+
+    /* 인접 목록. 이웃은 작은 번호부터 본다. 무방향이면 양쪽에 넣는다. */
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v, w]) => {
+      adj[u].push([v, w]);
+      if (!directed) adj[v].push([u, w]);
+    });
+    adj.forEach((a) => a.sort((x, y) => x[0] - y[0]));
+
+    /* 최소 힙 대신 배열에 넣고 (값, 넣은 순서)로 가장 작은 것을 꺼낸다.
+       꺼내는 순서는 힙과 같다. 화면에 큐 전체를 순서대로 보이기 위해서다. */
+    let seq = 0;
+    const pq = [];
+    let summary = null; // astar: 목표에 닿았을 때 닫기 횟수, 경로, 비용
+    const pushPq = (key, v) => pq.push({ key, seq: seq++, v });
+    const byKey = (a, b) => a.key - b.key || a.seq - b.seq;
+    const popPq = () => {
+      pq.sort(byKey);
+      return pq.shift();
+    };
+
+    const steps = [];
+    /* 단계 하나: 정점·간선 모양, 배지, 큐, 표의 행, 설명 */
+    function snap(o) {
+      steps.push({
+        node: o.node,
+        edge: o.edge,
+        badge: o.badge,
+        pq: pq
+          .slice()
+          .sort(byKey)
+          .map((it) => ({ text: `${fmt(it.key)}:${it.v}`, stale: o.isStale(it) })),
+        rows: o.rows,
+        note: o.note,
+        count: o.count,
+        end: !!o.end,
+      });
+    }
+    const edgeKey = (u, v) => `${u}-${v}`;
+
+    function planPrim() {
+      const key = new Array(n).fill(INF);
+      const via = new Array(n).fill(-1);
+      const inTree = new Array(n).fill(false);
+      let edgesIn = 0;
+      let total = 0;
+      key[s] = 0;
+      pushPq(0, s);
+      const view = (cur, look, note, end) => {
+        const node = [];
+        const edge = {};
+        for (let v = 0; v < n; v++) {
+          node[v] = v === cur ? 'focus' : inTree[v] ? 'done' : key[v] < INF ? 'open' : '';
+          if (via[v] >= 0) edge[edgeKey(via[v], v)] = inTree[v] ? 'tree' : 'cand';
+        }
+        look.forEach(([u, v]) => (edge[edgeKey(u, v)] = 'focus'));
+        if (end) for (let v = 0; v < n; v++) if (!inTree[v]) node[v] = 'dim';
+        snap({
+          node,
+          edge,
+          badge: key.map((k, v) => (inTree[v] || k === INF ? '' : fmt(k))),
+          isStale: (it) => inTree[it.v] || it.key !== key[it.v],
+          rows: key.map((k, v) => [String(v), show(k), via[v] < 0 ? '-' : String(via[v]), inTree[v] ? '✓' : '']),
+          note,
+          count: fmt(total),
+          end,
+        });
+      };
+      while (pq.length && edgesIn < n - 1) {
+        const it = popPq();
+        const u = it.v;
+        if (inTree[u]) {
+          view(u, [], fill(S.primSkip, { v: u, k: fmt(it.key) }));
+          continue;
+        }
+        inTree[u] = true;
+        let note;
+        if (u === s) note = fill(S.primStart, { v: u });
+        else {
+          edgesIn += 1;
+          total += it.key;
+          note = fill(S.primAdd, { v: u, k: fmt(it.key), e: `${via[u]}-${u}` });
+        }
+        const ups = [];
+        const look = [];
+        adj[u].forEach(([v, w]) => {
+          if (!inTree[v] && w < key[v]) {
+            key[v] = w;
+            via[v] = u;
+            pushPq(w, v);
+            ups.push(fill(S.via, { v, k: fmt(w), u }));
+            look.push([u, v]);
+          }
+        });
+        note += ups.length ? fill(S.primUps, { ups: ups.join(S.sep) }) : S.primNoUps;
+        view(u, look, note);
+      }
+      view(null, [], fill(S.primDone, { k: edgesIn, total: fmt(total) }), true);
+    }
+
+    function planDijkstra() {
+      const dist = new Array(n).fill(INF);
+      const from = new Array(n).fill(-1);
+      const done = new Array(n).fill(false);
+      const order = [];
+      dist[s] = 0;
+      pushPq(0, s);
+      const view = (cur, look, note, end) => {
+        const node = [];
+        const edge = {};
+        for (let v = 0; v < n; v++) {
+          node[v] = v === cur ? 'focus' : done[v] ? 'done' : dist[v] < INF ? 'open' : '';
+          if (from[v] >= 0) edge[edgeKey(from[v], v)] = done[v] ? 'tree' : 'cand';
+        }
+        look.forEach(([u, v]) => (edge[edgeKey(u, v)] = 'focus'));
+        node[s] += ' ring';
+        snap({
+          node,
+          edge,
+          badge: dist.map((d) => (d === INF ? '' : fmt(d))),
+          isStale: (it) => done[it.v] || it.key !== dist[it.v],
+          rows: dist.map((d, v) => [String(v), show(d), from[v] < 0 ? '-' : String(from[v]), done[v] ? '✓' : '']),
+          note,
+          count: `${order.length} / ${n}`,
+          end,
+        });
+      };
+      while (pq.length) {
+        const it = popPq();
+        const u = it.v;
+        if (done[u]) {
+          view(u, [], fill(S.dSkip, { v: u, d: fmt(it.key) }));
+          continue;
+        }
+        done[u] = true;
+        order.push(u);
+        let note = fill(S.dPop, { v: u, d: fmt(it.key) });
+        const ups = [];
+        const keeps = [];
+        let late = '';
+        const look = [];
+        adj[u].forEach(([v, w]) => {
+          const nd = dist[u] + w;
+          if (done[v]) {
+            if (nd < dist[v]) late += fill(S.dLate, { u, v, nd: fmt(nd), old: fmt(dist[v]) });
+          } else if (nd < dist[v]) {
+            dist[v] = nd;
+            from[v] = u;
+            pushPq(nd, v);
+            ups.push(fill(S.upd, { v, d: fmt(nd), u }));
+            look.push([u, v]);
+          } else {
+            keeps.push(fill(S.keep, { u, v, nd: fmt(nd), old: fmt(dist[v]) }));
+          }
+        });
+        if (ups.length) note += fill(S.dUps, { ups: ups.join(S.sep) });
+        if (keeps.length) note += fill(S.dKeeps, { keeps: keeps.join(S.sep) });
+        note += late;
+        if (!ups.length && !keeps.length && !late) note += S.dNone;
+        view(u, look, note);
+      }
+      view(null, [], fill(S.dDone, { order: order.join(' ') }), true);
+    }
+
+    function planAstar() {
+      const gs = new Array(n).fill(INF);
+      const from = new Array(n).fill(-1);
+      const closed = new Array(n).fill(false);
+      const fOf = (v) => (gs[v] === INF ? INF : gs[v] + H[v]);
+      let closedCount = 0;
+      let closes = 0;
+      let path = null;
+      gs[s] = 0;
+      pushPq(H[s], s);
+      const view = (cur, look, note, end) => {
+        const node = [];
+        const edge = {};
+        for (let v = 0; v < n; v++) {
+          node[v] = v === cur ? 'focus' : closed[v] ? 'done' : gs[v] < INF ? 'open' : '';
+          if (from[v] >= 0) edge[edgeKey(from[v], v)] = closed[v] ? 'tree' : 'cand';
+        }
+        look.forEach(([u, v]) => (edge[edgeKey(u, v)] = 'focus'));
+        if (end && path) {
+          for (const k of Object.keys(edge)) edge[k] = 'dim';
+          for (let i = 1; i < path.length; i++) edge[edgeKey(path[i - 1], path[i])] = 'tree';
+        }
+        node[s] += ' ring';
+        node[goal] += ' ring';
+        snap({
+          node,
+          edge,
+          badge: gs.map((x) => (x === INF ? '' : fmt(x))),
+          isStale: (it) => closed[it.v] || it.key !== fOf(it.v),
+          rows: gs.map((x, v) => [
+            String(v),
+            fmt(H[v]),
+            show(x),
+            show(fOf(v)),
+            from[v] < 0 ? '-' : String(from[v]),
+            closed[v] ? '✓' : '',
+          ]),
+          note,
+          count: String(closedCount),
+          end,
+        });
+      };
+      while (pq.length) {
+        const it = popPq();
+        const u = it.v;
+        if (closed[u]) {
+          view(u, [], fill(S.aSkip, { v: u, f: fmt(it.key) }));
+          continue;
+        }
+        if (u === goal) {
+          path = [];
+          for (let x = goal; x !== -1; x = from[x]) path.unshift(x);
+          summary = { k: closes, path: path.join('→'), g: fmt(gs[u]) };
+          view(null, [], fill(S.aGoal, { v: u, f: fmt(it.key), path: path.join('→'), g: fmt(gs[u]) }), true);
+          return;
+        }
+        closed[u] = true;
+        closedCount += 1;
+        closes += 1;
+        let note = fill(S.aPop, { v: u, f: fmt(it.key), g: fmt(gs[u]), h: fmt(H[u]) });
+        const ups = [];
+        const keeps = [];
+        let extra = '';
+        const look = [];
+        adj[u].forEach(([v, w]) => {
+          const ng = gs[u] + w;
+          if (ng >= gs[v]) {
+            if (!closed[v]) keeps.push(fill(S.keep, { u, v, nd: fmt(ng), old: fmt(gs[v]) }));
+            return;
+          }
+          if (closed[v] && !reopen) {
+            extra += fill(S.aClosed, { v, ng: fmt(ng), old: fmt(gs[v]) });
+            return;
+          }
+          if (closed[v]) {
+            extra += fill(S.aReopen, { v, ng: fmt(ng), old: fmt(gs[v]) });
+            closed[v] = false;
+            closedCount -= 1;
+          }
+          gs[v] = ng;
+          from[v] = u;
+          pushPq(ng + H[v], v);
+          ups.push(fill(S.aUpd, { v, g: fmt(ng), f: fmt(ng + H[v]) }));
+          look.push([u, v]);
+        });
+        note += extra;
+        if (ups.length) note += fill(S.aUps, { ups: ups.join(S.sep) });
+        if (keeps.length) note += fill(S.aKeeps, { keeps: keeps.join(S.sep) });
+        if (!ups.length && !keeps.length && !extra) note += S.aNone;
+        view(u, look, note);
+      }
+    }
+
+    function plan() {
+      seq = 0;
+      pq.length = 0;
+      steps.length = 0;
+      summary = null;
+      if (mode === 'prim') planPrim();
+      else if (mode === 'astar') planAstar();
+      else planDijkstra();
+    }
+    plan();
+
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => {
+      edgeEls.set(el.dataset.gfEdge, el);
+    });
+    const findEdge = (key) => {
+      if (edgeEls.has(key)) return edgeEls.get(key);
+      const [a, b] = key.split('-');
+      return directed ? null : edgeEls.get(`${b}-${a}`);
+    };
+    const TONES = ['done', 'focus', 'open', 'dim', 'ring', 'tree', 'cand', 'reject'];
+    const pqEl = root.querySelector('[data-hg-pq]');
+    const rowEls = [...root.querySelectorAll('[data-hg-row]')];
+    const note = root.querySelector('[data-hg-note]');
+    const countEl = root.querySelector('[data-hg-count]');
+
+    function setTones(el, tones) {
+      const want = new Set(tones.split(' ').filter(Boolean));
+      TONES.forEach((tn) => el.classList.toggle(`is-${tn}`, want.has(tn)));
+    }
+
+    function render(i) {
+      const st = i >= 0 ? steps[i] : null;
+      nodeEls.forEach((el, v) => {
+        let tones = st ? st.node[v] : '';
+        if (!st && (v === s || (mode === 'astar' && v === goal))) tones = 'ring';
+        setTones(el, tones);
+      });
+      const edgeTone = new Map();
+      if (st) Object.entries(st.edge).forEach(([k, tone]) => edgeTone.set(findEdge(k), tone));
+      edgeEls.forEach((el) => setTones(el, edgeTone.get(el) ?? ''));
+      badgeEls.forEach((el, v) => (el.textContent = st ? st.badge[v] : ''));
+      pqEl.innerHTML = '';
+      const items = st ? st.pq : [];
+      if (!items.length) {
+        const e = document.createElement('span');
+        e.className = 'hg-empty';
+        e.textContent = st ? S.empty : '';
+        pqEl.appendChild(e);
+      }
+      let first = true;
+      items.forEach((it) => {
+        const c = document.createElement('span');
+        c.className = 'hg-item';
+        if (it.stale) c.classList.add('is-stale');
+        else if (first) {
+          c.classList.add('is-next');
+          first = false;
+        }
+        c.textContent = it.text;
+        pqEl.appendChild(c);
+      });
+      rowEls.forEach((row, v) => {
+        const cells = [...row.querySelectorAll('[data-hg-cell]')];
+        cells.forEach((c, k) => {
+          if (k === 0) return;
+          c.textContent = st ? st.rows[v][k] : '';
+        });
+        row.classList.toggle('is-now', !!st && st.node[v].includes('focus'));
+        row.classList.toggle('is-done', !!st && st.node[v].includes('done'));
+      });
+      setLines(note, st ? st.note : fill(S.idle, { s }));
+      countEl.textContent = st ? st.count : '';
+      root.classList.toggle('is-done', !!(st && st.end));
+    }
+
+    let at = Math.min(Number(root.dataset.hgInitial), steps.length - 1);
+
+    /* 휴리스틱 칩: h*는 목표에서 거꾸로 Dijkstra를 돌려 구하고, 고르면 처음부터 다시 짠다. */
+    if (choices) {
+      const back = Array.from({ length: n }, () => []);
+      edges.forEach(([u, v, w]) => {
+        back[v].push([u, w]);
+        if (!directed) back[u].push([v, w]);
+      });
+      const hs = new Array(n).fill(INF);
+      const fin = new Array(n).fill(false);
+      hs[goal] = 0;
+      for (;;) {
+        let u = -1;
+        for (let v = 0; v < n; v++) if (!fin[v] && hs[v] < INF && (u < 0 || hs[v] < hs[u])) u = v;
+        if (u < 0) break;
+        fin[u] = true;
+        back[u].forEach(([v, w]) => {
+          if (hs[u] + w < hs[v]) hs[v] = hs[u] + w;
+        });
+      }
+      const SETS = {
+        ex: [H0, S.hNoteEx],
+        zero: [H0.map(() => 0), S.hNoteZero],
+        star: [hs, S.hNoteStar],
+        over: [hs.map((x) => 2 * x), S.hNoteOver],
+      };
+      const chips = [...root.querySelectorAll('[data-hg-hchip]')];
+      const hnote = root.querySelector('[data-hg-hnote]');
+      const choose = (k) => {
+        H = SETS[k][0];
+        plan();
+        chips.forEach((c) => c.classList.toggle('is-on', c.dataset.hgHchip === k));
+        setLines(hnote, `${SETS[k][1]} ${fill(S.hSum, summary)}`);
+      };
+      chips.forEach((c) =>
+        c.addEventListener('click', () => {
+          stop();
+          choose(c.dataset.hgHchip);
+          at = -1;
+          render(-1);
+        }),
+      );
+      choose('ex');
+    }
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1600);
+    });
+    render(at);
+  })();
+</script>
+
+<style is:global>
+  .aas-heap-graph-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-heap-graph-demo .hg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-heap-graph-demo .hg-head {
+    font-size: 0.95em;
+  }
+  .aas-heap-graph-demo .hg-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-heap-graph-demo .hg-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-heap-graph-demo .hg-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-heap-graph-demo .hg-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-heap-graph-demo .hg-hbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+    margin-bottom: 0.8em;
+  }
+  .aas-heap-graph-demo .hg-hlabel {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-right: 0.2em;
+  }
+  .aas-heap-graph-demo .hg-hchip {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-heap-graph-demo .hg-hchip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-heap-graph-demo .hg-hchip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-heap-graph-demo .hg-hnote {
+    flex: 1 1 100%;
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+  .aas-heap-graph-demo .hg-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-heap-graph-demo .hg-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-heap-graph-demo .hg-panel {
+    flex: 1 1 14em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-heap-graph-demo .hg-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-heap-graph-demo .hg-pq {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    min-height: 1.7em;
+    margin-bottom: 0.5em;
+    font-size: 0.8em;
+  }
+  .aas-heap-graph-demo .hg-item {
+    padding: 0.1em 0.45em;
+    border-radius: 0.35em;
+    background: var(--aas-role-model);
+    color: #fff;
+    font-family: var(--aas-mono, monospace);
+    white-space: nowrap;
+  }
+  .aas-heap-graph-demo .hg-item.is-next {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-heap-graph-demo .hg-item.is-stale {
+    background: transparent;
+    color: var(--aas-muted);
+    border: 1px dashed var(--aas-border);
+    text-decoration: line-through;
+  }
+  .aas-heap-graph-demo .hg-empty {
+    color: var(--aas-muted);
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
+  .aas-heap-graph-demo .hg-table {
+    display: grid;
+    grid-template-columns: repeat(var(--hg-cols), minmax(2.4em, max-content));
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-heap-graph-demo .hg-tr {
+    display: contents;
+  }
+  .aas-heap-graph-demo .hg-tr > span {
+    padding: 0.08em 0.7em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+    min-height: 1.4em;
+    transition: background-color 0.3s;
+  }
+  .aas-heap-graph-demo .hg-th > span {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-heap-graph-demo .hg-tr.is-done > span {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+  .aas-heap-graph-demo .hg-tr.is-now > span {
+    background: color-mix(in srgb, var(--aas-role-focus) 24%, transparent);
+  }
+  .aas-heap-graph-demo .hg-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-heap-graph-demo .hg-note {
+    flex: 1 1 24em;
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-heap-graph-demo.is-done .hg-note {
+    color: var(--aas-text);
+  }
+  .aas-heap-graph-demo .hg-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-heap-graph-demo .hg-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-heap-graph-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  /* 데모 상자는 슬라이드 폭을 다 쓰고, 그래프는 높이를 정해 그만큼 키운다.
+     설명은 표 아래 빈자리(그래프 오른쪽)에 둔다. 문장마다 줄을 바꾸면 줄이
+     늘어나는데, 그래프 아래에 두면 슬라이드 높이를 넘는다. */
+  .aas-heap-graph-demo.is-slide {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      'bar bar'
+      'hbar hbar'
+      'graph panel'
+      'graph foot';
+    column-gap: 1.6em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-body {
+    display: contents;
+  }
+  .aas-heap-graph-demo.is-slide .hg-bar {
+    grid-area: bar;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar {
+    grid-area: hbar;
+  }
+  .aas-heap-graph-demo.is-slide .hg-panel {
+    grid-area: panel;
+  }
+  .aas-heap-graph-demo.is-slide .hg-foot {
+    grid-area: foot;
+    align-self: start;
+  }
+  .aas-heap-graph-demo.is-slide .hg-graph {
+    grid-area: graph;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+  /* 휴리스틱 칩이 있으면 그 줄만큼 그래프를 줄인다. */
+  .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .hg-graph {
+    --gf-slide-h: 35vh;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .hg-table {
+    font-size: 0.66em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar {
+    margin-bottom: 0.4em;
+  }
+  /* 슬라이드에서는 휴리스틱 설명을 칩 오른쪽에 둬서 줄 하나를 아낀다. */
+  .aas-heap-graph-demo.is-slide .hg-hbar {
+    flex-wrap: nowrap;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hchip {
+    white-space: nowrap;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hnote {
+    flex: 1 1 auto;
+    margin: 0 0 0 0.8em;
+    font-size: 0.75em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-table {
+    font-size: 0.72em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-tr > span {
+    padding: 0 0.7em;
+    min-height: 1.25em;
+    line-height: 1.25;
+  }
+  .aas-heap-graph-demo.is-slide .hg-note {
+    margin-top: 0.3em;
+    min-height: 2.4em;
+    font-size: 0.75em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-heap-graph-demo .hg-tr > span {
+      transition: none;
+    }
+  }
+</style>

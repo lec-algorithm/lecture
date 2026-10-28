@@ -1,0 +1,489 @@
+---
+// 코사인과 피어슨 상관을 막대그래프로 견주는 데모.
+//
+// 대상 사용자(기본 A)와 다른 사용자 한 명의 평점을 영화마다 막대 둘로 세운다.
+// "원래 평점"에서는 막대가 모두 0 위에 서고(안 본 칸은 0), 점선이 각자의
+// 평균이다. "평균을 뺀 값"으로 바꾸면 둘 다 본 영화만 남고 막대가 평균만큼
+// 내려가, 평소보다 낮게 준 영화는 0 아래로 내려간다. 오른쪽에 두 유사도를
+// 함께 적는다. 사용자는 탭으로 고른다.
+//
+// 계산은 algorithm-code의 collaborativeFiltering.c · collaborative_filtering.py와
+// 같다. 코사인은 0을 넣은 여섯 칸 전체로(B 0.835, C 0.820, D 0.466, E 0.705),
+// 피어슨은 둘 다 본 칸으로 잰다(B 0.866, C 1.000, D -0.833, E -0.866).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 사용자 × 아이템 평점 행렬. 0은 아직 안 본 칸 */
+  ratings?: number[][];
+  /** 사용자 이름 */
+  users?: string[];
+  /** 기준 사용자 번호 */
+  target?: number;
+  /** 처음에 견줄 사용자 번호 */
+  pair?: number;
+  /** 처음부터 평균을 뺀 값으로 보여 줄지 */
+  centered?: boolean;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const {
+  ratings = [
+    [5, 5, 0, 4, 2, 0],
+    [5, 4, 5, 4, 3, 1],
+    [4, 4, 4, 3, 1, 2],
+    [1, 2, 1, 1, 4, 5],
+    [4, 3, 4, 4, 5, 5],
+  ],
+  users = ['A', 'B', 'C', 'D', 'E'],
+  target = 0,
+  pair = 2,
+  centered = false,
+  slide = false,
+} = Astro.props;
+const id = `pd-${Math.random().toString(36).slice(2, 9)}`;
+const others = users.map((_, i) => i).filter((i) => i !== target);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '평균을 빼면',
+    with: '견줄 사용자',
+    raw: '원래 평점',
+    centered: '평균을 뺀 값',
+    mean: '평균',
+    cosine: '코사인',
+    pearson: '피어슨',
+    rawNote: '안 본 칸을 0으로 넣은 원래 평점입니다. 막대가 모두 0 위에 서 있어 코사인은 0보다 작아질 수 없습니다. 코사인은 {c}입니다.',
+    centeredNote: '둘 다 본 영화({common})만 남기고 각자의 평균을 뺐습니다. 평소보다 높게 준 영화는 위로, 낮게 준 영화는 아래로 섭니다.',
+    plain: '피어슨은 {p}입니다.',
+    same: '막대 모양이 똑같아 피어슨이 {p}입니다. 눈금만 다를 뿐 취향은 같습니다.',
+    opposite: '막대가 서로 반대로 서서 피어슨이 {p}입니다. 음수라 이웃에서 빠집니다.',
+    none: '둘 다 본 영화가 없어 피어슨을 잴 수 없습니다. 유사도는 0입니다.',
+  },
+  en: {
+    title: 'Subtract the mean',
+    with: 'compare with',
+    raw: 'Raw ratings',
+    centered: 'Minus the mean',
+    mean: 'mean',
+    cosine: 'cosine',
+    pearson: 'Pearson',
+    rawNote: 'Raw ratings, with unrated cells entered as 0. Every bar stands above 0, so the cosine can never drop below 0. The cosine is {c}.',
+    centeredNote: 'Only {common}, rated by both, remain, and each user’s mean is subtracted. Movies rated above one’s usual stand up; those below hang down.',
+    plain: 'The Pearson correlation is {p}.',
+    same: 'The bars have the same shape, so Pearson is {p}. Only the rating scale differs; the taste is the same.',
+    opposite: 'The bars point opposite ways, so Pearson is {p}. Being negative, this user is left out of the neighbors.',
+    none: 'No movie is rated by both, so Pearson cannot be measured. The similarity is 0.',
+  },
+  zh: {
+    title: '减去均值',
+    with: '比较对象',
+    raw: '原始评分',
+    centered: '减去均值',
+    mean: '均值',
+    cosine: '余弦',
+    pearson: '皮尔逊',
+    rawNote: '没看过的格子记为 0 的原始评分。所有柱子都立在 0 之上，所以余弦不会小于 0。余弦是 {c}。',
+    centeredNote: '只留下两人都评过的 {common}，并各自减去均值。比平时打得高的电影向上，打得低的向下。',
+    plain: '皮尔逊是 {p}。',
+    same: '柱子形状完全相同，皮尔逊是 {p}。只是打分的尺度不同，口味是一样的。',
+    opposite: '柱子方向相反，皮尔逊是 {p}。值为负，所以不进入邻居。',
+    none: '没有两人都评过的电影，无法计算皮尔逊。相似度为 0。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-pearson-demo', slide && 'is-slide']}
+  id={id}
+  data-pd-ratings={JSON.stringify(ratings)}
+  data-pd-users={JSON.stringify(users)}
+  data-pd-target={target}
+  data-pd-pair={others.includes(pair) ? pair : others[0]}
+  data-pd-centered={centered ? '1' : '0'}
+  data-pd-strings={JSON.stringify(t)}
+>
+  <div class="pd-bar">
+    <span class="pd-head"><strong>{t.title}</strong></span>
+    <div class="pd-controls">
+      <span class="pd-label">{t.with}</span>
+      {others.map((v) => (
+        <button type="button" class="pd-btn" data-pd-user={v}>{users[v]}</button>
+      ))}
+      <span class="pd-sep"></span>
+      <button type="button" class="pd-btn" data-pd-mode="raw">{t.raw}</button>
+      <button type="button" class="pd-btn" data-pd-mode="centered">{t.centered}</button>
+    </div>
+  </div>
+
+  <div class="pd-body">
+    <svg class="pd-svg" data-pd-svg role="img" aria-label={t.title}></svg>
+    <div class="pd-side">
+      <div class="pd-legend">
+        <span class="pd-key pd-key-a"></span><strong>{users[target]}</strong>
+        <span class="pd-key pd-key-b"></span><strong data-pd-vname></strong>
+      </div>
+      <div class="pd-score" data-pd-score="raw">{t.cosine} <strong data-pd-cos></strong></div>
+      <div class="pd-score" data-pd-score="centered">{t.pearson} <strong data-pd-pear></strong></div>
+    </div>
+  </div>
+
+  <p class="pd-note" data-pd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기: 중국어 마침표 뒤에는 공백을 넣지 않는다(그래야 setLines가 끊는다). */
+    const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const R = JSON.parse(root.dataset.pdRatings);
+    const users = JSON.parse(root.dataset.pdUsers);
+    const target = Number(root.dataset.pdTarget);
+    const S = JSON.parse(root.dataset.pdStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const n = R[0].length;
+    const iname = (i) => `M${i + 1}`;
+    const num = (x) => String(+x.toFixed(2));
+    const signed = (x) => (x > 0 ? `+${num(x)}` : num(x));
+    let pair = Number(root.dataset.pdPair);
+    let centered = root.dataset.pdCentered === '1';
+
+    /* 실습 코드와 같은 함수들. 0은 안 본 칸이다. */
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+    function pearson(a, b) {
+      const common = [];
+      for (let i = 0; i < a.length; i++) if (a[i] > 0 && b[i] > 0) common.push(i);
+      if (!common.length) return { s: 0, common, ma: 0, mb: 0 };
+      let sa = 0, sb = 0;
+      for (const i of common) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / common.length, mb = sb / common.length;
+      let nm = 0, da = 0, db = 0;
+      for (const i of common) {
+        nm += (a[i] - ma) * (b[i] - mb);
+        da += (a[i] - ma) * (a[i] - ma);
+        db += (b[i] - mb) * (b[i] - mb);
+      }
+      return { s: da === 0 || db === 0 ? 0 : nm / Math.sqrt(da * db), common, ma, mb };
+    }
+
+    /* 그림 틀: 세로축은 -3부터 5까지 고정이라 두 모드를 오가도 0의 자리가 같다. */
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const LO = -3, HI = 5;
+    const UY = 34, PADL = 40, PADT = 26, PADB = 34;
+    const GW = 92, BW = 30;
+    const W = PADL + n * GW + 10;
+    const H = PADT + (HI - LO) * UY + PADB;
+    const Y = (v) => PADT + (HI - v) * UY;
+    const svg = root.querySelector('[data-pd-svg]');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    for (let v = LO; v <= HI; v++) {
+      el('line', { x1: PADL, y1: Y(v), x2: W - 10, y2: Y(v), class: v === 0 ? 'pd-zero' : 'pd-grid' }, svg);
+      el('text', { x: PADL - 10, y: Y(v) + 5, class: 'pd-tick' }, svg).textContent = String(v);
+    }
+    const cols = [];
+    for (let i = 0; i < n; i++) {
+      const gx = PADL + i * GW + (GW - 2 * BW - 6) / 2;
+      const g = el('g', { class: 'pd-col' }, svg);
+      const bars = [0, 1].map((k) => {
+        const x = gx + k * (BW + 6);
+        const rect = el('rect', { x, y: Y(0), width: BW, height: 0, rx: 3, class: k ? 'pd-b' : 'pd-a' }, g);
+        const label = el('text', { x: x + BW / 2, y: Y(0) - 6, class: 'pd-val' }, g);
+        return { rect, label, x };
+      });
+      const head = el('text', { x: PADL + i * GW + GW / 2, y: H - 8, class: 'pd-colhead' }, g);
+      head.textContent = iname(i);
+      cols.push({ g, bars, head });
+    }
+    const means = [0, 1].map((k) => {
+      const g = el('g', { class: `pd-mean ${k ? 'pd-mean-b' : 'pd-mean-a'}` }, svg);
+      el('line', { x1: PADL, y1: 0, x2: W - 10, y2: 0 }, g);
+      return g;
+    });
+
+    const vname = root.querySelector('[data-pd-vname]');
+    const cosEl = root.querySelector('[data-pd-cos]');
+    const pearEl = root.querySelector('[data-pd-pear]');
+    const note = root.querySelector('[data-pd-note]');
+    const userBtns = [...root.querySelectorAll('[data-pd-user]')];
+    const modeBtns = [...root.querySelectorAll('[data-pd-mode]')];
+    const scores = [...root.querySelectorAll('[data-pd-score]')];
+
+    function render() {
+      const a = R[target], b = R[pair];
+      const c = cosine(a, b);
+      const p = pearson(a, b);
+      const vals = [a, b];
+      const mu = [p.ma, p.mb];
+      cols.forEach((col, i) => {
+        const shared = p.common.includes(i);
+        col.g.classList.toggle('is-out', centered && !shared);
+        col.bars.forEach((bar, k) => {
+          const r = vals[k][i];
+          /* 원래 평점은 그대로, 평균을 뺀 값은 둘 다 본 칸만 */
+          const v = centered ? (shared ? r - mu[k] : 0) : r;
+          const top = Y(Math.max(0, v));
+          const h = Math.abs(v) * UY;
+          bar.rect.setAttribute('y', String(top));
+          bar.rect.setAttribute('height', String(h));
+          const show = centered ? shared : true;
+          bar.label.textContent = !show ? '' : centered ? signed(v) : r === 0 ? (k === 0 ? '?' : '0') : String(r);
+          bar.label.setAttribute('y', String(v >= 0 ? Y(v) - 7 : Y(v) + 19));
+        });
+      });
+      means.forEach((g, k) => {
+        g.style.transform = `translateY(${centered ? Y(0) : Y(mu[k])}px)`;
+        g.classList.toggle('is-hidden', !p.common.length);
+      });
+      vname.textContent = users[pair];
+      cosEl.textContent = c.toFixed(3);
+      pearEl.textContent = p.s.toFixed(3);
+      scores.forEach((s) => s.classList.toggle('is-on', s.dataset.pdScore === (centered ? 'centered' : 'raw')));
+      userBtns.forEach((btn) => btn.classList.toggle('is-on', Number(btn.dataset.pdUser) === pair));
+      modeBtns.forEach((btn) => btn.classList.toggle('is-on', (btn.dataset.pdMode === 'centered') === centered));
+
+      let msg;
+      if (!centered) msg = fill(S.rawNote, { c: c.toFixed(3) });
+      else if (!p.common.length) msg = S.none;
+      else {
+        msg = fill(S.centeredNote, { common: p.common.map(iname).join('·') });
+        const verdict = p.s > 0.9995 ? S.same : p.s <= 0 ? S.opposite : S.plain;
+        msg = cat(msg, fill(verdict, { p: p.s.toFixed(3) }));
+      }
+      setLines(note, msg);
+    }
+
+    userBtns.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        pair = Number(btn.dataset.pdUser);
+        render();
+      }),
+    );
+    modeBtns.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        centered = btn.dataset.pdMode === 'centered';
+        render();
+      }),
+    );
+    root.classList.add('is-still');
+    render();
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('is-still')));
+  })();
+</script>
+
+<style is:global>
+  .aas-pearson-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-pearson-demo .pd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-pearson-demo .pd-head {
+    font-size: 0.95em;
+  }
+  .aas-pearson-demo .pd-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-pearson-demo .pd-label {
+    margin-right: 0.2em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-pearson-demo .pd-sep {
+    width: 0.8em;
+  }
+  .aas-pearson-demo .pd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-pearson-demo .pd-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-pearson-demo .pd-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-pearson-demo .pd-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-pearson-demo .pd-svg {
+    flex: 2 1 22em;
+    min-width: 0;
+    max-height: 21em;
+  }
+  .aas-pearson-demo .pd-grid {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .aas-pearson-demo .pd-zero {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+  }
+  .aas-pearson-demo .pd-tick {
+    font-size: 15px;
+    fill: var(--aas-muted);
+    text-anchor: end;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-pearson-demo .pd-colhead {
+    font-size: 17px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-pearson-demo .pd-a {
+    fill: var(--aas-role-model);
+  }
+  .aas-pearson-demo .pd-b {
+    fill: var(--aas-role-source);
+  }
+  .aas-pearson-demo .pd-col rect {
+    transition:
+      y 0.45s ease,
+      height 0.45s ease;
+  }
+  .aas-pearson-demo .pd-col {
+    transition: opacity 0.3s;
+  }
+  .aas-pearson-demo .pd-col.is-out {
+    opacity: 0.3;
+  }
+  .aas-pearson-demo .pd-val {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-pearson-demo .pd-mean {
+    transition: transform 0.45s ease;
+  }
+  .aas-pearson-demo .pd-mean line {
+    stroke-width: 2.5;
+    stroke-dasharray: 7 5;
+  }
+  .aas-pearson-demo .pd-mean-a line {
+    stroke: var(--aas-role-model);
+  }
+  .aas-pearson-demo .pd-mean-b line {
+    stroke: var(--aas-role-source);
+    stroke-dashoffset: 6;
+  }
+  .aas-pearson-demo .pd-mean.is-hidden {
+    visibility: hidden;
+  }
+  .aas-pearson-demo .pd-side {
+    flex: 1 1 9em;
+  }
+  .aas-pearson-demo .pd-legend {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-bottom: 0.6em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-pearson-demo .pd-key {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 0.2em;
+  }
+  .aas-pearson-demo .pd-key-b {
+    margin-left: 0.8em;
+  }
+  .aas-pearson-demo .pd-key-a {
+    background: var(--aas-role-model);
+  }
+  .aas-pearson-demo .pd-key-b {
+    background: var(--aas-role-source);
+  }
+  .aas-pearson-demo .pd-score {
+    padding: 0.2em 0;
+    font-size: 1em;
+    color: var(--aas-muted);
+    transition: color 0.3s;
+  }
+  .aas-pearson-demo .pd-score strong {
+    display: inline-block;
+    min-width: 3.4em;
+    font-size: 1.3em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-pearson-demo .pd-score.is-on {
+    color: var(--aas-text);
+  }
+  .aas-pearson-demo .pd-score.is-on strong {
+    color: var(--aas-role-focus);
+  }
+  .aas-pearson-demo .pd-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+  .aas-pearson-demo.is-still * {
+    transition: none !important;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-pearson-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-pearson-demo.is-slide .pd-svg {
+    max-height: 37vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-pearson-demo * {
+      transition: none !important;
+    }
+  }
+</style>

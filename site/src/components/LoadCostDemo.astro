@@ -1,0 +1,490 @@
+---
+// 적재율 α를 올리며 개별 체이닝과 선형 탐지의 평균 탐색 비용을 견주는 데모.
+//
+// 왼쪽 그래프에는 네 곡선(선형 탐지 성공·실패, 체이닝 성공·실패)의 이론값을
+// 그리고, 슬라이더로 고른 α에 세로선과 점을 둔다. 오른쪽 표는 그 α의 이론값과
+// 실험값이다. 실험은 크기 4096인 배열에 무작위 해시값으로 키 αM개를 실제로
+// 넣고 세며, 시드를 바꿔 10번 한 평균이다(시드가 고정이라 늘 같은 값).
+//
+// 세는 단위는 앞의 데모들과 같다.
+//   선형 탐지: 들여다본 칸 수. 실패는 빈칸까지 포함한다.
+//     성공 ≈ ½(1 + 1/(1-α)), 실패 ≈ ½(1 + 1/(1-α)²)  (Knuth)
+//   체이닝: 리스트에서 비교한 노드 수. 새 키는 맨 앞에 붙는다.
+//     성공 ≈ 1 + α/2, 실패 = α(리스트 길이의 평균)
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 적재율. 1/40 단위로 맞춘다. */
+  alpha?: number;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { alpha = 0.5, slide = false } = Astro.props;
+const id = `lc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '적재율과 탐색 비용',
+    load: '적재율',
+    lp: '선형 탐지',
+    sc: '개별 체이닝',
+    hit: '성공',
+    miss: '실패',
+    theory: '이론',
+    exp: '실험',
+    unit: '실선은 성공, 점선은 실패 · 선형 탐지는 들여다본 칸 수, 체이닝은 비교한 노드 수 · 실험은 4096칸에 무작위로 넣어 10번 평균',
+    note: '적재율 {a}입니다. 없는 키를 찾을 때 선형 탐지는 평균 {lm}칸을 보고, 체이닝은 노드 {cm}개를 비교합니다.',
+    steep: '1에 가까워질수록 선형 탐지의 실패 탐색이 급격히 늘어납니다.',
+  },
+  en: {
+    title: 'Load factor and search cost',
+    load: 'load',
+    lp: 'Linear probing',
+    sc: 'Separate chaining',
+    hit: 'hit',
+    miss: 'miss',
+    theory: 'theory',
+    exp: 'run',
+    unit: 'Solid lines are hits, dashed lines are misses · linear probing counts slots looked at, chaining counts nodes compared · runs put random keys into 4096 slots, averaged over 10',
+    note: 'Load {a}. A search miss looks at {lm} slots on average with linear probing and compares {cm} nodes with chaining.',
+    steep: 'As the load nears 1, a linear probing miss gets expensive very fast.',
+  },
+  zh: {
+    title: '装载因子与查找代价',
+    load: '装载因子',
+    lp: '线性探测',
+    sc: '拉链法',
+    hit: '命中',
+    miss: '未命中',
+    theory: '理论',
+    exp: '实验',
+    unit: '实线为命中，虚线为未命中 · 线性探测数看过的格数，拉链法数比较过的节点数 · 实验把随机键放进 4096 格，取 10 次平均',
+    note: '装载因子 {a}。查找不存在的键时，线性探测平均看 {lm} 格，拉链法比较 {cm} 个节点。',
+    steep: '越接近 1，线性探测的未命中查找就增长得越快。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = [
+  { label: '1/2', a: 0.5 },
+  { label: '3/4', a: 0.75 },
+  { label: '7/8', a: 0.875 },
+];
+---
+
+<div
+  class:list={['aas-load-cost-demo', slide && 'is-slide']}
+  id={id}
+  data-lc-alpha={alpha}
+  data-lc-strings={JSON.stringify(t)}
+>
+  <div class="lc-bar">
+    <span class="lc-head"><strong>{t.title}</strong></span>
+    <label class="lc-count">
+      {t.load} α = <strong data-lc-aval></strong>
+      <input type="range" min="1" max="35" step="1" data-lc-range />
+    </label>
+    <div class="lc-controls">
+      {presets.map((p) => <button type="button" class="lc-btn" data-lc-preset={p.a}>{p.label}</button>)}
+    </div>
+  </div>
+
+  <div class="lc-body">
+    <svg class="lc-chart" data-lc-chart viewBox="0 0 420 230" role="img" aria-label={t.title}></svg>
+    <div class="lc-side">
+      <table class="lc-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>{t.hit}</th>
+            <th>{t.miss}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="lc-lp">
+            <th><span class="lc-swatch" />{t.lp}</th>
+            <td><b data-lc-v="lpHit"></b><small data-lc-e="lpHit"></small></td>
+            <td class="lc-key"><b data-lc-v="lpMiss"></b><small data-lc-e="lpMiss"></small></td>
+          </tr>
+          <tr class="lc-sc">
+            <th><span class="lc-swatch" />{t.sc}</th>
+            <td><b data-lc-v="scHit"></b><small data-lc-e="scHit"></small></td>
+            <td><b data-lc-v="scMiss"></b><small data-lc-e="scMiss"></small></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="lc-legend"><b>{t.theory}</b> · <small>{t.exp}</small></p>
+    </div>
+  </div>
+  <p class="lc-unit">{t.unit}</p>
+  <p class="lc-note" data-lc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.lcStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const THEORY = {
+      lpHit: (a) => 0.5 * (1 + 1 / (1 - a)),
+      lpMiss: (a) => 0.5 * (1 + 1 / (1 - a) ** 2),
+      scHit: (a) => 1 + a / 2,
+      scMiss: (a) => a,
+    };
+
+    /* 실험: 같은 무작위 해시값으로 선형 탐지 표와 체이닝 표를 함께 채우고 센다. */
+    function mulberry32(a) {
+      return () => {
+        a |= 0;
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const M = 4096;
+    const TRIALS = 10;
+    const cache = new Map();
+    function experiment(a) {
+      if (cache.has(a)) return cache.get(a);
+      const N = Math.round(a * M);
+      const sum = { lpHit: 0, lpMiss: 0, scHit: 0, scMiss: 0 };
+      for (let s = 0; s < TRIALS; s++) {
+        const rand = mulberry32(1000 + s);
+        const occ = new Uint8Array(M);
+        const hashes = [];
+        let probes = 0;
+        for (let k = 0; k < N; k++) {
+          const h = Math.floor(rand() * M);
+          hashes.push(h);
+          let i = h;
+          let p = 1;
+          while (occ[i]) {
+            i = (i + 1) % M;
+            p += 1;
+          }
+          occ[i] = 1;
+          probes += p; // 선형 탐지에서는 넣을 때 본 칸 수가 곧 찾을 때 볼 칸 수
+        }
+        let miss = 0;
+        for (let st = 0; st < M; st++) {
+          let p = 1;
+          for (let i = st; occ[i]; i = (i + 1) % M) p += 1;
+          miss += p;
+        }
+        /* 체이닝: 맨 앞에 붙이므로, 어떤 키의 자리는 뒤에 같은 칸에 들어온 키 수 + 1 */
+        const later = new Uint32Array(M);
+        let pos = 0;
+        for (let k = N - 1; k >= 0; k--) {
+          later[hashes[k]] += 1;
+          pos += later[hashes[k]];
+        }
+        sum.lpHit += N ? probes / N : 0;
+        sum.lpMiss += miss / M;
+        sum.scHit += N ? pos / N : 0;
+        sum.scMiss += N / M;
+      }
+      const res = Object.fromEntries(Object.entries(sum).map(([k, v]) => [k, v / TRIALS]));
+      cache.set(a, res);
+      return res;
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      if (parent) parent.appendChild(e);
+      return e;
+    };
+    const chart = root.querySelector('[data-lc-chart]');
+    const range = root.querySelector('[data-lc-range]');
+    const aval = root.querySelector('[data-lc-aval]');
+    const note = root.querySelector('[data-lc-note]');
+    const presets = [...root.querySelectorAll('[data-lc-preset]')];
+    const vals = Object.fromEntries([...root.querySelectorAll('[data-lc-v]')].map((e) => [e.dataset.lcV, e]));
+    const exps = Object.fromEntries([...root.querySelectorAll('[data-lc-e]')].map((e) => [e.dataset.lcE, e]));
+
+    /* 슬라이더 값 k는 α = k/40 */
+    let K = Math.min(35, Math.max(1, Math.round(Number(root.dataset.lcAlpha) * 40)));
+    const X0 = 40;
+    const X1 = 410;
+    const Y0 = 200;
+    const Y1 = 10;
+    const YMAX = 35;
+    const xs = (a) => X0 + a * (X1 - X0);
+    const ys = (v) => Y0 - (Math.min(v, YMAX) / YMAX) * (Y0 - Y1);
+    const SERIES = [
+      { key: 'lpMiss', cls: 'is-lp is-miss' },
+      { key: 'lpHit', cls: 'is-lp' },
+      { key: 'scHit', cls: 'is-sc' },
+      { key: 'scMiss', cls: 'is-sc is-miss' },
+    ];
+
+    function drawChart(a) {
+      chart.replaceChildren();
+      [0, 10, 20, 30].forEach((v) => {
+        el('line', { x1: X0, y1: ys(v), x2: X1, y2: ys(v), class: 'lc-grid' }, chart);
+        el('text', { x: X0 - 6, y: ys(v), class: 'lc-ylab' }, chart).textContent = String(v);
+      });
+      [0, 0.25, 0.5, 0.75, 1].forEach((x) => {
+        el('text', { x: xs(x), y: Y0 + 16, class: 'lc-xlab' }, chart).textContent = String(x);
+      });
+      el('text', { x: X1, y: Y0 + 30, class: 'lc-axis' }, chart).textContent = 'α';
+      SERIES.forEach(({ key, cls }) => {
+        let d = '';
+        for (let k = 0; k <= 35; k += 0.25) {
+          const x = k / 40;
+          const v = THEORY[key](x);
+          if (v > YMAX) break;
+          d += `${d ? 'L' : 'M'}${xs(x).toFixed(1)},${ys(v).toFixed(1)}`;
+        }
+        el('path', { d, class: `lc-curve ${cls}` }, chart);
+      });
+      el('line', { x1: xs(a), y1: Y0, x2: xs(a), y2: Y1, class: 'lc-now' }, chart);
+      SERIES.forEach(({ key, cls }) => {
+        el('circle', { cx: xs(a), cy: ys(THEORY[key](a)), r: 5, class: `lc-dot ${cls}` }, chart);
+      });
+    }
+
+    function render() {
+      const a = K / 40;
+      range.value = String(K);
+      aval.textContent = String(+a.toFixed(3));
+      presets.forEach((b) => b.classList.toggle('is-on', Number(b.dataset.lcPreset) === a));
+      const ex = experiment(a);
+      for (const key of Object.keys(THEORY)) {
+        vals[key].textContent = THEORY[key](a).toFixed(2);
+        exps[key].textContent = ex[key].toFixed(2);
+      }
+      drawChart(a);
+      const text = fill(S.note, { a: String(+a.toFixed(3)), lm: THEORY.lpMiss(a).toFixed(2), cm: THEORY.scMiss(a).toFixed(2) });
+      setLines(note, join(text, a >= 0.75 ? S.steep : ''));
+    }
+    range.addEventListener('input', () => {
+      K = Number(range.value);
+      render();
+    });
+    presets.forEach((b) =>
+      b.addEventListener('click', () => {
+        K = Math.round(Number(b.dataset.lcPreset) * 40);
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-load-cost-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-load-cost-demo .lc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-load-cost-demo .lc-head {
+    font-size: 0.95em;
+  }
+  .aas-load-cost-demo .lc-count {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-load-cost-demo .lc-count strong {
+    min-width: 3em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-load-cost-demo .lc-count input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-load-cost-demo .lc-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-load-cost-demo .lc-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-load-cost-demo .lc-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-load-cost-demo .lc-btn.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-load-cost-demo .lc-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+  }
+  .aas-load-cost-demo .lc-chart {
+    flex: 1.3 1 18em;
+    min-width: 0;
+    max-height: 16em;
+  }
+  .aas-load-cost-demo .lc-side {
+    flex: 1 1 14em;
+  }
+  .aas-load-cost-demo .lc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+    margin: 0;
+  }
+  .aas-load-cost-demo .lc-table th,
+  .aas-load-cost-demo .lc-table td {
+    padding: 0.3em 0.4em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .aas-load-cost-demo .lc-table thead th {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    font-weight: 400;
+  }
+  .aas-load-cost-demo .lc-table tbody th {
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.9em;
+  }
+  .aas-load-cost-demo .lc-table td b {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.3em;
+    line-height: 1.1;
+  }
+  .aas-load-cost-demo .lc-table td small {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-load-cost-demo .lc-table td.lc-key b {
+    color: var(--aas-role-guard);
+    font-size: 1.7em;
+  }
+  .aas-load-cost-demo .lc-swatch {
+    display: inline-block;
+    width: 0.8em;
+    height: 0.8em;
+    margin-right: 0.4em;
+    border-radius: 0.2em;
+    vertical-align: -0.05em;
+  }
+  .aas-load-cost-demo .lc-lp .lc-swatch {
+    background: var(--aas-role-focus);
+  }
+  .aas-load-cost-demo .lc-sc .lc-swatch {
+    background: var(--aas-role-model);
+  }
+  .aas-load-cost-demo .lc-legend {
+    margin: 0.3em 0 0;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    text-align: right;
+  }
+  .aas-load-cost-demo .lc-legend b {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-load-cost-demo .lc-grid {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .aas-load-cost-demo .lc-ylab,
+  .aas-load-cost-demo .lc-xlab,
+  .aas-load-cost-demo .lc-axis {
+    font-family: var(--aas-mono, monospace);
+    font-size: 12px;
+    fill: var(--aas-muted);
+  }
+  .aas-load-cost-demo .lc-ylab {
+    text-anchor: end;
+    dominant-baseline: central;
+  }
+  .aas-load-cost-demo .lc-xlab {
+    text-anchor: middle;
+  }
+  .aas-load-cost-demo .lc-axis {
+    text-anchor: end;
+    font-size: 14px;
+  }
+  .aas-load-cost-demo .lc-curve {
+    fill: none;
+    stroke-width: 2.5;
+  }
+  .aas-load-cost-demo .lc-curve.is-lp,
+  .aas-load-cost-demo .lc-dot.is-lp {
+    stroke: var(--aas-role-focus);
+  }
+  .aas-load-cost-demo .lc-curve.is-sc,
+  .aas-load-cost-demo .lc-dot.is-sc {
+    stroke: var(--aas-role-model);
+  }
+  .aas-load-cost-demo .lc-curve.is-miss {
+    stroke-dasharray: 6 4;
+  }
+  .aas-load-cost-demo .lc-now {
+    stroke: var(--aas-muted);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+  .aas-load-cost-demo .lc-dot {
+    fill: var(--aas-bg);
+    stroke-width: 2.5;
+  }
+  .aas-load-cost-demo .lc-unit {
+    margin: 0.4em 0 0;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-load-cost-demo .lc-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 3.2em;
+  }
+  .aas-load-cost-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-load-cost-demo.is-slide .lc-chart {
+    max-height: 36vh;
+  }
+</style>
