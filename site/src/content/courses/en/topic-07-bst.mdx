@@ -15,6 +15,7 @@ import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import TreeShapeDemo from '@components/TreeShapeDemo.astro';
 import TreeScanDemo from '@components/TreeScanDemo.astro';
 import BstCheckDemo from '@components/BstCheckDemo.astro';
+import MemoryTreeDemo from '@components/MemoryTreeDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -927,6 +928,107 @@ in $$O(\log n)$$ with binary search, but inserting and deleting cost $$O(n)$$
 for shifting the elements behind. A balanced BST does all three in
 $$O(\log n)$$, because inserting and deleting only change links.
 
+## Trees in memory \{#memory}
+
+So far we have drawn trees as pictures with branches spreading downward. Computer
+memory, though, has no up or down. Memory is a long line of bytes, each with
+an address. Let's see how the struct from [Representing it with links](#structure)
+actually sits on that line.
+
+### One node, one block \{#memory-blocks}
+
+The `malloc(sizeof(TreeNode))` call inside `createNode` takes an empty block from
+somewhere in memory and returns its **starting address**. On a 64-bit computer a
+`TreeNode` is 24 bytes.
+
+```plaintext
+address 0x2A40
+┌──────────┬──────────┬──────────────┬──────────────┐
+│ key = 5  │ (padding)│ left  0x2A70 │ right 0x2A58 │
+└──────────┴──────────┴──────────────┴──────────────┘
+   4 bytes    4 bytes      8 bytes         8 bytes
+```
+
+- `key` is an `int`, 4 bytes.
+- `left` and `right` are pointers holding the **address** of another block, 8
+  bytes each.
+- The 4 bytes in between are left empty. Pointers are read fastest at addresses
+  that are multiples of 8, so the compiler inserts this padding.
+
+`malloc` decides where each block goes. Blocks obtained one after another may be
+adjacent or far apart, with other data in between. **Address order has nothing
+to do with the tree's shape.** The only thing linking a parent to its children
+is the address stored in its `left` and `right` fields.
+
+### Inserting, as memory sees it \{#memory-insert}
+
+Insert `5 9 7 3 8 12 6` and watch memory change. The table on the right lists
+memory in address order, and `root` at the top is the variable holding the
+tree's starting address. Click a node or a table row to see its partner. The
+addresses are made up for the explanation; real ones are longer and change from
+run to run.
+
+<MemoryTreeDemo />
+
+Inserting one value does three things in memory.
+
+1. `malloc` hands out a block; write `key` into it and NULL into `left` and
+   `right`.
+2. Starting from the address in `root`, follow the address in the `left` or
+   `right` field, depending on the comparison.
+3. On reaching a NULL field, write the new block's address into it.
+
+In the practice code, `root->left = insert(root->left, key)` does step 3: it
+writes the address returned from below into the parent block's `left` field.
+If the field already held a child, the same address is written back and
+nothing changes.
+
+### Following addresses \{#memory-search}
+
+Search takes the same path. In code, `cur = cur->left` means "read the address
+in the current block's `left` field and go there." Let's find 6.
+
+<MemoryTreeDemo find={6} />
+
+Four blocks were read to find 6. With height $$h$$, at most $$h$$ blocks are
+read. This is what the earlier $$O(h)$$ for search looks like in memory.
+
+| Code | What happens in memory |
+| --- | --- |
+| `malloc(sizeof(TreeNode))` | gets an empty 24-byte block and returns its address |
+| `node->key = key` | writes the value into the `key` field at that address |
+| `cur = cur->left` | reads the address in `cur`'s `left` field and stores it in `cur` |
+| `root->left = insert(root->left, key)` | writes the returned block's address into the `left` field |
+| `free(node)` | returns the block; fields holding its address can no longer be used |
+
+This also shows why freeing must be postorder. Free a parent block first and
+the child addresses written inside it can no longer be read.
+
+### Another way: an array \{#memory-array}
+
+A tree can also be stored without writing down any addresses. Put the nodes in
+one array by number and **compute where the children are**. The root is cell 0;
+the left child of cell $$i$$ is cell $$2i+1$$, the right child is $$2i+2$$, and
+the parent is $$\lfloor (i-1)/2 \rfloor$$. Switch the insert order with the tabs.
+
+<MemoryTreeDemo mode="array" />
+
+`5 9 7 3 8 12 6` needs 13 cells for 7 values. The sorted `3 5 6 7 8`, however,
+needs 31 cells for 5 values. A skewed tree doubles its cells at every level,
+reaching $$2^h - 1$$ cells at height $$h$$. So the two have different uses.
+
+| | Pointers | Array |
+| --- | --- | --- |
+| Finding a child | read the address in a field | compute $$2i+1$$, $$2i+2$$ |
+| Extra per node | two addresses (16 bytes) | nothing |
+| A skewed tree | uses only as many blocks as nodes | needs up to $$2^h - 1$$ cells |
+| Inserting and deleting | just change addresses | cells are fixed, hard to move |
+| Good for | trees that change shape, like a BST | trees that stay full, like a heap (Topic 12) |
+
+A BST, whose shape depends on the insertion order, is stored with pointers. A
+tree that fills top to bottom without gaps is better off in an array, and the
+heap of Topic 12 is exactly such a tree.
+
 ## What to keep \{#takeaway}
 
 - **Binary tree**: there is one path from the root to each node, and each
@@ -945,6 +1047,10 @@ $$O(\log n)$$, because inserting and deleting only change links.
 - **Traversals**: inorder is sorted order, preorder is parent first,
   postorder is children first, level order uses a queue. Printing, freeing
   and copying each take one fitting traversal.
+- **Trees in memory**: a node is a block from `malloc`, and where the block
+  sits has nothing to do with the shape. Parents and children are linked only by
+  the addresses in `left` and `right`. A tree that is always full can be stored
+  in an array without addresses, computing where the children are.
 
 ## Practice code \{#code}
 
@@ -973,6 +1079,9 @@ run things.
 - Change case 3 in 02 to use the predecessor. Deleting D should bring up C,
   and deleting Q should bring up P. Check that the inorder sequence stays the
   same.
+- In `createNode` of 01, add `printf("%p\n", (void *)node);` before `return`
+  and print the addresses you get. Are the blocks 24 bytes apart? Are the
+  addresses the same on every run?
 - Feed the postorder and level-order sequences to `rebuild` in 04. Which one
   gives back the original tree, and why?
 - In the tree below, which traversals produce `4 2 7 5 1 6 8 3` and
