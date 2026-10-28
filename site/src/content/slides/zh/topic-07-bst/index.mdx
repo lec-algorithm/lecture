@@ -15,6 +15,7 @@ import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import TreeShapeDemo from '@components/TreeShapeDemo.astro';
 import TreeScanDemo from '@components/TreeScanDemo.astro';
 import BstCheckDemo from '@components/BstCheckDemo.astro';
+import MemoryTreeDemo from '@components/MemoryTreeDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -1115,6 +1116,84 @@ $$O(\log n)$$ 背后藏着 $$h = O(\log n)$$ 这个假设。一旦不成立，BS
 
 </Slide>
 
+<Slide class="center">
+
+## 内存中的树
+::sub[Trees in Memory]
+
+</Slide>
+
+<Slide>
+
+#### 内存是一条长线
+::sub[树是我们画出来的图]
+
+- **内存是一长串带地址的字节。**
+  - 没有上下，也没有左右。
+- **一个节点是 `malloc` 给出的 24 字节的块。**
+  - key 4 字节、空位 4 字节、left 和 right 地址各 8 字节
+- **块放在哪里与取得的顺序无关。**
+  - 把节点连起来的只有 left、right 字段里写的**地址**。
+
+</Slide>
+
+<Slide>
+
+### 逐步演示：插入时内存里发生什么
+::sub[取得块，顺着字段里的地址往下走，在 NULL 字段写入新地址 · 点击节点或行会标出对应关系]
+
+<MemoryTreeDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 逐步演示：查找 6
+::sub[cur = cur->left 就是跳到那个字段里写的地址]
+
+<MemoryTreeDemo find={6} slide />
+
+</Slide>
+
+<Slide>
+
+#### 一行代码在内存里做了什么
+::sub[箭头 -> 的意思是"到那个地址去读或写字段"]
+
+| 代码 | 在内存里做的事 |
+| --- | --- |
+| `malloc(sizeof(TreeNode))` | 取得 24 字节的空块并返回它的地址 |
+| `node->key = key` | 在该地址的 key 字段写入值 |
+| `cur = cur->left` | 读出 cur 块 left 字段里的地址，放进 cur |
+| `root->left = insert(root->left, key)` | 把返回的块地址写进 left 字段 |
+| `free(node)` | 归还这个块；记着它地址的字段从此不能再用 |
+
+</Slide>
+
+<Slide>
+
+### 另一种办法：放进数组
+::sub[不存地址，而是计算格号 · 第 i 格的子节点是 2i+1、2i+2 · 用标签切换插入顺序]
+
+<MemoryTreeDemo mode="array" slide />
+
+</Slide>
+
+<Slide>
+
+#### 指针与数组
+::sub[形状会变的 BST 用指针，总是满的树用数组]
+
+| | 指针 | 数组 |
+| --- | --- | --- |
+| 找子节点 | 读字段里写的地址 | 计算 2i+1、2i+2 |
+| 每个节点额外花费 | 两个地址（16 字节） | 无 |
+| 偏斜的树 | 只用节点数那么多的块 | 格数最多涨到 $$2^h - 1$$ |
+| 插入与删除 | 只改地址即可 | 格子固定，难以挪动 |
+| 适合 | 像 BST 这样形状会变的树 | 像堆这样总是满的树（主题 12） |
+
+</Slide>
+
 <Slide class="compact">
 
 #### 现在动手
@@ -1146,5 +1225,6 @@ $$O(\log n)$$ 背后藏着 $$h = O(\log n)$$ 这个假设。一旦不成立，BS
    - 后继没有左子节点，所以以情形 1·2 结束。
 5. **遍历只是输出时机不同**。
    - 有序用中序，释放用后序，复制与保存用前序，层序用队列
+6. **在内存中，树是由 left、right 地址连起来的块**。
 
 </Slide>

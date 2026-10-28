@@ -15,6 +15,7 @@ import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import TreeShapeDemo from '@components/TreeShapeDemo.astro';
 import TreeScanDemo from '@components/TreeScanDemo.astro';
 import BstCheckDemo from '@components/BstCheckDemo.astro';
+import MemoryTreeDemo from '@components/MemoryTreeDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -1115,6 +1116,84 @@ $$O(\log n)$$ hides the assumption $$h = O(\log n)$$. Once it breaks, a BST is j
 
 </Slide>
 
+<Slide class="center">
+
+## Trees in Memory
+::sub[Trees in Memory]
+
+</Slide>
+
+<Slide>
+
+#### Memory is one long line
+::sub[The tree is a picture we draw]
+
+- **Memory is a long line of bytes, each with an address.**
+  - There is no up or down, no left or right.
+- **A node is a 24-byte block handed out by `malloc`.**
+  - 4 bytes of key, 4 bytes of padding, 8 bytes each for the left and right addresses
+- **Blocks land wherever they land, in no particular order.**
+  - The only thing tying nodes together is the **address** in the left and right fields.
+
+</Slide>
+
+<Slide>
+
+### Step by step: inserting, as memory sees it
+::sub[Get a block, follow the addresses in the fields down, write the new address into a NULL field · click a node or a row to pair them]
+
+<MemoryTreeDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Step by step: finding 6
+::sub[cur = cur->left means jumping to the address written in that field]
+
+<MemoryTreeDemo find={6} slide />
+
+</Slide>
+
+<Slide>
+
+#### What one line of code does in memory
+::sub[The arrow -> means "go to that address and read or write a field"]
+
+| Code | What happens in memory |
+| --- | --- |
+| `malloc(sizeof(TreeNode))` | gets an empty 24-byte block and returns its address |
+| `node->key = key` | writes the value into the key field at that address |
+| `cur = cur->left` | reads the address in cur's left field and stores it in cur |
+| `root->left = insert(root->left, key)` | writes the returned block's address into the left field |
+| `free(node)` | returns the block; fields holding its address can no longer be used |
+
+</Slide>
+
+<Slide>
+
+### Another way: an array
+::sub[Compute cell numbers instead of storing addresses · the children of cell i are 2i+1 and 2i+2 · switch the insert order with the tabs]
+
+<MemoryTreeDemo mode="array" slide />
+
+</Slide>
+
+<Slide>
+
+#### Pointers and arrays
+::sub[A BST that changes shape uses pointers; an always-full tree uses an array]
+
+| | Pointers | Array |
+| --- | --- | --- |
+| Finding a child | read the address in a field | compute 2i+1, 2i+2 |
+| Extra per node | two addresses (16 bytes) | nothing |
+| A skewed tree | uses only as many blocks as nodes | needs up to $$2^h - 1$$ cells |
+| Inserting and deleting | just change addresses | cells are fixed, hard to move |
+| Good for | trees that change shape, like a BST | trees that stay full, like a heap (Topic 12) |
+
+</Slide>
+
 <Slide class="compact">
 
 #### Try it now
@@ -1146,5 +1225,6 @@ Open a file and press the **▶ button** at the top right of the editor.
    - The successor has no left child, so it ends in case 1 or 2.
 5. **Traversals differ only in when they print.**
    - Sorting: inorder; freeing: postorder; copying and saving: preorder; level order: a queue
+6. **In memory, a tree is blocks tied together by left and right addresses.**
 
 </Slide>

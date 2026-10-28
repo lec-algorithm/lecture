@@ -15,6 +15,7 @@ import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import TreeShapeDemo from '@components/TreeShapeDemo.astro';
 import TreeScanDemo from '@components/TreeScanDemo.astro';
 import BstCheckDemo from '@components/BstCheckDemo.astro';
+import MemoryTreeDemo from '@components/MemoryTreeDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -851,6 +852,96 @@ rebuild from inorder : height 11, same shape: no
 但插入和删除要前后挪动元素，是 $$O(n)$$。平衡的 BST 三项都是 $$O(\log n)$$，
 因为只要改链接就能插入和删除。
 
+## 内存中的树 \{#memory}
+
+到目前为止，我们都把树画成向下分叉的图。可是计算机内存没有上下之分。内存是
+一长串带地址的字节。来看看前面[用链接表示](#structure)中的结构体，实际上是
+怎样放在这条线上的。
+
+### 一个节点就是一个块 \{#memory-blocks}
+
+`createNode` 调用的 `malloc(sizeof(TreeNode))` 会从内存某处取得一个空块，并
+返回它的**起始地址**。在 64 位计算机上，`TreeNode` 是 24 字节。
+
+```plaintext
+地址 0x2A40
+┌──────────┬──────────┬──────────────┬──────────────┐
+│ key = 5  │  (空位)  │ left  0x2A70 │ right 0x2A58 │
+└──────────┴──────────┴──────────────┴──────────────┘
+   4 字节     4 字节       8 字节          8 字节
+```
+
+- `key` 是 `int`，4 字节。
+- `left` 和 `right` 是存放另一个块**地址**的指针，各 8 字节。
+- 中间 4 字节空着。指针放在 8 的倍数地址上读得最快，所以编译器会插入这段空位
+  （padding）。
+
+块放在哪里由 `malloc` 决定。接连取得的块可能紧挨着，也可能离得很远，中间还夹着
+其他数据。**地址的顺序与树的形状毫无关系**。把父节点和子节点连起来的，只有
+`left`、`right` 字段里写的地址。
+
+### 插入时内存里发生什么 \{#memory-insert}
+
+插入 `5 9 7 3 8 12 6`，看内存如何变化。右边的表按地址顺序列出内存，最上面的
+`root` 是存放树起始地址的变量。点击节点或表中的行，会标出它们的对应关系。地址
+是为说明而定的值；实际地址更长，每次运行都可能不同。
+
+<MemoryTreeDemo />
+
+插入一个值时，内存里发生三件事。
+
+1. 用 `malloc` 取得一个块，写入 `key`，在 `left`、`right` 写入 NULL。
+2. 从 `root` 中的地址出发，按比较结果顺着 `left` 或 `right` 字段里的地址往下走。
+3. 遇到 NULL 字段，就在那里写入新块的地址。
+
+实践代码中的 `root->left = insert(root->left, key)` 负责第 3 步：把从下面返回
+的新块地址写进父块的 `left` 字段。如果那个字段原本就有子节点，写回的是原来的
+地址，什么也不变。
+
+### 顺着地址走 \{#memory-search}
+
+查找走的是同一条路。代码里的 `cur = cur->left` 的意思是"读出当前块 `left`
+字段里的地址，然后去那里"。来找 6。
+
+<MemoryTreeDemo find={6} />
+
+读了 4 个块就找到了 6。高度为 $$h$$ 时，最多读 $$h$$ 个块。前面说查找是
+$$O(h)$$，在内存里就是这个样子。
+
+| 代码 | 在内存里做的事 |
+| --- | --- |
+| `malloc(sizeof(TreeNode))` | 取得 24 字节的空块并返回它的地址 |
+| `node->key = key` | 在该地址的 `key` 字段写入值 |
+| `cur = cur->left` | 读出 `cur` 块 `left` 字段里的地址，放进 `cur` |
+| `root->left = insert(root->left, key)` | 把返回的块地址写进 `left` 字段 |
+| `free(node)` | 归还这个块；记着它地址的字段从此不能再用 |
+
+从这里也能看出释放为什么要用后序。先 `free` 父块，写在里面的子节点地址就再也
+读不到了。
+
+### 另一种办法：放进数组 \{#memory-array}
+
+也可以不记任何地址来存放树。把节点按编号放进一个数组，**计算子节点的位置**。
+根在第 0 格；第 $$i$$ 格的左子节点在第 $$2i+1$$ 格，右子节点在第 $$2i+2$$ 格，
+父节点在第 $$\lfloor (i-1)/2 \rfloor$$ 格。用上面的标签切换插入顺序试试。
+
+<MemoryTreeDemo mode="array" />
+
+`5 9 7 3 8 12 6` 的 7 个值只需 13 格。可是有序的 `3 5 6 7 8` 的 5 个值需要
+31 格。树一旦偏斜，每一层的格数都会翻倍，高度为 $$h$$ 时要到 $$2^h - 1$$ 格。
+所以两者的用处不同。
+
+| | 指针 | 数组 |
+| --- | --- | --- |
+| 找子节点 | 读字段里写的地址 | 计算 $$2i+1$$、$$2i+2$$ |
+| 每个节点额外花费 | 两个地址（16 字节） | 无 |
+| 偏斜的树 | 只用节点数那么多的块 | 格数最多涨到 $$2^h - 1$$ |
+| 插入与删除 | 只改地址即可 | 格子固定，难以挪动 |
+| 适合 | 像 BST 这样形状会变的树 | 像堆这样总是满的树（主题 12） |
+
+形状随插入顺序而变的 BST 用指针存放。从上到下不留空位地填满的树更适合放进
+数组，主题 12 的堆正是这样的树。
+
 ## 要带走的 \{#takeaway}
 
 - **二叉树**：从根到每个节点的路径只有一条，子节点最多两个。
@@ -865,6 +956,9 @@ rebuild from inorder : height 11, same shape: no
   原来的后继。
 - **遍历**：中序是有序序列，前序父节点在先，后序子节点在先，层序用队列。
   输出、释放、复制各用一种合适的遍历就能完成。
+- **内存中的树**：节点是 `malloc` 给出的块，块的位置与形状无关。把父子连起来
+  的只有 `left`、`right` 里的地址。总是满的树可以不用地址放进数组，计算子节点
+  的位置。
 
 ## 实践代码 \{#code}
 
@@ -889,6 +983,8 @@ src/topic-07-bst/
   再运行看看。
 - 把 02 的情形 3 改成用前驱。删 D 时应由 C 上来，删 Q 时应由 P 上来。确认
   中序是否不变。
+- 在 01 的 `createNode` 中、`return` 之前加上 `printf("%p\n", (void *)node);`，
+  打印取得的地址。看看块是否相隔 24 字节，每次运行的地址是否相同。
 - 给 04 的 `rebuild` 传入后序序列和层序序列。看看哪一个能恢复原来的树，并
   说明原因。
 - 下面这棵树里，`4 2 7 5 1 6 8 3` 和 `1 2 4 5 7 3 6 8` 分别是哪种遍历的
