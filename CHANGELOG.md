@@ -3,7 +3,7 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
-## [Unreleased]
+## [1.4.0] - 2026-10-28
 
 ### Added
 
