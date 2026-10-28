@@ -15,6 +15,7 @@ import TreePropertyDemo from '@components/TreePropertyDemo.astro';
 import TreeShapeDemo from '@components/TreeShapeDemo.astro';
 import TreeScanDemo from '@components/TreeScanDemo.astro';
 import BstCheckDemo from '@components/BstCheckDemo.astro';
+import MemoryTreeDemo from '@components/MemoryTreeDemo.astro';
 import BstDemo from '@components/BstDemo.astro';
 import BstDeleteDemo from '@components/BstDeleteDemo.astro';
 import TraversalDemo from '@components/TraversalDemo.astro';
@@ -1115,6 +1116,84 @@ $$O(\log n)$$에는 $$h = O(\log n)$$이라는 가정이 숨어 있습니다. �
 
 </Slide>
 
+<Slide class="center">
+
+## 메모리 속의 트리
+::sub[Trees in Memory]
+
+</Slide>
+
+<Slide>
+
+#### 메모리는 한 줄입니다
+::sub[트리는 우리가 그린 그림입니다]
+
+- **메모리는 주소가 붙은 바이트의 긴 줄입니다.**
+  - 위·아래도, 왼쪽·오른쪽도 없습니다.
+- **노드 하나는 `malloc`이 준 24바이트 블록입니다.**
+  - key 4바이트, 빈칸 4바이트, left·right 주소 8바이트씩
+- **블록은 받은 순서와 상관없이 여기저기 놓입니다.**
+  - 노드를 잇는 것은 left·right 칸에 적힌 **주소**뿐입니다.
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 넣으면 메모리에서는
+::sub[블록을 받고, 칸에 적힌 주소를 따라 내려가, NULL 칸에 새 주소를 씁니다 · 노드나 줄을 누르면 짝이 표시됩니다]
+
+<MemoryTreeDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: 6 찾기
+::sub[cur = cur->left는 그 칸에 적힌 주소로 뛰는 것입니다]
+
+<MemoryTreeDemo find={6} slide />
+
+</Slide>
+
+<Slide>
+
+#### 코드 한 줄이 메모리에서 하는 일
+::sub[화살표 ->는 "그 주소로 가서 칸을 읽거나 쓴다"입니다]
+
+| 코드 | 메모리에서 하는 일 |
+| --- | --- |
+| `malloc(sizeof(TreeNode))` | 24바이트 빈 블록을 받고 그 주소를 돌려준다 |
+| `node->key = key` | 그 주소의 key 칸에 값을 쓴다 |
+| `cur = cur->left` | cur 블록의 left 칸에 적힌 주소를 읽어 cur에 넣는다 |
+| `root->left = insert(root->left, key)` | 돌려받은 블록의 주소를 left 칸에 쓴다 |
+| `free(node)` | 블록을 돌려준다. 그 주소를 적어 둔 칸은 쓸 수 없게 된다 |
+
+</Slide>
+
+<Slide>
+
+### 다른 방법: 배열에 담기
+::sub[주소 대신 칸 번호를 계산합니다 · i번 칸의 자식은 2i+1, 2i+2번 · 탭으로 넣는 순서를 바꿔 보세요]
+
+<MemoryTreeDemo mode="array" slide />
+
+</Slide>
+
+<Slide>
+
+#### 포인터와 배열
+::sub[모양이 바뀌는 BST는 포인터로, 늘 꽉 찬 트리는 배열로]
+
+| | 포인터 | 배열 |
+| --- | --- | --- |
+| 자식 찾기 | 칸에 적힌 주소를 읽는다 | 2i+1, 2i+2를 계산한다 |
+| 노드마다 더 드는 것 | 주소 두 개 (16바이트) | 없음 |
+| 기울어진 트리 | 노드 수만큼만 쓴다 | 칸이 $$2^h - 1$$개까지 늘어난다 |
+| 넣고 빼기 | 주소만 바꾸면 된다 | 칸이 정해져 있어 옮기기 어렵다 |
+| 어울리는 곳 | BST처럼 모양이 바뀌는 트리 | 힙처럼 늘 꽉 찬 트리 (주제 12) |
+
+</Slide>
+
 <Slide class="compact">
 
 #### 지금 해 볼 것
@@ -1146,5 +1225,6 @@ $$O(\log n)$$에는 $$h = O(\log n)$$이라는 가정이 숨어 있습니다. �
    - 후속자는 왼쪽 자식이 없어서 경우 1·2로 끝납니다.
 5. **순회는 출력 시점만 다릅니다.**
    - 정렬은 중위, 해제는 후위, 복사와 저장은 전위, 레벨 순서는 큐
+6. **메모리에서 트리는 left·right 주소로 이어진 블록입니다.**
 
 </Slide>
