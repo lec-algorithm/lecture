@@ -245,7 +245,11 @@ const data = DATA[lang] ?? DATA.ko;
     const S = JSON.parse(root.dataset.cpStrings);
     const D = JSON.parse(root.dataset.cpData);
     const lang = root.dataset.cpLang;
-    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    /* 중국어 문장에서는 한자와 한자 사이의 빈칸만 지운다(한자 이름 앞뒤). 로마자·숫자 옆 빈칸은 둔다. */
+    const fill = (tpl, vars) => {
+      const out = tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+      return lang === 'zh' ? out.replace(/(?<=[\u4e00-\u9fff]) (?=[\u4e00-\u9fff])/g, '') : out;
+    };
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
     /* 한글 음절의 초성 19개를 칸 14개로. 된소리는 예사소리 칸에 넣는다. */
@@ -504,7 +508,7 @@ const data = DATA[lang] ?? DATA.ko;
     align-items: center;
   }
   .aas-coupon-demo .cp-input {
-    width: 8em;
+    width: 9em;
     padding: 0.3em 0.55em;
     font: inherit;
     font-size: 0.85em;
