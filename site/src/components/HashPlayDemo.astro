@@ -1,0 +1,923 @@
+---
+// 개별 체이닝과 선형 탐지를 나란히 두고 같은 연산을 함께 해 보는 놀이터.
+//
+// 글자 하나(A~Z)를 넣고 넣기 · 찾기 · 지우기를 누르면 두 표가 같은 연산을
+// 받는다. 해시값은 글자의 ASCII 코드 mod M이다. 위는 선형 탐지(한 줄의 M칸과
+// 그 아래 키 무리 막대), 아래는 개별 체이닝(칸마다 아래로 자라는 리스트)이고,
+// 두 격자는 같은 열에 맞춰 놓인다. 방금 한 연산에서 들여다본 노드와 칸을
+// 칠하고, 체이닝의 비교 횟수와 선형 탐지의 탐색 칸 수를 크게 띄운다.
+//
+// 체이닝은 새 키를 리스트 맨 앞에 붙이고, 지울 때는 연결 하나만 뺀다.
+// 선형 탐지는 빈칸이 나올 때까지 오른쪽으로 가고(끝에서 0번으로), 지울 때는
+// 칸을 비운 뒤 같은 무리에서 뒤따르던 키를 꺼냈다가 다시 넣는다(덱의 Delete
+// 의사코드와 같다. 크기 조정은 하지 않는다). 선형 탐지에 빈칸이 하나는 남도록
+// 키는 M - 1개까지만 받는다. M을 바꾸면 지금 키들을 넣은 순서대로 다시 넣는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 배열 크기 M (5~13) */
+  m?: number;
+  /** 처음에 넣어 둘 키. 비우면 예제(SEARCHXMPL)에서 M - 1개까지 넣는다. */
+  keys?: string;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { m = 7, keys = '', slide = false } = Astro.props;
+const id = `hp-${Math.random().toString(36).slice(2, 9)}`;
+const M0 = Math.min(13, Math.max(5, Math.round(m)));
+const sizes = Array.from({ length: 9 }, (_, i) => i + 5);
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '해시 테이블 놀이터',
+    key: '키',
+    put: '넣기',
+    get: '찾기',
+    del: '지우기',
+    example: '예제',
+    random: '무작위 하나',
+    clear: '비우기',
+    chain: '개별 체이닝',
+    probe: '선형 탐지',
+    compares: '비교',
+    timesUnit: '번',
+    cellsUnit: '칸',
+    sum: '합',
+    longestList: '가장 긴 리스트',
+    longestRun: '가장 긴 무리',
+    idle: '글자 하나를 입력하고 넣기, 찾기, 지우기를 누릅니다. 두 표가 같은 연산을 받습니다.',
+    bad: 'A부터 Z까지 글자 하나를 입력합니다.',
+    full: '선형 탐지는 빈칸이 적어도 하나 남아야 합니다. M = {m}이면 키는 {max}개까지입니다.',
+    chPutNew: '체이닝: {h}번 리스트에서 {c}번 비교한 뒤 {k}{eul} 맨 앞에 붙였습니다.',
+    chPutEmpty: '체이닝: {h}번 리스트가 비어 있어 비교 없이 {k}{eul} 붙였습니다.',
+    chPutDup: '체이닝: {h}번 리스트에서 {c}번 만에 {k}{eul} 찾았습니다. 이미 있으니 그대로 둡니다.',
+    chHit: '체이닝: {h}번 리스트에서 {c}번 만에 {k}{eul} 찾았습니다.',
+    chMiss: '체이닝: {h}번 리스트를 끝까지 {c}번 비교했지만 {k}{eun} 없습니다.',
+    chEmpty: '체이닝: {h}번 리스트가 비어 있어 {k}{eun} 없습니다.',
+    chDel: '체이닝: {h}번 리스트에서 {c}번 만에 {k}{eul} 찾아 연결에서 뺐습니다.',
+    lpPutNew: '선형 탐지: {h}번에서 출발해 {c}칸 만에 {s}번 빈칸에 넣었습니다.',
+    lpPutDup: '선형 탐지: {h}번에서 출발해 {c}칸 만에 {s}번에서 {k}{eul} 찾았습니다. 역시 그대로 둡니다.',
+    lpHit: '선형 탐지: {h}번에서 출발해 {c}칸 만에 {s}번에서 {k}{eul} 찾았습니다.',
+    lpMiss: '선형 탐지: {h}번에서 출발해 {c}칸째인 {s}번 빈칸에서 멈췄습니다. {k}{eun} 없습니다.',
+    lpDel: '선형 탐지: {c}칸 만에 {s}번에서 {k}{eul} 찾아 칸을 비웠습니다.',
+    lpReins: '뒤따르던 {list}{eul} 꺼냈다가 다시 넣었습니다.',
+    lpReinsNone: '바로 다음 칸이 비어 있어 다시 넣을 키가 없습니다.',
+    exampleNote: '예제 키 {list}{eul} 차례로 넣었습니다. 체이닝은 모두 {a}번 비교했고, 선형 탐지는 모두 {b}칸을 보았습니다.',
+    cleared: '두 표를 비웠습니다.',
+    resized: '배열 크기 M = {m}에 맞춰 키를 넣은 순서대로 다시 넣었습니다.',
+    resizedCut: '선형 탐지에 빈칸 하나를 남기려고 나중에 넣은 {list}{eun} 뺐습니다.',
+  },
+  en: {
+    title: 'Hash table playground',
+    key: 'key',
+    put: 'Put',
+    get: 'Get',
+    del: 'Delete',
+    example: 'Example',
+    random: 'Random key',
+    clear: 'Clear',
+    chain: 'Separate chaining',
+    probe: 'Linear probing',
+    compares: 'compares',
+    timesUnit: '',
+    cellsUnit: ' cells',
+    sum: 'total',
+    longestList: 'longest list',
+    longestRun: 'longest cluster',
+    idle: 'Type one letter and press Put, Get or Delete. Both tables get the same operation.',
+    bad: 'Type a single letter from A to Z.',
+    full: 'Linear probing needs at least one empty slot. With M = {m}, at most {max} keys fit.',
+    chPutNew: 'Chaining: {c} compares in list {h}, then {k} goes to the front.',
+    chPutEmpty: 'Chaining: list {h} is empty, so {k} goes in with no compares.',
+    chPutDup: 'Chaining: found {k} in list {h} after {c} compares. It is already there, so nothing changes.',
+    chHit: 'Chaining: found {k} in list {h} after {c} compares.',
+    chMiss: 'Chaining: {c} compares reach the end of list {h}, and there is no {k}.',
+    chEmpty: 'Chaining: list {h} is empty, so there is no {k}.',
+    chDel: 'Chaining: found {k} in list {h} after {c} compares and unlinked it.',
+    lpPutNew: 'Linear probing: start at slot {h} and land in empty slot {s} after {c} cells.',
+    lpPutDup: 'Linear probing: start at slot {h} and find {k} in slot {s} after {c} cells. Nothing changes here either.',
+    lpHit: 'Linear probing: start at slot {h} and find {k} in slot {s} after {c} cells.',
+    lpMiss: 'Linear probing: start at slot {h} and stop at empty slot {s}, cell {c}. There is no {k}.',
+    lpDel: 'Linear probing: find {k} in slot {s} after {c} cells and empty the slot.',
+    lpReins: 'Then take out the keys that followed it, {list}, and put them back.',
+    lpReinsNone: 'The next slot is empty, so nothing needs reinserting.',
+    exampleNote: 'Inserted the example keys {list} in order. Chaining made {a} compares in total, linear probing looked at {b} cells.',
+    cleared: 'Both tables are empty.',
+    resized: 'Reinserted the keys in insertion order to fit M = {m}.',
+    resizedCut: 'To keep one slot empty for linear probing, the later keys {list} were dropped.',
+  },
+  zh: {
+    title: '哈希表游乐场',
+    key: '键',
+    put: '插入',
+    get: '查找',
+    del: '删除',
+    example: '示例',
+    random: '随机一个',
+    clear: '清空',
+    chain: '拉链法',
+    probe: '线性探测',
+    compares: '比较',
+    timesUnit: ' 次',
+    cellsUnit: ' 格',
+    sum: '合计',
+    longestList: '最长链表',
+    longestRun: '最长簇',
+    idle: '输入一个字母，再按插入、查找或删除。两张表执行同一个操作。',
+    bad: '请输入 A 到 Z 之间的一个字母。',
+    full: '线性探测至少要留一个空格。M = {m} 时最多放 {max} 个键。',
+    chPutNew: '拉链法：在 {h} 号链表比较 {c} 次后，把 {k} 接到最前面。',
+    chPutEmpty: '拉链法：{h} 号链表为空，不用比较就放入 {k}。',
+    chPutDup: '拉链法：在 {h} 号链表比较 {c} 次找到 {k}。已经存在，保持不变。',
+    chHit: '拉链法：在 {h} 号链表比较 {c} 次找到 {k}。',
+    chMiss: '拉链法：把 {h} 号链表比较到末尾共 {c} 次，没有 {k}。',
+    chEmpty: '拉链法：{h} 号链表为空，没有 {k}。',
+    chDel: '拉链法：在 {h} 号链表比较 {c} 次找到 {k}，把它从链中摘下。',
+    lpPutNew: '线性探测：从 {h} 号格出发，探测 {c} 格后放进 {s} 号空格。',
+    lpPutDup: '线性探测：从 {h} 号格出发，探测 {c} 格后在 {s} 号格找到 {k}。同样保持不变。',
+    lpHit: '线性探测：从 {h} 号格出发，探测 {c} 格后在 {s} 号格找到 {k}。',
+    lpMiss: '线性探测：从 {h} 号格出发，第 {c} 格是 {s} 号空格，停下。没有 {k}。',
+    lpDel: '线性探测：探测 {c} 格后在 {s} 号格找到 {k}，清空这一格。',
+    lpReins: '再把跟在后面的 {list} 取出并重新插入。',
+    lpReinsNone: '下一格就是空格，不用重新插入任何键。',
+    exampleNote: '依次插入示例键 {list}。拉链法共比较 {a} 次，线性探测共看了 {b} 格。',
+    cleared: '两张表都清空了。',
+    resized: '按 M = {m} 把键按插入顺序重新插入。',
+    resizedCut: '为了给线性探测留一个空格，去掉了后插入的 {list}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-hash-play-demo', slide && 'is-slide']}
+  id={id}
+  data-hp-m={M0}
+  data-hp-keys={keys}
+  data-hp-strings={JSON.stringify(t)}
+>
+  <div class="hp-bar">
+    <span class="hp-head"><strong>{t.title}</strong></span>
+    <div class="hp-sizes" role="tablist">
+      <span class="hp-mlabel">M</span>
+      {sizes.map((s) => <button type="button" class="hp-pill" data-hp-size={s} role="tab">{s}</button>)}
+    </div>
+    <div class="hp-controls">
+      <button type="button" class="hp-btn" data-act="example">{t.example}</button>
+      <button type="button" class="hp-btn" data-act="random">{t.random}</button>
+      <button type="button" class="hp-btn" data-act="clear">{t.clear}</button>
+    </div>
+  </div>
+
+  <div class="hp-ops">
+    <label class="hp-field">
+      <span>{t.key}</span>
+      <input type="text" maxlength="2" spellcheck="false" autocomplete="off" autocapitalize="characters" data-hp-in />
+    </label>
+    <button type="button" class="hp-btn hp-btn-primary" data-act="put">{t.put}</button>
+    <button type="button" class="hp-btn" data-act="get">{t.get}</button>
+    <button type="button" class="hp-btn" data-act="del">{t.del}</button>
+    <span class="hp-formula" data-hp-formula></span>
+  </div>
+
+  <div class="hp-panel">
+    <div class="hp-side">
+      <strong class="hp-name">{t.probe}</strong>
+      <span class="hp-big"><small data-hp-lp-sum></small><b data-hp-lp-count>-</b>{t.cellsUnit}</span>
+      <span class="hp-stat">N/M <b data-hp-lp-load></b> · {t.longestRun} <b data-hp-lp-run></b>{t.cellsUnit}</span>
+    </div>
+    <div class="hp-grid-wrap">
+      <div class="hp-grid hp-cells" data-hp-cells></div>
+      <div class="hp-grid hp-bars" data-hp-bars></div>
+      <div class="hp-grid hp-idx" data-hp-idx></div>
+    </div>
+  </div>
+
+  <div class="hp-panel">
+    <div class="hp-side">
+      <strong class="hp-name">{t.chain}</strong>
+      <span class="hp-big"><small data-hp-ch-sum></small>{t.compares} <b data-hp-ch-count>-</b>{t.timesUnit}</span>
+      <span class="hp-stat">N/M <b data-hp-ch-load></b> · {t.longestList} <b data-hp-ch-long></b></span>
+    </div>
+    <div class="hp-grid-wrap">
+      <div class="hp-grid hp-chains" data-hp-chains></div>
+    </div>
+  </div>
+
+  <p class="hp-note" data-hp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.hpStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    /* 한국어 조사: 영어 글자 이름이 받침으로 끝나는 것은 L(엘) M(엠) N(엔) R(알)뿐이다. */
+    const josa = (k) => {
+      const jong = /[LMNR]$/.test(k);
+      return { eul: jong ? '을' : '를', eun: jong ? '은' : '는' };
+    };
+    const listOf = (ks) => ks.join(', ');
+    const EXAMPLE = 'SEARCHXMPL';
+    const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    let M = Number(root.dataset.hpM);
+    let order = []; /* 지금 있는 키를 넣은 순서대로 */
+    let chains = [];
+    let lp = [];
+    let last = null;
+
+    const hash = (k) => k.charCodeAt(0) % M;
+    const maxKeys = () => M - 1;
+
+    function reset() {
+      order = [];
+      chains = Array.from({ length: M }, () => []);
+      lp = new Array(M).fill(null);
+    }
+
+    /* 체이닝. 리스트의 0번이 맨 앞 노드다. */
+    function chPut(k) {
+      const h = hash(k);
+      const list = chains[h];
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] === k) return { h, c: i + 1, dup: true, visit: i, hit: i };
+      }
+      const c = list.length;
+      list.unshift(k);
+      return { h, c, placed: true, visit: -1, hit: 0 };
+    }
+    function chGet(k) {
+      const h = hash(k);
+      const list = chains[h];
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] === k) return { h, c: i + 1, found: true, visit: i, hit: i };
+      }
+      return { h, c: list.length, found: false, visit: list.length - 1, hit: -1 };
+    }
+    function chDel(k) {
+      const r = chGet(k);
+      if (!r.found) return r;
+      chains[r.h].splice(r.hit, 1);
+      return { ...r, ghost: r.hit, visit: r.hit - 1, hit: -1 };
+    }
+
+    /* 선형 탐지. path는 들여다본 칸(마지막이 멈춘 칸). 빈칸은 언제나 하나 이상 있다. */
+    function lpPut(k) {
+      const h = hash(k);
+      const path = [];
+      let i = h;
+      while (lp[i] !== null) {
+        path.push(i);
+        if (lp[i] === k) return { h, c: path.length, s: i, path, dup: true };
+        i = (i + 1) % M;
+      }
+      path.push(i);
+      lp[i] = k;
+      return { h, c: path.length, s: i, path, placed: true };
+    }
+    function lpGet(k) {
+      const h = hash(k);
+      const path = [];
+      let i = h;
+      while (lp[i] !== null) {
+        path.push(i);
+        if (lp[i] === k) return { h, c: path.length, s: i, path, found: true };
+        i = (i + 1) % M;
+      }
+      path.push(i);
+      return { h, c: path.length, s: i, path, found: false };
+    }
+    function lpDel(k) {
+      const r = lpGet(k);
+      if (!r.found) return r;
+      lp[r.s] = null;
+      const reins = [];
+      let i = (r.s + 1) % M;
+      while (lp[i] !== null) {
+        const kk = lp[i];
+        lp[i] = null;
+        const to = lpPut(kk).s;
+        reins.push({ k: kk, from: i, to });
+        i = (i + 1) % M;
+      }
+      return { ...r, removed: true, reins };
+    }
+
+    function insertKey(k) {
+      chPut(k);
+      lpPut(k);
+      order.push(k);
+    }
+
+    /* 원형 배열에서 차 있는 칸이 이어진 덩어리(키 무리). ProbingDemo와 같은 계산 */
+    function clusters() {
+      const len = new Array(M).fill(0);
+      const startOf = new Array(M).fill(false);
+      const endOf = new Array(M).fill(false);
+      const empty = lp.indexOf(null);
+      let longest = 0;
+      let i = (empty + 1) % M;
+      for (let c = 0; c < M; ) {
+        if (lp[i] === null) {
+          i = (i + 1) % M;
+          c += 1;
+          continue;
+        }
+        const members = [];
+        while (lp[i] !== null) {
+          members.push(i);
+          i = (i + 1) % M;
+          c += 1;
+        }
+        members.forEach((x) => (len[x] = members.length));
+        startOf[members[0]] = true;
+        endOf[members[members.length - 1]] = true;
+        longest = Math.max(longest, members.length);
+      }
+      return { len, startOf, endOf, longest };
+    }
+
+    const input = root.querySelector('[data-hp-in]');
+    const cellsEl = root.querySelector('[data-hp-cells]');
+    const barsEl = root.querySelector('[data-hp-bars]');
+    const idxEl = root.querySelector('[data-hp-idx]');
+    const chainsEl = root.querySelector('[data-hp-chains]');
+    const formula = root.querySelector('[data-hp-formula]');
+    const note = root.querySelector('[data-hp-note]');
+    const pills = [...root.querySelectorAll('[data-hp-size]')];
+    const $ = (sel) => root.querySelector(sel);
+
+    function showFormula() {
+      const k = input.value || (last && last.key) || '';
+      if (!k) {
+        formula.textContent = ' ';
+        return;
+      }
+      const c = k.charCodeAt(0);
+      formula.textContent = `${k} (${c}) mod ${M} = ${c % M}`;
+    }
+
+    function render(text) {
+      root.style.setProperty('--hp-m', String(M));
+      pills.forEach((p) => p.classList.toggle('is-on', Number(p.dataset.hpSize) === M));
+
+      const op = last && last.kind === 'op' ? last : null;
+      const lr = op ? op.lp : null;
+      const cr = op ? op.ch : null;
+
+      /* 선형 탐지 칸 */
+      const cl = clusters();
+      const moved = new Set(lr && lr.reins ? lr.reins.map((x) => x.to) : []);
+      cellsEl.innerHTML = lp
+        .map((k, i) => {
+          const cls = ['hp-cell'];
+          if (k !== null) cls.push('is-full');
+          if (lr && lr.path.includes(i)) {
+            if (i !== lr.s) cls.push('is-probe');
+            else if (lr.placed) cls.push('is-placed');
+            else if (lr.removed) cls.push(moved.has(i) ? '' : 'is-hole');
+            else if (lr.found || lr.dup) cls.push('is-hit');
+            else cls.push('is-stop');
+          }
+          if (moved.has(i)) cls.push('is-moved');
+          return `<span class="${cls.join(' ')}">${k ?? ''}</span>`;
+        })
+        .join('');
+      barsEl.innerHTML = lp
+        .map((_, i) => {
+          const cls = ['hp-run'];
+          if (cl.len[i] >= 2) cls.push('is-on');
+          if (cl.len[i] >= 2 && cl.len[i] === cl.longest) cls.push('is-long');
+          if (cl.startOf[i]) cls.push('is-start');
+          if (cl.endOf[i]) cls.push('is-end');
+          return `<span class="${cls.join(' ')}"></span>`;
+        })
+        .join('');
+      idxEl.innerHTML = lp.map((_, i) => `<span>${i}</span>`).join('');
+
+      /* 체이닝 리스트 */
+      chainsEl.innerHTML = chains
+        .map((list, slot) => {
+          const mine = cr && cr.h === slot;
+          const nodes = list.map((k, j) => {
+            const cls = ['hp-node'];
+            if (mine) {
+              if (j === cr.hit && cr.placed) cls.push('is-placed');
+              else if (j === cr.hit) cls.push('is-hit');
+              else if (j <= cr.visit) cls.push('is-probe');
+            }
+            return `<span class="${cls.join(' ')}">${k}</span>`;
+          });
+          if (mine && cr.ghost !== undefined) {
+            nodes.splice(cr.ghost, 0, `<span class="hp-node is-ghost">${op.key}</span>`);
+          }
+          return `<div class="hp-col"><span class="hp-slot${mine ? ' is-now' : ''}">${slot}</span>${nodes.join('')}</div>`;
+        })
+        .join('');
+
+      /* 숫자 */
+      const n = order.length;
+      const load = (n / M).toFixed(2);
+      $('[data-hp-lp-load]').textContent = load;
+      $('[data-hp-ch-load]').textContent = load;
+      $('[data-hp-lp-run]').textContent = String(cl.longest);
+      $('[data-hp-ch-long]').textContent = String(Math.max(0, ...chains.map((l) => l.length)));
+      const isSum = !!last && last.kind === 'example';
+      $('[data-hp-lp-sum]').textContent = isSum ? `${S.sum} ` : '';
+      $('[data-hp-ch-sum]').textContent = isSum ? `${S.sum} ` : '';
+      $('[data-hp-lp-count]').textContent = op ? String(lr.c) : isSum ? String(last.b) : '-';
+      $('[data-hp-ch-count]').textContent = op ? String(cr.c) : isSum ? String(last.a) : '-';
+
+      showFormula();
+      setLines(note, text || S.idle);
+    }
+
+    function fullNote() {
+      return fill(S.full, { m: M, max: maxKeys() });
+    }
+
+    function run(kind, k) {
+      const j = josa(k);
+      const v = (r) => ({ k, h: r.h, c: r.c, s: r.s, ...j });
+      if (kind === 'put' && !order.includes(k) && order.length >= maxKeys()) {
+        last = null;
+        return render(fullNote());
+      }
+      let cr;
+      let lr;
+      let text;
+      if (kind === 'put') {
+        cr = chPut(k);
+        lr = lpPut(k);
+        if (cr.placed) order.push(k);
+        const chT = cr.dup ? S.chPutDup : cr.c === 0 ? S.chPutEmpty : S.chPutNew;
+        text = join(fill(chT, v(cr)), fill(lr.dup ? S.lpPutDup : S.lpPutNew, v(lr)));
+      } else if (kind === 'get') {
+        cr = chGet(k);
+        lr = lpGet(k);
+        const chT = cr.found ? S.chHit : cr.c === 0 ? S.chEmpty : S.chMiss;
+        text = join(fill(chT, v(cr)), fill(lr.found ? S.lpHit : S.lpMiss, v(lr)));
+      } else {
+        cr = chDel(k);
+        lr = lpDel(k);
+        if (cr.found) order = order.filter((x) => x !== k);
+        const chT = cr.found ? S.chDel : cr.c === 0 ? S.chEmpty : S.chMiss;
+        let lpT = fill(lr.found ? S.lpDel : S.lpMiss, v(lr));
+        if (lr.found) {
+          const ks = lr.reins.map((x) => x.k);
+          lpT = join(lpT, ks.length ? fill(S.lpReins, { list: listOf(ks), ...josa(ks[ks.length - 1]) }) : S.lpReinsNone);
+        }
+        text = join(fill(chT, v(cr)), lpT);
+      }
+      last = { kind: 'op', key: k, ch: cr, lp: lr };
+      render(text);
+    }
+
+    function loadExample() {
+      reset();
+      const ks = EXAMPLE.slice(0, maxKeys()).split('');
+      let a = 0;
+      let b = 0;
+      ks.forEach((k) => {
+        a += chPut(k).c;
+        b += lpPut(k).c;
+        order.push(k);
+      });
+      last = { kind: 'example', a, b };
+      render(fill(S.exampleNote, { list: listOf(ks), a, b, ...josa(ks[ks.length - 1]) }));
+    }
+
+    function setM(next) {
+      const keep = order.slice(0, next - 1);
+      const cut = order.slice(next - 1);
+      M = next;
+      reset();
+      keep.forEach(insertKey);
+      last = null;
+      const text = join(
+        fill(S.resized, { m: M }),
+        cut.length ? fill(S.resizedCut, { list: listOf(cut), ...josa(cut[cut.length - 1]) }) : '',
+      );
+      render(text);
+    }
+
+    function readKey() {
+      const k = input.value.trim().toUpperCase();
+      if (!/^[A-Z]$/.test(k)) {
+        render(S.bad);
+        input.focus();
+        return null;
+      }
+      return k;
+    }
+
+    /* 입력은 언제나 대문자 한 글자. 새로 친 글자가 앞 글자를 바꾼다. */
+    input.addEventListener('input', () => {
+      input.value = input.value.slice(-1).toUpperCase();
+      showFormula();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const k = readKey();
+      if (k) run('put', k);
+      input.select();
+    });
+    ['put', 'get', 'del'].forEach((kind) => {
+      root.querySelector(`[data-act="${kind}"]`).addEventListener('click', () => {
+        const k = readKey();
+        if (!k) return;
+        run(kind, k);
+        input.select();
+      });
+    });
+    root.querySelector('[data-act="example"]').addEventListener('click', loadExample);
+    root.querySelector('[data-act="random"]').addEventListener('click', () => {
+      const free = LETTERS.split('').filter((x) => !order.includes(x));
+      if (order.length >= maxKeys() || !free.length) {
+        last = null;
+        return render(fullNote());
+      }
+      const k = free[Math.floor(Math.random() * free.length)];
+      input.value = k;
+      run('put', k);
+    });
+    root.querySelector('[data-act="clear"]').addEventListener('click', () => {
+      reset();
+      last = null;
+      input.value = '';
+      render(S.cleared);
+    });
+    pills.forEach((p) =>
+      p.addEventListener('click', () => {
+        const next = Number(p.dataset.hpSize);
+        if (next !== M) setM(next);
+      }),
+    );
+
+    /* 처음 상태: 키가 주어지면 그것을, 아니면 예제를 M - 1개까지 넣는다. */
+    reset();
+    const given = (root.dataset.hpKeys || '').toUpperCase().replace(/[^A-Z]/g, '');
+    const start = [...new Set((given || EXAMPLE).split(''))].slice(0, maxKeys());
+    start.forEach(insertKey);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-hash-play-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --hp-cell: 2.5em;
+    --hp-gap: 0.3em;
+    --hp-side: 11em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-hash-play-demo .hp-bar,
+  .aas-hash-play-demo .hp-ops {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.75em;
+    align-items: center;
+  }
+  .aas-hash-play-demo .hp-bar {
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-hash-play-demo .hp-head {
+    font-size: 0.95em;
+  }
+  .aas-hash-play-demo .hp-sizes,
+  .aas-hash-play-demo .hp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-hash-play-demo .hp-mlabel {
+    margin-right: 0.2em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-play-demo .hp-pill {
+    min-width: 2em;
+    padding: 0.2em 0.45em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-hash-play-demo .hp-pill.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-hash-play-demo .hp-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-hash-play-demo .hp-btn:hover,
+  .aas-hash-play-demo .hp-pill:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-hash-play-demo .hp-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-hash-play-demo .hp-field {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-play-demo .hp-field input {
+    width: 2.2em;
+    padding: 0.15em 0.3em;
+    font: inherit;
+    font-size: 1.3em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    text-align: center;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-hash-play-demo .hp-field input:focus {
+    outline: none;
+    border-color: var(--aas-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--aas-accent) 35%, transparent);
+  }
+  .aas-hash-play-demo .hp-formula {
+    margin-left: auto;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.1em;
+    font-weight: 700;
+  }
+
+  /* 두 판: 왼쪽에 이름과 숫자, 오른쪽에 격자. 두 격자는 같은 열에 맞는다. */
+  .aas-hash-play-demo .hp-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: flex-start;
+    margin-top: 0.7em;
+    padding-top: 0.6em;
+    border-top: 1px dashed var(--aas-border);
+  }
+  .aas-hash-play-demo .hp-side {
+    flex: 0 0 var(--hp-side);
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+  }
+  .aas-hash-play-demo .hp-name {
+    font-size: 0.9em;
+  }
+  .aas-hash-play-demo .hp-big {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-play-demo .hp-big b {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-hash-play-demo .hp-big small {
+    font-size: 0.9em;
+  }
+  .aas-hash-play-demo .hp-stat {
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-play-demo .hp-stat b {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-hash-play-demo .hp-grid-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .aas-hash-play-demo .hp-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--hp-m), var(--hp-cell));
+    column-gap: var(--hp-gap);
+    width: max-content;
+  }
+
+  .aas-hash-play-demo .hp-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.3em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.05em;
+    font-weight: 700;
+    transition:
+      border-color 0.3s,
+      background-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-hash-play-demo .hp-cell.is-full {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-hash-play-demo .hp-cell.is-probe,
+  .aas-hash-play-demo .hp-node.is-probe {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-hash-play-demo .hp-cell.is-placed,
+  .aas-hash-play-demo .hp-cell.is-hit,
+  .aas-hash-play-demo .hp-node.is-placed,
+  .aas-hash-play-demo .hp-node.is-hit {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-hash-play-demo .hp-cell.is-placed,
+  .aas-hash-play-demo .hp-node.is-placed,
+  .aas-hash-play-demo .hp-cell.is-moved {
+    animation: hp-pop 0.45s ease-out;
+  }
+  .aas-hash-play-demo .hp-cell.is-stop {
+    box-shadow: 0 0 0 3px var(--aas-role-guard);
+  }
+  .aas-hash-play-demo .hp-cell.is-hole {
+    border-style: dashed;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+  }
+  .aas-hash-play-demo .hp-cell.is-moved {
+    box-shadow: 0 0 0 3px var(--aas-role-trace);
+  }
+
+  /* 키 무리: 차 있는 칸이 둘 이상 이어지면 아래에 막대. 가장 긴 것은 진하게. */
+  .aas-hash-play-demo .hp-bars {
+    height: 0.55em;
+    margin-top: 0.25em;
+  }
+  .aas-hash-play-demo .hp-run {
+    height: 0.35em;
+    margin: 0 calc(var(--hp-gap) / -2);
+    background: transparent;
+    transition: background-color 0.3s;
+  }
+  .aas-hash-play-demo .hp-run.is-on {
+    background: color-mix(in srgb, var(--aas-role-trace) 45%, transparent);
+  }
+  .aas-hash-play-demo .hp-run.is-long {
+    background: var(--aas-role-trace);
+  }
+  .aas-hash-play-demo .hp-run.is-start {
+    margin-left: 0.15em;
+    border-top-left-radius: 0.3em;
+    border-bottom-left-radius: 0.3em;
+  }
+  .aas-hash-play-demo .hp-run.is-end {
+    margin-right: 0.15em;
+    border-top-right-radius: 0.3em;
+    border-bottom-right-radius: 0.3em;
+  }
+  .aas-hash-play-demo .hp-idx span {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+
+  /* 체이닝: 칸마다 머리 칸 아래로 노드가 이어진다. */
+  .aas-hash-play-demo .hp-chains {
+    align-items: start;
+    min-height: 8.6em;
+  }
+  .aas-hash-play-demo .hp-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3em;
+  }
+  .aas-hash-play-demo .hp-slot {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.15em 0;
+    text-align: center;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-play-demo .hp-slot.is-now {
+    border-color: var(--aas-role-focus);
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-hash-play-demo .hp-node {
+    position: relative;
+    box-sizing: border-box;
+    width: 85%;
+    padding: 0.1em 0;
+    text-align: center;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.4em;
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    line-height: 1.2;
+    transition:
+      border-color 0.3s,
+      background-color 0.3s,
+      box-shadow 0.3s;
+  }
+  /* 노드 사이의 링크 */
+  .aas-hash-play-demo .hp-node::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    width: 1.5px;
+    height: 0.3em;
+    background: var(--aas-muted);
+  }
+  .aas-hash-play-demo .hp-node.is-ghost {
+    border-style: dashed;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+    color: var(--aas-role-guard);
+    text-decoration: line-through;
+  }
+
+  .aas-hash-play-demo .hp-note {
+    margin: 0.7em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 3.6em;
+  }
+
+  @keyframes hp-pop {
+    from {
+      transform: scale(0.6);
+      opacity: 0.3;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-hash-play-demo.is-slide {
+    font-size: clamp(1rem, 2.3vh, 1.6rem);
+    margin: 0.5rem 0;
+    --hp-cell: 2.8em;
+  }
+  .aas-hash-play-demo.is-slide .hp-note {
+    margin-top: 0.4em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-hash-play-demo .hp-cell,
+    .aas-hash-play-demo .hp-node,
+    .aas-hash-play-demo .hp-run {
+      transition: none;
+    }
+    .aas-hash-play-demo .hp-cell.is-placed,
+    .aas-hash-play-demo .hp-node.is-placed,
+    .aas-hash-play-demo .hp-cell.is-moved {
+      animation: none;
+    }
+  }
+</style>
