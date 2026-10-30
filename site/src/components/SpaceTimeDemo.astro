@@ -1,0 +1,504 @@
+---
+// 배열 크기 M 하나로 시간과 메모리를 맞바꾸는 모습을 보는 데모.
+//
+// 0부터 63 사이의 정수 키 12개를 크기 M인 배열에 key mod M으로 흩는다. 같은
+// 칸에 떨어진 키는 들어온 순서대로 그 칸의 목록 뒤에 붙는다. M은 슬라이더나
+// 빠른 버튼(1, 8, 13, 64)으로 바꾼다.
+//
+//   M = 1  : 모든 키가 한 칸에 모인다. 배열 하나에 모아 순차 탐색하는 것과 같다.
+//   M = 64 : 키가 0..63이므로 키가 곧 주소다. 칸마다 키가 하나다.
+//   그 사이: 해싱. 칸을 적당히 쓰고, 겹친 칸만 앞에서부터 비교한다.
+//
+// 칸 수(메모리), 평균 비교 수(키마다 그 칸 목록에서의 1부터 센 위치의 평균),
+// 가장 긴 칸을 크게 띄운다. 키를 누르면 그 키를 찾는다. 그 칸만 보고, 앞에서부터
+// 비교한 키를 칠한다. 키를 고른 채 M을 바꾸면 같은 키를 새 M으로 다시 찾는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 배열 크기 M (1..64) */
+  m?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { m = 8, slide = false } = Astro.props;
+const id = `st-${Math.random().toString(36).slice(2, 9)}`;
+/* 키는 모두 0..63이어야 한다. M = 64에서 "키가 곧 주소"가 되도록 */
+const keys = [3, 9, 14, 20, 27, 31, 38, 42, 45, 51, 56, 62];
+const MAX = 64;
+const QUICK = [1, 8, 13, 64];
+const start = Math.min(MAX, Math.max(1, Math.round(m)));
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '시간과 메모리',
+    find: '찾기',
+    slots: '칸 수(메모리)',
+    avg: '평균 비교',
+    longest: '가장 긴 칸',
+    endOne: '배열 하나에 모아 순차 탐색',
+    endHash: '해싱: 흩어 두고 겹친 것만 처리',
+    endDirect: '키가 곧 주소(칸마다 키 하나)',
+    one: '칸이 1개뿐이라 키 {n}개가 모두 한 칸에 모입니다. 메모리는 1칸이면 되지만, 찾을 때마다 순차 탐색해 평균 {a}번 비교합니다.',
+    direct: '키가 0부터 63까지이니 키가 곧 주소입니다. 어떤 키든 비교 한 번에 찾지만, 키 {n}개를 두려고 {m}칸을 씁니다.',
+    mid: '칸 {m}개에 키 {n}개를 흩었습니다. 가장 긴 칸에 {l}개가 겹쳐 평균 {a}번 비교합니다.',
+    clean: '칸 {m}개에 키 {n}개가 하나씩 들어가 충돌이 없습니다. 64칸을 다 쓰지 않아도 비교 한 번이면 찾습니다.',
+    found: '{k} mod {m} = {s}이니 {s}번 칸만 봅니다. 그 칸의 키를 앞에서부터 비교해 {c}번 만에 {k}를 찾았습니다.',
+  },
+  en: {
+    title: 'Time and memory',
+    find: 'Find',
+    slots: 'slots (memory)',
+    avg: 'avg compares',
+    longest: 'longest slot',
+    endOne: 'one list, sequential search',
+    endHash: 'hashing: spread out, handle overlaps',
+    endDirect: 'key = address (one key per slot)',
+    one: 'With only 1 slot, all {n} keys pile into it. Memory is just 1 slot, but every lookup is a sequential search, {a} compares on average.',
+    direct: 'The keys run from 0 to 63, so each key is its own address. Any key is found in one compare, but {n} keys take {m} slots.',
+    mid: '{n} keys spread over {m} slots. The longest slot holds {l}, so a lookup takes {a} compares on average.',
+    clean: 'Each of the {n} keys gets a slot of its own among {m}, with no collision. One compare finds any key without using all 64 slots.',
+    found: '{k} mod {m} = {s}, so only slot {s} is checked. Comparing from the front finds {k} in {c} compares.',
+  },
+  zh: {
+    title: '时间与内存',
+    find: '查找',
+    slots: '格数（内存）',
+    avg: '平均比较',
+    longest: '最长的格',
+    endOne: '全放一处，顺序查找',
+    endHash: '哈希：分散存放，只处理重叠',
+    endDirect: '键即地址（每格一个键）',
+    one: '只有 1 格，{n} 个键全挤在这一格。内存只要 1 格，但每次都要顺序查找，平均比较 {a} 次。',
+    direct: '键在 0 到 63 之间，键本身就是地址。任何键比较一次就能找到，但为了放 {n} 个键要用 {m} 格。',
+    mid: '把 {n} 个键分散到 {m} 格。最长的格里重叠了 {l} 个，平均比较 {a} 次。',
+    clean: '{n} 个键在 {m} 格中各占一格，没有冲突。不用 64 格，比较一次也能找到任何键。',
+    found: '{k} mod {m} = {s}，只看 {s} 号格。从前往后比较，{c} 次找到 {k}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-space-time-demo', slide && 'is-slide']}
+  id={id}
+  data-st-keys={JSON.stringify(keys)}
+  data-st-m={start}
+  data-st-strings={JSON.stringify(t)}
+>
+  <div class="st-bar">
+    <div class="st-tabs">
+      <span class="st-head"><strong>{t.title}</strong></span>
+      {
+        QUICK.map((q) => (
+          <button type="button" class="st-tab" data-st-quick={q}>
+            M = {q}
+          </button>
+        ))
+      }
+    </div>
+    <label class="st-count">
+      M = <strong data-st-mval></strong>
+      <input type="range" min="1" max={MAX} step="1" value={start} data-st-range />
+    </label>
+  </div>
+
+  <div class="st-ends">
+    <span class="st-end" data-st-end="one">M = 1 · {t.endOne}</span>
+    <span class="st-end" data-st-end="hash">{t.endHash}</span>
+    <span class="st-end" data-st-end="direct">M = {MAX} · {t.endDirect}</span>
+  </div>
+
+  <div class="st-top">
+    <div class="st-keys">
+      <span class="st-keys-label">{t.find}</span>
+      {
+        keys.map((k) => (
+          <button type="button" class="st-key" data-st-k={k}>
+            {k}
+          </button>
+        ))
+      }
+    </div>
+    <div class="st-stats">
+      <span class="st-big">
+        <span class="st-big-label">{t.slots}</span>
+        <strong data-st-slots></strong>
+      </span>
+      <span class="st-big">
+        <span class="st-big-label">{t.avg}</span>
+        <strong data-st-avg></strong>
+      </span>
+      <span class="st-big">
+        <span class="st-big-label">{t.longest}</span>
+        <strong data-st-long></strong>
+      </span>
+    </div>
+  </div>
+
+  <div class="st-grid-wrap">
+    <div class="st-grid" data-st-grid></div>
+  </div>
+
+  <p class="st-note" data-st-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.stStrings);
+    const KEYS = JSON.parse(root.dataset.stKeys);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const MAX = 64;
+    const PER_ROW = 16;
+    /* 6.50 -> 6.5, 1.00 -> 1 */
+    const num = (x) => String(Number(x.toFixed(2)));
+
+    const range = root.querySelector('[data-st-range]');
+    const mval = root.querySelector('[data-st-mval]');
+    const grid = root.querySelector('[data-st-grid]');
+    const note = root.querySelector('[data-st-note]');
+    const slotsEl = root.querySelector('[data-st-slots]');
+    const avgEl = root.querySelector('[data-st-avg]');
+    const longEl = root.querySelector('[data-st-long]');
+    const quick = [...root.querySelectorAll('[data-st-quick]')];
+    const ends = [...root.querySelectorAll('[data-st-end]')];
+    const keyBtns = [...root.querySelectorAll('.st-key')];
+
+    let M = Number(root.dataset.stM);
+    let picked = null;
+
+    /* 칸마다 목록. 키는 들어온 순서대로 그 칸의 뒤에 붙는다. */
+    function bucketsOf(m) {
+      const b = Array.from({ length: m }, () => []);
+      KEYS.forEach((k) => b[k % m].push(k));
+      return b;
+    }
+
+    function render() {
+      const b = bucketsOf(M);
+      const longest = Math.max(...b.map((x) => x.length));
+      let sum = 0;
+      b.forEach((x) => x.forEach((_, i) => (sum += i + 1)));
+      const avg = sum / KEYS.length;
+
+      mval.textContent = String(M);
+      range.value = String(M);
+      quick.forEach((q) => q.classList.toggle('is-on', Number(q.dataset.stQuick) === M));
+      const end = M === 1 ? 'one' : M === MAX ? 'direct' : 'hash';
+      ends.forEach((e) => e.classList.toggle('is-on', e.dataset.stEnd === end));
+
+      slotsEl.textContent = String(M);
+      avgEl.textContent = num(avg);
+      avgEl.classList.toggle('is-bad', avg >= 2);
+      longEl.textContent = String(longest);
+      longEl.classList.toggle('is-bad', longest > 1);
+
+      /* 찾는 키: 그 칸만 보고, 앞에서부터 비교한다. */
+      const ps = picked === null ? -1 : picked % M;
+      const pathLen = picked === null ? 0 : b[ps].indexOf(picked) + 1;
+
+      const cols = Math.min(M, PER_ROW);
+      grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+      grid.classList.toggle('is-many', M > PER_ROW);
+      grid.classList.toggle('is-finding', picked !== null);
+      grid.innerHTML = b
+        .map((list, s) => {
+          /* 키가 많이 겹친 좁은 칸은 개수만 적는다(지금 키들로는 생기지 않는다). */
+          const chips =
+            list.length > 3 && cols >= 12 && s !== ps
+              ? `<span class="st-chip is-count">×${list.length}</span>`
+              : list
+                  .map((k, i) => {
+                    let cls = 'st-chip';
+                    if (s === ps && i < pathLen) cls += k === picked ? ' is-hit' : ' is-cmp';
+                    return `<span class="${cls}" data-st-k="${k}">${k}</span>`;
+                  })
+                  .join('');
+          const cls = ['st-cell'];
+          if (list.length > 1) cls.push('is-clash');
+          if (s === ps) cls.push('is-now');
+          return `<div class="${cls.join(' ')}"><span class="st-idx">${s}</span><span class="st-list">${chips}</span></div>`;
+        })
+        .join('');
+
+      keyBtns.forEach((k) => k.classList.toggle('is-on', Number(k.dataset.stK) === picked));
+
+      const vars = { n: KEYS.length, m: M, l: longest, a: num(avg) };
+      let text;
+      if (picked !== null) text = fill(S.found, { k: picked, m: M, s: ps, c: pathLen });
+      else if (M === 1) text = S.one;
+      else if (M === MAX) text = S.direct;
+      else text = longest > 1 ? S.mid : S.clean;
+      setLines(note, fill(text, vars));
+    }
+
+    function setM(v) {
+      M = Math.min(MAX, Math.max(1, v));
+      render();
+    }
+    range.addEventListener('input', () => setM(Number(range.value)));
+    quick.forEach((q) => q.addEventListener('click', () => setM(Number(q.dataset.stQuick))));
+    /* 위 줄의 키든 칸 안의 키든, 누르면 그 키를 찾는다. 같은 키를 다시 누르면 끈다. */
+    root.addEventListener('click', (e) => {
+      const el = e.target.closest('[data-st-k]');
+      if (!el || !root.contains(el)) return;
+      const k = Number(el.dataset.stK);
+      picked = picked === k ? null : k;
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-space-time-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-space-time-demo .st-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-space-time-demo .st-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-space-time-demo .st-head {
+    margin-right: 0.3em;
+    font-size: 0.95em;
+  }
+  .aas-space-time-demo .st-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-space-time-demo .st-tab:hover,
+  .aas-space-time-demo .st-key:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-space-time-demo .st-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-space-time-demo .st-count {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-space-time-demo .st-count strong {
+    min-width: 1.6em;
+    color: var(--aas-text);
+    font-size: 1.2em;
+  }
+  .aas-space-time-demo .st-count input {
+    width: 12em;
+    accent-color: var(--aas-accent);
+  }
+
+  /* 슬라이더 아래 세 구간: 왼쪽 끝, 가운데, 오른쪽 끝. 지금 구간만 진하다. */
+  .aas-space-time-demo .st-ends {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5em 1em;
+    margin: 0.5em 0 0.4em;
+    padding-top: 0.35em;
+    border-top: 1px dashed var(--aas-border);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-space-time-demo .st-end {
+    transition: color 0.3s;
+  }
+  .aas-space-time-demo .st-end:nth-child(2) {
+    text-align: center;
+  }
+  .aas-space-time-demo .st-end:last-child {
+    text-align: right;
+  }
+  .aas-space-time-demo .st-end.is-on {
+    color: var(--aas-accent);
+    font-weight: 700;
+  }
+
+  .aas-space-time-demo .st-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em 1.5em;
+    margin-bottom: 0.5em;
+  }
+  .aas-space-time-demo .st-keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3em;
+    flex: 1 1 18em;
+  }
+  .aas-space-time-demo .st-keys-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin-right: 0.2em;
+  }
+  .aas-space-time-demo .st-key {
+    min-width: 2.2em;
+    padding: 0.15em 0.35em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.45em;
+    background: color-mix(in srgb, var(--aas-role-model) 15%, var(--aas-bg));
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    cursor: pointer;
+  }
+  .aas-space-time-demo .st-key.is-on {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-space-time-demo .st-stats {
+    display: flex;
+    gap: 1.2em;
+  }
+  .aas-space-time-demo .st-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+  .aas-space-time-demo .st-big-label {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-space-time-demo .st-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.8em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-space-time-demo .st-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+
+  /* 칸 격자: 한 줄에 16칸. M = 64의 네 줄 높이를 늘 비워 두어, M을 바꿔도
+     아래 설명이 위아래로 뛰지 않는다. */
+  .aas-space-time-demo .st-grid-wrap {
+    min-height: 10.2em;
+  }
+  .aas-space-time-demo .st-grid {
+    display: grid;
+    gap: 0.25em;
+  }
+  .aas-space-time-demo .st-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15em;
+    min-width: 0;
+    min-height: 2.3em;
+    padding: 0.15em 0.15em 0.25em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    transition:
+      opacity 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-space-time-demo .st-grid:not(.is-many) .st-cell {
+    min-height: 3.6em;
+  }
+  .aas-space-time-demo .st-cell.is-clash {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+  }
+  .aas-space-time-demo .st-cell.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-space-time-demo .st-grid.is-finding .st-cell:not(.is-now) {
+    opacity: 0.4;
+  }
+  .aas-space-time-demo .st-idx {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.65em;
+    line-height: 1.1;
+    color: var(--aas-muted);
+  }
+  .aas-space-time-demo .st-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.2em;
+  }
+  .aas-space-time-demo .st-chip {
+    min-width: 1.9em;
+    padding: 0.1em 0.2em;
+    text-align: center;
+    border-radius: 0.35em;
+    background: var(--aas-role-model);
+    color: #fff;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .aas-space-time-demo .st-cell.is-clash .st-chip {
+    background: var(--aas-role-guard);
+  }
+  .aas-space-time-demo .st-chip.is-count {
+    cursor: default;
+  }
+  .aas-space-time-demo .st-cell .st-chip.is-cmp {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    color: var(--aas-text);
+    box-shadow: inset 0 0 0 1.5px var(--aas-role-focus);
+  }
+  .aas-space-time-demo .st-cell .st-chip.is-hit {
+    background: var(--aas-role-focus);
+    color: #fff;
+  }
+
+  .aas-space-time-demo .st-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.6em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-space-time-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-space-time-demo .st-end,
+    .aas-space-time-demo .st-cell {
+      transition: none;
+    }
+  }
+</style>

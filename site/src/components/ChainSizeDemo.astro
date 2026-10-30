@@ -1,0 +1,544 @@
+---
+// 개별 체이닝에서 배열 크기 M을 바꾸며 리스트 길이와 메모리를 견주는 데모.
+//
+// SEARCHEXAMPLE의 서로 다른 키 10개(S E A R C H X M P L)를 처음 나온 순서로
+// 넣는다. 새 노드는 리스트 맨 앞에 붙으므로 M = 5이면 슬라이드의 표와 같다
+// ([0] A E, [2] X S, [3] L P, [4] M H C R). 슬라이더로 M을 1부터 20까지
+// 움직이면 칸마다의 리스트를 다시 그리고, 옆에 N/M · 가장 긴 리스트 · 빈 칸 ·
+// 평균 비교 횟수 · 메모리 추정(Sedgewick 교재의 Java 기준 48N + 32M 바이트)을
+// 띄운다. M이 10을 넘으면 줄을 두 단으로 나눠 높이를 10줄 안에 둔다.
+//
+// 키를 누르면 그 키를 찾을 때의 비교 횟수를 칠해 보인다. M을 바꿔도 선택은
+// 남아 있어, 같은 키가 어디로 옮겨 가는지 볼 수 있다.
+//
+// 해시 코드 표(CODES)는 ChainingDemo와 같다. 해시값은 이 코드 mod M이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 보일 배열 크기 M (1부터 20) */
+  m?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { m = 5, slide = false } = Astro.props;
+const id = `cs-${Math.random().toString(36).slice(2, 9)}`;
+const MAXM = 20;
+const start = Math.min(MAXM, Math.max(1, Math.round(m)));
+const keys = 'SEARCHXMPL';
+const codes = { A: 20, C: 69, E: 10, H: 4, L: 38, M: 49, P: 78, R: 14, S: 22, X: 47 };
+const quick = [1, 5, 10, 20];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '배열 크기와 리스트 길이',
+    load: 'N/M',
+    longest: '가장 긴 리스트',
+    empty: '빈 칸',
+    hit: '성공 검색 평균 비교',
+    miss: '실패 검색 평균 비교',
+    mem: '메모리 (Java 추정)',
+    memSub: '48N + 32M 바이트',
+    one: '칸이 하나뿐이라 열 키가 모두 리스트 하나에 달립니다. 검색은 순차 탐색과 같아 평균 비교가 가장 많습니다.',
+    long: '리스트가 길어 찾을 때마다 비교가 많습니다. M을 키우면 리스트가 짧아집니다.',
+    balanced: 'N/M = {a}, 리스트가 짧고 빈 칸도 거의 없습니다. 시간과 메모리가 균형을 이룹니다.',
+    sparse: '빈 칸이 {e}개로 칸의 {p}%가 놀고 있습니다. 비교는 거의 줄지 않는데 메모리만 늘어납니다.',
+    hint: '키를 누르면 그 키를 찾는 비교 횟수를 봅니다.',
+    pick: '{k}의 해시는 {c} mod {m} = {h}입니다. {h}번 리스트의 {i}번째라 비교 {i}번에 찾습니다.',
+    cmp1: '',
+    cmpN: '',
+  },
+  en: {
+    title: 'Table size and list length',
+    load: 'N/M',
+    longest: 'longest list',
+    empty: 'empty slots',
+    hit: 'avg compares, hit',
+    miss: 'avg compares, miss',
+    mem: 'memory (Java est.)',
+    memSub: '48N + 32M bytes',
+    one: 'With one slot, all ten keys hang off a single list. Search is plain sequential search, with the most compares on average.',
+    long: 'The lists are long, so every search compares a lot. A larger M makes them shorter.',
+    balanced: 'With N/M = {a} the lists are short and hardly any slot is empty. Time and memory are in balance.',
+    sparse: '{e} slots are empty, {p}% of the array doing nothing. Compares barely drop while memory keeps growing.',
+    hint: 'Click a key to see how many compares it takes to find.',
+    pick: '{k} hashes to {c} mod {m} = {h}. It is node {i} in list {h}, so finding it takes {i} {w}.',
+    cmp1: 'compare',
+    cmpN: 'compares',
+  },
+  zh: {
+    title: '数组大小与链表长度',
+    load: 'N/M',
+    longest: '最长链表',
+    empty: '空格',
+    hit: '命中平均比较',
+    miss: '未命中平均比较',
+    mem: '内存（Java 估算）',
+    memSub: '48N + 32M 字节',
+    one: '只有一格，十个键全挂在一条链表上。查找就是顺序查找，平均比较次数最多。',
+    long: '链表很长，每次查找都要比较很多次。增大 M 链表就会变短。',
+    balanced: 'N/M = {a}，链表短，空格也几乎没有。时间和内存达到平衡。',
+    sparse: '空格有 {e} 个，数组的 {p}% 闲着。比较次数几乎不再减少，内存却一直增加。',
+    hint: '点一个键，看找到它要比较几次。',
+    pick: '{k} 的哈希值是 {c} mod {m} = {h}。它是 {h} 号链表的第 {i} 个，查找要比较 {i} 次。',
+    cmp1: '',
+    cmpN: '',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-chain-size-demo', slide && 'is-slide']}
+  id={id}
+  data-cs-strings={JSON.stringify(t)}
+>
+  <div class="cs-bar">
+    <span class="cs-head"><strong>{t.title}</strong> · N = {keys.length}</span>
+    <div class="cs-controls">
+      <label class="cs-range">
+        M = <strong data-cs-mval>{start}</strong>
+        <input type="range" min="1" max={MAXM} step="1" value={start} data-cs-range />
+      </label>
+      <div class="cs-quick">
+        {
+          quick.map((q) => (
+            <button type="button" class="cs-btn" data-cs-quick={q}>
+              {q}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="cs-body">
+    <div class="cs-rows" data-cs-rows></div>
+    <dl class="cs-panel">
+      <div class="cs-stat">
+        <dt>{t.load}</dt>
+        <dd data-cs-load></dd>
+      </div>
+      <div class="cs-stat">
+        <dt>{t.longest}</dt>
+        <dd data-cs-longest></dd>
+      </div>
+      <div class="cs-stat">
+        <dt>{t.empty}</dt>
+        <dd data-cs-empty></dd>
+      </div>
+      <div class="cs-stat">
+        <dt>{t.hit}</dt>
+        <dd data-cs-hit></dd>
+        <span class="cs-meter"><span data-cs-hitbar /></span>
+      </div>
+      <div class="cs-stat">
+        <dt>{t.miss}</dt>
+        <dd data-cs-miss></dd>
+        <span class="cs-meter"><span data-cs-missbar /></span>
+      </div>
+      <div class="cs-stat">
+        <dt>{t.mem} <small>{t.memSub}</small></dt>
+        <dd data-cs-mem></dd>
+        <span class="cs-meter is-mem"><span data-cs-membar /></span>
+      </div>
+    </dl>
+  </div>
+
+  <p class="cs-note" data-cs-note></p>
+</div>
+
+<script is:inline define:vars={{ id, start, keys, codes, MAXM }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.csStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const order = keys.split('');
+    const N = order.length;
+
+    /* 막대의 기준: M = 1일 때 비교가 가장 많고, M = 20일 때 메모리가 가장 크다. */
+    const memOf = (m) => 48 * N + 32 * m;
+    const HITMAX = (N + 1) / 2;
+    const MISSMAX = N;
+    const MEMMAX = memOf(MAXM);
+
+    /* 처음 나온 순서로 넣고, 새 노드는 맨 앞에 붙인다(hashTableSC의 put과 같다). */
+    function build(m) {
+      const lists = Array.from({ length: m }, () => []);
+      for (const k of order) lists[codes[k] % m].unshift(k);
+      return lists;
+    }
+
+    const rowsEl = root.querySelector('[data-cs-rows]');
+    const range = root.querySelector('[data-cs-range]');
+    const mval = root.querySelector('[data-cs-mval]');
+    const quickBtns = [...root.querySelectorAll('[data-cs-quick]')];
+    const note = root.querySelector('[data-cs-note]');
+    const out = (k) => root.querySelector(`[data-cs-${k}]`);
+    const loadEl = out('load');
+    const longEl = out('longest');
+    const emptyEl = out('empty');
+    const hitEl = out('hit');
+    const missEl = out('miss');
+    const memEl = out('mem');
+    const hitBar = out('hitbar');
+    const missBar = out('missbar');
+    const memBar = out('membar');
+
+    let M = start;
+    let picked = null;
+
+    function render() {
+      const lists = build(M);
+      const empty = lists.filter((l) => l.length === 0).length;
+      const longest = Math.max(...lists.map((l) => l.length));
+      /* 성공 검색: 키마다 리스트에서의 자리(1부터)의 평균. 실패 검색: 리스트 길이의 평균 = N/M */
+      const hit = lists.reduce((s, l) => s + l.reduce((a, _, i) => a + i + 1, 0), 0) / N;
+      const miss = N / M;
+      const alpha = N / M;
+
+      const at = picked ? { h: codes[picked] % M } : null;
+      if (at) at.i = lists[at.h].indexOf(picked) + 1;
+
+      const two = M > 10;
+      rowsEl.style.setProperty('--cs-rows', String(two ? Math.ceil(M / 2) : M));
+      rowsEl.classList.toggle('is-two', two);
+      rowsEl.innerHTML = lists
+        .map((l, h) => {
+          const nodes = l
+            .map((k, j) => {
+              let cls = 'cs-node';
+              if (at && at.h === h && j < at.i - 1) cls += ' is-cmp';
+              if (k === picked) cls += ' is-hit';
+              return `${j ? '<span class="cs-arrow">→</span>' : ''}<button type="button" class="${cls}" data-cs-key="${k}">${k}</button>`;
+            })
+            .join('');
+          const rowCls = ['cs-row'];
+          if (!l.length) rowCls.push('is-empty');
+          if (l.length === longest && longest > 1) rowCls.push('is-long');
+          if (at && at.h === h) rowCls.push('is-now');
+          return `<div class="${rowCls.join(' ')}"><span class="cs-idx">${h}</span><span class="cs-slot"></span><span class="cs-list">${nodes}</span></div>`;
+        })
+        .join('');
+
+      mval.textContent = String(M);
+      range.value = String(M);
+      quickBtns.forEach((b) => b.classList.toggle('is-on', Number(b.dataset.csQuick) === M));
+      loadEl.textContent = alpha.toFixed(2);
+      longEl.textContent = String(longest);
+      emptyEl.innerHTML = `${empty}<small> / ${M}</small>`;
+      emptyEl.classList.toggle('is-bad', empty * 2 >= M && empty > 1);
+      hitEl.textContent = hit.toFixed(2);
+      missEl.textContent = miss.toFixed(2);
+      missEl.classList.toggle('is-bad', alpha > 3);
+      hitEl.classList.toggle('is-bad', alpha > 3);
+      memEl.textContent = `${memOf(M)} B`;
+      memEl.classList.toggle('is-bad', empty * 2 >= M && empty > 1);
+      hitBar.style.width = `${(hit / HITMAX) * 100}%`;
+      missBar.style.width = `${(miss / MISSMAX) * 100}%`;
+      memBar.style.width = `${(memOf(M) / MEMMAX) * 100}%`;
+
+      if (picked) {
+        const w = at.i === 1 ? S.cmp1 : S.cmpN;
+        setLines(note, fill(S.pick, { k: picked, c: codes[picked], m: M, h: at.h, i: at.i, w }));
+        return;
+      }
+      let text;
+      if (M === 1) text = S.one;
+      else if (alpha > 3) text = S.long;
+      else if (alpha >= 1.4 || empty === 0) text = fill(S.balanced, { a: alpha.toFixed(2) });
+      else text = fill(S.sparse, { e: empty, p: Math.round((empty / M) * 100) });
+      setLines(note, join(text, S.hint));
+    }
+
+    function setM(v) {
+      M = Math.min(MAXM, Math.max(1, v));
+      render();
+    }
+    range.addEventListener('input', () => setM(Number(range.value)));
+    quickBtns.forEach((b) => b.addEventListener('click', () => setM(Number(b.dataset.csQuick))));
+    rowsEl.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cs-key]');
+      if (!b) return;
+      picked = picked === b.dataset.csKey ? null : b.dataset.csKey;
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-chain-size-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --cs-row: 2em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-chain-size-demo .cs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-chain-size-demo .cs-head {
+    font-size: 0.95em;
+  }
+  .aas-chain-size-demo .cs-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+  }
+  .aas-chain-size-demo .cs-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-chain-size-demo .cs-range strong {
+    min-width: 1.4em;
+    font-size: 1.25em;
+    color: var(--aas-role-focus);
+  }
+  .aas-chain-size-demo .cs-range input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-chain-size-demo .cs-quick {
+    display: flex;
+    gap: 0.35em;
+  }
+  .aas-chain-size-demo .cs-btn {
+    min-width: 2.4em;
+    padding: 0.25em 0.6em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-chain-size-demo .cs-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-chain-size-demo .cs-btn.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+
+  .aas-chain-size-demo .cs-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 1.4em;
+    align-items: flex-start;
+  }
+  /* 줄은 위에서 아래로 채우고, M이 10을 넘으면 두 단으로 나눈다. 높이는 언제나
+     10줄 몫을 잡아 M을 바꿔도 데모 높이가 바뀌지 않는다. */
+  .aas-chain-size-demo .cs-rows {
+    --cs-rows: 5;
+    flex: 1 1 22em;
+    min-width: 0;
+    min-height: calc(10 * var(--cs-row));
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(var(--cs-rows), var(--cs-row));
+    grid-auto-columns: minmax(0, 1fr);
+    column-gap: 1.2em;
+    align-content: start;
+  }
+  .aas-chain-size-demo .cs-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .aas-chain-size-demo .cs-idx {
+    flex: 0 0 1.3em;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-chain-size-demo .cs-slot {
+    flex: 0 0 1.2em;
+    height: calc(var(--cs-row) - 0.55em);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    position: relative;
+  }
+  .aas-chain-size-demo .cs-slot::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.35em;
+    height: 0.35em;
+    border-radius: 50%;
+    background: var(--aas-muted);
+    transform: translate(-50%, -50%);
+  }
+  /* 빈 칸: 아무것도 가리키지 않는 낭비된 칸 */
+  .aas-chain-size-demo .cs-row.is-empty .cs-slot {
+    border-style: dashed;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+  }
+  .aas-chain-size-demo .cs-row.is-empty .cs-slot::after {
+    content: none;
+  }
+  .aas-chain-size-demo .cs-row.is-now .cs-slot {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-chain-size-demo .cs-list {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2em;
+  }
+  .aas-chain-size-demo .cs-row:not(.is-empty) .cs-list::before {
+    content: '→';
+    margin-right: 0.1em;
+    color: var(--aas-muted);
+  }
+  .aas-chain-size-demo .cs-arrow {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-chain-size-demo .cs-node {
+    min-width: 1.7em;
+    padding: 0.1em 0.35em;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.3;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.4em;
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      box-shadow 0.25s,
+      background-color 0.25s;
+  }
+  .aas-chain-size-demo .cs-node:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-chain-size-demo .cs-row.is-long .cs-node {
+    background: color-mix(in srgb, var(--aas-role-trace) 22%, var(--aas-bg));
+  }
+  .aas-chain-size-demo .cs-node.is-cmp {
+    box-shadow: 0 0 0 2.5px var(--aas-role-focus);
+  }
+  .aas-chain-size-demo .cs-node.is-hit {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+
+  .aas-chain-size-demo .cs-panel {
+    flex: 0 1 13em;
+    margin: 0;
+    display: grid;
+    gap: 0.35em;
+  }
+  .aas-chain-size-demo .cs-stat {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 0 0.6em;
+  }
+  .aas-chain-size-demo .cs-stat dt {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-chain-size-demo .cs-stat dt small {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-chain-size-demo .cs-stat dd {
+    margin: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.15em;
+    font-weight: 700;
+    color: var(--aas-role-focus);
+    text-align: right;
+  }
+  .aas-chain-size-demo .cs-stat dd small {
+    font-size: 0.7em;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-chain-size-demo .cs-stat dd.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-chain-size-demo .cs-meter {
+    grid-column: 1 / -1;
+    display: block;
+    height: 0.3em;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--aas-muted) 18%, transparent);
+    overflow: hidden;
+  }
+  .aas-chain-size-demo .cs-meter span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--aas-role-focus);
+    transition: width 0.3s;
+  }
+  .aas-chain-size-demo .cs-meter.is-mem span {
+    background: var(--aas-role-trace);
+  }
+
+  .aas-chain-size-demo .cs-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.6em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고. 10줄과 패널이 h3 아래에 들어가도록 줄을 낮춘다. */
+  .aas-chain-size-demo.is-slide {
+    --cs-row: 1.6em;
+    font-size: clamp(1rem, 2.65vh, 1.8rem);
+    margin: 0.5rem 0;
+    padding: 0.8em 1em;
+  }
+  .aas-chain-size-demo.is-slide .cs-bar {
+    margin-bottom: 0.5em;
+  }
+  .aas-chain-size-demo.is-slide .cs-node {
+    font-size: 0.85em;
+  }
+  .aas-chain-size-demo.is-slide .cs-note {
+    margin-top: 0.4em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-chain-size-demo .cs-node,
+    .aas-chain-size-demo .cs-meter span {
+      transition: none;
+    }
+  }
+</style>
