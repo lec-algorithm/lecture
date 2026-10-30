@@ -401,17 +401,20 @@ const data = DATA[lang] ?? DATA.ko;
 
     let at = -1;
     let timer = null;
+    /* 자동 재생이 멈출 단계. 끼어든 손님은 그 손님 차례 끝에서 멈춘다. */
+    let until = Infinity;
     const playBtn = root.querySelector('[data-act="play"]');
     function stop() {
       if (timer) clearInterval(timer);
       timer = null;
+      until = Infinity;
       playBtn.textContent = S.play;
     }
     function step() {
       if (at >= steps.length - 1) return stop();
       at += 1;
       render(at);
-      if (at >= steps.length - 1) stop();
+      if (at >= steps.length - 1 || at >= until) stop();
     }
     function play(ms) {
       playBtn.textContent = S.stop;
@@ -436,6 +439,7 @@ const data = DATA[lang] ?? DATA.ko;
       input.value = '';
       step();
       play(800);
+      until = steps.findIndex((st) => st.visit === cur + 1 && st.end);
     }
     root.querySelector('[data-cp-form]').addEventListener('submit', (e) => {
       e.preventDefault();
