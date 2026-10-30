@@ -1,0 +1,730 @@
+---
+// 선형 탐지에서 키 무리가 스스로 자라는 이유를 확률로 보는 데모.
+//
+// 배열 16칸 아래에, 빈칸마다 "다음 키가 이 칸에 들어갈 확률"을 막대로 세운다.
+// 다음 키의 해시가 0번부터 15번까지 고르게 나온다고 보면, 빈칸 j에 들어오는
+// 키는 해시가 j이거나 j 바로 앞의 무리 어딘가인 키다. 그래서 확률은
+// (j 바로 앞 무리의 길이 + 1) / 16이고, 긴 무리 바로 뒤의 빈칸일수록 크다.
+// 들어간 키는 무리를 늘리니, 긴 무리는 더 길어지기 쉽다.
+//
+// 무작위 키를 넣거나 칸을 눌러 그 해시를 가진 키를 넣으면, 키가 해시 칸에서
+// 출발해 빈칸까지 미끄러진 뒤 확률이 다시 계산된다. 칸에 마우스를 올리면
+// 그 해시의 키가 들어갈 빈칸과, 같은 빈칸으로 모이는 해시 범위가 보인다.
+// 빈칸을 하나 남기려고 키는 15개까지만 넣는다.
+//
+// start
+//   example : SEARCHEXAMPLE을 넣은 뒤의 표(ProbingDemo와 같다)에서 시작한다.
+//   empty   : 빈 표에서 시작한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** example · empty */
+  start?: 'example' | 'empty';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { start = 'example', slide = false } = Astro.props;
+const id = `cg-${Math.random().toString(36).slice(2, 9)}`;
+const m = 16;
+/* SEARCHEXAMPLE을 크기 16인 선형 탐지 표에 넣은 결과(hashTableLP.c와 같다) */
+const example = { 0: 'P', 1: 'M', 4: 'A', 5: 'C', 6: 'S', 7: 'H', 8: 'L', 10: 'E', 14: 'R', 15: 'X' };
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '무리가 자라는 확률',
+    fromExample: '예제에서',
+    fromEmpty: '빈 표에서',
+    random: '무작위 키 넣기',
+    reset: '처음으로',
+    keys: '키',
+    longest: '가장 긴 무리',
+    cells: '칸',
+    likely: '들어오기 쉬운 칸',
+    likelySlot: '{j}번',
+    chart: '다음 키가 이 칸에 들어갈 확률',
+    idleExample:
+      '빈칸 아래 막대는 다음 키가 그 칸에 들어갈 확률입니다. 해시가 {a}번부터 {j}번 중 어디든 {j}번에 들어오니 {c}/16 = {pct}%입니다. 칸을 누르면 그 해시를 가진 키를 넣습니다.',
+    idleEmpty:
+      '빈 16칸입니다. 지금은 어느 칸이든 다음 키가 들어갈 확률이 1/16 = 6.25%로 같습니다. 칸을 누르면 그 해시를 가진 키를 넣습니다.',
+    direct: '해시가 {h}인 {k} 키가 빈칸 {h}번에 바로 들어갑니다.',
+    slid: '해시가 {h}인 {k} 키가 {p}칸을 보고 {i}번에 들어갑니다.',
+    slidWrap: '해시가 {h}인 {k} 키가 배열 끝을 넘어 {p}칸을 보고 {i}번에 들어갑니다.',
+    merge: '{x}칸 무리와 {y}칸 무리가 이어져 {z}칸 무리가 되었습니다.',
+    grow: '무리가 {z}칸으로 자랐습니다.',
+    max: '이제 해시가 {a}번부터 {j}번 중 어디든 {j}번에 들어오니 {c}/16 = {pct}%입니다.',
+    last: '빈칸이 {j}번 하나만 남아 어떤 키든 그 칸에 들어옵니다. 여기서 멈춥니다.',
+    full: '빈칸을 하나 남겨 두려고 더 넣지 않습니다. 처음으로 돌아가 다시 해 봅니다.',
+  },
+  en: {
+    title: 'How clusters grow',
+    fromExample: 'From the example',
+    fromEmpty: 'From empty',
+    random: 'Insert a random key',
+    reset: 'Reset',
+    keys: 'keys',
+    longest: 'longest cluster',
+    cells: '',
+    likely: 'most likely slot',
+    likelySlot: 'slot {j}',
+    chart: 'Chance the next key lands in this slot',
+    idleExample:
+      'The bar under each empty slot is the chance the next key lands there. A key hashing anywhere from {a} to {j} ends up in slot {j}, so the chance is {c}/16 = {pct}%. Click a slot to insert a key with that hash.',
+    idleEmpty:
+      'An empty table of 16 slots. Right now every slot has the same chance, 1/16 = 6.25%. Click a slot to insert a key with that hash.',
+    direct: '{k} hashes to {h}, and slot {h} is empty, so it goes straight in.',
+    slid: '{k} hashes to {h}, probes {p} slots and lands in slot {i}.',
+    slidWrap: '{k} hashes to {h}, wraps past the end, probes {p} slots and lands in slot {i}.',
+    merge: 'Clusters of {x} and {y} join into one of {z}.',
+    grow: 'The cluster grows to {z}.',
+    max: 'Now a key hashing anywhere from {a} to {j} ends up in slot {j}, a chance of {c}/16 = {pct}%.',
+    last: 'Only slot {j} is left empty, so every key lands there. Stop here.',
+    full: 'One empty slot is kept, so no more keys go in. Reset to try again.',
+  },
+  zh: {
+    title: '簇的增长',
+    fromExample: '从示例开始',
+    fromEmpty: '从空表开始',
+    random: '随机插入一个键',
+    reset: '重置',
+    keys: '键数',
+    longest: '最长簇',
+    cells: ' 格',
+    likely: '最容易落入的格',
+    likelySlot: '{j} 号格',
+    chart: '下一个键落进这一格的概率',
+    idleExample:
+      '空格下面的柱子是下一个键落进那一格的概率。哈希值在 {a} 到 {j} 之间的键都会落进 {j} 号格，所以概率是 {c}/16 = {pct}%。点一格就插入哈希值为该格号的键。',
+    idleEmpty: '16 格的空表。现在每一格的概率都一样，是 1/16 = 6.25%。点一格就插入哈希值为该格号的键。',
+    direct: '{k} 的哈希值是 {h}，{h} 号格为空，直接放入。',
+    slid: '{k} 的哈希值是 {h}，探测 {p} 格后落进 {i} 号格。',
+    slidWrap: '{k} 的哈希值是 {h}，越过数组末尾，探测 {p} 格后落进 {i} 号格。',
+    merge: '{x} 格的簇和 {y} 格的簇连成了 {z} 格的簇。',
+    grow: '簇长到了 {z} 格。',
+    max: '现在哈希值在 {a} 到 {j} 之间的键都会落进 {j} 号格，概率是 {c}/16 = {pct}%。',
+    last: '只剩 {j} 号格是空的，任何键都会落进那里。到此为止。',
+    full: '为了留下一个空格，不再插入。请重置后再试。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const slots = Array.from({ length: m }, (_, i) => i);
+---
+
+<div
+  class:list={['aas-cluster-grow-demo', slide && 'is-slide']}
+  id={id}
+  data-cg-start={start}
+  data-cg-strings={JSON.stringify(t)}
+  style={`--cg-m: ${m}`}
+>
+  <div class="cg-bar">
+    <div class="cg-tabs" role="tablist">
+      <span class="cg-head"><strong>{t.title}</strong></span>
+      <button type="button" class="cg-tab" data-cg-tab="example" role="tab">{t.fromExample}</button>
+      <button type="button" class="cg-tab" data-cg-tab="empty" role="tab">{t.fromEmpty}</button>
+    </div>
+    <div class="cg-controls">
+      <button type="button" data-act="random" class="cg-btn cg-btn-primary">{t.random}</button>
+      <button type="button" data-act="reset" class="cg-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cg-stats">
+    <span class="cg-small">{t.keys} <b data-cg-n></b>/{m}</span>
+    <span class="cg-big">
+      <span class="cg-big-label">{t.longest}</span>
+      <strong data-cg-longest>0</strong><span class="cg-big-label">{t.cells}</span>
+    </span>
+    <span class="cg-big">
+      <span class="cg-big-label">{t.likely} <b data-cg-slot></b></span>
+      <strong data-cg-pct></strong>
+    </span>
+  </div>
+
+  <div class="cg-scroll">
+    <div class="cg-track">
+      <div class="cg-lane">
+        <span class="cg-chip" data-cg-chip></span>
+      </div>
+      <div class="cg-row">
+        {
+          slots.map((i) => (
+            <button type="button" class="cg-cell" data-cg-cell={i} aria-label={`${i}`}>
+              <b class="cg-k" />
+            </button>
+          ))
+        }
+      </div>
+      <div class="cg-bars">
+        {slots.map((i) => <span class="cg-run" data-cg-run={i} />)}
+      </div>
+      <div class="cg-idx">
+        {slots.map((i) => <span>{i}</span>)}
+      </div>
+      <div class="cg-chart" role="img" aria-label={t.chart} title={t.chart}>
+        {
+          slots.map((i) => (
+            <span class="cg-col" data-cg-col={i}>
+              <span class="cg-fill" />
+              <small class="cg-pct" />
+            </span>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <p class="cg-note" data-cg-note></p>
+</div>
+
+<script is:inline define:vars={{ id, m, example }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.cgStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const pct = (c) => String(Number(((c * 100) / m).toFixed(2)));
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* j 바로 앞(왼쪽, 원형)으로 이어진 차 있는 칸 수, j 바로 뒤로 이어진 칸 수 */
+    const runBefore = (ks, j) => {
+      let r = 0;
+      for (let i = (j - 1 + m) % m; r < m - 1 && ks[i] !== null; i = (i - 1 + m) % m) r += 1;
+      return r;
+    };
+    const runAfter = (ks, j) => {
+      let r = 0;
+      for (let i = (j + 1) % m; r < m - 1 && ks[i] !== null; i = (i + 1) % m) r += 1;
+      return r;
+    };
+    /* 빈칸 j에 들어올 키의 해시 개수. 확률은 이 값 / m */
+    const chances = (ks) => ks.map((k, j) => (k === null ? runBefore(ks, j) + 1 : 0));
+    /* 해시 h인 키가 실제로 들어갈 빈칸과 들여다볼 칸들 */
+    const pathOf = (ks, h) => {
+      const path = [h];
+      for (let i = h; ks[i] !== null; ) {
+        i = (i + 1) % m;
+        path.push(i);
+      }
+      return path;
+    };
+    /* 빈칸 j로 모이는 해시 범위(a부터 j까지) */
+    const basinOf = (ks, j) => {
+      const c = runBefore(ks, j) + 1;
+      const cells = [];
+      for (let d = c - 1; d >= 0; d--) cells.push((j - d + m) % m);
+      return { j, c, a: cells[0], cells };
+    };
+    const bestOf = (ks) => {
+      const cs = chances(ks);
+      let j = 0;
+      cs.forEach((c, i) => {
+        if (c > cs[j]) j = i;
+      });
+      return basinOf(ks, j);
+    };
+
+    /* 원형 배열에서 차 있는 칸이 이어진 덩어리(키 무리). ProbingDemo와 같다. */
+    function clusters(ks) {
+      const len = new Array(m).fill(0);
+      const startOf = new Array(m).fill(false);
+      const endOf = new Array(m).fill(false);
+      const empty = ks.indexOf(null);
+      if (empty < 0) return { len: len.fill(m), startOf, endOf, longest: m };
+      let longest = 0;
+      let i = (empty + 1) % m;
+      for (let c = 0; c < m; ) {
+        if (ks[i] === null) {
+          i = (i + 1) % m;
+          c += 1;
+          continue;
+        }
+        const members = [];
+        while (ks[i] !== null) {
+          members.push(i);
+          i = (i + 1) % m;
+          c += 1;
+        }
+        members.forEach((x) => (len[x] = members.length));
+        startOf[members[0]] = true;
+        endOf[members[members.length - 1]] = true;
+        longest = Math.max(longest, members.length);
+      }
+      return { len, startOf, endOf, longest };
+    }
+
+    const cells = [...root.querySelectorAll('[data-cg-cell]')];
+    const runs = [...root.querySelectorAll('[data-cg-run]')];
+    const cols = [...root.querySelectorAll('[data-cg-col]')];
+    const tabs = [...root.querySelectorAll('[data-cg-tab]')];
+    const chip = root.querySelector('[data-cg-chip]');
+    const nEl = root.querySelector('[data-cg-n]');
+    const longestEl = root.querySelector('[data-cg-longest]');
+    const slotEl = root.querySelector('[data-cg-slot]');
+    const pctEl = root.querySelector('[data-cg-pct]');
+    const note = root.querySelector('[data-cg-note]');
+    const randomBtn = root.querySelector('[data-act="random"]');
+
+    let from = root.dataset.cgStart === 'empty' ? 'empty' : 'example';
+    let tk = [];
+    let deco = {};
+    let hover = -1;
+    let busy = false;
+    let timer = null;
+    const count = () => tk.filter((k) => k !== null).length;
+
+    function render() {
+      const cl = clusters(tk);
+      const cs = chances(tk);
+      const best = bestOf(tk);
+      /* 빈 표처럼 모든 빈칸이 1/16이면 따로 짚을 칸이 없다. */
+      const basin = hover >= 0 && !busy ? basinOf(tk, pathOf(tk, hover).at(-1)) : best.c > 1 ? best : null;
+      const inBasin = new Set(basin ? basin.cells : []);
+      cells.forEach((cell, i) => {
+        cell.querySelector('.cg-k').textContent = tk[i] ?? '';
+        cell.classList.toggle('is-full', tk[i] !== null);
+        cell.classList.toggle('is-probe', deco.probe === i);
+        cell.classList.toggle('is-origin', deco.origin === i);
+        cell.classList.toggle('is-pass', !!deco.passed && deco.passed.includes(i));
+        cell.classList.toggle('is-placed', deco.placed === i);
+        cell.classList.toggle('is-basin', !busy && inBasin.has(i));
+        const run = runs[i];
+        run.classList.toggle('is-on', cl.len[i] >= 2);
+        run.classList.toggle('is-long', cl.len[i] >= 2 && cl.len[i] === cl.longest);
+        run.classList.toggle('is-start', cl.startOf[i]);
+        run.classList.toggle('is-end', cl.endOf[i]);
+        const col = cols[i];
+        col.querySelector('.cg-pct').textContent = cs[i] ? `${pct(cs[i])}%` : '';
+        col.querySelector('.cg-fill').style.height = `${(cs[i] / m) * 4}em`;
+        col.classList.toggle('is-max', cs[i] > 1 && cs[i] === best.c);
+        col.classList.toggle('is-target', !busy && !!basin && i === basin.j);
+      });
+      nEl.textContent = String(count());
+      longestEl.textContent = String(cl.longest);
+      slotEl.textContent = best.c > 1 ? fill(S.likelySlot, { j: best.j }) : '-';
+      pctEl.textContent = `${pct(best.c)}%`;
+      pctEl.classList.toggle('is-bad', best.c >= 6);
+      randomBtn.disabled = busy || count() >= m - 1;
+    }
+
+    function reset() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      busy = false;
+      tk = new Array(m).fill(null);
+      if (from === 'example') for (const [i, k] of Object.entries(example)) tk[Number(i)] = k;
+      tabs.forEach((b) => {
+        const on = b.dataset.cgTab === from;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+      deco = {};
+      chip.classList.remove('is-on');
+      render();
+      const b = bestOf(tk);
+      setLines(
+        note,
+        from === 'example' ? fill(S.idleExample, { a: b.a, j: b.j, c: b.c, pct: pct(b.c) }) : S.idleEmpty,
+      );
+      root.classList.remove('is-done');
+    }
+
+    /* 아직 표에 없는 첫 글자. 키는 많아야 15개라 모자라지 않는다. */
+    const nextLabel = () => [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find((c) => !tk.includes(c)) ?? String(count());
+
+    /* 칩을 전환 없이 그 칸 위로 옮긴다(이전 연산의 자리에서 미끄러져 오지 않게). */
+    function jumpChip(i) {
+      chip.classList.add('is-jump');
+      chip.style.setProperty('--cg-at', String(i));
+      void chip.offsetWidth;
+      chip.classList.remove('is-jump');
+    }
+
+    function finish(k, h, path) {
+      const i = path.at(-1);
+      const p = path.length;
+      tk[i] = k;
+      const x = runBefore(tk, i);
+      const y = runAfter(tk, i);
+      const wrapped = path.some((s, n) => n > 0 && s === 0);
+      const lead = fill(p === 1 ? S.direct : wrapped ? S.slidWrap : S.slid, { k, h, p, i });
+      const grow = x > 0 && y > 0 ? fill(S.merge, { x, y, z: x + y + 1 }) : x + y > 0 ? fill(S.grow, { z: x + y + 1 }) : '';
+      busy = false;
+      chip.classList.remove('is-on');
+      deco = { origin: h, placed: i };
+      render();
+      const b = bestOf(tk);
+      const tail = count() >= m - 1 ? fill(S.last, { j: b.j }) : fill(S.max, { a: b.a, j: b.j, c: b.c, pct: pct(b.c) });
+      setLines(note, join(lead, grow, tail));
+      root.classList.add('is-done');
+    }
+
+    function insert(h) {
+      if (busy) return;
+      if (count() >= m - 1) {
+        setLines(note, S.full);
+        return;
+      }
+      const k = nextLabel();
+      const path = pathOf(tk, h);
+      busy = true;
+      hover = -1;
+      chip.textContent = k;
+      jumpChip(h);
+      chip.classList.add('is-on');
+      if (reduced) return finish(k, h, path);
+      let s = 0;
+      const tick = () => {
+        chip.style.setProperty('--cg-at', String(path[s]));
+        deco = { probe: path[s], origin: h, passed: path.slice(0, s) };
+        render();
+        s += 1;
+        timer = setTimeout(s < path.length ? tick : () => finish(k, h, path), 380);
+      };
+      tick();
+    }
+
+    cells.forEach((cell, i) => {
+      cell.addEventListener('click', () => insert(i));
+      cell.addEventListener('mouseenter', () => {
+        if (busy) return;
+        hover = i;
+        render();
+      });
+      cell.addEventListener('mouseleave', () => {
+        hover = -1;
+        if (!busy) render();
+      });
+    });
+    randomBtn.addEventListener('click', () => insert(Math.floor(Math.random() * m)));
+    root.querySelector('[data-act="reset"]').addEventListener('click', reset);
+    tabs.forEach((b) =>
+      b.addEventListener('click', () => {
+        from = b.dataset.cgTab;
+        reset();
+      }),
+    );
+    reset();
+  })();
+</script>
+
+<style is:global>
+  .aas-cluster-grow-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --cg-cell: 2.45em;
+    --cg-gap: 0.2em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-cluster-grow-demo .cg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-cluster-grow-demo .cg-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-cluster-grow-demo .cg-head {
+    margin-right: 0.3em;
+    font-size: 0.95em;
+  }
+  .aas-cluster-grow-demo .cg-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cluster-grow-demo .cg-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-cluster-grow-demo .cg-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-cluster-grow-demo .cg-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-cluster-grow-demo .cg-tab:hover,
+  .aas-cluster-grow-demo .cg-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-cluster-grow-demo .cg-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-cluster-grow-demo .cg-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .aas-cluster-grow-demo .cg-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3em 1.6em;
+    margin-bottom: 0.2em;
+  }
+  .aas-cluster-grow-demo .cg-small,
+  .aas-cluster-grow-demo .cg-big-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-cluster-grow-demo .cg-small b,
+  .aas-cluster-grow-demo .cg-big-label b {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-cluster-grow-demo .cg-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+  .aas-cluster-grow-demo .cg-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-cluster-grow-demo .cg-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-cluster-grow-demo .cg-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.2em;
+  }
+  .aas-cluster-grow-demo .cg-track {
+    width: max-content;
+    margin: 0 auto;
+  }
+  .aas-cluster-grow-demo .cg-row,
+  .aas-cluster-grow-demo .cg-bars,
+  .aas-cluster-grow-demo .cg-idx,
+  .aas-cluster-grow-demo .cg-chart {
+    display: grid;
+    grid-template-columns: repeat(var(--cg-m), var(--cg-cell));
+    gap: 0 var(--cg-gap);
+  }
+
+  /* 넣는 키가 칸 위에 떠서 left 전환으로 미끄러진다(ProbingDemo와 같다). */
+  .aas-cluster-grow-demo .cg-lane {
+    position: relative;
+    height: 2.4em;
+  }
+  .aas-cluster-grow-demo .cg-chip {
+    --cg-at: 0;
+    position: absolute;
+    top: 0.1em;
+    left: calc(var(--cg-at) * (var(--cg-cell) + var(--cg-gap)));
+    width: var(--cg-cell);
+    height: 2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.45em;
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(0.4em);
+    transition:
+      left 0.32s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.25s,
+      transform 0.25s;
+  }
+  .aas-cluster-grow-demo .cg-chip.is-on {
+    opacity: 1;
+    transform: none;
+  }
+  .aas-cluster-grow-demo .cg-chip.is-jump {
+    transition: none;
+  }
+
+  .aas-cluster-grow-demo .cg-cell {
+    position: relative;
+    height: 2.5em;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: inherit;
+    color: var(--aas-text);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    cursor: pointer;
+    transition:
+      background-color 0.3s,
+      border-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-cluster-grow-demo .cg-cell.is-full {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-cluster-grow-demo .cg-k {
+    font-size: 1.05em;
+    line-height: 1;
+  }
+  /* 마우스를 올린 해시, 또는 가장 들어오기 쉬운 빈칸으로 모이는 해시 범위 */
+  .aas-cluster-grow-demo .cg-cell.is-basin {
+    outline: 2px dashed var(--aas-role-focus);
+    outline-offset: 1px;
+  }
+  .aas-cluster-grow-demo .cg-cell.is-origin {
+    box-shadow: inset 0 -0.3em 0 var(--aas-role-focus);
+  }
+  .aas-cluster-grow-demo .cg-cell.is-pass {
+    border-color: var(--aas-role-guard);
+  }
+  .aas-cluster-grow-demo .cg-cell.is-probe {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-cluster-grow-demo .cg-cell.is-placed {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 35%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-cluster-grow-demo .cg-cell.is-placed .cg-k {
+    animation: cg-pop 0.45s ease-out;
+  }
+
+  /* 키 무리: 차 있는 칸이 둘 이상 이어지면 아래에 막대. 가장 긴 것은 진하게. */
+  .aas-cluster-grow-demo .cg-bars {
+    height: 0.55em;
+    margin-top: 0.3em;
+  }
+  .aas-cluster-grow-demo .cg-run {
+    height: 0.35em;
+    margin: 0 calc(var(--cg-gap) / -2);
+    background: transparent;
+    transition: background-color 0.3s;
+  }
+  .aas-cluster-grow-demo .cg-run.is-on {
+    background: color-mix(in srgb, var(--aas-role-trace) 45%, transparent);
+  }
+  .aas-cluster-grow-demo .cg-run.is-long {
+    background: var(--aas-role-trace);
+  }
+  .aas-cluster-grow-demo .cg-run.is-start {
+    margin-left: 0.15em;
+    border-top-left-radius: 0.3em;
+    border-bottom-left-radius: 0.3em;
+  }
+  .aas-cluster-grow-demo .cg-run.is-end {
+    margin-right: 0.15em;
+    border-top-right-radius: 0.3em;
+    border-bottom-right-radius: 0.3em;
+  }
+  .aas-cluster-grow-demo .cg-idx span {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+
+  /* 빈칸마다 다음 키가 들어갈 확률. 표 아래로 매달리고, 막대 길이 4em이 확률 1이다. */
+  .aas-cluster-grow-demo .cg-chart {
+    margin-top: 0.2em;
+    border-top: 1px solid var(--aas-border);
+  }
+  .aas-cluster-grow-demo .cg-col {
+    height: 4.9em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .aas-cluster-grow-demo .cg-fill {
+    width: 62%;
+    border-radius: 0 0 0.25em 0.25em;
+    background: color-mix(in srgb, var(--aas-role-focus) 55%, transparent);
+    transition: height 0.35s ease-out;
+  }
+  .aas-cluster-grow-demo .cg-pct {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.58em;
+    line-height: 1.4;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-cluster-grow-demo .cg-col.is-max .cg-fill {
+    background: var(--aas-role-guard);
+  }
+  .aas-cluster-grow-demo .cg-col.is-max .cg-pct {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-cluster-grow-demo .cg-col.is-target .cg-fill {
+    outline: 2px dashed var(--aas-role-focus);
+    outline-offset: 1px;
+  }
+
+  .aas-cluster-grow-demo .cg-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.6em;
+  }
+  .aas-cluster-grow-demo.is-done .cg-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes cg-pop {
+    from {
+      transform: scale(1.6);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-cluster-grow-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-cluster-grow-demo .cg-chip,
+    .aas-cluster-grow-demo .cg-cell,
+    .aas-cluster-grow-demo .cg-run,
+    .aas-cluster-grow-demo .cg-fill {
+      transition: none;
+    }
+    .aas-cluster-grow-demo .cg-cell .cg-k {
+      animation: none !important;
+    }
+  }
+</style>

@@ -17,6 +17,12 @@ import BirthdayDemo from '@components/BirthdayDemo.astro';
 import ResizeDemo from '@components/ResizeDemo.astro';
 import ClusterDemo from '@components/ClusterDemo.astro';
 import LoadCostDemo from '@components/LoadCostDemo.astro';
+import CouponDemo from '@components/CouponDemo.astro';
+import SpaceTimeDemo from '@components/SpaceTimeDemo.astro';
+import PrimeModDemo from '@components/PrimeModDemo.astro';
+import ChainSizeDemo from '@components/ChainSizeDemo.astro';
+import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
+import HashPlayDemo from '@components/HashPlayDemo.astro';
 
 > The binary search tree of Topic 07 found keys by **comparing** them. Even
 > when it is well balanced, it needs $$O(\log n)$$ comparisons.  
@@ -61,12 +67,37 @@ Hashing is also a way to strike a balance between time and memory.
 | very scarce | gather everything in one unsorted array and search it sequentially | time: $$O(n)$$ for every search |
 | moderate | **hashing**: scatter the keys over an array of moderate size and handle only the overlaps separately | a little of both |
 
+The three rows are joined by a single number, the slot count. Put 12 keys
+between 0 and 63 into slot `key mod M` and move $$M$$ from 1 to 64. Click a key
+to look it up and color the keys it is compared with.
+
+<SpaceTimeDemo />
+
+With $$M = 1$$ everything lands in one slot, which is the same as a sequential
+search, at 6.5 compares on average. With $$M = 64$$ the key is the address, so
+any key is found at once, but 64 slots hold just 12 keys. In between,
+$$M = 13$$ has only 13 slots and still finds a key in 1.25 compares on
+average.
+
 Picture the stamp-card rack at a café counter. The rack has a slot for each
 first letter of the customer's name (A, B and C together, M, digits, …), so
 to find a card you look in one slot instead of going through the whole box.
 Picking the first letter is the hash function, and several cards in one slot
 is a collision. There are far fewer slots than customers, so it uses little
 memory, and you only go through one slot, so it takes little time.
+
+When a customer comes in, pick the slot by the first letter and turn only the
+cards in that slot, from the front. A returning customer just gets one more
+stamp; a new customer gets a new card at the front of the slot. Go through it
+with **Step**, or type a name into the box to get and find cards yourself.
+
+<CouponDemo />
+
+Compare the two big numbers. The whole box holds 9 cards, but no customer
+turns more than 2. Still, slot `L` ends up with 3 cards while 20 of the 26
+slots stay empty, because first letters of names are not spread evenly. This
+is why a good hash function has to spread keys **evenly**. The card rack has
+the same structure as separate chaining, which comes later.
 
 ## Hash functions \{#hash-function}
 
@@ -129,6 +160,17 @@ common factor with any key that is not one of its multiples, so it is not
 thrown off by patterns common in keys (only even numbers, only multiples of
 10). A prime is not a cure-all, though. Had every key been a multiple of 7,
 $$M = 7$$ would also use just one slot.
+
+Change the key step and $$M$$ yourself. The keys are 16 numbers from 0 in
+steps of $$d$$, and the slots used number $$M / \gcd(d, M)$$. The row of bars
+below shows, for the current step, the share of slots used for each $$M$$ from
+2 to 16; click a bar to switch to that $$M$$.
+
+<PrimeModDemo />
+
+With a step of 4, the full bars are the odd $$M$$, which share no factor with
+4. A prime always fills its bar unless the step is a multiple of it. Change
+the step to 7, and only the bars for $$M = 7$$ and $$M = 14$$ drop.
 
 ### Hashing strings \{#string-hashing}
 
@@ -484,6 +526,16 @@ Choosing $$M$$ is a trade-off.
   memory is wasted.
 - **If $$M$$ is too small**, the lists grow long, and searching slows down.
 
+Keep the same 10 keys and change only $$M$$, from 1 to 20. On the right, the
+compares, the empty slots and the memory estimate change together.
+
+<ChainSizeDemo />
+
+With $$M = 1$$ the 10 keys line up in a single list, the same as a sequential
+search. With $$M = 20$$ a successful search drops to 1.2 compares on average,
+but 12 of the 20 slots are empty. Separate chaining picks $$M$$ so that
+$$N/M$$ stays a small constant.
+
 ## Linear probing \{#linear-probing}
 
 Chaining spends memory on a link for every list node. What if we spent that
@@ -811,6 +863,18 @@ Clusters grow on their own.
 - When a cluster is long, searching for a key hashed into it, and searching
   for a missing key, both have to walk to the end of the cluster.
 
+Count how much an empty slot right after a cluster gains. In the 16-slot table
+holding the example, each empty slot has a bar for the chance that the next key
+lands there. If hash values come out evenly, that chance is (length of the
+cluster just before it + 1)/16.
+
+<ClusterGrowDemo />
+
+Slot 9 sits right after the cluster from 4 to 8, so a hash anywhere from 4 to 9
+ends up in 9. That is 6/16 = 37.5%, six times slot 3 (1/16), which has no
+cluster before it. Press **Insert a random key** a few times, and long clusters
+grow longer and run into each other.
+
 Insert keys with the same random hash values into an array of size 512. The
 left side is linear probing; the right side, for comparison, picks a fresh
 empty slot at random on each collision. Set the key count to 128, 256, or 384,
@@ -876,6 +940,19 @@ and the cost grows gently, in proportion to $$\alpha$$.
 | Deletion | change just one link | put the following keys back, or tombstones |
 | What hurts performance | long lists | long clusters |
 | Memory access | nodes are scattered | neighboring slots in order |
+
+Run the same operations on both methods side by side. Type a letter and press
+**Put**, **Get** or **Delete**; the two tables, which share the hash value
+(ASCII code mod $$M$$), change together, and the compares and cells looked at
+for that operation show up large. Changing $$M$$ inserts the keys again in the
+order they went in.
+
+<HashPlayDemo />
+
+Make $$M$$ small and fill it up, and the gap widens. Chaining only makes a few
+lists a little longer, but in linear probing the clusters join, and finding one
+missing key walks through most of the array. Linear probing needs at least one
+empty slot, so it takes at most $$M - 1$$ keys.
 
 Here is memory use by the Java measure of Sedgewick's textbook (keys and
 values are reference types), side by side with the binary search tree.
@@ -981,8 +1058,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-10-30 | Six new demos: the café card rack, slot count against compares, M and the key step, chaining array size, where the next key lands after a cluster, a playground for both methods |

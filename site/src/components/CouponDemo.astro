@@ -1,0 +1,752 @@
+---
+// 카페 계산대의 쿠폰 칸으로 개별 체이닝을 보는 데모.
+//
+// 손님 이름의 첫 자음(영어·중국어는 첫 글자, 중국어 한자는 성의 병음 첫 글자)
+// 마다 칸이 있다. 손님이 오면 첫 자음을 골라(해시) 그 칸만 보고, 칸에 꽂힌
+// 쿠폰을 앞에서부터 한 장씩 넘기며 이름을 맞춰 본다(리스트 탐색). 있으면 도장만
+// 하나 더 찍고(같은 키면 값만 바꾼다), 없으면 새 쿠폰을 칸 맨 앞에 꽂는다.
+// 이미 쿠폰이 있는 칸에 새 쿠폰을 꽂으면 충돌이고, 칸이 붉어진다.
+//
+// 이번에 넘긴 장 수와 상자 전체의 쿠폰 수를 나란히 크게 띄워, 한 칸만 뒤지는
+// 것이 얼마나 적게 넘기는지 본다. 미리 정한 손님 열두 번이 줄 서 있고, 입력란에
+// 이름을 넣으면 그 손님이 바로 다음 차례로 끼어든다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `cp-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 로케일마다 칸과 손님이 다르다. get은 쿠폰을 받지 않고 찾기만 하는 손님이다. */
+const LATIN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const DATA: Record<string, { slots: string[]; cols: number; visits: [string, string][] }> = {
+  ko: {
+    slots: ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'],
+    cols: 7,
+    visits: [
+      ['put', '김민준'],
+      ['put', '이서연'],
+      ['put', '박지호'],
+      ['put', '정하은'],
+      ['put', '강도윤'],
+      ['put', '윤서아'],
+      ['put', '조은우'],
+      ['put', '김민준'],
+      ['put', '임지안'],
+      ['get', '오시우'],
+      ['put', '최유나'],
+      ['get', '이서연'],
+    ],
+  },
+  en: {
+    slots: LATIN,
+    cols: 13,
+    visits: [
+      ['put', 'Emma'],
+      ['put', 'Liam'],
+      ['put', 'Olivia'],
+      ['put', 'Noah'],
+      ['put', 'Lucas'],
+      ['put', 'Mia'],
+      ['put', 'Oscar'],
+      ['put', 'Liam'],
+      ['put', 'Leo'],
+      ['get', 'Owen'],
+      ['put', 'Hannah'],
+      ['get', 'Olivia'],
+    ],
+  },
+  zh: {
+    slots: LATIN,
+    cols: 13,
+    visits: [
+      ['put', '王伟'],
+      ['put', '李娜'],
+      ['put', '张敏'],
+      ['put', '陈静'],
+      ['put', '刘洋'],
+      ['put', '赵磊'],
+      ['put', '吴昊'],
+      ['put', '王伟'],
+      ['put', '杨帆'],
+      ['get', '周杰'],
+      ['put', '黄婷'],
+      ['get', '李娜'],
+    ],
+  },
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '카페의 쿠폰 칸',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    put: '쿠폰 받기',
+    get: '찾기',
+    placeholder: '손님 이름',
+    tagGet: '찾기',
+    flips: '이번에 넘긴 쿠폰',
+    total: '상자 전체',
+    cards: '장',
+    collisions: '충돌',
+    hashOf: '{k} → 첫 자음 {s} → {s} 칸',
+    idle: '손님 이름의 첫 자음마다 칸이 14개 있습니다. 손님이 오면 그 칸만 보고, 꽂힌 쿠폰을 앞에서부터 넘기며 이름을 맞춰 봅니다.',
+    look: '{k} 손님의 첫 자음은 {s}입니다. {s} 칸만 봅니다.',
+    lookEmpty: '{k} 손님의 첫 자음은 {s}입니다. {s} 칸이 비어 있습니다.',
+    differ: '{o} ≠ {k}, 다음 장을 넘깁니다.',
+    stamp: '{c}장째에 {k} 쿠폰을 찾았습니다. 도장을 하나 더 찍습니다: {old}개 → {v}개.',
+    fresh: '{k} 쿠폰은 없습니다. 새 쿠폰을 {s} 칸 맨 앞에 꽂습니다.',
+    clash: '{s} 칸에는 이미 쿠폰이 있었으니 충돌입니다. {s} 칸에 이제 {n}장입니다.',
+    hit: '{c}장째에 {k} 쿠폰(도장 {v}개)을 찾았습니다.',
+    miss: '{s} 칸을 {c}장 다 넘겼지만 {k} 쿠폰은 없습니다. 다른 칸은 볼 필요가 없습니다.',
+    missEmpty: '{s} 칸이 비어 있으니 {k} 쿠폰은 없습니다.',
+    done: '쿠폰 {n}장에 충돌 {x}번, {s} 칸에만 {b}장이 몰렸습니다. 성씨의 첫 자음은 고르게 퍼져 있지 않습니다.',
+    bad: '한글 이름을 넣어 주세요. 첫 글자의 자음으로 칸을 고릅니다.',
+  },
+  en: {
+    title: 'The café stamp-card rack',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    put: 'Get a card',
+    get: 'Find',
+    placeholder: 'Customer name',
+    tagGet: 'find',
+    flips: 'cards turned now',
+    total: 'whole box',
+    cards: '',
+    collisions: 'collisions',
+    hashOf: '{k} → first letter {s} → slot {s}',
+    idle: 'The rack has a slot for each first letter, 26 in all. When a customer comes, look only in that slot and turn its cards from the front, matching the name.',
+    look: "{k}'s first letter is {s}. Look only in slot {s}.",
+    lookEmpty: "{k}'s first letter is {s}. Slot {s} is empty.",
+    differ: '{o} ≠ {k}, turn the next card.',
+    stamp: "Found {k}'s card at card {c}. Add one more stamp, {old} → {v}.",
+    fresh: 'There is no card for {k}. Put a new card at the front of slot {s}.',
+    clash: 'Slot {s} already held cards, so this is a collision. Slot {s} now has {n} cards.',
+    hit: "Found {k}'s card ({v} stamps) at card {c}.",
+    miss: 'Turned all {c} cards in slot {s} and found no card for {k}. No other slot needs a look.',
+    missEmpty: 'Slot {s} is empty, so there is no card for {k}.',
+    done: '{n} cards, {x} collisions, and {b} of them in slot {s} alone. First letters of names are not spread evenly.',
+    bad: 'Type a name that starts with a letter. The first letter picks the slot.',
+  },
+  zh: {
+    title: '咖啡店的集点卡格子',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    put: '领卡',
+    get: '查找',
+    placeholder: '顾客姓名或拼音',
+    tagGet: '查找',
+    flips: '这次翻的卡',
+    total: '整个盒子',
+    cards: '张',
+    collisions: '冲突',
+    hashOf: '{k} → 首字母 {s} → {s} 格',
+    idle: '按顾客姓名（姓的拼音）的首字母各有一格，共 26 格。顾客来了只看那一格，从前往后翻卡，核对姓名。',
+    look: '{k} 的首字母是 {s}。只看 {s} 格。',
+    lookEmpty: '{k} 的首字母是 {s}。{s} 格是空的。',
+    differ: '{o} ≠ {k}，翻下一张。',
+    stamp: '翻到第 {c} 张找到了 {k} 的卡。再盖一个章：{old} 个 → {v} 个。',
+    fresh: '没有 {k} 的卡。把新卡插到 {s} 格最前面。',
+    clash: '{s} 格里原来就有卡，这是冲突。{s} 格现在有 {n} 张。',
+    hit: '翻到第 {c} 张，找到 {k} 的卡，有 {v} 个章。',
+    miss: '{s} 格的 {c} 张都翻完了，没有 {k} 的卡。别的格子不用看。',
+    missEmpty: '{s} 格是空的，所以没有 {k} 的卡。',
+    done: '{n} 张卡冲突 {x} 次，光 {s} 格就挤了 {b} 张。姓的首字母分布并不均匀。',
+    bad: '请输入拼音或常见姓氏开头的姓名。首字母决定格子。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const data = DATA[lang] ?? DATA.ko;
+---
+
+<div
+  class:list={['aas-coupon-demo', slide && 'is-slide']}
+  id={id}
+  data-cp-lang={lang in DATA ? lang : 'ko'}
+  data-cp-data={JSON.stringify(data)}
+  data-cp-strings={JSON.stringify(t)}
+  style={`--cp-cols: ${data.cols}`}
+>
+  <div class="cp-bar">
+    <span class="cp-head"><strong>{t.title}</strong></span>
+    <form class="cp-form" data-cp-form>
+      <input type="text" class="cp-input" data-cp-input placeholder={t.placeholder} maxlength="12" />
+      <button type="submit" class="cp-btn" data-cp-put>{t.put}</button>
+      <button type="button" class="cp-btn" data-cp-get>{t.get}</button>
+    </form>
+    <div class="cp-controls">
+      <button type="button" data-act="back" class="cp-btn">{t.back}</button>
+      <button type="button" data-act="step" class="cp-btn">{t.step}</button>
+      <button type="button" data-act="play" class="cp-btn cp-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="cp-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cp-top">
+    <div class="cp-queue" data-cp-queue></div>
+    <div class="cp-stats">
+      <span class="cp-big">
+        <span class="cp-big-label">{t.flips}</span>
+        <strong data-cp-flips>0</strong>
+      </span>
+      <span class="cp-big cp-big-total">
+        <span class="cp-big-label">{t.total}</span>
+        <strong data-cp-total>0</strong><span class="cp-of">{t.cards}</span>
+      </span>
+      <span class="cp-big cp-big-coll">
+        <span class="cp-big-label">{t.collisions}</span>
+        <strong data-cp-coll>0</strong>
+      </span>
+    </div>
+  </div>
+
+  <p class="cp-formula" data-cp-formula>&nbsp;</p>
+
+  <div class="cp-rack">
+    {
+      data.slots.map((s, i) => (
+        <div class="cp-slot" data-cp-slot={i}>
+          <span class="cp-tab">{s}</span>
+          <span class="cp-cards" data-cp-cards={i} />
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="cp-note" data-cp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.cpStrings);
+    const D = JSON.parse(root.dataset.cpData);
+    const lang = root.dataset.cpLang;
+    /* 중국어 문장에서는 한자와 한자 사이의 빈칸만 지운다(한자 이름 앞뒤). 로마자·숫자 옆 빈칸은 둔다. */
+    const fill = (tpl, vars) => {
+      const out = tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+      return lang === 'zh' ? out.replace(/(?<=[\u4e00-\u9fff]) (?=[\u4e00-\u9fff])/g, '') : out;
+    };
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+    /* 한글 음절의 초성 19개를 칸 14개로. 된소리는 예사소리 칸에 넣는다. */
+    const CHO = [0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 10, 11, 12, 13];
+    /* 흔한 중국 성씨의 병음 첫 글자 */
+    const SURNAME = {
+      A: '安敖艾',
+      B: '白包鲍毕边卜',
+      C: '陈曹蔡程崔常车柴成岑',
+      D: '邓丁董杜戴段窦狄',
+      F: '冯范方傅付费樊房',
+      G: '郭高顾龚甘耿葛谷关管',
+      H: '黄胡何郝韩侯贺洪华霍',
+      J: '江姜金蒋贾焦纪季',
+      K: '孔康柯匡',
+      L: '李刘林罗梁吕卢陆廖雷黎赖龙',
+      M: '马毛孟莫梅苗穆',
+      N: '倪聂牛宁',
+      O: '欧',
+      P: '潘彭庞裴蒲',
+      Q: '钱秦邱乔齐祁',
+      R: '任阮饶',
+      S: '孙宋沈苏史石邵施司',
+      T: '唐田谭汤陶滕童',
+      W: '王吴魏汪万韦温文武',
+      X: '徐许谢萧薛夏熊肖向',
+      Y: '杨叶于余袁姚尹严易殷',
+      Z: '张赵周朱郑钟曾邹庄左詹',
+    };
+    const ZH = {};
+    for (const [letter, chars] of Object.entries(SURNAME)) for (const c of chars) ZH[c] = letter;
+
+    /* 해시 함수: 이름의 첫 글자로 칸 번호를 고른다. 고를 수 없으면 -1 */
+    const slotOf = (name) => {
+      const c = name.charCodeAt(0);
+      if (lang === 'ko') return c >= 0xac00 && c <= 0xd7a3 ? CHO[Math.floor((c - 0xac00) / 588)] : -1;
+      const ch = name[0].toUpperCase();
+      if (ch >= 'A' && ch <= 'Z') return ch.charCodeAt(0) - 65;
+      return ZH[name[0]] ? ZH[name[0]].charCodeAt(0) - 65 : -1;
+    };
+    const normal = (raw) => {
+      const s = raw.trim().replace(/\s+/g, ' ');
+      return /^[a-z]/i.test(s) ? s[0].toUpperCase() + s.slice(1) : s;
+    };
+
+    /* 손님 목록에서 단계 배열을 만든다. 한 단계마다 상자 전체를 복사해 둔다. */
+    const visits = D.visits.map(([op, name]) => ({ op, name }));
+    let steps = [];
+    function build() {
+      steps = [];
+      const rack = D.slots.map(() => []);
+      let coll = 0;
+      const snap = () => rack.map((cards) => cards.map((c) => ({ ...c })));
+      const total = () => rack.reduce((a, c) => a + c.length, 0);
+      visits.forEach((v, vi) => {
+        const s = slotOf(v.name);
+        const vars = { k: v.name, s: D.slots[s] };
+        const base = { visit: vi, slot: s, coll, formula: fill(S.hashOf, vars) };
+        const cards = rack[s];
+        steps.push({ ...base, flips: 0, at: -1, rack: snap(), total: total(), note: fill(cards.length ? S.look : S.lookEmpty, vars) });
+        let found = -1;
+        for (let i = 0; i < cards.length; i++) {
+          if (cards[i].name === v.name) {
+            found = i;
+            break;
+          }
+          steps.push({ ...base, flips: i + 1, at: i, rack: snap(), total: total(), note: fill(S.differ, { ...vars, o: cards[i].name }) });
+        }
+        const c = found >= 0 ? found + 1 : cards.length;
+        let note;
+        let mark = 'hit';
+        if (found >= 0 && v.op === 'put') {
+          const old = cards[found].stamps;
+          cards[found].stamps += 1;
+          note = fill(S.stamp, { ...vars, c, old, v: old + 1 });
+          mark = 'upd';
+        } else if (found >= 0) {
+          note = fill(S.hit, { ...vars, c, v: cards[found].stamps });
+        } else if (v.op === 'put') {
+          const clash = cards.length > 0;
+          cards.unshift({ name: v.name, stamps: 1 });
+          if (clash) coll += 1;
+          note = join(fill(S.fresh, vars), clash ? fill(S.clash, { ...vars, n: cards.length }) : '');
+          found = 0;
+          mark = 'new';
+        } else {
+          note = fill(c ? S.miss : S.missEmpty, { ...vars, c });
+          mark = 'miss';
+        }
+        steps.push({ ...base, coll, flips: c, at: found, mark, end: true, rack: snap(), total: total(), note });
+      });
+      /* 마지막 단계에는 가장 붐비는 칸을 덧붙인다. */
+      const last = steps[steps.length - 1];
+      if (last) {
+        let b = 0;
+        rack.forEach((cards, i) => {
+          if (cards.length > rack[b].length) b = i;
+        });
+        last.note = join(last.note, fill(S.done, { n: last.total, m: D.slots.length, x: last.coll, s: D.slots[b], b: rack[b].length }));
+      }
+    }
+
+    const queue = root.querySelector('[data-cp-queue]');
+    const holders = [...root.querySelectorAll('[data-cp-cards]')];
+    const slotEls = [...root.querySelectorAll('[data-cp-slot]')];
+    const flipsEl = root.querySelector('[data-cp-flips]');
+    const totalEl = root.querySelector('[data-cp-total]');
+    const collEl = root.querySelector('[data-cp-coll]');
+    const formula = root.querySelector('[data-cp-formula]');
+    const note = root.querySelector('[data-cp-note]');
+    const input = root.querySelector('[data-cp-input]');
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const cur = st ? st.visit : -1;
+      /* 줄: 지금 손님과 다음 다섯 명까지 */
+      const from = Math.max(cur, 0);
+      const shown = visits.slice(from, from + 6);
+      queue.innerHTML =
+        shown
+          .map((v, i) => {
+            const now = from + i === cur && !(st && st.end);
+            const gone = from + i === cur && st && st.end;
+            const tag = v.op === 'get' ? ` <small>${S.tagGet}</small>` : '';
+            return `<span class="cp-who${now ? ' is-now' : ''}${gone ? ' is-gone' : ''}">${esc(v.name)}${tag}</span>`;
+          })
+          .join('') + (visits.length > from + 6 ? `<span class="cp-more">+${visits.length - from - 6}</span>` : '');
+      const rack = st ? st.rack : D.slots.map(() => []);
+      holders.forEach((el, i) => {
+        const here = st && st.slot === i;
+        el.innerHTML = rack[i]
+          .map((c, j) => {
+            let cls = '';
+            if (here && st.end && j === st.at) cls = ` is-${st.mark}`;
+            else if (here && j === st.at) cls = ' is-flip';
+            else if (here && j < st.flips) cls = ' is-seen';
+            const dots = '●'.repeat(Math.min(c.stamps, 5));
+            return `<span class="cp-card${cls}"><span class="cp-name">${esc(c.name)}</span><span class="cp-dots">${dots}</span></span>`;
+          })
+          .join('');
+        slotEls[i].classList.toggle('is-now', !!here);
+        slotEls[i].classList.toggle('is-clash', rack[i].length > 1);
+        slotEls[i].classList.toggle('is-miss', !!here && st.mark === 'miss');
+      });
+      flipsEl.textContent = String(st ? st.flips : 0);
+      totalEl.textContent = String(st ? st.total : 0);
+      collEl.textContent = String(st ? st.coll : 0);
+      collEl.classList.toggle('is-bad', !!st && st.coll > 0);
+      formula.textContent = st ? st.formula : ' ';
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', s >= steps.length - 1);
+    }
+
+    let at = -1;
+    let timer = null;
+    /* 자동 재생이 멈출 단계. 끼어든 손님은 그 손님 차례 끝에서 멈춘다. */
+    let until = Infinity;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      until = Infinity;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1 || at >= until) stop();
+    }
+    function play(ms) {
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, ms);
+    }
+
+    /* 입력한 손님은 지금 손님 바로 다음 차례로 끼어든다. */
+    function cut(op) {
+      const name = normal(input.value);
+      if (!name || slotOf(name) < 0) {
+        stop();
+        setLines(note, S.bad);
+        return;
+      }
+      stop();
+      const cur = at >= 0 ? steps[at].visit : -1;
+      visits.splice(cur + 1, 0, { op, name });
+      build();
+      /* 끼어든 손님의 첫 단계 바로 앞에서 출발한다. */
+      at = steps.findIndex((st) => st.visit === cur + 1) - 1;
+      render(at);
+      input.value = '';
+      step();
+      play(800);
+      until = steps.findIndex((st) => st.visit === cur + 1 && st.end);
+    }
+    root.querySelector('[data-cp-form]').addEventListener('submit', (e) => {
+      e.preventDefault();
+      cut('put');
+    });
+    root.querySelector('[data-cp-get]').addEventListener('click', () => cut('get'));
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      visits.splice(0, visits.length, ...D.visits.map(([op, name]) => ({ op, name })));
+      build();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      play(900);
+    });
+    build();
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-coupon-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-coupon-demo .cp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-coupon-demo .cp-head {
+    font-size: 0.95em;
+  }
+  .aas-coupon-demo .cp-form,
+  .aas-coupon-demo .cp-controls {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-coupon-demo .cp-input {
+    width: 9em;
+    padding: 0.3em 0.55em;
+    font: inherit;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-coupon-demo .cp-input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-coupon-demo .cp-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-coupon-demo .cp-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-coupon-demo .cp-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-coupon-demo .cp-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6em 1.5em;
+  }
+  .aas-coupon-demo .cp-queue {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+    min-height: 1.9em;
+  }
+  .aas-coupon-demo .cp-who {
+    padding: 0.2em 0.55em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--aas-role-model) 15%, var(--aas-bg));
+    font-size: 0.85em;
+    white-space: nowrap;
+    transition:
+      opacity 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-coupon-demo .cp-who small {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-coupon-demo .cp-who.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-coupon-demo .cp-who.is-gone {
+    opacity: 0.35;
+  }
+  .aas-coupon-demo .cp-more {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-coupon-demo .cp-stats {
+    display: flex;
+    gap: 1.3em;
+  }
+  .aas-coupon-demo .cp-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+  .aas-coupon-demo .cp-big-label,
+  .aas-coupon-demo .cp-of {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-coupon-demo .cp-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-coupon-demo .cp-big-total strong {
+    color: var(--aas-muted);
+  }
+  .aas-coupon-demo .cp-big-coll strong {
+    color: var(--aas-text);
+  }
+  .aas-coupon-demo .cp-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-coupon-demo .cp-formula {
+    margin: 0.35em 0 0.35em;
+    text-align: center;
+    font-size: 1.15em;
+    font-weight: 700;
+  }
+
+  .aas-coupon-demo .cp-rack {
+    display: grid;
+    grid-template-columns: repeat(var(--cp-cols), minmax(0, 1fr));
+    gap: 0.3em;
+    padding: 0.35em;
+    border-radius: 0.6em;
+    background: color-mix(in srgb, var(--aas-role-trace) 14%, var(--aas-bg));
+  }
+  .aas-coupon-demo .cp-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2em;
+    min-width: 0;
+    min-height: 4.6em;
+    padding: 0.15em 0.2em 0.2em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    transition:
+      border-color 0.3s,
+      background-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-coupon-demo .cp-slot.is-clash {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+  }
+  .aas-coupon-demo .cp-slot.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-coupon-demo .cp-slot.is-miss {
+    box-shadow: 0 0 0 3px var(--aas-role-guard);
+  }
+  .aas-coupon-demo .cp-tab {
+    align-self: center;
+    font-size: 1em;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-coupon-demo .cp-slot.is-now .cp-tab {
+    color: var(--aas-role-focus);
+  }
+  .aas-coupon-demo .cp-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18em;
+  }
+  .aas-coupon-demo .cp-card {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.25em;
+    min-width: 0;
+    padding: 0.1em 0.15em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.35em;
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+    font-size: 0.75em;
+    line-height: 1.2;
+    transition:
+      opacity 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-coupon-demo .cp-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  .aas-coupon-demo .cp-dots {
+    flex: none;
+    font-size: 0.55em;
+    letter-spacing: 0.08em;
+    color: var(--aas-role-trace);
+  }
+  .aas-coupon-demo .cp-card.is-seen {
+    opacity: 0.4;
+  }
+  .aas-coupon-demo .cp-card.is-flip {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-coupon-demo .cp-card.is-hit,
+  .aas-coupon-demo .cp-card.is-new {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 30%, var(--aas-bg));
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-coupon-demo .cp-card.is-new {
+    animation: cp-drop 0.45s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  .aas-coupon-demo .cp-card.is-upd {
+    box-shadow: 0 0 0 3px var(--aas-role-trace);
+  }
+
+  .aas-coupon-demo .cp-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-coupon-demo.is-done .cp-note {
+    color: var(--aas-text);
+  }
+
+  @keyframes cp-drop {
+    from {
+      transform: translateY(-1.5em);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-coupon-demo.is-slide {
+    font-size: clamp(1rem, 2.45vh, 1.75rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-coupon-demo .cp-who,
+    .aas-coupon-demo .cp-slot,
+    .aas-coupon-demo .cp-card {
+      transition: none;
+    }
+    .aas-coupon-demo .cp-card.is-new {
+      animation: none;
+    }
+  }
+</style>

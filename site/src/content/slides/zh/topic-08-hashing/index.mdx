@@ -1,7 +1,7 @@
 ---
 title: "主题 08. 哈希表"
 description: "从键直接算出位置的哈希函数、解决冲突的两种方式（拉链法与线性探测），以及由装载因子决定的性能"
-date: "主题 08 · v1"
+date: "主题 08 · v2"
 order: 8
 transition: none
 toc_level: 4
@@ -17,6 +17,12 @@ import BirthdayDemo from '@components/BirthdayDemo.astro';
 import ResizeDemo from '@components/ResizeDemo.astro';
 import ClusterDemo from '@components/ClusterDemo.astro';
 import LoadCostDemo from '@components/LoadCostDemo.astro';
+import CouponDemo from '@components/CouponDemo.astro';
+import SpaceTimeDemo from '@components/SpaceTimeDemo.astro';
+import PrimeModDemo from '@components/PrimeModDemo.astro';
+import ChainSizeDemo from '@components/ChainSizeDemo.astro';
+import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
+import HashPlayDemo from '@components/HashPlayDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 中的幻灯片规则一节。
     数字与实践代码（topic-08-hashing）的运行结果一致。 */}
@@ -99,6 +105,15 @@ find 7?  -> 看 A[7]。是空的，所以没有。
 
 <Slide>
 
+### 拖动格子数
+::sub[用格子数（内存）换比较次数（时间）。点一个键就查找它]
+
+<SpaceTimeDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 咖啡店的集点卡格子
 ::sub[按顾客姓名的首字母各有一格]
 
@@ -110,6 +125,15 @@ find 7?  -> 看 A[7]。是空的，所以没有。
 
 格子数远少于顾客数，所以内存用得少；  
 只要翻一格，所以时间也用得少。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：集点卡格子
+::sub[每位顾客只翻首字母那一格。把卡插进已经有卡的格子时会变红]
+
+<CouponDemo slide />
 
 </Slide>
 
@@ -220,6 +244,15 @@ $$
   - 素数与不是它倍数的任何键都没有公约数。
 - 不过它也不是万能的。
   - 如果键全是 7 的倍数，$$M = 7$$ 也只用到一格。
+
+</Slide>
+
+<Slide>
+
+### 改变 M 和键的间隔
+::sub[用到的格子数是 M / gcd(间隔, M)。点下面的条就换成那个 M]
+
+<PrimeModDemo slide />
 
 </Slide>
 
@@ -546,6 +579,15 @@ N = 9
 
 </Slide>
 
+<Slide>
+
+### 改变 M 看看
+::sub[同样 10 个键，从 1 格到 20 格。比较链表长度和空格子]
+
+<ChainSizeDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 2) 线性探测
@@ -843,6 +885,15 @@ value 10  9  -  -  8  5  0 11  -  - 12  -  -  -  3  7
 
 <Slide>
 
+### 下一个键会去哪里
+::sub[每个空位上是下一个键落进来的概率。点格子就插入哈希到那里的键]
+
+<ClusterGrowDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 往 512 格里放更多键
 ::sub[左边是线性探测，右边是冲突时随便挑一个空位的对照。拖动键数看看]
 
@@ -898,6 +949,15 @@ $$
 | 删除 | 只改一个链接 | 重新插入或用删除标记 |
 | 损害性能的因素 | 长链表 | 长簇 |
 | 内存访问 | 节点分散各处 | 依次查看相邻的格子 |
+
+</Slide>
+
+<Slide>
+
+### 哈希表游乐场
+::sub[插入、查找、删除字母。两种方式并排执行同一个操作]
+
+<HashPlayDemo slide />
 
 </Slide>
 

@@ -1,0 +1,509 @@
+---
+// 배열 크기 M을 소수로 잡으면 왜 키가 고르게 퍼지는지 보는 데모.
+//
+// 키는 0, d, 2d, …, 15d 열여섯 개다(간격 d). 두 슬라이더로 M과 d를 바꾸면
+// 키가 (키 mod M)번 칸에 쌓이는 모습이 바로 바뀐다. 키가 둘 이상 쌓인 칸은
+// 붉어지고, 끝내 비는 칸은 흐려진다. 키 i·d mod M은 언제나 gcd(d, M)의
+// 배수이므로, 쓰이는 칸은 정확히 M / gcd(d, M)개다. 이 값과 최대공약수를
+// 크게 띄운다.
+//
+// 아래 띠는 지금의 d로 M = 2부터 16까지 각각 몇 분의 몇 칸을 쓰는지 막대로
+// 보인다. 소수 M은 따로 표시하고, 막대를 누르면 그 M으로 바뀐다. 소수라도
+// d가 그 배수이면 한 칸만 쓴다는 함정도 여기서 보인다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 배열 크기 M (2~16) */
+  m?: number;
+  /** 처음 키 간격 d (1~12) */
+  d?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { m = 8, d = 4, slide = false } = Astro.props;
+const id = `pm-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '소수 크기',
+    size: '배열 크기 M',
+    step: '키 간격 d',
+    keys: '키',
+    used: '쓰인 칸',
+    gcd: '최대공약수',
+    strip: 'M마다 쓰이는 칸의 비율 (간격 {d})',
+    prime: '소수',
+    general: '키 간격 {d}, M = {m}의 최대공약수는 {g}입니다. 키는 {g}의 배수 칸에만 떨어져 {m}칸 중 {m}/{g} = {u}칸만 씁니다.',
+    primeFull: 'M이 소수이고 키 간격이 그 배수가 아니므로 공약수가 없습니다. {m}칸을 모두 씁니다.',
+    coprime: '키 간격 {d}, M = {m}의 최대공약수가 1입니다. M이 소수가 아니어도 공약수가 없으면 {m}칸을 모두 씁니다.',
+    primeTrap: '키 간격이 {m}의 배수라 키가 모두 {m}의 배수입니다. 그러면 M = {m}도 1칸만 씁니다. 소수도 만능은 아닙니다.',
+    allOne: '키 간격이 {m}의 배수라 모든 키가 0번 칸 하나에 모입니다.',
+    pick: 'M = {m}으로',
+  },
+  en: {
+    title: 'Prime size',
+    size: 'array size M',
+    step: 'key step d',
+    keys: 'keys',
+    used: 'slots used',
+    gcd: 'gcd',
+    strip: 'Share of slots used for each M (step {d})',
+    prime: 'prime',
+    general: 'Step {d} and M = {m} have gcd {g}. Keys only land on multiples of {g}, so just {m}/{g} = {u} of the {m} slots are used.',
+    primeFull: 'M is prime and step {d} is not a multiple of it, so they share no factor. All {m} slots are used.',
+    coprime: 'Step {d} and M = {m} have gcd 1. M need not be prime: with no common factor all {m} slots are used.',
+    primeTrap: 'The step is a multiple of {m}, so every key is too. Then even M = {m} uses a single slot. A prime is not a cure-all.',
+    allOne: 'The step is a multiple of {m}, so every key lands in slot 0.',
+    pick: 'Set M = {m}',
+  },
+  zh: {
+    title: '质数大小',
+    size: '数组大小 M',
+    step: '键间隔 d',
+    keys: '键',
+    used: '用到的格',
+    gcd: '最大公约数',
+    strip: '各个 M 用到的格的比例（间隔 {d}）',
+    prime: '质数',
+    general: '键间隔 {d} 与 M = {m} 的最大公约数是 {g}。键只落在 {g} 的倍数格上，{m} 格中只用到 {m}/{g} = {u} 格。',
+    primeFull: 'M 是质数，键间隔 {d} 又不是它的倍数，所以没有公约数。{m} 格全部用上。',
+    coprime: '键间隔 {d} 与 M = {m} 的最大公约数是 1。即使 M 不是质数，没有公约数时 {m} 格也全部用上。',
+    primeTrap: '间隔是 {m} 的倍数，所以键也全是 {m} 的倍数。这时即使是 M = {m} 也只用 1 格。质数也不是万能的。',
+    allOne: '间隔是 {m} 的倍数，所有键都落进 0 号格。',
+    pick: '设 M = {m}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const ms = Array.from({ length: 15 }, (_, i) => i + 2);
+const PRIMES = [2, 3, 5, 7, 11, 13];
+---
+
+<div
+  class:list={['aas-prime-mod-demo', slide && 'is-slide']}
+  id={id}
+  data-pm-m={m}
+  data-pm-d={d}
+  data-pm-strings={JSON.stringify(t)}
+>
+  <div class="pm-bar">
+    <span class="pm-head"><strong>{t.title}</strong></span>
+    <label class="pm-range">
+      {t.size} <strong data-pm-mval></strong>
+      <input type="range" min="2" max="16" step="1" data-pm-mrange />
+    </label>
+    <label class="pm-range">
+      {t.step} <strong data-pm-dval></strong>
+      <input type="range" min="1" max="12" step="1" data-pm-drange />
+    </label>
+  </div>
+
+  <div class="pm-top">
+    <div class="pm-keys" data-pm-keys aria-label={t.keys}></div>
+    <div class="pm-stats">
+      <span class="pm-big">
+        <span class="pm-big-label">{t.used}</span>
+        <strong data-pm-used>0</strong><span class="pm-of" data-pm-of></span>
+      </span>
+      <span class="pm-big">
+        <span class="pm-big-label">{t.gcd}</span>
+        <strong data-pm-gcd>1</strong>
+      </span>
+    </div>
+  </div>
+
+  <div class="pm-grid" data-pm-grid></div>
+
+  <div class="pm-strip-wrap">
+    <div class="pm-strip-head">
+      <span data-pm-striphead></span>
+      <span class="pm-legend"><i class="pm-swatch"></i>{t.prime}</span>
+    </div>
+    <div class="pm-strip">
+      {
+        ms.map((k) => (
+          <button
+            type="button"
+            class:list={['pm-col', PRIMES.includes(k) && 'is-prime']}
+            data-pm-pick={k}
+            aria-label={t.pick.replace('{m}', String(k))}
+          >
+            <span class="pm-track">
+              <span class="pm-fill" data-pm-fill={k} />
+            </span>
+            <span class="pm-lab">{k}</span>
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <p class="pm-note" data-pm-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.pmStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const PRIMES = [2, 3, 5, 7, 11, 13];
+    const N = 16;
+    /* 한 칸에 칩을 이만큼까지 그리고, 넘치면 +n으로 줄인다. */
+    const SHOW = 4;
+    const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+    const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+    let M = clamp(Number(root.dataset.pmM) || 8, 2, 16);
+    let D = clamp(Number(root.dataset.pmD) || 4, 1, 12);
+
+    const mRange = root.querySelector('[data-pm-mrange]');
+    const dRange = root.querySelector('[data-pm-drange]');
+    const mVal = root.querySelector('[data-pm-mval]');
+    const dVal = root.querySelector('[data-pm-dval]');
+    const keysEl = root.querySelector('[data-pm-keys]');
+    const grid = root.querySelector('[data-pm-grid]');
+    const usedEl = root.querySelector('[data-pm-used]');
+    const ofEl = root.querySelector('[data-pm-of]');
+    const gcdEl = root.querySelector('[data-pm-gcd]');
+    const stripHead = root.querySelector('[data-pm-striphead]');
+    const note = root.querySelector('[data-pm-note]');
+    const picks = [...root.querySelectorAll('[data-pm-pick]')];
+
+    function noteFor(m, d) {
+      const g = gcd(d, m);
+      const u = m / g;
+      const prime = PRIMES.includes(m);
+      const vars = { d, m, g, u };
+      if (g === m) return fill(prime ? S.primeTrap : S.allOne, vars);
+      if (g === 1) return fill(prime ? S.primeFull : S.coprime, vars);
+      return fill(S.general, vars);
+    }
+
+    function render() {
+      const g = gcd(D, M);
+      const u = M / g;
+      mRange.value = String(M);
+      dRange.value = String(D);
+      mVal.textContent = String(M);
+      dVal.textContent = String(D);
+
+      const keys = Array.from({ length: N }, (_, i) => i * D);
+      keysEl.innerHTML = keys.map((k) => `<span class="pm-key">${k}</span>`).join('');
+
+      const slots = Array.from({ length: M }, () => []);
+      keys.forEach((k) => slots[k % M].push(k));
+      grid.style.setProperty('--pm-m', String(M));
+      grid.innerHTML = slots
+        .map((here, s) => {
+          const cls = here.length === 0 ? ' is-empty' : here.length > 1 ? ' is-clash' : '';
+          const shown = here.length > SHOW + 1 ? here.slice(0, SHOW) : here;
+          const more = here.length - shown.length;
+          const chips =
+            shown.map((k) => `<span class="pm-chip">${k}</span>`).join('') +
+            (more > 0 ? `<span class="pm-chip pm-more">+${more}</span>` : '');
+          return `<div class="pm-slot${cls}"><span class="pm-idx">${s}</span><span class="pm-stack">${chips}</span></div>`;
+        })
+        .join('');
+
+      usedEl.textContent = String(u);
+      usedEl.classList.toggle('is-bad', u < M);
+      ofEl.textContent = `/ ${M}`;
+      gcdEl.textContent = String(g);
+      gcdEl.classList.toggle('is-bad', g > 1);
+
+      stripHead.textContent = fill(S.strip, { d: D });
+      picks.forEach((b) => {
+        const k = Number(b.dataset.pmPick);
+        const share = 1 / gcd(D, k);
+        const f = b.querySelector('[data-pm-fill]');
+        f.style.height = `${share * 100}%`;
+        f.classList.toggle('is-bad', share < 1);
+        b.classList.toggle('is-now', k === M);
+      });
+
+      setLines(note, noteFor(M, D));
+    }
+
+    mRange.addEventListener('input', () => {
+      M = Number(mRange.value);
+      render();
+    });
+    dRange.addEventListener('input', () => {
+      D = Number(dRange.value);
+      render();
+    });
+    picks.forEach((b) =>
+      b.addEventListener('click', () => {
+        M = Number(b.dataset.pmPick);
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-prime-mod-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-prime-mod-demo .pm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+    margin-bottom: 0.6em;
+  }
+  .aas-prime-mod-demo .pm-head {
+    font-size: 0.95em;
+  }
+  .aas-prime-mod-demo .pm-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-prime-mod-demo .pm-range strong {
+    min-width: 1.4em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-prime-mod-demo .pm-range input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+
+  .aas-prime-mod-demo .pm-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em 1.5em;
+  }
+  .aas-prime-mod-demo .pm-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    flex: 1 1 20em;
+    min-width: 0;
+  }
+  .aas-prime-mod-demo .pm-key {
+    min-width: 2em;
+    padding: 0.1em 0.3em;
+    text-align: center;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.4em;
+    background: color-mix(in srgb, var(--aas-role-model) 15%, var(--aas-bg));
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+  }
+  .aas-prime-mod-demo .pm-stats {
+    display: flex;
+    gap: 1.4em;
+  }
+  .aas-prime-mod-demo .pm-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+  .aas-prime-mod-demo .pm-big-label,
+  .aas-prime-mod-demo .pm-of {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-prime-mod-demo .pm-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.2em;
+    line-height: 1;
+    color: var(--aas-role-focus);
+  }
+  .aas-prime-mod-demo .pm-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+
+  .aas-prime-mod-demo .pm-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--pm-m, 8), minmax(0, 1fr));
+    gap: 0.25em;
+    margin: 0.6em 0 0.5em;
+  }
+  .aas-prime-mod-demo .pm-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25em;
+    min-width: 0;
+    min-height: 6.6em;
+    padding: 0.25em 0.15em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    transition:
+      border-color 0.25s,
+      background-color 0.25s,
+      opacity 0.25s;
+  }
+  .aas-prime-mod-demo .pm-slot.is-empty {
+    opacity: 0.4;
+    border-style: dashed;
+  }
+  .aas-prime-mod-demo .pm-slot.is-clash {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, var(--aas-bg));
+  }
+  .aas-prime-mod-demo .pm-idx {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-prime-mod-demo .pm-stack {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.2em;
+    max-width: 100%;
+  }
+  .aas-prime-mod-demo .pm-chip {
+    min-width: 1.9em;
+    padding: 0.1em 0.2em;
+    text-align: center;
+    border-radius: 0.35em;
+    background: var(--aas-role-model);
+    color: #fff;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    font-weight: 700;
+  }
+  .aas-prime-mod-demo .pm-slot.is-clash .pm-chip {
+    background: var(--aas-role-guard);
+  }
+  .aas-prime-mod-demo .pm-chip.pm-more,
+  .aas-prime-mod-demo .pm-slot.is-clash .pm-chip.pm-more {
+    background: transparent;
+    color: var(--aas-role-guard);
+    border: 1.5px dashed var(--aas-role-guard);
+  }
+
+  .aas-prime-mod-demo .pm-strip-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.3em 1em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-prime-mod-demo .pm-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+  }
+  .aas-prime-mod-demo .pm-swatch {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border: 2px solid var(--aas-accent);
+    border-radius: 0.2em;
+  }
+  .aas-prime-mod-demo .pm-strip {
+    display: grid;
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+    gap: 0.25em;
+    margin-top: 0.25em;
+  }
+  .aas-prime-mod-demo .pm-col {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15em;
+    padding: 0.15em;
+    border: 1.5px solid transparent;
+    border-radius: 0.4em;
+    background: none;
+    color: var(--aas-muted);
+    font: inherit;
+    cursor: pointer;
+  }
+  .aas-prime-mod-demo .pm-col:hover {
+    border-color: var(--aas-border);
+  }
+  .aas-prime-mod-demo .pm-col.is-now {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-prime-mod-demo .pm-track {
+    position: relative;
+    display: block;
+    height: 2.4em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-prime-mod-demo .pm-col.is-prime .pm-track {
+    border-color: var(--aas-accent);
+    border-width: 2px;
+  }
+  .aas-prime-mod-demo .pm-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--aas-role-model);
+    transition: height 0.3s;
+  }
+  .aas-prime-mod-demo .pm-fill.is-bad {
+    background: var(--aas-role-guard);
+  }
+  .aas-prime-mod-demo .pm-lab {
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+  }
+  .aas-prime-mod-demo .pm-col.is-prime .pm-lab {
+    color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-prime-mod-demo .pm-col.is-now .pm-lab {
+    color: var(--aas-text);
+  }
+
+  .aas-prime-mod-demo .pm-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-prime-mod-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+    padding: 0.8em 1em;
+  }
+  .aas-prime-mod-demo.is-slide .pm-slot {
+    min-height: 6.2em;
+  }
+  .aas-prime-mod-demo.is-slide .pm-track {
+    height: 2em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-prime-mod-demo .pm-slot,
+    .aas-prime-mod-demo .pm-fill {
+      transition: none;
+    }
+  }
+</style>
