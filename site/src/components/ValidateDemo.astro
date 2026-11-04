@@ -1,0 +1,670 @@
+---
+// 전화번호·이메일·URL 정규식을 조각별로 맞춰 보는 데모.
+//
+// 정규식을 조각으로 나눠 조각마다 기호와 뜻을 표로 보이고, 입력의 글자마다 어느 조각이
+// 먹었는지 같은 색으로 칠한다. 전체가 맞지 않으면 어느 조각에서 막혔는지 알려 준다.
+// 판정은 브라우저의 RegExp로 ^(조각1)(조각2)…$를 돌린 실제 결과다. 막힌 자리는 앞에서부터
+// 조각을 가장 많이 맞춘 곳이다. 정규식은 슬라이드와 교안의 것을 그대로 썼다.
+// 한 걸음마다 글자 하나와 그 글자를 먹은 조각을 칠한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 보일 탭. phone, mobile, email, wide, url */
+  tabs?: ('phone' | 'mobile' | 'email' | 'wide' | 'url')[];
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { tabs = ['phone', 'mobile', 'email', 'wide', 'url'], slide = false } = Astro.props;
+const id = `vd-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '조각별로 맞춰 보기',
+    phone: '전화번호',
+    mobile: '휴대전화',
+    email: '이메일',
+    wide: '넓힌 이메일',
+    url: 'URL',
+    input: '입력',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    yes: '✓ 속함',
+    no: '✕ 속하지 않음',
+    matched: '맞은 글자',
+    idle: '전체가 이 모양인지 봅니다. 조각마다 먹은 글자를 같은 색으로 칠했습니다.',
+    okNote: '전체가 패턴에 속합니다.',
+    repeat: '{p}가 먹은 덩어리: {w}',
+    stuck: '{i}번째 칸부터 {p} ({m})에 맞지 않습니다.',
+    short: '글자가 모자랍니다. {p} ({m})가 남았습니다.',
+    extra: '패턴을 다 썼는데 {i}번째 칸부터 글자가 남았습니다.',
+    eat: "'{c}': {p} ({m})가 먹습니다.",
+    lparen: '여는 괄호',
+    rparen: '닫는 괄호',
+    d3: '숫자 3개',
+    d34: '숫자 3∼4개',
+    d4: '숫자 4개',
+    space: '공백 한 칸',
+    dash: '하이픈',
+    lower: '소문자 1개 이상',
+    at: '골뱅이',
+    labels: '소문자들과 점의 반복',
+    tld: 'edu 또는 com',
+    userWide: '영문·숫자·기호 1개 이상',
+    hostWide: '영문·숫자·점·하이픈 1개 이상',
+    dot: '실제 점',
+    tldWide: '영문 2개 이상',
+    scheme: 'http 또는 https',
+    sep: '글자 그대로',
+    first: '주소의 첫 글자',
+    any: '아무 글자 하나',
+    rest: '공백 전까지',
+  },
+  en: {
+    title: 'Match it piece by piece',
+    phone: 'Phone',
+    mobile: 'Mobile',
+    email: 'Email',
+    wide: 'Wider email',
+    url: 'URL',
+    input: 'input',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    yes: '✓ belongs',
+    no: '✕ does not belong',
+    matched: 'matched',
+    idle: 'Is the whole input of this shape? Characters are colored by the piece that ate them.',
+    okNote: 'The whole input belongs to the pattern.',
+    repeat: 'Chunks eaten by {p}: {w}',
+    stuck: 'From cell {i} on, it does not fit {p} ({m}).',
+    short: 'Too few characters. {p} ({m}) is still left.',
+    extra: 'The pattern is used up, but characters remain from cell {i} on.',
+    eat: "'{c}' is eaten by {p} ({m}).",
+    lparen: 'open paren',
+    rparen: 'close paren',
+    d3: '3 digits',
+    d34: '3 or 4 digits',
+    d4: '4 digits',
+    space: 'one space',
+    dash: 'hyphen',
+    lower: '1+ lowercase',
+    at: 'at sign',
+    labels: 'lowercase and dot, repeated',
+    tld: 'edu or com',
+    userWide: '1+ letters, digits, symbols',
+    hostWide: '1+ letters, digits, dot, hyphen',
+    dot: 'a real dot',
+    tldWide: '2+ letters',
+    scheme: 'http or https',
+    sep: 'literally',
+    first: 'first char of the address',
+    any: 'any one char',
+    rest: 'up to a space',
+  },
+  zh: {
+    title: '逐段匹配',
+    phone: '电话号码',
+    mobile: '手机',
+    email: '邮箱',
+    wide: '放宽的邮箱',
+    url: 'URL',
+    input: '输入',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    yes: '✓ 属于',
+    no: '✕ 不属于',
+    matched: '匹配的字符',
+    idle: '看整个输入是否是这个形状。各段吃掉的字符涂成相同的颜色。',
+    okNote: '整个输入属于该模式。',
+    repeat: '{p} 吃掉的部分：{w}',
+    stuck: '从第 {i} 格开始不符合 {p}（{m}）。',
+    short: '字符不够。还剩 {p}（{m}）。',
+    extra: '模式已用完，但从第 {i} 格开始还有字符。',
+    eat: "'{c}' 被 {p}（{m}）吃掉。",
+    lparen: '左括号',
+    rparen: '右括号',
+    d3: '3 个数字',
+    d34: '3 或 4 个数字',
+    d4: '4 个数字',
+    space: '一个空格',
+    dash: '连字符',
+    lower: '1 个以上小写字母',
+    at: '@ 符号',
+    labels: '小写字母加点，可重复',
+    tld: 'edu 或 com',
+    userWide: '1 个以上字母、数字、符号',
+    hostWide: '1 个以上字母、数字、点、连字符',
+    dot: '真正的点',
+    tldWide: '2 个以上字母',
+    scheme: 'http 或 https',
+    sep: '字符本身',
+    first: '地址的第一个字符',
+    any: '任意一个字符',
+    rest: '直到空格',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 조각: [보이는 기호, RegExp 조각(묶음은 비캡처), 뜻의 열쇠, 반복 안의 한 덩어리] */
+const TABS: Record<string, { pieces: [string, string, string, string?][]; samples: string[] }> = {
+  phone: {
+    pieces: [
+      ['\\(', '\\(', 'lparen'],
+      ['[0-9]{3}', '[0-9]{3}', 'd3'],
+      ['\\)', '\\)', 'rparen'],
+      ['\\␣', ' ', 'space'],
+      ['[0-9]{3}', '[0-9]{3}', 'd3'],
+      ['-', '-', 'dash'],
+      ['[0-9]{4}', '[0-9]{4}', 'd4'],
+    ],
+    samples: ['(800) 867-5309', '800-867-5309', '(800)867-5309', '(800) 867-530'],
+  },
+  mobile: {
+    pieces: [
+      ['\\d{3}', '\\d{3}', 'd3'],
+      ['-', '-', 'dash'],
+      ['\\d{3,4}', '\\d{3,4}', 'd34'],
+      ['-', '-', 'dash'],
+      ['\\d{4}', '\\d{4}', 'd4'],
+    ],
+    samples: ['010-1234-5678', '010-123-4567', '01012345678', '010-12345-678'],
+  },
+  email: {
+    pieces: [
+      ['[a-z]+', '[a-z]+', 'lower'],
+      ['@', '@', 'at'],
+      ['([a-z]+\\.)+', '(?:[a-z]+\\.)+', 'labels', '[a-z]+\\.'],
+      ['(edu|com)', '(?:edu|com)', 'tld'],
+    ],
+    samples: ['rs@cs.princeton.edu', 'rs@princeton.com', 'rs@princeton.org', 'RS@cs.edu'],
+  },
+  wide: {
+    pieces: [
+      ['[a-zA-Z0-9._%+-]+', '[a-zA-Z0-9._%+-]+', 'userWide'],
+      ['@', '@', 'at'],
+      ['[a-zA-Z0-9.-]+', '[a-zA-Z0-9.-]+', 'hostWide'],
+      ['\\.', '\\.', 'dot'],
+      ['[a-zA-Z]{2,}', '[a-zA-Z]{2,}', 'tldWide'],
+    ],
+    samples: ['RS_1@cs.princeton.edu', 'rs@princeton.org', 'rs@cs.c', 'rs.princeton.edu'],
+  },
+  url: {
+    pieces: [
+      ['https?', 'https?', 'scheme'],
+      ['://', '://', 'sep'],
+      ['[^\\s/$.?#]', '[^\\s/$.?#]', 'first'],
+      ['.', '.', 'any'],
+      ['[^\\s]*', '[^\\s]*', 'rest'],
+    ],
+    samples: ['https://www.yonsei.ac.kr', 'http://a.b', 'ftp://a.b', 'https://.bad'],
+  },
+};
+const data = Object.fromEntries(tabs.map((k) => [k, TABS[k]]));
+---
+
+<div class:list={['aas-validate-demo', slide && 'is-slide']} id={id} data-vd-tabs={JSON.stringify(data)} data-vd-strings={JSON.stringify(t)}>
+  <div class="vd-bar">
+    <span class="vd-head"><strong>{t.title}</strong></span>
+    {tabs.map((k) => <button type="button" class="vd-tab" data-vd-tab={k}>{t[k]}</button>)}
+    <div class="vd-controls">
+      <button type="button" data-act="back" class="vd-btn">{t.back}</button>
+      <button type="button" data-act="step" class="vd-btn">{t.step}</button>
+      <button type="button" data-act="play" class="vd-btn vd-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="vd-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="vd-pieces" data-vd-pieces></div>
+
+  <div class="vd-run">
+    <label class="vd-input">
+      {t.input}
+      <input type="text" maxlength="34" spellcheck="false" autocomplete="off" data-vd-text />
+    </label>
+    <span class="vd-samples" data-vd-samples></span>
+  </div>
+
+  <div class="vd-tape" data-vd-tape></div>
+
+  <div class="vd-stats">
+    <span class="vd-verdict" data-vd-verdict></span>
+    <span>{t.matched} <strong data-vd-count></strong></span>
+  </div>
+  <p class="vd-note" data-vd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])\s*(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.vdStrings);
+    const TABS = JSON.parse(root.dataset.vdTabs);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    /* 조각의 ?나 . 뒤에서 문장이 끊기지 않도록 보이지 않는 글자를 하나 붙인다. */
+    const sym = (p) => `${p[0]}\u2060`;
+
+    const piecesEl = root.querySelector('[data-vd-pieces]');
+    const textIn = root.querySelector('[data-vd-text]');
+    const samplesEl = root.querySelector('[data-vd-samples]');
+    const tape = root.querySelector('[data-vd-tape]');
+    const verdict = root.querySelector('[data-vd-verdict]');
+    const countEl = root.querySelector('[data-vd-count]');
+    const note = root.querySelector('[data-vd-note]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let tab = Object.keys(TABS)[0];
+    let result = null;
+    let at = -1;
+    let timer = null;
+    let cells = [];
+    let pieceCols = [];
+
+    /* 조각별 위치를 구한다. 전체가 맞으면 끝, 아니면 앞에서부터 가장 많이 맞춘 곳에서 멈춘다. */
+    function analyze(text) {
+      const P = TABS[tab].pieces;
+      const tryUpto = (k, full) => new RegExp(`^${P.slice(0, k).map((p) => `(${p[1]})`).join('')}${full ? '$' : ''}`, 'd').exec(text);
+      const fullM = tryUpto(P.length, true);
+      let k = P.length;
+      let m = fullM;
+      if (!m) {
+        k = 0;
+        for (let j = P.length; j >= 1; j--) {
+          m = tryUpto(j, false);
+          if (m) {
+            k = j;
+            break;
+          }
+        }
+      }
+      const owner = new Array(text.length).fill(-1);
+      const alt = new Array(text.length).fill(false);
+      let end = 0;
+      if (m) {
+        for (let j = 1; j <= k; j++) {
+          const [s, e] = m.indices[j];
+          for (let x = s; x < e; x++) owner[x] = j - 1;
+          end = e;
+          /* 반복 조각은 덩어리마다 한 칸 건너 음영을 달리한다. */
+          const sub = P[j - 1][3];
+          if (sub) {
+            const re = new RegExp(sub, 'g');
+            let idx = 0;
+            for (const part of text.slice(s, e).matchAll(re)) {
+              if (idx % 2) for (let x = 0; x < part[0].length; x++) alt[s + part.index + x] = true;
+              idx += 1;
+            }
+          }
+        }
+      }
+      return { ok: !!fullM, k, end, owner, alt };
+    }
+
+    function buildPieces() {
+      const P = TABS[tab].pieces;
+      piecesEl.style.setProperty('--vd-cols', String(P.length));
+      pieceCols = P.map(([show, , mean], i) => {
+        const a = document.createElement('code');
+        a.className = `vd-sym vd-c${i % 6}`;
+        a.textContent = show;
+        const b = document.createElement('span');
+        b.className = 'vd-mean';
+        b.textContent = S[mean];
+        return [a, b];
+      });
+      piecesEl.replaceChildren(...pieceCols.map(([a]) => a), ...pieceCols.map(([, b]) => b));
+    }
+
+    function render() {
+      const text = textIn.value;
+      const P = TABS[tab].pieces;
+      const r = result;
+      const step = at >= 0 && at < text.length ? at : -1;
+      const reachedEnd = at >= text.length;
+      cells.forEach((c, i) => {
+        const o = r.owner[i];
+        c.className = `vd-cell${o >= 0 ? ` vd-c${o % 6}` : ' is-out'}${r.alt[i] ? ' is-alt' : ''}${i === step ? ' is-now' : ''}${i === r.end && !r.ok ? ' is-stop' : ''}`;
+      });
+      const curPiece = step >= 0 ? r.owner[step] : -1;
+      const stuck = !r.ok && r.k < P.length ? r.k : -1;
+      pieceCols.forEach(([a, b], i) => {
+        a.classList.toggle('is-now', i === curPiece);
+        b.classList.toggle('is-now', i === curPiece);
+        a.classList.toggle('is-stuck', i === stuck);
+        b.classList.toggle('is-stuck', i === stuck);
+      });
+      verdict.textContent = r.ok ? S.yes : S.no;
+      verdict.className = `vd-verdict ${r.ok ? 'is-yes' : 'is-no'}`;
+      countEl.textContent = `${r.end} / ${text.length}`;
+
+      let msg;
+      if (step >= 0 && r.owner[step] >= 0) {
+        const p = P[r.owner[step]];
+        msg = fill(S.eat, { c: text[step] === ' ' ? '␣' : text[step], p: sym(p), m: S[p[2]] });
+      } else if (r.ok) {
+        msg = S.okNote;
+        P.forEach((p, j) => {
+          if (!p[3]) return;
+          const owned = [...text].map((_, x) => x).filter((x) => r.owner[x] === j);
+          const body = text.slice(owned[0], owned.at(-1) + 1);
+          const parts = [...body.matchAll(new RegExp(p[3], 'g'))].map((x) => x[0]);
+          msg += ` ${fill(S.repeat, { p: sym(p), w: parts.map((x) => `${x}\u2060`).join(' · ') })}`;
+        });
+        if (at < 0) msg = `${S.idle} ${msg}`;
+      } else if (r.k === P.length) msg = fill(S.extra, { i: r.end + 1 });
+      else if (r.end >= text.length) msg = fill(S.short, { p: sym(P[r.k]), m: S[P[r.k][2]] });
+      else msg = fill(S.stuck, { i: r.end + 1, p: sym(P[r.k]), m: S[P[r.k][2]] });
+      if (reachedEnd || step < 0 || r.owner[step] >= 0) setLines(note, msg);
+      else setLines(note, r.k === P.length ? fill(S.extra, { i: r.end + 1 }) : fill(S.stuck, { i: r.end + 1, p: sym(P[r.k]), m: S[P[r.k][2]] }));
+
+      samplesEl.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.textContent === text));
+      root.querySelectorAll('[data-vd-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.vdTab === tab));
+    }
+
+    function load() {
+      stop();
+      const text = textIn.value;
+      result = analyze(text);
+      cells = [...text].map((c) => {
+        const el = document.createElement('span');
+        el.textContent = c === ' ' ? '␣' : c;
+        return el;
+      });
+      tape.replaceChildren(...cells);
+      at = -1;
+      render();
+    }
+    function switchTab(k) {
+      tab = k;
+      buildPieces();
+      samplesEl.replaceChildren(...TABS[tab].samples.map((w) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vd-sample';
+        b.textContent = w;
+        b.addEventListener('click', () => {
+          textIn.value = w;
+          load();
+        });
+        return b;
+      }));
+      textIn.value = TABS[tab].samples[0];
+      load();
+    }
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= textIn.value.length) return stop();
+      at += 1;
+      render();
+      if (at >= textIn.value.length) stop();
+    }
+    root.querySelectorAll('[data-vd-tab]').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.vdTab)));
+    textIn.addEventListener('input', load);
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= textIn.value.length) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 450);
+    });
+    switchTab(tab);
+  })();
+</script>
+
+<style is:global>
+  .aas-validate-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+    --vd-0: var(--aas-role-model);
+    --vd-1: var(--aas-role-eval);
+    --vd-2: var(--aas-role-trace);
+    --vd-3: var(--aas-role-tool);
+    --vd-4: var(--aas-role-source);
+    --vd-5: var(--aas-role-focus);
+  }
+  .aas-validate-demo .vd-c0 { --vd-c: var(--vd-0); }
+  .aas-validate-demo .vd-c1 { --vd-c: var(--vd-1); }
+  .aas-validate-demo .vd-c2 { --vd-c: var(--vd-2); }
+  .aas-validate-demo .vd-c3 { --vd-c: var(--vd-3); }
+  .aas-validate-demo .vd-c4 { --vd-c: var(--vd-4); }
+  .aas-validate-demo .vd-c5 { --vd-c: var(--vd-5); }
+  .aas-validate-demo .vd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.45em;
+    align-items: center;
+    margin-bottom: 0.6em;
+  }
+  .aas-validate-demo .vd-head {
+    margin-right: 0.5em;
+    font-size: 0.95em;
+  }
+  .aas-validate-demo .vd-tab {
+    padding: 0.2em 0.7em;
+    font-size: 0.82em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-validate-demo .vd-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-validate-demo .vd-controls {
+    display: flex;
+    gap: 0.35em;
+    margin-left: auto;
+  }
+  .aas-validate-demo .vd-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.82em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-validate-demo .vd-btn:hover,
+  .aas-validate-demo .vd-tab:hover,
+  .aas-validate-demo .vd-sample:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-validate-demo .vd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-validate-demo .vd-pieces {
+    display: grid;
+    grid-template-columns: repeat(var(--vd-cols), auto);
+    justify-content: center;
+    gap: 0.1em 0.2em;
+  }
+  .aas-validate-demo code.vd-sym {
+    padding: 0.15em 0.5em;
+    font-variant-ligatures: none;
+    font-weight: 700;
+    text-align: center;
+    color: var(--aas-text);
+    border-radius: 0.35em 0.35em 0 0;
+    border-bottom: 3px solid var(--vd-c);
+    background: color-mix(in srgb, var(--vd-c) 18%, var(--aas-bg));
+  }
+  .aas-validate-demo .vd-mean {
+    padding: 0 0.3em;
+    font-size: 0.68em;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--aas-muted);
+    border-radius: 0 0 0.3em 0.3em;
+  }
+  .aas-validate-demo code.vd-sym.is-now,
+  .aas-validate-demo .vd-mean.is-now {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    color: var(--aas-text);
+  }
+  .aas-validate-demo code.vd-sym.is-stuck,
+  .aas-validate-demo .vd-mean.is-stuck {
+    outline: 2px dashed var(--aas-role-guard);
+    outline-offset: 1px;
+    color: var(--aas-text);
+  }
+  .aas-validate-demo .vd-run {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.8em;
+    align-items: center;
+    margin-top: 0.7em;
+  }
+  .aas-validate-demo .vd-input {
+    flex: 1 1 13em;
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-validate-demo .vd-input input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.15em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-validate-demo .vd-samples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-validate-demo .vd-sample {
+    padding: 0.08em 0.5em;
+    font-size: 0.72em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px dashed var(--aas-muted);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-validate-demo .vd-sample.is-on {
+    border-style: solid;
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-validate-demo .vd-tape {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.14em;
+    justify-content: center;
+    min-height: 1.9em;
+    margin-top: 0.7em;
+  }
+  .aas-validate-demo .vd-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35em;
+    height: 1.75em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    border-radius: 0.25em;
+    border-bottom: 3px solid var(--vd-c, var(--aas-border));
+    background: color-mix(in srgb, var(--vd-c, transparent) 22%, var(--aas-bg));
+  }
+  .aas-validate-demo .vd-cell.is-alt {
+    background: color-mix(in srgb, var(--vd-c) 42%, var(--aas-bg));
+  }
+  .aas-validate-demo .vd-cell.is-out {
+    color: var(--aas-muted);
+    border: 1px solid var(--aas-border);
+  }
+  .aas-validate-demo .vd-cell.is-stop {
+    color: var(--aas-text);
+    border: 2px solid var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+  }
+  .aas-validate-demo .vd-cell.is-now {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-validate-demo .vd-stats {
+    display: flex;
+    gap: 1em;
+    justify-content: center;
+    margin-top: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-validate-demo .vd-stats strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-validate-demo .vd-verdict {
+    font-weight: 700;
+  }
+  .aas-validate-demo .vd-verdict.is-yes {
+    color: var(--aas-role-eval);
+  }
+  .aas-validate-demo .vd-verdict.is-no {
+    color: var(--aas-role-guard);
+  }
+  .aas-validate-demo .vd-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.8em;
+  }
+  .aas-validate-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-validate-demo * {
+      transition: none !important;
+    }
+  }
+</style>
