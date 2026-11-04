@@ -1,0 +1,471 @@
+---
+// 해시 함수 네 가지를 같은 키로 겨루는 데모.
+//
+// 글자 코드 합, 호너 방식(R = 31), MurmurHash3, SHA-256으로 키 3,200개를 M칸에
+// 넣고 칸마다 쌓인 수를 막대로 그린다. 점선이 평균이고, 평균의 두 배를 넘은
+// 막대는 붉어진다. 시간은 이 브라우저에서 실제로 재서 호너 방식에 대한 배율로
+// 보인다. 고르게 퍼뜨리기만 하면 되는 일에 암호학적 해시는 값이 비싸다는 것,
+// 호너 방식은 M에 따라 무너지지만 범용 해시는 그렇지 않다는 것을 본다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './hashAlgos.js?raw';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `hk-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '네 해시 겨루기',
+    seq: '연속 번호',
+    perm: '같은 글자 재배열',
+    rand: '무작위',
+    measure: '시간 다시 재기',
+    sum: '글자 코드 합',
+    horner: '호너 R = 31',
+    murmur: 'MurmurHash3',
+    sha: 'SHA-256',
+    tagSum: '나쁜 예',
+    tagHorner: '해시 테이블용',
+    tagMurmur: '비암호 범용',
+    tagSha: '암호학적',
+    longest: '가장 긴 칸',
+    empty: '빈 칸',
+    time: '시간',
+    noteSum: '글자 코드 합은 가장 긴 칸이 {x}개로, 평균 {a}개의 {r}배입니다.',
+    noteM97: 'M = 97에서는 호너도 Murmur와 SHA-256만큼 고릅니다.',
+    noteM31: 'M = 31이면 R이 0과 같아져 호너는 마지막 글자만 보지만, Murmur와 SHA-256은 M을 가리지 않습니다.',
+    noteM32: 'M = 32이면 R이 −1과 같아져 호너는 글자를 번갈아 더하고 빼지만, Murmur와 SHA-256은 M을 가리지 않습니다.',
+    noteTime: '이 브라우저에서 SHA-256은 Murmur보다 약 {t}배 느리니, 고르게 퍼뜨리기만 하면 될 때는 Murmur로 충분합니다.',
+  },
+  en: {
+    title: 'Four hashes compared',
+    seq: 'Sequential',
+    perm: 'Same letters reordered',
+    rand: 'Random',
+    measure: 'Measure again',
+    sum: 'Sum of codes',
+    horner: 'Horner R = 31',
+    murmur: 'MurmurHash3',
+    sha: 'SHA-256',
+    tagSum: 'bad example',
+    tagHorner: 'hash tables',
+    tagMurmur: 'non-cryptographic',
+    tagSha: 'cryptographic',
+    longest: 'longest slot',
+    empty: 'empty slots',
+    time: 'time',
+    noteSum: 'The sum of codes puts {x} keys in its longest slot, {r} times the average of {a}.',
+    noteM97: 'With M = 97, Horner is as even as Murmur and SHA-256.',
+    noteM31: 'With M = 31, R acts as 0 and Horner sees only the last letter, while Murmur and SHA-256 do not care about M.',
+    noteM32: 'With M = 32, R acts as −1 and Horner alternately adds and subtracts letters, while Murmur and SHA-256 do not care about M.',
+    noteTime: 'In this browser SHA-256 is about {t} times slower than Murmur, so Murmur is enough when all you need is an even spread.',
+  },
+  zh: {
+    title: '四种哈希比一比',
+    seq: '连续编号',
+    perm: '同样字母重排',
+    rand: '随机',
+    measure: '重新计时',
+    sum: '字母编码之和',
+    horner: '霍纳 R = 31',
+    murmur: 'MurmurHash3',
+    sha: 'SHA-256',
+    tagSum: '反面例子',
+    tagHorner: '哈希表用',
+    tagMurmur: '非加密通用',
+    tagSha: '加密',
+    longest: '最长的格',
+    empty: '空格',
+    time: '时间',
+    noteSum: '字母编码之和最长的一格有 {x} 个，是平均 {a} 个的 {r} 倍。',
+    noteM97: 'M = 97 时，霍纳法和 Murmur、SHA-256 一样均匀。',
+    noteM31: 'M = 31 时 R 相当于 0，霍纳法只看最后一个字母，而 Murmur 和 SHA-256 不挑 M。',
+    noteM32: 'M = 32 时 R 相当于 −1，霍纳法交替加减字母，而 Murmur 和 SHA-256 不挑 M。',
+    noteTime: '在这个浏览器里，SHA-256 比 Murmur 慢约 {t} 倍，只需要分布均匀时用 Murmur 就够了。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const panels = [
+  { id: 'sum', name: t.sum, tag: t.tagSum },
+  { id: 'horner', name: t.horner, tag: t.tagHorner },
+  { id: 'murmur', name: t.murmur, tag: t.tagMurmur },
+  { id: 'sha', name: t.sha, tag: t.tagSha },
+];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-hash-kinds-demo', slide && 'is-slide']} id={id} data-hk-strings={JSON.stringify(t)}>
+  <div class="hk-bar">
+    <span class="hk-head"><strong>{t.title}</strong></span>
+    <div class="hk-tabs">
+      <button type="button" class="hk-tab" data-hk-set="seq">{t.seq}</button>
+      <button type="button" class="hk-tab" data-hk-set="perm">{t.perm}</button>
+      <button type="button" class="hk-tab" data-hk-set="rand">{t.rand}</button>
+    </div>
+    <div class="hk-tabs">
+      <span class="hk-m">M</span>
+      <button type="button" class="hk-tab" data-hk-m="97">97</button>
+      <button type="button" class="hk-tab" data-hk-m="31">31</button>
+      <button type="button" class="hk-tab" data-hk-m="32">32</button>
+    </div>
+    <button type="button" class="hk-btn" data-hk-measure>{t.measure}</button>
+  </div>
+
+  <div class="hk-keys" data-hk-keys></div>
+
+  <div class="hk-panels">
+    {
+      panels.map((p) => (
+        <div class="hk-panel" data-hk-panel={p.id}>
+          <div class="hk-name">
+            <strong>{p.name}</strong>
+            <span>{p.tag}</span>
+          </div>
+          <div class="hk-plot">
+            <div class="hk-bars" data-hk-bars />
+            <i class="hk-avg" />
+          </div>
+          <dl class="hk-stats">
+            <dt>{t.longest}</dt>
+            <dd data-hk-long />
+            <dt>{t.empty}</dt>
+            <dd data-hk-empty />
+            <dt>{t.time}</dt>
+            <dd data-hk-time>…</dd>
+          </dl>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="hk-note" data-hk-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.hkStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const { bytesOf, sha256, murmur3, sumCodes, horner } = globalThis.aasHashAlgos;
+    const N = 3200;
+
+    const makeKeys = {
+      seq: () => Array.from({ length: N }, (_, i) => `user${i + 1}`),
+      perm: () => {
+        const out = [];
+        const walk = (p, r) => {
+          if (out.length >= N) return;
+          if (!r) out.push(p);
+          for (let i = 0; i < r.length; i++) walk(p + r[i], r.slice(0, i) + r.slice(i + 1));
+        };
+        walk('', 'abcdefg');
+        return out;
+      },
+      rand: () =>
+        Array.from({ length: N }, () =>
+          Array.from({ length: 8 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join(''),
+        ),
+    };
+    const HASHES = {
+      sum: (k, m) => sumCodes(k, m),
+      horner: (k, m) => horner(k, m),
+      murmur: (k, m) => murmur3(bytesOf(k)) % m,
+      sha: (k, m) => {
+        const d = sha256(bytesOf(k));
+        return ((d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3]) >>> 0;
+      },
+    };
+    const slotOf = (id2, k, m) => HASHES[id2](k, m) % m;
+
+    let set = 'seq';
+    let M = 97;
+    let keys = makeKeys.seq();
+    let ratio = null;
+
+    const panels = Object.keys(HASHES).map((pid) => {
+      const el = root.querySelector(`[data-hk-panel="${pid}"]`);
+      return {
+        pid,
+        bars: el.querySelector('[data-hk-bars]'),
+        long: el.querySelector('[data-hk-long]'),
+        empty: el.querySelector('[data-hk-empty]'),
+        time: el.querySelector('[data-hk-time]'),
+      };
+    });
+    const note = root.querySelector('[data-hk-note]');
+    const keysEl = root.querySelector('[data-hk-keys]');
+    const fmt = (x) => x.toLocaleString('en-US');
+
+    function draw() {
+      const avg = N / M;
+      let sumLong = 0;
+      panels.forEach((p) => {
+        const c = new Array(M).fill(0);
+        for (const k of keys) c[slotOf(p.pid, k, M)] += 1;
+        /* 막대 높이는 평균의 세 배까지. 그 위는 잘린다. */
+        p.bars.innerHTML = c
+          .map((v) => `<i style="height:${Math.min(v / (3 * avg), 1) * 100}%"${v > 2 * avg ? ' class="is-over"' : ''}></i>`)
+          .join('');
+        const long = Math.max(...c);
+        if (p.pid === 'sum') sumLong = long;
+        p.long.textContent = fmt(long);
+        p.long.classList.toggle('is-bad', long > 2 * avg);
+        p.empty.textContent = String(c.filter((v) => !v).length);
+      });
+      keysEl.textContent = `${keys.slice(0, 4).join(', ')}, … (${fmt(N)})`;
+      root.querySelectorAll('[data-hk-set]').forEach((b) => b.classList.toggle('is-on', b.dataset.hkSet === set));
+      root.querySelectorAll('[data-hk-m]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.hkM) === M));
+      setLines(
+        note,
+        join(
+          fill(S.noteSum, { a: Math.round(avg), x: fmt(sumLong), r: (sumLong / avg).toFixed(1) }),
+          S[`noteM${M}`],
+          ratio ? fill(S.noteTime, { t: Number(ratio.toPrecision(2)) }) : '',
+        ),
+      );
+    }
+
+    /* 시간 재기는 네 해시 모두 미리 인코딩한 바이트를 받는다. 인코딩 비용을 빼고 해시만 잰다. */
+    const TIMED = {
+      sum: (b, m) => {
+        let t = 0;
+        for (let i = 0; i < b.length; i++) t += b[i];
+        return t % m;
+      },
+      horner: (b, m) => {
+        let h = 0;
+        for (let i = 0; i < b.length; i++) h = (31 * h + b[i]) % m;
+        return h;
+      },
+      murmur: (b, m) => murmur3(b) % m,
+      sha: (b, m) => sha256(b)[0] % m,
+    };
+    /* 결과를 쌓아 두어야 엔진이 계산을 지우지 못한다. */
+    let sink = 0;
+
+    /* 시간은 호너 방식에 대한 배율로 보인다. 브라우저 시계가 거칠어(약 0.1ms) 한 바퀴로는
+       못 재므로, 20ms를 넘을 때까지 돌려 키 하나당 시간을 낸다. 두 번 재어 빠른 쪽을 쓴다. */
+    function measure() {
+      const best = {};
+      const encoded = keys.map(bytesOf);
+      panels.forEach((p) => {
+        const f = TIMED[p.pid];
+        let b = Infinity;
+        for (let r = 0; r < 2; r++) {
+          let n = 0;
+          let e;
+          const s = performance.now();
+          do {
+            for (const k of encoded) sink += f(k, M);
+            n += encoded.length;
+            e = performance.now();
+          } while (e - s < 20);
+          b = Math.min(b, (e - s) / n);
+        }
+        best[p.pid] = b;
+      });
+      root.dataset.hkSink = String(sink);
+      panels.forEach((p) => {
+        const x = best[p.pid] / best.horner;
+        p.time.textContent = `×${x < 10 ? x.toFixed(1) : Math.round(x)}`;
+      });
+      ratio = best.sha / best.murmur;
+      draw();
+    }
+
+    root.querySelectorAll('[data-hk-set]').forEach((b) =>
+      b.addEventListener('click', () => {
+        set = b.dataset.hkSet;
+        keys = makeKeys[set]();
+        measure();
+      }),
+    );
+    root.querySelectorAll('[data-hk-m]').forEach((b) =>
+      b.addEventListener('click', () => {
+        M = Number(b.dataset.hkM);
+        draw();
+      }),
+    );
+    root.querySelector('[data-hk-measure]').addEventListener('click', measure);
+    draw();
+    /* 시간 재기는 화면에 처음 보일 때 한다. 덱을 여는 데 값을 치르지 않게 한다. */
+    const seen = new IntersectionObserver((entries, obs) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        obs.disconnect();
+        measure();
+      }
+    });
+    seen.observe(root);
+  })();
+</script>
+
+<style is:global>
+  .aas-hash-kinds-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-hash-kinds-demo .hk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-hash-kinds-demo .hk-head {
+    font-size: 0.95em;
+  }
+  .aas-hash-kinds-demo .hk-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-hash-kinds-demo .hk-m {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-kinds-demo .hk-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-hash-kinds-demo .hk-tab:hover,
+  .aas-hash-kinds-demo .hk-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-hash-kinds-demo .hk-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-hash-kinds-demo .hk-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-hash-kinds-demo .hk-keys {
+    margin: 0.5em 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-kinds-demo .hk-panels {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5em;
+  }
+  .aas-hash-kinds-demo .hk-panel {
+    min-width: 0;
+    padding: 0.5em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-hash-kinds-demo .hk-name {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+  .aas-hash-kinds-demo .hk-name strong {
+    font-size: 0.85em;
+  }
+  .aas-hash-kinds-demo .hk-name span {
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-hash-kinds-demo .hk-plot {
+    position: relative;
+    height: 5.5em;
+    margin: 0.4em 0;
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-hash-kinds-demo .hk-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 100%;
+  }
+  .aas-hash-kinds-demo .hk-bars i {
+    flex: 1 1 0;
+    min-width: 0;
+    background: var(--aas-role-model);
+  }
+  .aas-hash-kinds-demo .hk-bars i.is-over {
+    background: var(--aas-role-guard);
+  }
+  /* 점선은 평균이다. 막대 높이가 평균의 세 배까지이므로 1/3 자리에 있다. */
+  .aas-hash-kinds-demo .hk-avg {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 33.33%;
+    border-top: 1px dashed var(--aas-muted);
+  }
+  .aas-hash-kinds-demo .hk-stats {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 0.5em;
+    margin: 0;
+    font-size: 0.8em;
+    line-height: 1.45;
+  }
+  .aas-hash-kinds-demo .hk-stats dt {
+    margin: 0;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-hash-kinds-demo .hk-stats dd {
+    margin: 0;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-hash-kinds-demo .hk-stats dd.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-hash-kinds-demo .hk-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 3.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-hash-kinds-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (max-width: 720px) {
+    .aas-hash-kinds-demo .hk-panels {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>
