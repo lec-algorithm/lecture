@@ -1,0 +1,549 @@
+---
+// 간선을 정확히 k개 쓰는 최단 경로의 표 전체를 눌러 보는 데모.
+//
+// PathDpDemo는 0 → 3, k = 3 하나를 메모이제이션으로 따라간다. 여기서는 도착점을
+// 바꾸고 표의 아무 칸이나 눌러, 그 칸의 값을 만든 후보(첫 간선 + 다음 줄의 칸)와
+// next로 되살린 길을 그래프 위에서 본다. 같은 출발·도착이라도 k에 따라 값이 다르고
+// 길이 없어지기도 한다는 것이 간선 수 제한의 뜻이다.
+//
+// 표는 algorithm-code topic-14 05_shortest_path의 점화식을 k가 작은 줄부터 채운 것이다.
+// 이웃을 보는 순서(x 오름차순)와 동점 처리(먼저 찾은 쪽)는 코드와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
+
+type Edge = [number, number, number];
+interface Props {
+  /** [u, v, 비용] */
+  edges?: Edge[];
+  /** 정점 좌표 (viewBox 560 x 420 기준) */
+  pos?: [number, number][];
+  /** 처음 도착점 */
+  dst?: number;
+  /** 처음 고른 출발점 */
+  src?: number;
+  /** 처음 고른 k */
+  k?: number;
+  /** 표의 맨 아래 k */
+  maxK?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  edges = [
+    [0, 1, 1],
+    [0, 2, 2],
+    [1, 3, 6],
+    [2, 1, 2],
+    [2, 3, 4],
+    [2, 4, 3],
+    [3, 5, 3],
+    [4, 3, 1],
+    [4, 5, 5],
+  ],
+  pos = [
+    [50, 210],
+    [180, 80],
+    [180, 340],
+    [370, 80],
+    [370, 340],
+    [500, 210],
+  ],
+  dst = 3,
+  src = 0,
+  k = 3,
+  maxK = 4,
+  slide = false,
+} = Astro.props;
+const id = `pt-${Math.random().toString(36).slice(2, 9)}`;
+const V = pos.length;
+const R = 26;
+
+// 간선 그림은 PathDpDemo와 같다.
+const geo = edges.map(([u, v, w]) => {
+  const [x0, y0] = pos[u];
+  const [x1, y1] = pos[v];
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  const ux = dx / len;
+  const uy = dy / len;
+  const sx = x0 + ux * R;
+  const sy = y0 + uy * R;
+  const ex = x1 - ux * (R + 2);
+  const ey = y1 - uy * (R + 2);
+  const s = 14;
+  const tip = `M ${ex} ${ey} L ${ex - ux * s - uy * s * 0.5} ${ey - uy * s + ux * s * 0.5} L ${ex - ux * s + uy * s * 0.5} ${ey - uy * s - ux * s * 0.5} Z`;
+  const lx = (sx + ex) / 2 - uy * 16;
+  const ly = (sy + ey) / 2 + ux * 16;
+  return { u, v, w, line: { x1: sx, y1: sy, x2: ex - ux * 8, y2: ey - uy * 8 }, tip, lx, ly };
+});
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '표의 모든 칸',
+    dst: '도착',
+    table: '칸을 누르면 후보와 길이 보입니다',
+    corner: 'k \\ u',
+    graph: '그래프',
+    base: 'k = 0이면 더 갈 수 없습니다. 출발이 곧 도착이면 0, 아니면 INF입니다.',
+    leaf: '{u}에서 나가는 간선이 없어 INF입니다.',
+    eq: 'S({u}, {k}) = min({list}) = {v}입니다.',
+    path: '길은 {path}, 비용은 {sum} = {v}입니다.',
+    none: '간선을 정확히 {k}개 써서 {u}에서 {d}까지 가는 길은 없습니다.',
+    byK: '{u}에서 {d}까지 간선 수별 값은 {list}입니다.',
+  },
+  en: {
+    title: 'Every cell of the table',
+    dst: 'goal',
+    table: 'Click a cell to see its candidates and path',
+    corner: 'k \\ u',
+    graph: 'graph',
+    base: 'At k = 0 there is nowhere left to go. It is 0 if the start is the goal, otherwise INF.',
+    leaf: 'No edge leaves {u}, so it is INF.',
+    eq: 'S({u}, {k}) = min({list}) = {v}.',
+    path: 'The path is {path}, cost {sum} = {v}.',
+    none: 'With k = {k}, no path goes from {u} to {d}.',
+    byK: 'From {u} to {d} by edge count: {list}.',
+  },
+  zh: {
+    title: '表的每一格',
+    dst: '终点',
+    table: '点一格，看它的候选和路径',
+    corner: 'k \\ u',
+    graph: '图',
+    base: 'k = 0 时不能再走。起点就是终点则为 0，否则为 INF。',
+    leaf: '没有从 {u} 出发的边，所以是 INF。',
+    eq: 'S({u}, {k}) = min({list}) = {v}。',
+    path: '路径是 {path}，代价 {sum} = {v}。',
+    none: '没有恰好用 {k} 条边从 {u} 到 {d} 的路径。',
+    byK: '从 {u} 到 {d} 按边数：{list}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const config = { edges, V, dst, src, k, maxK };
+---
+
+<div
+  class:list={['aas-path-table-demo', slide && 'is-slide']}
+  id={id}
+  data-pt-strings={JSON.stringify(t)}
+  data-pt-config={JSON.stringify(config)}
+  style={`--pt-cols: ${V}`}
+>
+  <div class="pt-bar">
+    <span class="pt-head"><strong>{t.title}</strong></span>
+    <DpRef kind="path" />
+    <div class="pt-tabs">
+      <span class="pt-label">{t.dst}</span>
+      {
+        Array.from({ length: V }, (_, u) => (
+          <button type="button" class="pt-tab" data-pt-dst={u}>
+            {u}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="pt-body">
+    <svg class="pt-graph" viewBox="0 0 560 420" role="img" aria-label={t.graph}>
+      {
+        geo.map((g, i) => (
+          <g class="pt-edge" data-pt-edge={i}>
+            <line x1={g.line.x1} y1={g.line.y1} x2={g.line.x2} y2={g.line.y2} />
+            <path d={g.tip} />
+            <text x={g.lx} y={g.ly} text-anchor="middle" dominant-baseline="central">
+              {g.w}
+            </text>
+          </g>
+        ))
+      }
+      {
+        pos.map(([x, y], u) => (
+          <g class="pt-node" data-pt-node={u}>
+            <circle cx={x} cy={y} r={R} />
+            <text x={x} y={y} text-anchor="middle" dominant-baseline="central">
+              {u}
+            </text>
+          </g>
+        ))
+      }
+    </svg>
+
+    <div class="pt-col">
+      <h4>{t.table}</h4>
+      <div class="pt-table">
+        <span class="pt-corner">{t.corner}</span>
+        {Array.from({ length: V }, (_, u) => <span class="pt-colhead">{u}</span>)}
+        {
+          Array.from({ length: maxK + 1 }, (_, kk) => (
+            <>
+              <span class="pt-rowhead">{kk}</span>
+              {Array.from({ length: V }, (_, u) => (
+                <button type="button" class="pt-cell" data-pt-k={kk} data-pt-u={u} />
+              ))}
+            </>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <p class="pt-note" data-pt-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.ptStrings);
+    const cfg = JSON.parse(root.dataset.ptConfig);
+    const { edges, V, maxK } = cfg;
+    const INF = Infinity;
+    const show = (v) => (v === INF ? 'INF' : String(v));
+    const out = (u) =>
+      edges
+        .map((e, i) => ({ from: e[0], x: e[1], w: e[2], i }))
+        .filter((e) => e.from === u)
+        .sort((a, b) => a.x - b.x);
+
+    let dst = cfg.dst;
+    let curK = cfg.k;
+    let curU = cfg.src;
+    let table = [];
+    let next = [];
+
+    function solve() {
+      table = Array.from({ length: maxK + 1 }, () => new Array(V).fill(INF));
+      next = Array.from({ length: maxK + 1 }, () => new Array(V).fill(-1));
+      table[0][dst] = 0;
+      for (let k = 1; k <= maxK; k++) {
+        for (let u = 0; u < V; u++) {
+          for (const e of out(u)) {
+            const r = table[k - 1][e.x];
+            if (r !== INF && e.w + r < table[k][u]) {
+              table[k][u] = e.w + r;
+              next[k][u] = e;
+            }
+          }
+        }
+      }
+    }
+
+    const cells = [...root.querySelectorAll('[data-pt-k]')];
+    const edgeEls = [...root.querySelectorAll('[data-pt-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-pt-node]')];
+    const tabs = [...root.querySelectorAll('[data-pt-dst]')];
+    const note = root.querySelector('[data-pt-note]');
+
+    function draw() {
+      const k = curK;
+      const u = curU;
+      const v = table[k][u];
+      const tries = k > 0 ? out(u) : [];
+      const best = k > 0 && next[k][u] !== -1 ? next[k][u] : null;
+
+      /* next를 따라 길을 되살린다. */
+      const pathEdges = [];
+      const pathCells = [];
+      const nodes = [u];
+      const costs = [];
+      if (v !== INF) {
+        let a = u;
+        for (let c = k; c > 0; c--) {
+          const e = next[c][a];
+          pathEdges.push(e.i);
+          pathCells.push(`${c},${a}`);
+          costs.push(e.w);
+          nodes.push(e.x);
+          a = e.x;
+        }
+      }
+
+      cells.forEach((el) => {
+        const a = +el.dataset.ptK;
+        const b = +el.dataset.ptU;
+        const x = table[a][b];
+        el.textContent = show(x);
+        el.classList.toggle('is-inf', x === INF);
+        el.classList.toggle('is-cur', a === k && b === u);
+        el.classList.toggle('is-col', b === u && a !== k);
+        el.classList.toggle('is-ref', a === k - 1 && tries.some((e) => e.x === b));
+        el.classList.toggle('is-best', !!best && a === k - 1 && b === best.x);
+        el.classList.toggle('is-path', pathCells.includes(`${a},${b}`) && !(a === k && b === u));
+      });
+      edgeEls.forEach((el, i) => {
+        el.classList.toggle('is-try', tries.some((e) => e.i === i));
+        el.classList.toggle('is-path', pathEdges.includes(i));
+      });
+      nodeEls.forEach((el, n) => {
+        el.classList.toggle('is-src', n === u);
+        el.classList.toggle('is-dst', n === dst);
+      });
+      tabs.forEach((b) => b.classList.toggle('is-on', +b.dataset.ptDst === dst));
+
+      const byK = table
+        .map((row, c) => (c === 0 ? null : `k = ${c}: ${show(row[u])}`))
+        .filter(Boolean)
+        .join(', ');
+      const first =
+        k === 0
+          ? S.base
+          : tries.length === 0
+            ? fill(S.leaf, { u })
+            : fill(S.eq, {
+                u,
+                k,
+                v: show(v),
+                list: tries.map((e) => `${u}→${e.x}: ${e.w} + ${show(table[k - 1][e.x])}`).join(', '),
+              });
+      const second =
+        k === 0
+          ? ''
+          : v === INF
+            ? fill(S.none, { k, u, d: dst })
+            : fill(S.path, { path: nodes.join(' → '), sum: costs.join(' + '), v });
+      setLines(note, join(first, second, fill(S.byK, { u, d: dst, list: byK })));
+    }
+
+    cells.forEach((el) =>
+      el.addEventListener('click', () => {
+        curK = +el.dataset.ptK;
+        curU = +el.dataset.ptU;
+        draw();
+      }),
+    );
+    tabs.forEach((b) =>
+      b.addEventListener('click', () => {
+        dst = +b.dataset.ptDst;
+        solve();
+        draw();
+      }),
+    );
+    solve();
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-path-table-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-path-table-demo .pt-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-path-table-demo .pt-head {
+    font-size: 0.95em;
+  }
+  .aas-path-table-demo .pt-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    align-items: center;
+  }
+  .aas-path-table-demo .pt-label {
+    margin-right: 0.3em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-path-table-demo .pt-tab {
+    min-width: 2em;
+    padding: 0.2em 0.55em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-path-table-demo .pt-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-path-table-demo .pt-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-path-table-demo .pt-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    margin-top: 0.4em;
+  }
+  .aas-path-table-demo .pt-graph {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .aas-path-table-demo .pt-edge line {
+    stroke: var(--aas-muted);
+    stroke-width: 2.5;
+    transition: stroke 0.2s;
+  }
+  .aas-path-table-demo .pt-edge path {
+    fill: var(--aas-muted);
+    transition: fill 0.2s;
+  }
+  .aas-path-table-demo .pt-edge text {
+    fill: var(--aas-text);
+    font-size: 20px;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-path-table-demo .pt-edge.is-try line {
+    stroke: var(--aas-role-model);
+    stroke-dasharray: 9 6;
+  }
+  .aas-path-table-demo .pt-edge.is-try path {
+    fill: var(--aas-role-model);
+  }
+  .aas-path-table-demo .pt-edge.is-path line {
+    stroke: var(--aas-role-guard);
+    stroke-width: 6;
+    stroke-dasharray: none;
+  }
+  .aas-path-table-demo .pt-edge.is-path path {
+    fill: var(--aas-role-guard);
+  }
+  .aas-path-table-demo .pt-edge.is-path text {
+    font-weight: 700;
+  }
+  .aas-path-table-demo .pt-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-bg);
+    stroke-width: 2;
+    transition: fill 0.2s;
+  }
+  .aas-path-table-demo .pt-node text {
+    fill: var(--aas-bg);
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-path-table-demo .pt-node.is-src circle {
+    fill: var(--aas-role-eval);
+  }
+  .aas-path-table-demo .pt-node.is-dst circle {
+    fill: var(--aas-role-focus);
+  }
+  .aas-path-table-demo h4 {
+    margin: 0 0 0.4em;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-path-table-demo .pt-table {
+    display: grid;
+    grid-template-columns: 2.6em repeat(var(--pt-cols), 3em);
+    grid-auto-rows: 2em;
+    gap: 0.18em;
+  }
+  .aas-path-table-demo .pt-corner,
+  .aas-path-table-demo .pt-colhead,
+  .aas-path-table-demo .pt-rowhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-path-table-demo .pt-corner {
+    font-size: 0.65em;
+  }
+  .aas-path-table-demo .pt-cell {
+    padding: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-path-table-demo .pt-cell:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-path-table-demo .pt-cell.is-inf {
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+  }
+  .aas-path-table-demo .pt-cell.is-col {
+    border-style: dashed;
+    border-color: var(--aas-muted);
+  }
+  .aas-path-table-demo .pt-cell.is-ref {
+    border-style: solid;
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-path-table-demo .pt-cell.is-best {
+    background: color-mix(in srgb, var(--aas-role-model) 32%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-path-table-demo .pt-cell.is-path {
+    border-style: solid;
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-path-table-demo .pt-cell.is-cur {
+    border-style: solid;
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-path-table-demo .pt-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 4.2em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-path-table-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-path-table-demo.is-slide .pt-graph {
+    max-height: 34vh;
+  }
+
+  @media (max-width: 720px) {
+    .aas-path-table-demo .pt-body {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-path-table-demo .pt-edge line,
+    .aas-path-table-demo .pt-edge path,
+    .aas-path-table-demo .pt-node circle,
+    .aas-path-table-demo .pt-cell {
+      transition: none;
+    }
+  }
+</style>
