@@ -19,7 +19,11 @@
 // 기반)와 이웃 수 k도 칩으로 고른다. 바꿀 때마다 단계 배열을 다시 만들고 끝
 // 단계를 보여 준다. 코사인 k=2면 이웃 B·C, M6 1.495다. 기본값(edit 없음)이면
 // 예전과 똑같이 동작한다.
+//
+// 오른쪽의 영화 표(RecMovieKey)는 M1 같은 번호가 무슨 영화인지 바로 보여 주고,
+// 지금 다루는 열의 줄을 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RecMovieKey from './RecMovieKey.astro';
 
 interface Props {
   /** 사용자 × 아이템 평점 행렬. 0은 아직 안 본 칸 */
@@ -207,6 +211,7 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     </div>
   )}
 
+  <div class="cfd-main">
   <div class="cfd-grid">
     <span class="cfd-corner"></span>
     {items.map((name, i) => <span class="cfd-colhead" data-cfd-colhead={i}>{name}</span>)}
@@ -231,6 +236,8 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
         {items.map((_, i) => <span class="cfd-sim" data-cfd-isim={i}></span>)}
       </>
     )}
+  </div>
+  <RecMovieKey items={nItems} />
   </div>
 
   <p class="cfd-note" data-cfd-note></p>
@@ -438,6 +445,7 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     const usimEls = [...root.querySelectorAll('[data-cfd-usim]')];
     const isimEls = [...root.querySelectorAll('[data-cfd-isim]')];
     const note = root.querySelector('[data-cfd-note]');
+    const keyCells = [...root.querySelectorAll('[data-rk-item]')];
     const idleText = () => {
       let text = blanks.length ? fill(mode === 'user' ? S.idleUser : S.idleItem, { t: tName, blanks: blanks.map(iname).join('·') }) : S.noBlank;
       if (editable) text = cat(text, S.editHint);
@@ -488,6 +496,9 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
           el.classList.toggle('is-nb', !!(st && st.picked && st.picked.includes(i)));
         });
       }
+      /* 영화 표: 지금 다루는 열. 끝 단계에서는 추천하는 영화 */
+      const marked = !st ? [] : st.done ? (st.best === null ? [] : [st.best]) : st.col !== undefined ? [st.col] : st.lit ? st.lit : cols;
+      keyCells.forEach((c) => c.classList.toggle('is-now', marked.includes(Number(c.dataset.rkItem))));
       setLines(note, st ? st.note : idleText());
       root.classList.toggle('is-done', !!(st && st.done));
     }
@@ -691,6 +702,14 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
     border-color: var(--aas-accent);
   }
 
+  .aas-cf-demo .cfd-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.6em;
+    align-items: center;
+    justify-content: center;
+  }
+
   /* 평점 행렬. 사용자 기반이면 오른쪽에 유사도 칸, 아이템 기반이면 아래에 유사도 줄 */
   .aas-cf-demo .cfd-grid {
     display: grid;
@@ -812,8 +831,14 @@ const title = mode === 'user' ? `${t.titleUser} · ${measure === 'cosine' ? t.co
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
   .aas-cf-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.8vh, 2rem);
     margin: 0.5rem 0;
+  }
+  .aas-cf-demo.is-slide.is-edit {
+    font-size: clamp(1rem, 2.45vh, 1.8rem);
+  }
+  .aas-cf-demo.is-slide.is-item {
+    font-size: clamp(1rem, 2.65vh, 1.9rem);
   }
   .aas-cf-demo.is-slide .cfd-cell,
   .aas-cf-demo.is-slide .cfd-sim {

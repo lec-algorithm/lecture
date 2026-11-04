@@ -10,7 +10,10 @@
 // 계산은 algorithm-code의 collaborativeFiltering.c · collaborative_filtering.py와
 // 같다. 코사인은 0을 넣은 여섯 칸 전체로(B 0.835, C 0.820, D 0.466, E 0.705),
 // 피어슨은 둘 다 본 칸으로 잰다(B 0.866, C 1.000, D -0.833, E -0.866).
+//
+// 오른쪽에 두 사람의 평균과 영화 표를 둔다. 평균을 뺀 값에서는 남은 영화의 줄이 칠해진다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RecMovieKey from './RecMovieKey.astro';
 
 interface Props {
   /** 사용자 × 아이템 평점 행렬. 0은 아직 안 본 칸 */
@@ -126,6 +129,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       </div>
       <div class="pd-score" data-pd-score="raw">{t.cosine} <strong data-pd-cos></strong></div>
       <div class="pd-score" data-pd-score="centered">{t.pearson} <strong data-pd-pear></strong></div>
+      <div class="pd-means">{t.mean} <span data-pd-means></span></div>
+      <RecMovieKey items={ratings[0].length} />
     </div>
   </div>
 
@@ -228,6 +233,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const vname = root.querySelector('[data-pd-vname]');
     const cosEl = root.querySelector('[data-pd-cos]');
     const pearEl = root.querySelector('[data-pd-pear]');
+    const meansEl = root.querySelector('[data-pd-means]');
+    const keyCells = [...root.querySelectorAll('[data-rk-item]')];
     const note = root.querySelector('[data-pd-note]');
     const userBtns = [...root.querySelectorAll('[data-pd-user]')];
     const modeBtns = [...root.querySelectorAll('[data-pd-mode]')];
@@ -262,6 +269,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       vname.textContent = users[pair];
       cosEl.textContent = c.toFixed(3);
       pearEl.textContent = p.s.toFixed(3);
+      meansEl.textContent = p.common.length ? `${users[target]} ${num(p.ma)} · ${users[pair]} ${num(p.mb)}` : '-';
+      keyCells.forEach((c) => c.classList.toggle('is-now', centered && p.common.includes(Number(c.dataset.rkItem))));
       scores.forEach((s) => s.classList.toggle('is-on', s.dataset.pdScore === (centered ? 'centered' : 'raw')));
       userBtns.forEach((btn) => btn.classList.toggle('is-on', Number(btn.dataset.pdUser) === pair));
       modeBtns.forEach((btn) => btn.classList.toggle('is-on', (btn.dataset.pdMode === 'centered') === centered));
@@ -463,6 +472,15 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-pearson-demo .pd-score.is-on strong {
     color: var(--aas-role-focus);
   }
+  .aas-pearson-demo .pd-means {
+    margin-bottom: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-pearson-demo .pd-means span {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
   .aas-pearson-demo .pd-note {
     margin: 0.5em 0 0;
     font-size: 0.85em;
@@ -475,11 +493,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 
   /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
   .aas-pearson-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.6vh, 1.9rem);
     margin: 0.5rem 0;
   }
   .aas-pearson-demo.is-slide .pd-svg {
-    max-height: 37vh;
+    max-height: 36vh;
   }
   @media (prefers-reduced-motion: reduce) {
     .aas-pearson-demo * {
