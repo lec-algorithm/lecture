@@ -473,15 +473,36 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
   .aas-kruskal-demo.is-slide {
     width: 100%;
     box-sizing: border-box;
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.9vh, 2rem);
     margin: 0.5rem 0;
   }
-  /* 데모 상자는 슬라이드 폭을 다 쓰고, 그래프는 높이를 정해 그만큼 키운다. */
+  /* 데모 상자는 슬라이드 폭을 다 쓰고, 설명은 목록 아래(그래프 오른쪽)에 둔다. */
+  .aas-kruskal-demo.is-slide {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'bar bar'
+      'graph panel'
+      'graph foot';
+    column-gap: 1.6em;
+  }
   .aas-kruskal-demo.is-slide .kr-body {
-    flex-wrap: nowrap;
+    display: contents;
+  }
+  .aas-kruskal-demo.is-slide .kr-bar {
+    grid-area: bar;
+    margin-bottom: 0.5em;
+  }
+  .aas-kruskal-demo.is-slide .kr-panel {
+    grid-area: panel;
+  }
+  .aas-kruskal-demo.is-slide .kr-foot {
+    grid-area: foot;
+    align-self: start;
   }
   .aas-kruskal-demo.is-slide .kr-graph {
-    flex: 0 0 auto;
+    grid-area: graph;
     max-width: none;
     min-width: 0;
     --gf-slide-h: 46vh;
@@ -489,7 +510,14 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
   /* 간선 목록과 comp 칸은 조금 줄여 데모가 슬라이드 높이 안에 들게 한다. */
   .aas-kruskal-demo.is-slide .kr-list {
     font-size: 0.66em;
-    gap: 0.2em 0.5em;
+    gap: 0.12em 0.5em;
+    margin-bottom: 0.3em;
+  }
+  .aas-kruskal-demo.is-slide .kr-chip {
+    padding-block: 0;
+  }
+  .aas-kruskal-demo.is-slide .kr-comp {
+    font-size: 0.85em;
   }
   .aas-kruskal-demo.is-slide .kr-cell b {
     width: 1.5em;
@@ -497,7 +525,9 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
     font-size: 0.85em;
   }
   .aas-kruskal-demo.is-slide .kr-note {
-    min-height: 1.6em;
+    margin-top: 0.3em;
+    min-height: 2.4em;
+    font-size: 0.75em;
   }
 
   @media (prefers-reduced-motion: reduce) {

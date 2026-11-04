@@ -1,0 +1,321 @@
+---
+// 음의 사이클을 돌수록 길이 짧아지는 것을 직접 도는 데모.
+//
+// 그래프는 Dijkstra 예제(sp)에 5 → 7을 더한 것이다. 슬라이더로 5 → 7의 가중치
+// w를 고르고 "한 바퀴 더"를 누르면 0 → 7 뒤에 7 → 5 → 7을 한 바퀴씩 붙인 길의
+// 비용을 잰다. 비용은 8 + k(6 + w)다. 슬라이드의 값 w = -8이면 사이클의 합이
+// -2라서 8, 6, 4, 2, ...로 끝없이 줄어들고, w ≥ -6이면 돌아도 줄지 않는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `nc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '음의 사이클 돌기',
+    w: '5→7의 가중치 w',
+    lap: '한 바퀴 더',
+    reset: '처음으로',
+    sum: '사이클 합',
+    laps: '바퀴',
+    walk: '지금 길의 비용',
+    history: '바퀴마다 비용',
+    route: '길',
+    neg: '7 → 5 → 7의 합이 {s}입니다. 돌 때마다 {d}씩 짧아지니 가장 짧은 길이 없습니다. 최단 경로가 정의되지 않습니다.',
+    zero: '7 → 5 → 7의 합이 0입니다. 돌아도 비용이 그대로라 더 돌 이유가 없습니다.',
+    pos: '7 → 5 → 7의 합이 {s}입니다. 돌수록 길어지니 도는 길은 최단 경로가 아닙니다.',
+  },
+  en: {
+    title: 'Walk around a negative cycle',
+    w: 'weight w of 5→7',
+    lap: 'One more lap',
+    reset: 'Reset',
+    sum: 'cycle total',
+    laps: 'laps',
+    walk: 'cost of this walk',
+    history: 'Cost after each lap',
+    route: 'Walk',
+    neg: 'The cycle 7 → 5 → 7 totals {s}. Each lap shortens the walk by {d}, so no shortest walk exists. The shortest path is undefined.',
+    zero: 'The cycle 7 → 5 → 7 totals 0. The cost stays the same, so there is no reason to go around.',
+    pos: 'The cycle 7 → 5 → 7 totals {s}. Each lap lengthens the walk, so a shortest path never goes around it.',
+  },
+  zh: {
+    title: '绕负环走',
+    w: '5→7 的权重 w',
+    lap: '再走一圈',
+    reset: '重置',
+    sum: '环的总和',
+    laps: '圈数',
+    walk: '当前路线的代价',
+    history: '每圈后的代价',
+    route: '路线',
+    neg: '7 → 5 → 7 的总和是 {s}。每走一圈缩短 {d}，所以没有最短的路线。最短路径没有定义。',
+    zero: '7 → 5 → 7 的总和是 0。代价不变，没有理由绕圈。',
+    pos: '7 → 5 → 7 的总和是 {s}。越绕越长，所以最短路径不会绕这个环。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-neg-cycle-demo', slide && 'is-slide']} id={id} data-nc-strings={JSON.stringify(t)}>
+  <div class="nc-bar">
+    <span class="nc-head"><strong>{t.title}</strong></span>
+    <label class="nc-range">
+      {t.w} <strong data-nc-wval></strong>
+      <input type="range" min="-10" max="2" step="1" value="-8" data-nc-w />
+    </label>
+    <div class="nc-controls">
+      <button type="button" class="nc-btn nc-btn-primary" data-nc-lap>{t.lap}</button>
+      <button type="button" class="nc-btn" data-nc-reset>{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="nc-body">
+    <div class="nc-graph">
+      <GraphFigure graph="spCycle" bare slide={slide} />
+    </div>
+    <div class="nc-panel">
+      <div class="nc-stats">
+        <span class="nc-big"><span>{t.sum}</span><strong data-nc-sum class="is-plain"></strong></span>
+        <span class="nc-big"><span>{t.laps}</span><strong data-nc-laps class="is-plain"></strong></span>
+        <span class="nc-big"><span>{t.walk}</span><strong data-nc-cost></strong></span>
+      </div>
+      <div class="nc-line">{t.route}: <strong data-nc-route></strong></div>
+      <div class="nc-label">{t.history}</div>
+      <div class="nc-list" data-nc-list></div>
+      <p class="nc-note" data-nc-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.ncStrings);
+    const fmt = (x) => (x < 0 ? `−${-x}` : String(x));
+    const MAX_LAPS = 8; // 화면에 보일 수 있는 만큼만. 수학적으로는 끝이 없다.
+
+    const wRange = root.querySelector('[data-nc-w]');
+    const edge = (k) => root.querySelector(`[data-gf-edge="${k}"]`);
+    let laps = 0;
+
+    function render() {
+      const w = Number(wRange.value);
+      const sum = 6 + w;
+      const cost = (k) => 8 + k * sum;
+      root.querySelector('[data-nc-wval]').textContent = fmt(w);
+      root.querySelector('[data-nc-sum]').textContent = fmt(sum);
+      root.querySelector('[data-nc-laps]').textContent = String(laps);
+      root.querySelector('[data-nc-cost]').textContent = fmt(cost(laps));
+      edge('5-7').querySelector('.gf-weight').textContent = fmt(w);
+      ['0-7'].forEach((k) => edge(k).classList.add('is-tree'));
+      ['7-5', '5-7'].forEach((k) => {
+        edge(k).classList.toggle('is-focus', laps > 0);
+        edge(k).classList.toggle('is-cand', laps === 0);
+      });
+      root.querySelectorAll('[data-gf-node]').forEach((el) => {
+        const v = Number(el.dataset.gfNode);
+        el.classList.toggle('is-ring', v === 0);
+        el.classList.toggle('is-open', v === 5 || v === 7);
+      });
+      root.querySelector('[data-nc-route]').textContent = `0 → 7${' → 5 → 7'.repeat(Math.min(laps, 3))}${laps > 3 ? ' …' : ''}`;
+      root.querySelector('[data-nc-list]').replaceChildren(
+        ...Array.from({ length: laps + 1 }, (_, k) => {
+          const c = document.createElement('span');
+          c.className = k === laps ? 'nc-item is-now' : 'nc-item';
+          c.textContent = fmt(cost(k));
+          return c;
+        }),
+      );
+      root.querySelector('[data-nc-lap]').disabled = laps >= MAX_LAPS;
+      const tpl = sum < 0 ? S.neg : sum === 0 ? S.zero : S.pos;
+      setLines(root.querySelector('[data-nc-note]'), fill(tpl, { s: fmt(sum), d: -sum }));
+      root.classList.toggle('is-neg', sum < 0);
+    }
+    root.querySelector('[data-nc-lap]').addEventListener('click', () => {
+      laps = Math.min(MAX_LAPS, laps + 1);
+      render();
+    });
+    root.querySelector('[data-nc-reset]').addEventListener('click', () => {
+      laps = 0;
+      wRange.value = '-8';
+      render();
+    });
+    wRange.addEventListener('input', () => {
+      laps = 0;
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-neg-cycle-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-neg-cycle-demo .nc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-neg-cycle-demo .nc-head {
+    font-size: 0.95em;
+  }
+  .aas-neg-cycle-demo .nc-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-neg-cycle-demo .nc-range strong {
+    min-width: 1.8em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-neg-cycle-demo .nc-range input {
+    width: 10em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-neg-cycle-demo .nc-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-neg-cycle-demo .nc-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-neg-cycle-demo .nc-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-neg-cycle-demo .nc-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-neg-cycle-demo .nc-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-neg-cycle-demo .nc-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-neg-cycle-demo .nc-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-neg-cycle-demo .nc-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45em;
+    min-width: 0;
+  }
+  .aas-neg-cycle-demo .nc-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.4em;
+  }
+  .aas-neg-cycle-demo .nc-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-neg-cycle-demo .nc-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-neg-cycle-demo .nc-big strong.is-plain {
+    color: var(--aas-text);
+  }
+  .aas-neg-cycle-demo .nc-line {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.5em;
+  }
+  .aas-neg-cycle-demo .nc-line strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-neg-cycle-demo .nc-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-neg-cycle-demo .nc-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    min-height: 1.8em;
+  }
+  .aas-neg-cycle-demo .nc-item {
+    padding: 0.05em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+  }
+  .aas-neg-cycle-demo .nc-item.is-now {
+    border-color: var(--aas-role-focus);
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-neg-cycle-demo .nc-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-neg-cycle-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-neg-cycle-demo.is-slide .nc-body {
+    flex-wrap: nowrap;
+  }
+  .aas-neg-cycle-demo.is-slide .nc-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 45vh;
+  }
+</style>

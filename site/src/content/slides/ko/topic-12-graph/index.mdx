@@ -1,7 +1,7 @@
 ---
 title: "주제 12. 그래프와 최단 경로"
 description: "정점과 간선으로 세상을 적는 그래프. 표현과 탐색(BFS, DFS), 최소 스패닝 트리(Kruskal, Prim), 그 둘을 받치는 최소 힙, 그리고 최단 경로(Dijkstra, A*)"
-date: "주제 12 · v1"
+date: "주제 12 · v2"
 order: 12
 transition: none
 toc_level: 4
@@ -18,6 +18,19 @@ import GraphTermsDemo from '@components/GraphTermsDemo.astro';
 import GraphRepDemo from '@components/GraphRepDemo.astro';
 import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
+import DensityDemo from '@components/DensityDemo.astro';
+import FrontierDemo from '@components/FrontierDemo.astro';
+import SearchCompareDemo from '@components/SearchCompareDemo.astro';
+import TopoPickDemo from '@components/TopoPickDemo.astro';
+import SpanSwapDemo from '@components/SpanSwapDemo.astro';
+import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import WeightPathDemo from '@components/WeightPathDemo.astro';
+import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
+import PqCostDemo from '@components/PqCostDemo.astro';
+import NegWeightDemo from '@components/NegWeightDemo.astro';
+import NegCycleDemo from '@components/NegCycleDemo.astro';
+import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
+import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-12-graph)의 실행 결과와 같습니다. */}
@@ -205,6 +218,15 @@ Prim과 Dijkstra는 "지금 가장 가까운 것"을 고르는 그리디이고,
 
 <Slide>
 
+### 직접 해 보기: 간선 수와 칸 수
+::sub[n과 m을 움직이면 그래프와 함께 두 표현의 칸 수가 바뀝니다]
+
+<DensityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 인접 행렬 vs. 인접 목록
 ::sub[서울(0)-부산(1), 서울-대구(2), 부산-광주(3) · 목록은 4 + 6칸, 행렬은 16칸]
 
@@ -262,6 +284,15 @@ Prim과 Dijkstra는 "지금 가장 가까운 것"을 고르는 그리디이고,
 
 남은 질문은 하나입니다.  
 **경계에 걸친 간선이 여럿일 때 무엇부터 고르는가?**
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 경계 간선 고르기
+::sub[어느 간선부터 골라도 닿는 정점은 같습니다 · 오래된 것만 고르면 BFS, 새것만 고르면 DFS의 순서]
+
+<FrontierDemo slide />
 
 </Slide>
 
@@ -473,27 +504,10 @@ order: 0 6 4 5 3 2 1
 
 <Slide>
 
-#### 응용: 위상 정렬
-::sub[u → v: u를 먼저 들어야 v를 들을 수 있다]
+### 직접 해 보기: 위상 정렬
+::sub[u → v: u를 먼저 들어야 v를 들을 수 있습니다 · 수강 순서를 직접 만들어 보세요]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="dag" slide />
-
-</div>
-<div>
-
-0. Algorithms
-1. Complexity Theory
-2. Artificial Intelligence
-3. Intro to CS
-4. Cryptography
-5. Scientific Computing
-6. Advanced Programming
-
-</div>
-</div>
+<TopoPickDemo slide />
 
 </Slide>
 
@@ -544,6 +558,15 @@ topological sort (V = 7, E = 11, directed)
   - 방문 중인 정점으로 돌아가는 간선(back edge)이 있으면 사이클
 - **강하게 연결된 요소**
   - Kosaraju-Sharir 알고리즘: DFS 두 번
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: BFS와 DFS 나란히
+::sub[모양과 이웃 순서를 바꾸고, 정점을 눌러 시작 정점을 바꿔 보세요]
+
+<SearchCompareDemo slide />
 
 </Slide>
 
@@ -608,6 +631,15 @@ Kruskal과 Prim 예제
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 스패닝 트리 바꾸기
+::sub[트리 밖 간선을 넣고 사이클의 간선을 빼서 가장 가벼운 트리까지 내려갑니다]
+
+<SpanSwapDemo slide />
 
 </Slide>
 
@@ -810,7 +842,7 @@ total weight = 1.81
 <Slide>
 
 #### 삽입과 최솟값 꺼내기
-::sub[둘 다 한 층에 비교 한 번]
+::sub[한 층에 비교는 sift up이 한 번, sift down이 두 번까지]
 
 - **삽입**
   1. 가득 찼는지 확인합니다.
@@ -829,6 +861,15 @@ total weight = 1.81
 ::sub[insert 10, insert 0, extract min · 주황은 움직이는 원소, 파랑은 비교 상대]
 
 <HeapDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 최소 힙
+::sub[값을 넣고 최솟값을 꺼내 보세요 · 칸을 누르면 부모와 자식의 인덱스가 보입니다]
+
+<HeapPlayDemo slide />
 
 </Slide>
 
@@ -1035,6 +1076,15 @@ Prim에서 한 줄을 바꾸면 Dijkstra, 추정값 하나를 더하면 A*입니
 
 </Slide>
 
+<Slide>
+
+### 직접 해 보기: BFS와 Dijkstra의 길
+::sub[간선이 가장 적은 길과 가중치 합이 가장 작은 길]
+
+<WeightPathDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 예제 6. Dijkstra 알고리즘
@@ -1079,6 +1129,15 @@ Prim에서 한 줄을 바꾸면 Dijkstra, 추정값 하나를 더하면 A*입니
 ::sub[파란 숫자는 지금까지 찾은 거리 · 초록은 확정, 파란 점선은 아직 확정 전의 from]
 
 <HeapGraphDemo mode="dijkstra" slide />
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: Prim과 Dijkstra 나란히
+::sub[같은 그래프, 같은 틀, 다른 줄 하나 · 정점을 누르면 시작 정점이 바뀝니다]
+
+<PrimDijkstraDemo slide />
 
 </Slide>
 
@@ -1143,6 +1202,15 @@ path 0 -> 6: 0 4 5 2 6 (25)
 
 <Slide>
 
+### 직접 해 보기: 우선순위 큐 고르기
+::sub[V와 E를 움직이면 합계 공식의 값이 달라집니다 · 막대는 로그 눈금]
+
+<PqCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 실행 시간
 ::sub[우선순위 큐를 무엇으로 만드느냐에 따라 · * 분할 상환]
 
@@ -1194,6 +1262,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 <Slide>
 
+### 직접 해 보기: 음의 가중치
+::sub[2→3의 가중치와 모두에 더할 값을 움직여 보세요 · 굵은 초록은 Dijkstra가 찾은 길]
+
+<NegWeightDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 음의 사이클
 ::sub[간선 가중치의 합이 음수인 방향 사이클]
 
@@ -1201,6 +1278,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
   - 7 → 5 → 7은 $$6 - 8 = -2$$
   - 돌 때마다 짧아지니 최단 경로가 **정의되지 않습니다.**
 - 최단 경로 트리는 s에서 닿는 음의 사이클이 **없을 때만** 있습니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 음의 사이클
+::sub[Dijkstra 예제 그래프에 5 → 7을 더했습니다 · 7 → 5 → 7을 한 바퀴씩 돌아 봅니다]
+
+<NegCycleDemo slide />
 
 </Slide>
 
@@ -1297,11 +1383,22 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### 26은 최단이 아니다
 ::sub[같은 그래프에서 Dijkstra는 0 → 4 → 5 → 2 → 6, 25]
 
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="sp" nodeTones={{ 0: 'ring', 6: 'ring' }} edgeTones={{ '0-7': 'tree', '7-2': 'tree', '2-6': 'tree', '5-2': 'focus' }} slide />
+
+</div>
+<div>
+
 - 0 → 7 → 2 → 6, **26**은 최단 경로가 아닙니다.
 - 갈림길은 5를 닫을 때입니다.
   - 5에서 2로 가면 $$g = 14$$, 지금의 15보다 짧습니다.
   - 그런데 2는 이미 닫혀 있어 그냥 지나갑니다.
   - 2의 $$g$$가 15로 굳고, 6도 26으로 굳습니다.
+
+</div>
+</div>
 
 </Slide>
 
@@ -1317,6 +1414,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 - 이 예의 h는 허용적이지만 일관적이지 않습니다.
   - $$h(4) = 11 > 4 + h(5) = 10$$
   - $$h(5) = 6 > 1 + h(2) = 5$$
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: h 고치기
+::sub[빨간 점선은 일관성을 어긴 간선, 초록은 다시 열지 않을 때의 경로]
+
+<HeuristicLabDemo slide />
 
 </Slide>
 
@@ -1400,6 +1506,15 @@ path: 0 4 5 2 6, cost 25
 - **더 다듬기**
   - IDA*(메모리), 양방향 A*, 계층적 경로 탐색
   - 패턴 데이터베이스, 머신러닝 휴리스틱
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 네 알고리즘 재 보기
+::sub[같은 그래프, 0에서 6까지 · 줄을 누르고 한 걸음씩 돌려 보세요]
+
+<SearchRaceDemo slide />
 
 </Slide>
 

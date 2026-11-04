@@ -1,0 +1,378 @@
+---
+// 음의 가중치에서 Dijkstra가 언제 틀리는지, 모든 가중치에 같은 값을 더하면 왜
+// 해결되지 않는지 슬라이더로 보는 데모.
+//
+// 그래프는 06_dijkstra 끝부분의 neg(0→1 4, 0→3 2, 1→2 6, 2→3 -9)다. 슬라이더는
+// 둘이다. 하나는 2→3의 가중치 w, 다른 하나는 모든 간선에 더하는 값 c다. 움직일
+// 때마다 Dijkstra를 실제로 돌리고(확정한 정점은 다시 고치지 않음), 정답은 0에서
+// 3까지의 두 경로를 직접 더해 구한다. 처음 값(w = -9, c = 0)에서는 Dijkstra가 2,
+// 정답이 1이다. c = 9이면 가중치가 13, 11, 15, 0이 되어 Dijkstra는 맞게 11을
+// 내지만, 그 경로 0 → 3은 원래 그래프의 최단 경로 0 → 1 → 2 → 3이 아니다. 간선이
+// 셋인 길은 c를 세 번, 간선이 하나인 길은 c를 한 번 받기 때문이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const g = getGraph('neg');
+const id = `nw-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '음의 가중치 바꿔 보기',
+    w: '2→3의 가중치 w',
+    c: '모두에 더할 값 c',
+    reset: '처음으로',
+    path: '0에서 3까지',
+    cost: '비용',
+    orig: '원래 비용',
+    dijkstra: 'Dijkstra의 답',
+    truth: '정답',
+    right: '맞음',
+    wrong: '틀림',
+    bad: '3을 먼저 확정한 뒤 2→3으로 줄일 길이 나타나지만, 확정한 정점은 고치지 않습니다.',
+    ok: '이 가중치에서는 Dijkstra가 맞습니다.',
+    okNeg: '음의 간선이 있어도 답을 바꾸지 못할 만큼 약해서 이번에는 맞았습니다.',
+    moved: '다만 c를 더한 그래프의 최단 경로 {a}은 원래 최단 경로 {b}이 아닙니다.',
+    why: '간선 셋인 길은 c를 세 번, 간선 하나인 길은 c를 한 번 받기 때문입니다.',
+    kept: 'c를 더해도 최단 경로가 그대로입니다.',
+  },
+  en: {
+    title: 'Change the negative weight',
+    w: 'weight w of 2→3',
+    c: 'added to every edge, c',
+    reset: 'Reset',
+    path: 'From 0 to 3',
+    cost: 'cost',
+    orig: 'original cost',
+    dijkstra: "Dijkstra's answer",
+    truth: 'True answer',
+    right: 'right',
+    wrong: 'wrong',
+    bad: 'Vertex 3 is finalised first. Then 2→3 offers a shorter way, but a finalised vertex is never changed.',
+    ok: 'With these weights Dijkstra is right.',
+    okNeg: 'A negative edge is present, but it is too weak to change the answer, so Dijkstra is right this time.',
+    moved: 'But the shortest path after adding c, {a}, is not the original shortest path {b}.',
+    why: 'The three-edge path receives c three times, the one-edge path only once.',
+    kept: 'Adding c leaves the shortest path unchanged.',
+  },
+  zh: {
+    title: '改变负权',
+    w: '2→3 的权重 w',
+    c: '所有边都加上 c',
+    reset: '重置',
+    path: '从 0 到 3',
+    cost: '代价',
+    orig: '原代价',
+    dijkstra: 'Dijkstra 的答案',
+    truth: '正确答案',
+    right: '正确',
+    wrong: '错误',
+    bad: '3 先被确定，之后 2→3 才给出更短的路，但已确定的顶点不再修改。',
+    ok: '在这组权重下 Dijkstra 是对的。',
+    okNeg: '虽有负边，但它弱到改变不了答案，所以这次是对的。',
+    moved: '但加上 c 之后的最短路径 {a} 不是原来的最短路径 {b}。',
+    why: '三条边的路得到三次 c，一条边的路只得到一次。',
+    kept: '加上 c 后最短路径没有变。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-neg-weight-demo', slide && 'is-slide']}
+  id={id}
+  data-nw-edges={JSON.stringify(g.edges)}
+  data-nw-strings={JSON.stringify(t)}
+>
+  <div class="nw-bar">
+    <span class="nw-head"><strong>{t.title}</strong></span>
+    <label class="nw-range">
+      {t.w} <strong data-nw-wval></strong>
+      <input type="range" min="-12" max="4" step="1" value="-9" data-nw-w />
+    </label>
+    <label class="nw-range">
+      {t.c} <strong data-nw-cval></strong>
+      <input type="range" min="0" max="12" step="1" value="0" data-nw-c />
+    </label>
+    <button type="button" class="nw-btn" data-nw-reset>{t.reset}</button>
+  </div>
+
+  <div class="nw-body">
+    <div class="nw-graph">
+      <GraphFigure graph="neg" bare slide={slide} />
+    </div>
+    <div class="nw-panel">
+      <div class="nw-table" role="table">
+        <span class="nw-th">{t.path}</span><span class="nw-th">{t.cost}</span><span class="nw-th">{t.orig}</span>
+        <span data-nw-r="a-name">0 → 3</span><b data-nw-r="a-cost"></b><b data-nw-r="a-orig"></b>
+        <span data-nw-r="b-name">0 → 1 → 2 → 3</span><b data-nw-r="b-cost"></b><b data-nw-r="b-orig"></b>
+      </div>
+      <div class="nw-stats">
+        <span class="nw-big"><span>{t.dijkstra}</span><strong data-nw-d></strong></span>
+        <span class="nw-big"><span>{t.truth}</span><strong data-nw-t class="is-plain"></strong></span>
+        <span class="nw-tag" data-nw-tag></span>
+      </div>
+      <p class="nw-note" data-nw-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.nwStrings);
+    const base = JSON.parse(root.dataset.nwEdges);
+    const N = 4;
+    const wRange = root.querySelector('[data-nw-w]');
+    const cRange = root.querySelector('[data-nw-c]');
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const cell = (k) => root.querySelector(`[data-nw-r="${k}"]`);
+    const PA = [0, 3];
+    const PB = [0, 1, 2, 3];
+    const fmtPath = (p) => p.join(' → ');
+    const fmtW = (x) => (x < 0 ? `−${-x}` : String(x));
+
+    /* 절차는 dijkstra.pseudo와 같다. 확정한 정점은 다시 고치지 않는다. */
+    function dijkstra(edges) {
+      const dist = new Array(N).fill(Infinity);
+      const from = new Array(N).fill(-1);
+      const done = new Array(N).fill(false);
+      dist[0] = 0;
+      for (let k = 0; k < N; k++) {
+        let u = -1;
+        for (let v = 0; v < N; v++) if (!done[v] && dist[v] < Infinity && (u < 0 || dist[v] < dist[u])) u = v;
+        if (u < 0) break;
+        done[u] = true;
+        edges.forEach(([a, b, w]) => {
+          if (a === u && !done[b] && dist[u] + w < dist[b]) {
+            dist[b] = dist[u] + w;
+            from[b] = u;
+          }
+        });
+      }
+      const path = [];
+      for (let x = 3; x !== -1; x = from[x]) path.unshift(x);
+      return { d: dist[3], path };
+    }
+    const cost = (edges, p) => {
+      let s = 0;
+      for (let i = 1; i < p.length; i++) s += edges.find((e) => e[0] === p[i - 1] && e[1] === p[i])[2];
+      return s;
+    };
+
+    function render() {
+      const w = Number(wRange.value);
+      const c = Number(cRange.value);
+      const orig = base.map(([a, b, x]) => [a, b, a === 2 && b === 3 ? w : x]);
+      const shifted = orig.map(([a, b, x]) => [a, b, x + c]);
+      shifted.forEach(([a, b, x]) => {
+        const el = edgeEls.get(`${a}-${b}`);
+        el.querySelector('.gf-weight').textContent = fmtW(x);
+        el.classList.toggle('is-reject', x < 0);
+      });
+      root.querySelector('[data-nw-wval]').textContent = fmtW(w);
+      root.querySelector('[data-nw-cval]').textContent = String(c);
+      const aNow = cost(shifted, PA);
+      const bNow = cost(shifted, PB);
+      const aOld = cost(orig, PA);
+      const bOld = cost(orig, PB);
+      cell('a-cost').textContent = fmtW(aNow);
+      cell('b-cost').textContent = fmtW(bNow);
+      cell('a-orig').textContent = fmtW(aOld);
+      cell('b-orig').textContent = fmtW(bOld);
+      const truth = Math.min(aNow, bNow);
+      const r = dijkstra(shifted);
+      const right = r.d === truth;
+      root.querySelector('[data-nw-d]').textContent = fmtW(r.d);
+      root.querySelector('[data-nw-t]').textContent = fmtW(truth);
+      const tag = root.querySelector('[data-nw-tag]');
+      tag.textContent = right ? S.right : S.wrong;
+      tag.classList.toggle('is-wrong', !right);
+      root.classList.toggle('is-wrong', !right);
+      /* 길 표시: Dijkstra의 경로를 굵게 */
+      edgeEls.forEach((el, key) => {
+        const on = r.path.some((v, i) => i > 0 && `${r.path[i - 1]}-${v}` === key);
+        el.classList.toggle('is-tree', on);
+      });
+      const bestNow = aNow <= bNow ? PA : PB;
+      const bestOld = aOld <= bOld ? PA : PB;
+      const hasNeg = shifted.some((e) => e[2] < 0);
+      const first = !right ? S.bad : hasNeg ? S.okNeg : S.ok;
+      const extra =
+        c === 0 ? '' : bestNow !== bestOld ? join(fill(S.moved, { a: fmtPath(bestNow), b: fmtPath(bestOld) }), S.why) : S.kept;
+      setLines(root.querySelector('[data-nw-note]'), join(first, extra));
+    }
+    wRange.addEventListener('input', render);
+    cRange.addEventListener('input', render);
+    root.querySelector('[data-nw-reset]').addEventListener('click', () => {
+      wRange.value = '-9';
+      cRange.value = '0';
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-neg-weight-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-neg-weight-demo .nw-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-neg-weight-demo .nw-head {
+    font-size: 0.95em;
+  }
+  .aas-neg-weight-demo .nw-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-neg-weight-demo .nw-range strong {
+    min-width: 1.8em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-neg-weight-demo .nw-range input {
+    width: 8em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-neg-weight-demo .nw-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-neg-weight-demo .nw-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-neg-weight-demo .nw-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 2em;
+    align-items: flex-start;
+  }
+  .aas-neg-weight-demo .nw-graph {
+    flex: 0 1 15em;
+    min-width: 10em;
+  }
+  .aas-neg-weight-demo .nw-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 0;
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
+  .aas-neg-weight-demo .nw-table {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0 1.5em;
+    font-size: 0.85em;
+    line-height: 1.5;
+  }
+  .aas-neg-weight-demo .nw-table > * {
+    border-bottom: 1px solid var(--aas-border);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-neg-weight-demo .nw-table > b {
+    text-align: right;
+  }
+  .aas-neg-weight-demo .nw-th {
+    font-family: var(--aas-sans, inherit) !important;
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-neg-weight-demo .nw-th:not(:first-child) {
+    text-align: right;
+  }
+  .aas-neg-weight-demo .nw-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.6em;
+    align-items: baseline;
+  }
+  .aas-neg-weight-demo .nw-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-neg-weight-demo .nw-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-neg-weight-demo .nw-big strong.is-plain {
+    color: var(--aas-text);
+  }
+  .aas-neg-weight-demo .nw-tag {
+    padding: 0.05em 0.6em;
+    font-size: 0.85em;
+    font-weight: 700;
+    border-radius: 999px;
+    background: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-neg-weight-demo .nw-tag.is-wrong {
+    background: var(--aas-role-guard);
+  }
+  .aas-neg-weight-demo .nw-note {
+    margin: 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-neg-weight-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-neg-weight-demo.is-slide .nw-body {
+    flex-wrap: nowrap;
+  }
+  .aas-neg-weight-demo.is-slide .nw-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 34vh;
+  }
+</style>
