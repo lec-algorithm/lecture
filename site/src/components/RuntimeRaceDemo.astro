@@ -1,0 +1,469 @@
+---
+// 네 정렬의 시간을 지금 이 브라우저에서 실제로 재는 데모.
+//
+// 정수 배열을 만들어 삽입 정렬, 병합 정렬, 퀵 정렬, LSD 기수 정렬(R = 256)을 돌리고 잰다.
+// 탭으로 입력의 순서를 바꾸면 삽입 정렬은 크게 달라지지만 LSD는 거의 그대로다.
+// 짧게 끝나는 정렬은 여러 번 돌려 평균을 낸다. 삽입 정렬이 수십만 칸에서 탭을 멈추게
+// 하지 않도록, 오래 걸릴 칸은 재지 않고 앞 칸에서 n²에 비례한다고 어림해 †로 표시한다.
+// 값은 재는 환경마다 다르다. 강의 자료의 표는 C 측정이고 이 데모는 JavaScript다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `rr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '실제로 재 보기',
+    random: '무작위',
+    sorted: '이미 정렬됨',
+    reversed: '거꾸로',
+    run: '재기',
+    running: '재는 중',
+    colSort: '정렬 (ms)',
+    insertion: '삽입 정렬',
+    merge: '병합 정렬',
+    quick: '퀵 정렬',
+    lsd: 'LSD 기수 정렬',
+    ratio: 'n이 10배일 때',
+    chart: 'n = 1,000,000, 로그 눈금',
+    idle: '재기를 누르면 이 브라우저에서 네 정렬을 돌립니다. 값은 컴퓨터마다 다르고, 볼 것은 비율입니다.',
+    done: 'LSD는 10배마다 약 {r}배입니다.',
+    order: '탭을 바꿔 입력의 순서를 바꿔 보세요. LSD는 입력과 상관없이 모든 자리를 읽습니다.',
+    dagger: '†는 재지 않고 앞 칸에서 어림한 값입니다.',
+  },
+  en: {
+    title: 'Measure it yourself',
+    random: 'Random',
+    sorted: 'Already sorted',
+    reversed: 'Reversed',
+    run: 'Measure',
+    running: 'Measuring',
+    colSort: 'Sort (ms)',
+    insertion: 'Insertion sort',
+    merge: 'Merge sort',
+    quick: 'Quicksort',
+    lsd: 'LSD radix sort',
+    ratio: 'when n is ×10',
+    chart: 'n = 1,000,000, log scale',
+    idle: 'Measure runs the four sorts in this browser. Values depend on the computer; what matters is the ratio.',
+    done: 'LSD grows about ×{r} for each ×10 in n.',
+    order: 'Change the tab to change the input order. LSD reads every digit whatever the input.',
+    dagger: '† is an estimate from the previous cell, not a measurement.',
+  },
+  zh: {
+    title: '亲手测一测',
+    random: '随机',
+    sorted: '已经有序',
+    reversed: '倒序',
+    run: '测量',
+    running: '测量中',
+    colSort: '排序 (ms)',
+    insertion: '插入排序',
+    merge: '归并排序',
+    quick: '快速排序',
+    lsd: 'LSD 基数排序',
+    ratio: 'n 变 10 倍时',
+    chart: 'n = 1,000,000，对数刻度',
+    idle: '按测量后，会在这个浏览器里运行四种排序。数值因电脑而异，要看的是比例。',
+    done: 'n 每变 10 倍，LSD 大约变 {r} 倍。',
+    order: '切换标签可以改变输入的顺序。无论输入如何，LSD 都读完所有的位。',
+    dagger: '† 不是测量值，而是由前一格估算的。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const sizes = [1000, 10000, 100000, 1000000];
+const algos = ['insertion', 'merge', 'quick', 'lsd'];
+---
+
+<div class:list={['aas-runtime-race-demo', slide && 'is-slide']} id={id} data-rr-strings={JSON.stringify(t)}>
+  <div class="rr-bar">
+    <div class="rr-tabs">
+      <span class="rr-head"><strong>{t.title}</strong></span>
+      <button type="button" class="rr-tab" data-rr-order="random">{t.random}</button>
+      <button type="button" class="rr-tab" data-rr-order="sorted">{t.sorted}</button>
+      <button type="button" class="rr-tab" data-rr-order="reversed">{t.reversed}</button>
+    </div>
+    <button type="button" class="rr-btn" data-rr-run>{t.run}</button>
+  </div>
+
+  <table class="rr-table">
+    <thead>
+      <tr>
+        <th class="rr-name">{t.colSort}</th>
+        {sizes.map((n) => <th>{n.toLocaleString('en-US')}</th>)}
+        <th>{t.ratio}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        algos.map((a) => (
+          <tr data-rr-row={a}>
+            <td class="rr-name">{t[a]}</td>
+            {sizes.map((n) => <td data-rr-cell={n}>-</td>)}
+            <td data-rr-ratio>-</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <div class="rr-chart" data-rr-chart>
+    <span class="rr-chartcap">{t.chart}</span>
+    {
+      algos.map((a) => (
+        <div class="rr-chartline">
+          <span>{t[a]}</span>
+          <div class="rr-track"><i data-rr-bar={a}></i></div>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="rr-note" data-rr-note></p>
+</div>
+
+<script is:inline define:vars={{ id, sizes, algos }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.rrStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const note = root.querySelector('[data-rr-note]');
+    const runBtn = root.querySelector('[data-rr-run]');
+
+    /* 재기 위한 구현들. 모두 Int32Array를 제자리에서 정렬한다. */
+    function insertion(a) {
+      for (let i = 1; i < a.length; i++) {
+        const v = a[i];
+        let j = i - 1;
+        while (j >= 0 && a[j] > v) {
+          a[j + 1] = a[j];
+          j -= 1;
+        }
+        a[j + 1] = v;
+      }
+    }
+    function merge(a) {
+      const buf = new Int32Array(a.length);
+      const go = (lo, hi) => {
+        if (hi - lo < 2) return;
+        const mid = (lo + hi) >> 1;
+        go(lo, mid);
+        go(mid, hi);
+        let i = lo;
+        let j = mid;
+        let k = lo;
+        while (i < mid && j < hi) buf[k++] = a[j] < a[i] ? a[j++] : a[i++];
+        while (i < mid) buf[k++] = a[i++];
+        while (j < hi) buf[k++] = a[j++];
+        a.set(buf.subarray(lo, hi), lo);
+      };
+      go(0, a.length);
+    }
+    function quick(a) {
+      /* 가운데 값을 피벗으로 하는 Hoare 분할. 정렬된 입력에서도 깊어지지 않는다. */
+      const go = (lo, hi) => {
+        while (lo < hi) {
+          const p = a[(lo + hi) >> 1];
+          let i = lo;
+          let j = hi;
+          while (i <= j) {
+            while (a[i] < p) i += 1;
+            while (a[j] > p) j -= 1;
+            if (i <= j) {
+              const t = a[i];
+              a[i] = a[j];
+              a[j] = t;
+              i += 1;
+              j -= 1;
+            }
+          }
+          if (j - lo < hi - i) {
+            go(lo, j);
+            lo = i;
+          } else {
+            go(i, hi);
+            hi = j;
+          }
+        }
+      };
+      go(0, a.length - 1);
+    }
+    function lsd(a) {
+      /* 한 자리 = 바이트 하나(R = 256), 음이 아닌 31비트 정수라 네 패스다. */
+      let src = a;
+      let dst = new Int32Array(a.length);
+      const count = new Int32Array(256);
+      for (let shift = 0; shift < 32; shift += 8) {
+        count.fill(0);
+        for (let i = 0; i < src.length; i++) count[(src[i] >>> shift) & 255] += 1;
+        for (let d = 1; d < 256; d++) count[d] += count[d - 1];
+        for (let i = src.length - 1; i >= 0; i--) dst[--count[(src[i] >>> shift) & 255]] = src[i];
+        const t = src;
+        src = dst;
+        dst = t;
+      }
+      /* 네 패스면 결과가 a로 돌아와 있다. */
+    }
+    const SORTS = { insertion, merge, quick, lsd };
+
+    /* 시드가 있는 난수라 같은 입력으로 다시 잰다. */
+    function makeInput(n, order) {
+      let s = 0x9e3779b9;
+      const a = new Int32Array(n);
+      for (let i = 0; i < n; i++) {
+        s = (s + 0x6d2b79f5) | 0;
+        let x = Math.imul(s ^ (s >>> 15), 1 | s);
+        x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+        a[i] = (x ^ (x >>> 14)) & 0x7fffffff;
+      }
+      if (order === 'random') return a;
+      a.sort();
+      if (order === 'reversed') a.reverse();
+      return a;
+    }
+    /* 짧게 끝나는 정렬은 시간 분해능보다 오래 걸리도록 되풀이해 평균을 낸다. */
+    function measure(fn, input) {
+      let total = 0;
+      let runs = 0;
+      do {
+        const copy = input.slice();
+        const t0 = performance.now();
+        fn(copy);
+        total += performance.now() - t0;
+        runs += 1;
+      } while (total < 6 && runs < 40);
+      return total / runs;
+    }
+    /* 삽입 정렬이 오래 걸릴 칸: 이미 정렬된 입력만 재고, 나머지는 어림한다. */
+    const skip = (algo, n, order) => algo === 'insertion' && n > 10000 && order !== 'sorted';
+
+    let order = 'random';
+    let token = 0;
+    const results = {};
+    const fmt = (ms) => (ms >= 100 ? Math.round(ms).toLocaleString('en-US') : ms >= 1 ? ms.toFixed(2) : ms.toFixed(3));
+
+    function paint() {
+      const res = results[order] || {};
+      let hasDagger = false;
+      for (const a of algos) {
+        const row = root.querySelector(`[data-rr-row="${a}"]`);
+        for (const n of sizes) {
+          const r = res[`${a}:${n}`];
+          row.querySelector(`[data-rr-cell="${n}"]`).textContent = r ? `${fmt(r.ms)}${r.est ? '†' : ''}` : '-';
+          if (r && r.est) hasDagger = true;
+        }
+        const big = res[`${a}:${sizes[3]}`];
+        const prev = res[`${a}:${sizes[2]}`];
+        row.querySelector('[data-rr-ratio]').textContent = big && prev ? `×${(big.ms / prev.ms).toFixed(1)}${big.est ? '†' : ''}` : '-';
+        const bar = root.querySelector(`[data-rr-bar="${a}"]`);
+        const mx = Math.max(...algos.map((x) => res[`${x}:${sizes[3]}`]?.ms ?? 0));
+        const mn = Math.min(...algos.map((x) => res[`${x}:${sizes[3]}`]?.ms ?? Infinity));
+        /* 차이가 수천 배라 로그 눈금으로 그린다. */
+        const w = big && mx > mn ? 12 + (88 * Math.log(big.ms / mn)) / Math.log(mx / mn) : big ? 100 : 0;
+        bar.style.width = `${w.toFixed(1)}%`;
+      }
+      const lsdBig = res[`lsd:${sizes[3]}`];
+      const lsdPrev = res[`lsd:${sizes[2]}`];
+      if (lsdBig && lsdPrev) {
+        setLines(note, join(fill(S.done, { r: (lsdBig.ms / lsdPrev.ms).toFixed(1) }), S.order, hasDagger ? S.dagger : ''));
+      } else {
+        setLines(note, S.idle);
+      }
+      root.querySelectorAll('[data-rr-order]').forEach((b) => b.classList.toggle('is-on', b.dataset.rrOrder === order));
+    }
+
+    /* 칸마다 쉬어 가며 재서 화면이 멈추지 않게 한다. 새로 누르면 앞의 측정은 버린다. */
+    function run() {
+      const my = ++token;
+      const ord = order;
+      const res = {};
+      results[ord] = res;
+      paint();
+      runBtn.textContent = S.running;
+      const queue = [];
+      for (const n of sizes) for (const a of algos) queue.push([a, n]);
+      const inputs = {};
+      const next = () => {
+        if (my !== token) return;
+        const job = queue.shift();
+        if (!job) {
+          runBtn.textContent = S.run;
+          return;
+        }
+        const [a, n] = job;
+        if (skip(a, n, ord)) {
+          const prev = res[`${a}:${n / 10}`];
+          res[`${a}:${n}`] = { ms: prev.ms * 100, est: true };
+        } else {
+          inputs[n] = inputs[n] || makeInput(n, ord);
+          res[`${a}:${n}`] = { ms: measure(SORTS[a], inputs[n]) };
+        }
+        paint();
+        setTimeout(next, 0);
+      };
+      setTimeout(next, 30);
+    }
+
+    root.querySelectorAll('[data-rr-order]').forEach((b) =>
+      b.addEventListener('click', () => {
+        token += 1;
+        runBtn.textContent = S.run;
+        order = b.dataset.rrOrder;
+        paint();
+      }),
+    );
+    runBtn.addEventListener('click', run);
+    paint();
+  })();
+</script>
+
+<style is:global>
+  .aas-runtime-race-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-runtime-race-demo .rr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-runtime-race-demo .rr-head {
+    margin-right: 0.4em;
+    font-size: 0.95em;
+  }
+  .aas-runtime-race-demo .rr-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-runtime-race-demo .rr-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-runtime-race-demo .rr-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-runtime-race-demo .rr-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-runtime-race-demo .rr-btn {
+    padding: 0.35em 1.1em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-accent);
+    border-radius: 0.5em;
+    background: var(--aas-accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .aas-runtime-race-demo.aas-runtime-race-demo table {
+    width: 100%;
+    max-width: none;
+    margin: 0.6em 0 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.85em;
+  }
+  .aas-runtime-race-demo.aas-runtime-race-demo :is(th, td) {
+    padding: 0.2em 0.6em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-runtime-race-demo.aas-runtime-race-demo th {
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-runtime-race-demo.aas-runtime-race-demo .rr-name {
+    text-align: left;
+    font-family: var(--aas-sans, inherit);
+  }
+  .aas-runtime-race-demo.aas-runtime-race-demo tr[data-rr-row='lsd'] td {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+    font-weight: 700;
+  }
+  .aas-runtime-race-demo .rr-chart {
+    margin-top: 0.35em;
+  }
+  .aas-runtime-race-demo .rr-chartcap {
+    display: block;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-runtime-race-demo .rr-chartline {
+    display: grid;
+    grid-template-columns: minmax(7em, auto) 1fr;
+    gap: 0.6em;
+    align-items: center;
+    font-size: 0.78em;
+  }
+  .aas-runtime-race-demo .rr-chartline span {
+    color: var(--aas-muted);
+  }
+  .aas-runtime-race-demo .rr-track {
+    height: 0.85em;
+  }
+  .aas-runtime-race-demo .rr-track i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 0.2em;
+    background: var(--aas-role-model);
+    transition: width 0.25s;
+  }
+  .aas-runtime-race-demo .rr-track i[data-rr-bar='lsd'] {
+    background: var(--aas-role-eval);
+  }
+  .aas-runtime-race-demo .rr-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-runtime-race-demo.is-slide {
+    font-size: clamp(1rem, 2.55vh, 1.75rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-runtime-race-demo .rr-track i {
+      transition: none;
+    }
+  }
+</style>
