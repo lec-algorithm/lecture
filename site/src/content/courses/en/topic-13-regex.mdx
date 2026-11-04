@@ -16,6 +16,15 @@ import LanguageDemo from '@components/LanguageDemo.astro';
 import RegexPlayDemo from '@components/RegexPlayDemo.astro';
 import BlowupDemo from '@components/BlowupDemo.astro';
 import ParenDemo from '@components/ParenDemo.astro';
+import ShorthandDemo from '@components/ShorthandDemo.astro';
+import ValidateDemo from '@components/ValidateDemo.astro';
+import Mod3Demo from '@components/Mod3Demo.astro';
+import CallGridDemo from '@components/CallGridDemo.astro';
+import FsaTableDemo from '@components/FsaTableDemo.astro';
+import SubsetDemo from '@components/SubsetDemo.astro';
+import NfaLabDemo from '@components/NfaLabDemo.astro';
+import ClosureDemo from '@components/ClosureDemo.astro';
+import MnWorkDemo from '@components/MnWorkDemo.astro';
 
 > The trie of Topic 10 was a tool for when you know exactly which string to
 > look for.  
@@ -65,6 +74,12 @@ side is concatenation.
 
 An alternative. `A|B` is `{A, B}`, and `A|E|I|O|U` is the set of five vowels
 `{A, E, I, O, U}`.
+
+Switch tabs and type some strings. The language of `AB` holds `AB` alone, and `A|E|I|O|U` holds five strings.
+
+<LanguageDemo regexes={['AB', 'A|B', 'A|E|I|O|U']} tests={{ 'AB': ['A', 'BA'], 'A|B': ['AB'], 'A|E|I|O|U': ['B', 'AE'] }} />
+
+With no `*`, both languages are finite.
 
 ### Closure \{#closure}
 
@@ -124,6 +139,13 @@ A short way to write a particular set of characters.
 | `[A-Z]` | one character in the range | `[A-Z]` is an uppercase letter, `[0-9]` a digit |
 | `[^ ]` | when the list starts with `^`, one character that is **not** listed | `[^AEIOU]*` is a string with no vowels |
 
+Pick an example below or type your own. You get the shorthand written out with or. Press a piece to light up the characters it takes, and press a key to add it to the string.
+
+<ShorthandDemo kind="class" />
+
+`[AEIOU]*` becomes `(A|E|I|O|U)*`, so 8 characters become 12. All short strings made from the regex's characters are run through both regexes, and every answer agrees.  
+With `^`, as in `[^AEIOU]*`, you must first decide what "every character" means. Here it is the 95 printable ASCII characters.
+
 ### Closure shorthands \{#closure-shorthand}
 
 `*` means "zero or more times." These shorthands set a different count.
@@ -135,6 +157,12 @@ A short way to write a particular set of characters.
 | `{n}` | exactly n | `[0-9]{3}` | `[0-9][0-9][0-9]` |
 | `{m,n}` | at least m, at most n | `A{2,3}` | `AA\|AAA` |
 | `{m,}` | at least m | `A{2,}` | `AAA*` |
+
+Pick an example and you get the form in the right column of the table above. Blue cells are the allowed numbers of copies.
+
+<ShorthandDemo kind="quant" />
+
+`[0-9]{3}` grows from 8 characters to 63. The numbers show why shorthands exist.
 
 ### Escape sequences \{#escape}
 
@@ -150,6 +178,12 @@ frequently used sets have names too.
 | `\n` | newline |
 | `\s` | whitespace (space, tab, newline, …) |
 | `\d` | one digit, the same as `[0-9]` |
+
+Feed the same string `AXB` to `A.B` and `A\.B`.
+
+<ShorthandDemo kind="escape" />
+
+The first accepts it and the second does not. The first dot is any character, and the second is a real dot.
 
 ## Practical examples \{#practical}
 
@@ -191,6 +225,12 @@ shape.
 `(800) 867-5309` belongs to it. A Korean mobile number can be written as
 `\d{3}-\d{3,4}-\d{4}`; `010-1234-5678` belongs to it.
 
+Edit the input and watch which piece eats each character. The same color means the same piece.
+
+<ValidateDemo tabs={['phone', 'mobile']} />
+
+`800-867-5309` gets stuck at the first piece `\(`, and `(800) 867-530` gets stuck at the last `[0-9]{4}`, one digit short.
+
 **Email address**: `[a-z]+@([a-z]+\.)+(edu|com)`
 
 | Piece | Meaning |
@@ -207,12 +247,24 @@ uppercase letters, digits and a few symbols.
 [a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
 ```
 
+Switch between the two regexes with the tabs and try the same address.
+
+<ValidateDemo tabs={['email', 'wide']} />
+
+`rs@princeton.org` gets stuck at `(edu|com)` in the first and passes in the wider one.
+
 **URL**: `https?://[^\s/$.?#].[^\s]*`
 
 - `https?`: the `s` may or may not be there, so both http and https
 - `[^\s/$.?#]`: the first character of the address is not whitespace or
   one of `/ $ . ? #`.
 - `[^\s]*`: then everything up to the next whitespace
+
+Match the pieces yourself.
+
+<ValidateDemo tabs={['url']} />
+
+`https://.bad` gets stuck at `[^\s/$.?#]` because the address starts with a dot. `ftp://a.b` gets stuck at the first piece.
 
 ### Applications \{#applications}
 
@@ -235,6 +287,13 @@ Feed it 0 through 15 in binary and the ones painted green are exactly the
 multiples of 3. You can type longer binary numbers into the text box too.
 
 <RegexPlayDemo regex="(0|1(01*0)*1)*" text="1001" mode="full" presets={[]} list={['0', '1', '10', '11', '100', '101', '110', '111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111']} binary />
+
+Remainders show why this regex describes multiples of 3. Reading a binary number from the left doubles the value and adds the bit, so the remainder $$r$$ modulo 3 becomes $$(2r + b) \bmod 3$$. Append bits or pick an example and step through. The current transition and its character in the regex are highlighted together.
+
+<Mod3Demo />
+
+The six transitions pair up one to one with characters of the regex. For `1001` the value grows through 1, 2, 4, 9, and the remainder passes r1, r2, r1, r0.  
+The value grows without end, yet only three remainders matter, so three states are enough. That is how this differs from matching parentheses in the next section.
 
 ### Limits \{#limits}
 
@@ -386,6 +445,12 @@ blow-up: match((a*)^n b, a^n)
 gives the same answer as `search`, because `.*` does the job of moving the
 start position.
 
+Press a row of the `tests` table and step through it. You can edit the pattern and text as well.
+
+<RegexMatchDemo cases={[['ab*c', 'aabbc'], ['ab*c', 'ac'], ['ab*c', 'abbbbc'], ['ab*c', 'abd'], ['a.c', 'xxabcxx'], ['.*ab*c', 'zzabbbcz']]} />
+
+The position and comparison count on each button match the output above. An input that makes too many calls is refused, with a note of how many calls it would take.
+
 ### The backtracking trap \{#blow-up}
 
 The last table is the weakness of this approach. The pattern is
@@ -411,6 +476,12 @@ grows almost like $$4^n$$: **exponential time**. Web services have
 actually ground to a halt over a single regex, and such attacks are called
 ReDoS (regular expression denial of service). A recursion depth as deep as
 the pattern is long is a burden too.
+
+Why does it grow like this? The answer of `match` depends only on the pattern left and the text left, so draw each such pair as one cell. Each step calls `match` once and raises the count of that cell.
+
+<CallGridDemo />
+
+At $$n = 3$$ there are 13 cells, yet `match` is called 35 times. The bottom row 1, 3, 6, 10 holds numbers from Pascal's triangle, and the total is $$\binom{7}{3} = 35$$. That is where the binomial coefficient above comes from.
 
 The root of the problem is **carrying only one possibility at a time**.
 When it fails, it backs up and follows the next possibility from scratch.
@@ -460,6 +531,13 @@ Reading `b` in S3 stays in S3. Drawing this transition back from S3 to S2
 would accept the same strings, but then S3 would mean "has read an odd
 number of bs," which does not match the table above. Staying in S3 keeps
 each state to one meaning.
+
+Change it yourself. The table starts with `b` in S3 going back to S2. Edit cells and accept states, and the drawing and verdicts change together. The last column comes from really running the table.
+
+<FsaTableDemo start="back" />
+
+S3 receives `ab`, `abbb`, `abbbbb`, an odd number of `b`s. Even so, all 3,280 strings up to length 7 get the same answer as `ab*c`.  
+Press "Original" and S3 receives `ab`, `abb`, `abbb`. Now set the target to `ab*c*` and edit the table until the answers agree. It is the same problem as in "Try it yourself" later on.
 
 Now a rejected case. `abd` meets `d` in S3, and S3 has no transition on
 `d`.
@@ -551,6 +629,12 @@ There are two ways to be rejected.
   of `abcc`
 - running out of input outside an accept state: `ab` ends in S3.
 
+Press the six strings of the `summary` above or type your own. Green accepts and red rejects.
+
+<FsaDemo input="abc" cases={['abc', 'abbbbc', 'ac', 'ab', 'abd', 'abcc']} />
+
+The cell in use is highlighted in the transition table. Every cell has one destination, and an empty cell means reject.
+
 ### Analysis \{#fsa-analysis}
 
 - **One transition per character.** For a text of length $$N$$ it finishes
@@ -575,6 +659,12 @@ length of the regex. So we build a **nondeterministic finite automaton**
 (NFA) instead. In an NFA a state may have several places to go, and
 ε-transitions are used freely.
 
+See the exponential growth for yourself. Treat one set of NFA states as one DFA state, and keep going until no new set appears. This is called the subset construction. The language is the strings whose $$k$$-th character from the end is a.
+
+<SubsetDemo />
+
+At $$k = 3$$ the NFA has 20 states and the DFA 9, so the DFA is smaller. At $$k = 5$$ it flips to 30 and 33, and at $$k = 10$$ it is 55 and 1,025. The NFA grows by 5, while the DFA grows to $$2^k + 1$$, because the last $$k$$ characters must all be remembered.
+
 ### How to build it \{#nfa-build}
 
 Wrap the whole regex in one more pair of parentheses and make **one state
@@ -589,6 +679,12 @@ $$M$$ is the accept state.
     and from the `*` back to the start of the group (once more).
   - `(A|B)`: from `(` to the start of B (skipping A), and from `|` to `)`
     (after finishing A).
+
+See which transitions each rule makes by editing the regex. Press a rule in the table to highlight the transitions it added, or press a transition in the graph to see why it is there.
+
+<NfaLabDemo />
+
+`(A*B|AC)D` has $$M = 11$$ with 5 match transitions and 9 ε-transitions. `(0|1(01*0)*1)*` has $$M = 16$$ with 6 and 17. Whatever you enter, transitions divided by $$M$$ stays small.
 
 Matching parentheses are found with a stack: push on `(` and `|`, pop on
 `)`. Let us build `(A*B|AC)D`, which appears in the practice code's
@@ -631,6 +727,12 @@ character takes two steps.
    matching the character read move one ahead.
 2. **ε-closure**: add every state reachable from there by ε-transitions
    alone. This is a graph search (DFS).
+
+Follow an ε-closure on its own. Press states in the graph to choose the start set, or use the buttons for the sets met while reading `1001`.
+
+<ClosureDemo />
+
+`{5}` becomes `{5 6 11 12}` and `{13}` becomes `{1 2 4 13 14 15 16}`, the same sets as in the run below. States already in the set are not visited again, so each state and ε-transition is looked at once.
 
 When the text is used up, accept if the set contains the accept state. Let
 us read `1001` (9) with the multiple-of-3 regex `(0|1(01*0)*1)*` from
@@ -730,6 +832,12 @@ The demo's eight sets appear exactly as they are, from `start` to the last
 which is a multiple of 3. The seven examples from the original material
 are all classified correctly.
 
+Run it yourself. The log on the right is the output above, with the current line highlighted. On the buttons, green accepts and red rejects.
+
+<NfaDemo texts={['11', '110', '1001', '1100', '10', '1011', '10000']} binary trace />
+
+Type other binary numbers and only multiples of 3 are accepted. A character other than 0 or 1 empties the set and rejects.
+
 ### Analysis \{#nfa-analysis}
 
 - **Building**: one pass over the regex adds at most a few ε-transitions
@@ -741,6 +849,12 @@ are all classified correctly.
   and is slower than that, but with adjacency lists it holds. So it is
   $$O(M)$$ per character and $$O(MN)$$ in the worst case overall. That is
   exactly the result promised at the start of this topic.
+Measure $$O(MN)$$ in numbers. One bar is the number of states put in the set while reading one character, and the dashed line is $$M + 1$$.
+
+<MnWorkDemo />
+
+With four `a*` and $$N = 8$$, $$M = 11$$ and the work is 82. Doubling $$N$$ or doubling the `a*` both give 154, 1.88 times as much. The bars never cross the dashed line.
+
 - **Next to backtracking**: the last table is the input that made Example 1
   compare more than 350,000 times. For the NFA, the total number of states
   put into sets (`work`) stays at 232. Switch to the linear scale below and
@@ -761,6 +875,12 @@ follows them **all at once**. Even if two paths reach the same state, it
 enters the set only once, so branches do not multiply. This is the method
 Ken Thompson published in 1968, and the first `grep` was built on this
 idea.
+
+Count again with the cells from before. "Each cell once" is what the NFA does with its state set.
+
+<CallGridDemo n={10} dedupe />
+
+At $$n = 10$$, 352,716 calls shrink to 111. The NFA work of 232 also counts the parenthesis and `*` states, so it is larger than 111, but both grow roughly like $$n^2$$.
 
 ## What to keep \{#takeaway}
 
@@ -815,8 +935,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-11-04 | Added nine demos (expanding shorthand, matching piece by piece, the remainder machine, how often a cell is called, editing the transition table, going straight to a DFA, from rules to a graph, following an ε-closure, measuring O(MN)). Existing demos now hold the syntax table, transition table and rule table, and take new inputs |
