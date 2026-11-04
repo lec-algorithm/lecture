@@ -1,0 +1,101 @@
+---
+// 주제 15의 영화 표. M1 같은 번호가 무슨 영화인지, 장르가 무엇인지를 데모 안에서 바로 보게 한다.
+//
+// 데모가 [data-rk-item]에 is-now를 달면 그 영화의 줄이 칠해진다. 표는 데모의 평점
+// 행렬 옆에 세로로 놓여 높이를 거의 쓰지 않는다. 내용은 recData.ts를 그대로 쓴다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import { FEATURES, GENRE_NAMES, MOVIE_TITLES } from './recData';
+
+interface Props {
+  /** 보일 영화 수. 평점 행렬만 쓰면 6, 새 영화까지 쓰면 7 */
+  items?: number;
+  /** 장르 열도 보일지 */
+  genres?: boolean;
+}
+const { items = 6, genres = false } = Astro.props;
+const lang = Astro.currentLocale ?? defaultLang;
+const titles = MOVIE_TITLES[lang] ?? MOVIE_TITLES.ko;
+const genreNames = GENRE_NAMES[lang] ?? GENRE_NAMES.ko;
+const list = titles.slice(0, items).map((title, i) => ({ title, i, f: FEATURES[i] }));
+const cols = genres ? genreNames.length : 0;
+---
+
+<div class="aas-rec-key" data-rk style={`grid-template-columns: auto auto${cols ? ` repeat(${cols}, auto)` : ''}`}>
+  {
+    genres && (
+      <>
+        <span class="rk-head" />
+        <span class="rk-head" />
+        {genreNames.map((g) => <span class="rk-head rk-genre-head">{g}</span>)}
+      </>
+    )
+  }
+  {
+    list.map(({ title, i, f }) => (
+      <>
+        <b class:list={['rk-cell rk-code', i === 6 && 'rk-new']} data-rk-item={i}>
+          M{i + 1}
+        </b>
+        <span class:list={['rk-cell rk-title', i === 6 && 'rk-new']} data-rk-item={i}>
+          {title}
+        </span>
+        {genres &&
+          f.map((x) => (
+            <span class:list={['rk-cell rk-dot', x ? 'is-yes' : 'is-no', i === 6 && 'rk-new']} data-rk-item={i}>
+              {x ? '●' : '·'}
+            </span>
+          ))}
+      </>
+    ))
+  }
+</div>
+
+<style is:global>
+  .aas-rec-key {
+    display: grid;
+    align-self: center;
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: 100%;
+    font-size: 0.72em;
+    line-height: 1.3;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-rec-key .rk-head {
+    padding: 0.15em 0.35em 0;
+    color: var(--aas-muted);
+    font-size: 0.85em;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .aas-rec-key .rk-cell {
+    padding: 0.05em 0.5em;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+  }
+  .aas-rec-key .rk-code {
+    font-family: var(--aas-mono, monospace);
+    padding-right: 0.2em;
+  }
+  .aas-rec-key .rk-dot {
+    padding: 0.05em 0.35em;
+    text-align: center;
+  }
+  .aas-rec-key .rk-dot.is-no {
+    color: var(--aas-muted);
+  }
+  .aas-rec-key .rk-dot.is-yes {
+    color: var(--aas-role-model);
+  }
+  .aas-rec-key .rk-cell.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-rec-key .rk-cell {
+      transition: none;
+    }
+  }
+</style>

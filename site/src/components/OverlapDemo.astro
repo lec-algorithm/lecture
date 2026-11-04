@@ -1,0 +1,484 @@
+---
+// 좋아한 영화 목록의 겹침으로 추천해 보는 데모. 사용자 기반 협업 필터링의 생각을 숫자 없이 본다.
+//
+// 대상 사용자를 고르면, 대상이 좋아한 영화가 모든 목록에서 칠해지고 사람마다 겹치는 편수가
+// 막대로 나온다. 겹치는 사람이 좋아했고 대상이 안 본 영화가 추천 후보가 된다. 후보의 순위는
+// 그 영화를 좋아한 사람들의 겹침 편수 합이다(A면 C의 영화 2, B의 영화 1). 영화를 누르면 대상이
+// 좋아한 영화에서 넣고 뺄 수 있다.
+//
+// cold를 주면 콜드 스타트의 표(A, B, C와 막 가입한 E, 아무도 안 본 새 어벤져스)로 시작한다.
+// 표의 내용은 강의 자료의 표와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 콜드 스타트의 표로 시작한다. */
+  cold?: boolean;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { cold = false, slide = false } = Astro.props;
+const id = `ov-${Math.random().toString(36).slice(2, 9)}`;
+
+const TITLES: Record<string, Record<string, string>> = {
+  ko: {
+    roundup3: '범죄도시 3',
+    topgun: '탑건: 매버릭',
+    avatar: '아바타: 물의 길',
+    spider: '스파이더맨: 노 웨이 홈',
+    elemental: '엘리멘탈',
+    aladdin: '알라딘',
+    seoul: '서울의 봄',
+    hansan: '한산: 용의 출현',
+    exit: '엑시트',
+    parasite: '기생충',
+    roundup2: '범죄도시 2',
+    endgame: '어벤져스: 엔드게임',
+    newav: '새 어벤져스',
+  },
+  en: {
+    roundup3: 'The Roundup: No Way Out',
+    topgun: 'Top Gun: Maverick',
+    avatar: 'Avatar: The Way of Water',
+    spider: 'Spider-Man: No Way Home',
+    elemental: 'Elemental',
+    aladdin: 'Aladdin',
+    seoul: '12.12: The Day',
+    hansan: 'Hansan: Rising Dragon',
+    exit: 'Exit',
+    parasite: 'Parasite',
+    roundup2: 'The Roundup',
+    endgame: 'Avengers: Endgame',
+    newav: 'the new Avengers',
+  },
+  zh: {
+    roundup3: '犯罪都市3',
+    topgun: '壮志凌云：独行侠',
+    avatar: '阿凡达：水之道',
+    spider: '蜘蛛侠：英雄无归',
+    elemental: '疯狂元素城',
+    aladdin: '阿拉丁',
+    seoul: '首尔之春',
+    hansan: '闲山：龙的出现',
+    exit: '极限逃生',
+    parasite: '寄生虫',
+    roundup2: '犯罪都市2',
+    endgame: '复仇者联盟4：终局之战',
+    newav: '新复仇者联盟',
+  },
+};
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '좋아한 영화의 겹침',
+    target: '추천받을 사용자',
+    reset: '처음으로',
+    user: '사용자 {u}',
+    newUser: '사용자 {u} (새로 옴)',
+    pool: '아무도 안 본 영화',
+    overlap: '겹치는 편수',
+    rec: '추천 후보 (겹침 합)',
+    none: '없음',
+    best: '{u}와 가장 많이 겹치는 사람은 {v}이고, {n}편이 겹칩니다.',
+    recs: '추천 후보는 {list}입니다.',
+    noOverlap: '{u}와 겹치는 사람이 없어 이웃도 추천도 없습니다.',
+    noMore: '겹치는 사람이 좋아한 영화는 {u}도 이미 다 좋아합니다.',
+    newItem: '새 어벤져스는 좋아한 사람이 없어 누구에게도 후보로 오르지 않습니다.',
+    hint: '영화를 누르면 {u}가 좋아한 영화에서 넣고 뺄 수 있습니다.',
+  },
+  en: {
+    title: 'Overlap of liked movies',
+    target: 'recommend to',
+    reset: 'Reset',
+    user: 'User {u}',
+    newUser: 'User {u} (new)',
+    pool: 'Nobody has seen',
+    overlap: 'shared movies',
+    rec: 'candidates (overlap sum)',
+    none: 'none',
+    best: 'The most overlap with {u} is {v}, with {n} shared.',
+    recs: 'The candidates are {list}.',
+    noOverlap: 'Nobody shares a movie with {u}, so there are no neighbors and no recommendations.',
+    noMore: '{u} already likes everything the overlapping people like.',
+    newItem: 'Nobody has liked the new Avengers, so it never becomes a candidate.',
+    hint: 'Click a movie to add it to or remove it from what {u} likes.',
+  },
+  zh: {
+    title: '喜欢的电影的重合',
+    target: '推荐对象',
+    reset: '重置',
+    user: '用户 {u}',
+    newUser: '用户 {u}（新来）',
+    pool: '没有人看过',
+    overlap: '重合部数',
+    rec: '候选（重合之和）',
+    none: '无',
+    best: '与 {u} 重合最多的是 {v}，重合 {n} 部。',
+    recs: '候选是 {list}。',
+    noOverlap: '没有人与 {u} 重合，所以没有邻居，也没有推荐。',
+    noMore: '重合的人喜欢的电影，{u} 都已经喜欢了。',
+    newItem: '新复仇者联盟没有人喜欢，所以不会成为任何人的候选。',
+    hint: '点击电影，可以把它加入或移出 {u} 喜欢的电影。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const titles = TITLES[lang] ?? TITLES.ko;
+
+const lists: Record<string, string[]> = {
+  A: ['roundup3', 'topgun', 'avatar', 'spider'],
+  B: ['elemental', 'aladdin', 'avatar'],
+  C: ['seoul', 'hansan', 'avatar', 'spider'],
+  ...(cold ? { E: ['exit'] } : { D: ['exit', 'parasite', 'roundup2', 'endgame'] }),
+};
+const users = Object.keys(lists);
+const startUser = cold ? 'E' : 'A';
+const pool = cold ? ['newav'] : [];
+const head = (u: string) => (cold && u === 'E' ? t.newUser : t.user).replace('{u}', u);
+---
+
+<div
+  class:list={['aas-overlap-demo', slide && 'is-slide', cold && 'is-cold']}
+  id={id}
+  data-ov-lists={JSON.stringify(lists)}
+  data-ov-start={startUser}
+  data-ov-pool={JSON.stringify(pool)}
+  data-ov-titles={JSON.stringify(titles)}
+  data-ov-strings={JSON.stringify(t)}
+  style={`--ov-cols: ${users.length + pool.length}`}
+>
+  <div class="ov-bar">
+    <span class="ov-head"><strong>{t.title}</strong></span>
+    <div class="ov-controls">
+      {
+        !cold && (
+          <>
+            <span class="ov-label">{t.target}</span>
+            {users.map((u) => (
+              <button type="button" class="ov-btn" data-ov-target={u}>
+                {u}
+              </button>
+            ))}
+          </>
+        )
+      }
+      <button type="button" class="ov-btn" data-ov-reset>{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ov-cols">
+    {
+      users.map((u) => (
+        <div class="ov-col" data-ov-col={u}>
+          <div class="ov-colhead">{head(u)}</div>
+          {lists[u].map((m) => (
+            <button type="button" class="ov-movie" data-ov-movie={m}>
+              {titles[m]}
+            </button>
+          ))}
+          <div class="ov-count">
+            <span class="ov-track">
+              <span class="ov-fill" data-ov-fill />
+            </span>
+            <strong data-ov-num />
+          </div>
+        </div>
+      ))
+    }
+    {
+      pool.length > 0 && (
+        <div class="ov-col is-pool">
+          <div class="ov-colhead">{t.pool}</div>
+          {pool.map((m) => (
+            <button type="button" class="ov-movie" data-ov-movie={m}>
+              {titles[m]}
+            </button>
+          ))}
+        </div>
+      )
+    }
+  </div>
+
+  <div class="ov-rec"><span>{t.rec}</span> <strong data-ov-rec></strong></div>
+  <p class="ov-note" data-ov-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const lists = JSON.parse(root.dataset.ovLists);
+    const start = root.dataset.ovStart;
+    const pool = JSON.parse(root.dataset.ovPool);
+    const titles = JSON.parse(root.dataset.ovTitles);
+    const S = JSON.parse(root.dataset.ovStrings);
+    const users = Object.keys(lists);
+
+    let target = start;
+    /* 사람마다 "좋아한 영화"를 따로 둔다. 영화를 누르면 대상의 것만 바뀐다. */
+    let liked = {};
+    const fresh = () => {
+      liked = Object.fromEntries(users.map((u) => [u, new Set(lists[u])]));
+    };
+    fresh();
+
+    const movies = [...root.querySelectorAll('[data-ov-movie]')];
+    const cols = [...root.querySelectorAll('[data-ov-col]')];
+    const recEl = root.querySelector('[data-ov-rec]');
+    const note = root.querySelector('[data-ov-note]');
+
+    function compute() {
+      const mine = liked[target];
+      const overlap = {};
+      for (const u of users) {
+        if (u !== target) overlap[u] = [...liked[u]].filter((m) => mine.has(m)).length;
+      }
+      /* 후보: 겹치는 사람이 좋아했고 대상은 안 좋아한 영화. 점수는 그 사람들의 겹침 합 */
+      const score = new Map();
+      for (const u of users) {
+        if (u === target || overlap[u] === 0) continue;
+        for (const m of liked[u]) {
+          if (!mine.has(m)) score.set(m, (score.get(m) ?? 0) + overlap[u]);
+        }
+      }
+      const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]);
+      return { overlap, ranked };
+    }
+
+    function render() {
+      const { overlap, ranked } = compute();
+      const others = users.filter((u) => u !== target);
+      const top = Math.max(0, ...others.map((u) => overlap[u]));
+      const recSet = new Set(ranked.map(([m]) => m));
+      movies.forEach((b) => {
+        const m = b.dataset.ovMovie;
+        b.classList.toggle('is-like', liked[target].has(m));
+        b.classList.toggle('is-rec', recSet.has(m));
+        b.setAttribute('aria-pressed', String(liked[target].has(m)));
+      });
+      cols.forEach((c) => {
+        const u = c.dataset.ovCol;
+        const self = u === target;
+        c.classList.toggle('is-target', self);
+        c.classList.toggle('is-top', !self && top > 0 && overlap[u] === top);
+        const num = c.querySelector('[data-ov-num]');
+        const bar = c.querySelector('[data-ov-fill]');
+        num.textContent = self ? '' : String(overlap[u]);
+        bar.style.width = self ? '0' : `${(overlap[u] / 4) * 100}%`;
+        c.querySelector('.ov-count').classList.toggle('is-self', self);
+      });
+      root.querySelectorAll('[data-ov-target]').forEach((b) => b.classList.toggle('is-on', b.dataset.ovTarget === target));
+      recEl.textContent = ranked.length ? ranked.map(([m, s]) => `${titles[m]} (${s})`).join(' · ') : S.none;
+
+      const parts = [];
+      if (top === 0) {
+        parts.push(fill(S.noOverlap, { u: target }));
+      } else {
+        const best = others.filter((u) => overlap[u] === top).join(', ');
+        parts.push(fill(S.best, { u: target, v: best, n: top }));
+        parts.push(ranked.length ? fill(S.recs, { list: ranked.slice(0, 2).map(([m]) => titles[m]).join(', ') }) : fill(S.noMore, { u: target }));
+      }
+      if (pool.length) parts.push(S.newItem);
+      parts.push(fill(S.hint, { u: target }));
+      setLines(note, join(...parts));
+    }
+
+    movies.forEach((b) =>
+      b.addEventListener('click', () => {
+        const m = b.dataset.ovMovie;
+        const mine = liked[target];
+        if (mine.has(m)) mine.delete(m);
+        else mine.add(m);
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-ov-target]').forEach((b) =>
+      b.addEventListener('click', () => {
+        target = b.dataset.ovTarget;
+        fresh();
+        render();
+      }),
+    );
+    root.querySelector('[data-ov-reset]').addEventListener('click', () => {
+      target = start;
+      fresh();
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-overlap-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-overlap-demo .ov-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-overlap-demo .ov-head {
+    font-size: 0.95em;
+  }
+  .aas-overlap-demo .ov-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-overlap-demo .ov-label {
+    margin-right: 0.2em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-overlap-demo .ov-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-overlap-demo .ov-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-overlap-demo .ov-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-overlap-demo .ov-cols {
+    display: grid;
+    grid-template-columns: repeat(var(--ov-cols), minmax(0, 1fr));
+    gap: 0.5em;
+  }
+  .aas-overlap-demo .ov-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    padding: 0.4em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+    min-width: 0;
+  }
+  .aas-overlap-demo .ov-col.is-target {
+    border-color: var(--aas-role-focus);
+    box-shadow: inset 0 0 0 1px var(--aas-role-focus);
+  }
+  .aas-overlap-demo .ov-col.is-top {
+    border-color: var(--aas-role-eval);
+    box-shadow: inset 0 0 0 1px var(--aas-role-eval);
+  }
+  .aas-overlap-demo .ov-colhead {
+    font-size: 0.8em;
+    font-weight: 700;
+    text-align: center;
+    color: var(--aas-muted);
+  }
+  .aas-overlap-demo .ov-col.is-target .ov-colhead {
+    color: var(--aas-role-focus);
+  }
+  .aas-overlap-demo .ov-movie {
+    padding: 0.25em 0.35em;
+    font-size: 0.78em;
+    line-height: 1.25;
+    text-align: center;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-panel);
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-overlap-demo .ov-movie:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-overlap-demo .ov-movie.is-like {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 20%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-overlap-demo .ov-movie.is-rec {
+    border-color: var(--aas-role-eval);
+    border-style: dashed;
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+  }
+  .aas-overlap-demo .ov-count {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-top: auto;
+    min-height: 1.3em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+  }
+  .aas-overlap-demo .ov-count.is-self {
+    visibility: hidden;
+  }
+  .aas-overlap-demo .ov-track {
+    flex: 1;
+    height: 0.7em;
+    border-radius: 0.3em;
+    background: var(--aas-panel);
+    border: 1px solid var(--aas-border);
+    overflow: hidden;
+  }
+  .aas-overlap-demo .ov-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--aas-role-eval);
+    transition: width 0.25s ease;
+  }
+  .aas-overlap-demo .ov-rec {
+    margin-top: 0.6em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-overlap-demo .ov-rec strong {
+    margin-left: 0.3em;
+    color: var(--aas-role-eval);
+  }
+  .aas-overlap-demo .ov-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 3.9em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-overlap-demo.is-slide {
+    font-size: clamp(1rem, 2.75vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-overlap-demo.is-slide.is-cold {
+    font-size: clamp(1rem, 2.35vh, 1.75rem);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-overlap-demo .ov-movie,
+    .aas-overlap-demo .ov-fill {
+      transition: none;
+    }
+  }
+</style>

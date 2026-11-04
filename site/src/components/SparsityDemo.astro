@@ -1,0 +1,466 @@
+---
+// 평점 행렬이 비어 갈수록 협업 필터링이 어떻게 무너지는지 실제로 돌려 보는 데모.
+//
+// 세 취향 무리의 사용자와 세 장르의 영화로 평점 행렬을 만든다(시드를 고정한 합성 데이터). 칸의 10%는 정답을
+// 알고 있는 시험 칸으로 떼어 둔다. 슬라이더로 빈칸 비율을 올리면 칸을 지우고, 그때마다 모든 사용자 쌍의
+// 피어슨과 시험 칸의 예측(피어슨, k = 5)을 실제로 다시 계산한다. 쌍마다 둘 다 본 영화 수, 예측할 수 있는
+// 칸의 비율, 정답과의 오차를 적는다. 그림은 처음 40명의 행렬이다.
+//
+// 둘 다 본 영화가 두 편이면 피어슨은 점 두 개에 직선을 긋는 셈이라 +1이나 -1, 아니면 평균을 뺀 값이 0이라
+// 잴 수 없다. 데모가 그 쌍을 직접 세어 보인다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `sp-${Math.random().toString(36).slice(2, 9)}`;
+const STEPS = [10, 20, 40, 60, 70, 80, 85, 90, 92, 94, 96, 98, 99];
+const USER_CHOICES = [40, 80, 160, 320];
+const ROWS = 40;
+const COLS = 60;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '비어 가는 평점 행렬',
+    empty: '빈칸 비율',
+    users: '사용자 수',
+    common: '쌍당 함께 본 영화',
+    few: '함께 본 영화 2편 이하',
+    cover: '예측할 수 있는 칸',
+    rmse: '예측 오차 (RMSE)',
+    base: '전체 평균으로 찍으면',
+    legend: '합성 데이터 · 영화 60편 · 그림은 처음 40명',
+    two: '함께 본 영화가 정확히 2편인 쌍은 {n}쌍입니다. 그중 피어슨이 ±1인 쌍이 {a}쌍, 평균을 빼면 0뿐이라 잴 수 없는 쌍이 {b}쌍입니다.',
+    twoNone: '함께 본 영화가 정확히 2편인 쌍은 없습니다.',
+    plenty: '빈칸이 적어 쌍마다 함께 본 영화가 넉넉하고, 시험 칸을 대부분 예측합니다.',
+    worse: '예측이 전체 평균으로 찍는 것보다도 못합니다.',
+    gone: '이웃을 찾지 못해 예측할 수 있는 칸이 없습니다.',
+    scale: '사용자가 늘면 같은 빈칸 비율에서도 이웃을 찾을 수 있습니다.',
+  },
+  en: {
+    title: 'A rating matrix going empty',
+    empty: 'share of blanks',
+    users: 'users',
+    common: 'shared movies per pair',
+    few: 'pairs sharing 2 or fewer',
+    cover: 'cells it can predict',
+    rmse: 'prediction error (RMSE)',
+    base: 'guessing the overall mean',
+    legend: 'synthetic data · 60 movies · first 40 users drawn',
+    two: '{n} pairs share exactly 2 movies. Of those, Pearson is ±1 for {a} pairs, and for {b} pairs subtracting the mean leaves only 0, so it cannot be measured.',
+    twoNone: 'No pair shares exactly 2 movies.',
+    plenty: 'With few blanks, pairs share plenty of movies and most test cells can be predicted.',
+    worse: 'The predictions are worse than just guessing the overall mean.',
+    gone: 'No neighbors can be found, so no cell can be predicted.',
+    scale: 'More users make neighbors findable even at the same share of blanks.',
+  },
+  zh: {
+    title: '逐渐变空的评分矩阵',
+    empty: '空格比例',
+    users: '用户数',
+    common: '每对共同看过的电影',
+    few: '共同看过 2 部以下',
+    cover: '能预测的格子',
+    rmse: '预测误差 (RMSE)',
+    base: '全部猜总均值时',
+    legend: '合成数据 · 60 部电影 · 图中是前 40 人',
+    two: '共同看过的电影正好 2 部的有 {n} 对。其中皮尔逊为 ±1 的有 {a} 对，减去均值后只剩 0、无法计算的有 {b} 对。',
+    twoNone: '没有共同看过的电影正好 2 部的对。',
+    plenty: '空格少，每对共同看过的电影充足，大部分测试格都能预测。',
+    worse: '预测还不如全部猜总均值。',
+    gone: '找不到邻居，没有能预测的格子。',
+    scale: '用户增多后，同样的空格比例下也能找到邻居。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const conf = { STEPS, USER_CHOICES, ROWS, COLS };
+---
+
+<div
+  class:list={['aas-sparse-demo', slide && 'is-slide']}
+  id={id}
+  data-sp-conf={JSON.stringify(conf)}
+  data-sp-strings={JSON.stringify(t)}
+>
+  <div class="sp-bar">
+    <span class="sp-head"><strong>{t.title}</strong></span>
+    <label class="sp-range">
+      {t.empty} <strong data-sp-eval></strong>
+      <input type="range" min="0" max={STEPS.length - 1} step="1" value="3" data-sp-range />
+    </label>
+    <span class="sp-group">
+      <span class="sp-label">{t.users}</span>
+      {USER_CHOICES.map((u) => <button type="button" class="sp-btn" data-sp-users={u}>{u}</button>)}
+    </span>
+  </div>
+
+  <div class="sp-body">
+    <div class="sp-left">
+      <svg class="sp-svg" viewBox={`0 0 ${COLS} ${ROWS}`} role="img" aria-label={t.title} data-sp-svg></svg>
+      <div class="sp-legend">{t.legend}</div>
+    </div>
+    <div class="sp-stats">
+      <span class="sp-big"><span>{t.common}</span><strong data-sp-common></strong></span>
+      <span class="sp-big"><span>{t.few}</span><strong data-sp-few></strong></span>
+      <span class="sp-big"><span>{t.cover}</span><strong data-sp-cover></strong></span>
+      <span class="sp-big"><span>{t.rmse}</span><strong data-sp-rmse></strong></span>
+      <span class="sp-big is-plain"><span>{t.base}</span><strong data-sp-base></strong></span>
+    </div>
+  </div>
+
+  <p class="sp-note" data-sp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const { STEPS, USER_CHOICES, ROWS, COLS } = JSON.parse(root.dataset.spConf);
+    const S = JSON.parse(root.dataset.spStrings);
+    const MAX_USERS = Math.max(...USER_CHOICES);
+    const K = 5;
+    const NS = 'http://www.w3.org/2000/svg';
+
+    /* 시드를 고정한 난수. 데모를 열 때마다 같은 행렬이 나온다. */
+    function rng(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    /* 정답 평점과 칸의 열쇠. 열쇠가 0.1보다 작은 칸은 시험 칸이고, 나머지는 열쇠가 빈칸 비율 이상이면 보인다. */
+    const r = rng(20261104);
+    const truth = [];
+    const key = [];
+    for (let u = 0; u < MAX_USERS; u++) {
+      const row = [], keys = [];
+      const group = u % 3;
+      const bias = (r() - 0.5) * 1.2;
+      for (let i = 0; i < COLS; i++) {
+        const like = group === i % 3 ? 1.4 : -0.9;
+        const noise = (r() - 0.5) * 1.0;
+        row.push(Math.max(1, Math.min(5, Math.round(3 + like + bias + noise))));
+        keys.push(r());
+      }
+      truth.push(row);
+      key.push(keys);
+    }
+
+    /* 그림: 처음 ROWS명의 칸. 평점이 높을수록 진하다. */
+    const svg = root.querySelector('[data-sp-svg]');
+    const rects = [];
+    for (let u = 0; u < ROWS; u++) {
+      for (let i = 0; i < COLS; i++) {
+        const c = document.createElementNS(NS, 'rect');
+        c.setAttribute('x', String(i + 0.06));
+        c.setAttribute('y', String(u + 0.06));
+        c.setAttribute('width', '0.88');
+        c.setAttribute('height', '0.88');
+        c.setAttribute('class', 'sp-cell');
+        c.setAttribute('fill-opacity', String(0.25 + (truth[u][i] - 1) * 0.1875));
+        svg.appendChild(c);
+        rects.push({ c, u, i });
+      }
+    }
+
+    let stepIdx = 3;
+    let userCount = USER_CHOICES[0];
+
+    /* 실습 코드의 pearson_similarity와 같은 계산. 빨리 돌도록 본 칸 목록만 훑는다. */
+    function pair(listU, rowU, rowV) {
+      let c = 0, sa = 0, sb = 0;
+      for (const i of listU) {
+        if (rowV[i]) {
+          c++;
+          sa += rowU[i];
+          sb += rowV[i];
+        }
+      }
+      if (!c) return { s: 0, c, flat: false };
+      const ma = sa / c, mb = sb / c;
+      let n = 0, da = 0, db = 0;
+      for (const i of listU) {
+        if (rowV[i]) {
+          const x = rowU[i] - ma, y = rowV[i] - mb;
+          n += x * y;
+          da += x * x;
+          db += y * y;
+        }
+      }
+      const flat = da === 0 || db === 0;
+      return { s: flat ? 0 : n / Math.sqrt(da * db), c, flat };
+    }
+
+    function compute(emptyPct, U) {
+      const empty = emptyPct / 100;
+      const M = [];
+      const lists = [];
+      const test = [];
+      let shown = 0, sum = 0;
+      for (let u = 0; u < U; u++) {
+        const row = new Array(COLS).fill(0);
+        const list = [];
+        for (let i = 0; i < COLS; i++) {
+          const k = key[u][i];
+          if (k < 0.1) test.push([u, i]);
+          else if (k >= empty) {
+            row[i] = truth[u][i];
+            list.push(i);
+            shown++;
+            sum += truth[u][i];
+          }
+        }
+        M.push(row);
+        lists.push(list);
+      }
+      const sim = M.map(() => new Float64Array(U));
+      let pairs = 0, sumC = 0, few = 0, two = 0, twoOne = 0, twoFlat = 0;
+      for (let u = 0; u < U; u++) {
+        for (let v = u + 1; v < U; v++) {
+          const p = pair(lists[u], M[u], M[v]);
+          sim[u][v] = p.s;
+          sim[v][u] = p.s;
+          pairs++;
+          sumC += p.c;
+          if (p.c <= 2) few++;
+          if (p.c === 2) {
+            two++;
+            if (p.flat) twoFlat++;
+            else if (Math.abs(Math.abs(p.s) - 1) < 1e-9) twoOne++;
+          }
+        }
+      }
+      const mean = shown ? sum / shown : 3;
+      let se = 0, cov = 0, seBase = 0;
+      for (const [u, i] of test) {
+        const y = truth[u][i];
+        seBase += (mean - y) * (mean - y);
+        const cand = [];
+        for (let v = 0; v < U; v++) {
+          if (v !== u && sim[u][v] > 0 && M[v][i]) cand.push([sim[u][v], v]);
+        }
+        if (!cand.length) continue;
+        cand.sort((a, b) => b[0] - a[0]);
+        let num = 0, den = 0;
+        for (const [s, v] of cand.slice(0, K)) {
+          num += s * M[v][i];
+          den += s;
+        }
+        const e = num / den - y;
+        se += e * e;
+        cov++;
+      }
+      return {
+        M,
+        emptyReal: 1 - shown / (U * COLS),
+        avgC: sumC / pairs,
+        few: few / pairs,
+        two,
+        twoOne,
+        twoFlat,
+        coverage: test.length ? cov / test.length : 0,
+        rmse: cov ? Math.sqrt(se / cov) : null,
+        base: Math.sqrt(seBase / test.length),
+      };
+    }
+
+    const range = root.querySelector('[data-sp-range]');
+    const note = root.querySelector('[data-sp-note]');
+    const setText = (name, text) => (root.querySelector(`[data-sp-${name}]`).textContent = text);
+    const pct = (x) => `${(x * 100).toFixed(1)}%`;
+
+    function render() {
+      const st = compute(STEPS[stepIdx], userCount);
+      rects.forEach(({ c, u, i }) => c.classList.toggle('is-off', st.M[u][i] === 0));
+      setText('eval', pct(st.emptyReal));
+      setText('common', st.avgC.toFixed(1));
+      setText('few', pct(st.few));
+      setText('cover', pct(st.coverage));
+      setText('rmse', st.rmse === null ? '-' : st.rmse.toFixed(3));
+      setText('base', st.base.toFixed(3));
+      root.querySelector('[data-sp-rmse]').classList.toggle('is-bad', st.rmse !== null && st.rmse > st.base);
+      root.querySelectorAll('[data-sp-users]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.spUsers) === userCount));
+      range.value = String(stepIdx);
+
+      const parts = [];
+      parts.push(st.two ? fill(S.two, { n: st.two, a: st.twoOne, b: st.twoFlat }) : S.twoNone);
+      if (st.coverage === 0) parts.push(S.gone);
+      else if (st.rmse > st.base) parts.push(S.worse);
+      else if (st.coverage > 0.95 && st.few < 0.05) parts.push(S.plenty);
+      if (userCount > USER_CHOICES[0] && st.coverage > 0) parts.push(S.scale);
+      setLines(note, join(...parts));
+    }
+
+    range.addEventListener('input', () => {
+      stepIdx = Number(range.value);
+      render();
+    });
+    root.querySelectorAll('[data-sp-users]').forEach((b) =>
+      b.addEventListener('click', () => {
+        userCount = Number(b.dataset.spUsers);
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-sparse-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-sparse-demo .sp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-sparse-demo .sp-head {
+    font-size: 0.95em;
+  }
+  .aas-sparse-demo .sp-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-sparse-demo .sp-range strong {
+    min-width: 3.4em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-role-focus);
+  }
+  .aas-sparse-demo .sp-range input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-sparse-demo .sp-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-sparse-demo .sp-label {
+    margin-right: 0.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-sparse-demo .sp-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-sparse-demo .sp-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-sparse-demo .sp-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-sparse-demo .sp-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.6em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-sparse-demo .sp-left {
+    flex: 1 1 22em;
+    min-width: 0;
+  }
+  .aas-sparse-demo .sp-svg {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+  }
+  .aas-sparse-demo .sp-cell {
+    fill: var(--aas-role-model);
+  }
+  .aas-sparse-demo .sp-cell.is-off {
+    fill: transparent;
+  }
+  .aas-sparse-demo .sp-legend {
+    margin-top: 0.2em;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-sparse-demo .sp-stats {
+    display: flex;
+    flex: 0 1 15em;
+    flex-direction: column;
+    gap: 0.25em;
+    min-width: 0;
+  }
+  .aas-sparse-demo .sp-big {
+    display: flex;
+    gap: 0.5em;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-sparse-demo .sp-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.3em;
+    color: var(--aas-role-focus);
+    white-space: nowrap;
+  }
+  .aas-sparse-demo .sp-big.is-plain strong {
+    color: var(--aas-text);
+  }
+  .aas-sparse-demo .sp-big strong.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-sparse-demo .sp-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 3.9em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-sparse-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-sparse-demo.is-slide .sp-left {
+    flex: 0 0 auto;
+  }
+  .aas-sparse-demo.is-slide .sp-svg {
+    width: auto;
+    height: 33vh;
+    aspect-ratio: 3 / 2;
+  }
+</style>
