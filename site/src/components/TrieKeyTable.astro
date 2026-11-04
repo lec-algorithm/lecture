@@ -1,0 +1,91 @@
+---
+// 주제 10의 예제 키와 값. 지금 트라이나 TST에 든 키를 데모 안에서 바로 보게 한다.
+//
+// 데모가 [data-tk-key]에 is-now를 달면 그 키가 칠해진다. is-take는 모은 키,
+// is-off는 아직 넣지 않았거나 지운 키다. words를 비우면 자리만 두고 데모의 스크립트가
+// 채운다(학생이 키를 바꾸는 경우). 칸이 모자라면 다음 줄로 내려간다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 보일 키와 값 */
+  words?: [string, number][];
+}
+const { words = [] } = Astro.props;
+const LABELS: Record<string, string> = { ko: '키 · 값', en: 'key · value', zh: '键 · 值' };
+const lang = Astro.currentLocale ?? defaultLang;
+const label = LABELS[lang] ?? LABELS.ko;
+---
+
+<div class="aas-trie-keys" data-tk>
+  <span class="tk-label">{label}</span>
+  <span class="tk-list" data-tk-list>
+    {
+      words.map(([w, v]) => (
+        <span class="tk-cell" data-tk-key={w}>
+          <b>{w}</b>
+          <i>{v}</i>
+        </span>
+      ))
+    }
+  </span>
+</div>
+
+<style is:global>
+  .aas-trie-keys {
+    display: flex;
+    gap: 0 0.6em;
+    align-items: baseline;
+    min-width: 0;
+    font-size: 0.72em;
+    line-height: 1.5;
+  }
+  .aas-trie-keys .tk-label {
+    flex: none;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-trie-keys .tk-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 0.3em;
+    min-width: 0;
+  }
+  .aas-trie-keys .tk-cell {
+    display: inline-flex;
+    gap: 0.3em;
+    padding: 0 0.4em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    white-space: nowrap;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s,
+      opacity 0.2s;
+  }
+  .aas-trie-keys .tk-cell b {
+    font-weight: 700;
+  }
+  .aas-trie-keys .tk-cell i {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--aas-role-model);
+  }
+  .aas-trie-keys .tk-cell.is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  .aas-trie-keys .tk-cell.is-take {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+  }
+  .aas-trie-keys .tk-cell.is-off {
+    opacity: 0.4;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-keys .tk-cell {
+      transition: none;
+    }
+  }
+</style>
