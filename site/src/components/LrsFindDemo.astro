@@ -1,0 +1,427 @@
+---
+// 긴 문자열에서 LCP 봉우리를 눌러 반복의 두 자리를 원문 위에서 보는 데모.
+//
+// 283글자 염기 서열이 기본이다. 접미사 배열과 Kasai를 정말 돌려 LCP가 큰 이웃 쌍을 표로 놓는다.
+// 줄을 누르면 그 부분 문자열이 나오는 두 자리가 원문에서 칠해진다. 무차별 대입도 끝까지 돌려
+// 위치 쌍과 글자 비교 수를 세어 이웃 쌍과 Kasai의 비교 수와 나란히 놓는다. 답(위치 31과 217의
+// 15글자)과 banana$의 수치는 05_lrs의 출력과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './suffixAlgos.js?raw';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `lf-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '가장 긴 반복 찾기',
+    dna: '염기 서열 283글자',
+    randomDna: '무작위 서열',
+    input: '문자열',
+    colLcp: 'LCP',
+    colPos: '위치',
+    colSub: '공통 접두사',
+    brute: '무차별 대입',
+    sorted: '정렬 후',
+    pairs: '쌍 {p}',
+    cmp: '글자 비교 {c}',
+    answer: '가장 긴 반복은 {l}글자 {s}이고, 위치 {a}와 {b}에서 시작합니다.',
+    other: '이 줄은 {l}글자 {s}이고, 위치 {a}와 {b}에서 시작합니다.',
+    overlap: '두 자리는 겹칩니다.',
+    none: '반복되는 글자가 없습니다.',
+    ratio: '정렬을 거치면 볼 쌍이 {r}분의 1로 줄어듭니다.',
+  },
+  en: {
+    title: 'Find the longest repeat',
+    dna: '283-character sequence',
+    randomDna: 'Random sequence',
+    input: 'String',
+    colLcp: 'LCP',
+    colPos: 'positions',
+    colSub: 'common prefix',
+    brute: 'Brute force',
+    sorted: 'After sorting',
+    pairs: '{p} pairs',
+    cmp: '{c} char compares',
+    answer: 'The longest repeat is {s}, {l} characters, starting at positions {a} and {b}.',
+    other: 'This row is {s}, {l} characters, starting at positions {a} and {b}.',
+    overlap: 'The two occurrences overlap.',
+    none: 'No character repeats.',
+    ratio: 'Sorting cuts the pairs to look at by a factor of {r}.',
+  },
+  zh: {
+    title: '找最长重复',
+    dna: '碱基序列 283 字符',
+    randomDna: '随机序列',
+    input: '字符串',
+    colLcp: 'LCP',
+    colPos: '位置',
+    colSub: '公共前缀',
+    brute: '暴力法',
+    sorted: '排序后',
+    pairs: '{p} 对',
+    cmp: '字符比较 {c} 次',
+    answer: '最长重复是 {l} 个字符的 {s}，从位置 {a} 和 {b} 开始。',
+    other: '这一行是 {l} 个字符的 {s}，从位置 {a} 和 {b} 开始。',
+    overlap: '两处重叠。',
+    none: '没有重复的字符。',
+    ratio: '排序之后，要看的对数减少到 {r} 分之一。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const DNA =
+  'aacaagtttacaagcatgatgctgtactaggagagttatactggtcg' +
+  'tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt' +
+  'cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg' +
+  'gtatagatagatagacccctagatacacatacatagatctagctagc' +
+  'tagctcatcgatacacactctcacactcaagagttatactggtcaac' +
+  'acactactacgacagacgaccaaccagacagaaaaaaaaactctatat';
+const presets = ['banana', 'mississippi', 'aaaaaaaa'];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-lrs-find-demo', slide && 'is-slide']} id={id} data-lf-strings={JSON.stringify(t)} data-lf-dna={DNA}>
+  <div class="lf-bar">
+    <span class="lf-head"><strong>{t.title}</strong></span>
+    <div class="lf-chips">
+      <button type="button" class="lf-chip" data-lf-preset="dna">{t.dna}</button>
+      <button type="button" class="lf-chip" data-lf-preset="random">{t.randomDna}</button>
+      {presets.map((p) => <button type="button" class="lf-chip lf-mono" data-lf-preset={p}>{p}</button>)}
+    </div>
+  </div>
+  <label class="lf-input">
+    <span>{t.input}</span>
+    <input type="text" data-lf-in maxlength="400" spellcheck="false" autocomplete="off" />
+  </label>
+
+  <div class="lf-text" data-lf-text></div>
+
+  <div class="lf-main">
+    <table class="lf-table">
+      <thead><tr><th>{t.colLcp}</th><th>{t.colPos}</th><th class="lf-sub">{t.colSub}</th></tr></thead>
+      <tbody data-lf-body></tbody>
+    </table>
+    <div class="lf-costs">
+      <div class="lf-cost"><strong>{t.brute}</strong><span data-lf-brute></span></div>
+      <div class="lf-cost is-good"><strong>{t.sorted}</strong><span data-lf-sorted></span></div>
+    </div>
+  </div>
+
+  <p class="lf-note" data-lf-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.lfStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const num = (x) => x.toLocaleString('en-US');
+    const { buildSA, kasai, bruteLrs, cleanWord } = globalThis.aasSuffixAlgos;
+
+    const DNA = root.dataset.lfDna;
+    const input = root.querySelector('[data-lf-in]');
+    const textEl = root.querySelector('[data-lf-text]');
+    const body = root.querySelector('[data-lf-body]');
+    const note = root.querySelector('[data-lf-note]');
+    let text = '';
+    let peaks = [];
+    let sel = 0;
+    let seed = 7;
+
+    function randomDna() {
+      seed = (seed * 48271) % 2147483647;
+      let s = seed;
+      return Array.from({ length: 283 }, () => {
+        s = (s * 48271) % 2147483647;
+        return 'acgt'[s % 4];
+      }).join('');
+    }
+
+    /* LCP가 큰 이웃 쌍 다섯. 같은 부분 문자열은 한 번만 넣는다. */
+    function findPeaks(sa, lcp) {
+      const list = [];
+      for (let j = 1; j < sa.length; j++) {
+        if (lcp[j] > 0) list.push({ j, l: lcp[j], a: Math.min(sa[j], sa[j - 1]), b: Math.max(sa[j], sa[j - 1]) });
+      }
+      /* 앞에서 처음 만난 최댓값이 먼저 오도록 안정 정렬한다(05_lrs와 같은 답). */
+      list.sort((x, y) => y.l - x.l || x.j - y.j);
+      const seen = new Set();
+      const out = [];
+      for (const p of list) {
+        const s = text.slice(p.a, p.a + p.l);
+        if (seen.has(s)) continue;
+        seen.add(s);
+        out.push({ ...p, s });
+        if (out.length === 5) break;
+      }
+      return out;
+    }
+
+    function drawText() {
+      const p = peaks[sel];
+      const inA = (i) => p && i >= p.a && i < p.a + p.l;
+      const inB = (i) => p && i >= p.b && i < p.b + p.l;
+      textEl.innerHTML = [...text]
+        .map((c, i) => {
+          const a = inA(i);
+          const b = inB(i);
+          return `<span class="${a && b ? 'is-both' : a ? 'is-a' : b ? 'is-b' : ''}">${c}</span>`;
+        })
+        .join('');
+      textEl.classList.toggle('is-short', text.length <= 60);
+    }
+    function drawTable() {
+      body.innerHTML = peaks
+        .map((p, i) => {
+          const s = p.s.length > 22 ? `${p.s.slice(0, 21)}…` : p.s;
+          return `<tr class="${i === sel ? 'is-sel' : ''}" data-lf-i="${i}"><td><b>${p.l}</b></td><td>${p.a}, ${p.b}</td><td class="lf-sub">${s}</td></tr>`;
+        })
+        .join('');
+    }
+    function drawNote() {
+      const p = peaks[sel];
+      const n = text.length;
+      const pairs = (n * (n - 1)) / 2;
+      const r = Math.round(pairs / Math.max(n - 1, 1));
+      if (!p) return setLines(note, S.none);
+      const main = fill(sel === 0 ? S.answer : S.other, { l: p.l, s: p.s, a: p.a, b: p.b });
+      setLines(note, join(main, p.b < p.a + p.l ? S.overlap : '', fill(S.ratio, { r: num(r) })));
+    }
+
+    function update() {
+      const raw = cleanWord(input.value, 400) || 'a';
+      text = `${raw}$`;
+      const sa = buildSA(text);
+      const K = kasai(text, sa);
+      peaks = findPeaks(sa, K.lcp);
+      sel = 0;
+      const B = bruteLrs(text);
+      root.querySelector('[data-lf-brute]').textContent = `${fill(S.pairs, { p: num(B.pairs) })} · ${fill(S.cmp, { c: num(B.compares) })}`;
+      root.querySelector('[data-lf-sorted]').textContent = `${fill(S.pairs, { p: num(text.length - 1) })} · ${fill(S.cmp, { c: num(K.compares) })}`;
+      drawText();
+      drawTable();
+      drawNote();
+      root.querySelectorAll('[data-lf-preset]').forEach((b) => {
+        const v = b.dataset.lfPreset;
+        b.classList.toggle('is-on', v === 'dna' ? raw === DNA : v === raw);
+      });
+    }
+
+    body.addEventListener('click', (e) => {
+      const tr = e.target.closest('[data-lf-i]');
+      if (!tr) return;
+      sel = Number(tr.dataset.lfI);
+      drawText();
+      drawTable();
+      drawNote();
+    });
+    input.addEventListener('input', update);
+    root.querySelectorAll('[data-lf-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const v = b.dataset.lfPreset;
+        input.value = v === 'dna' ? DNA : v === 'random' ? randomDna() : v;
+        update();
+      }),
+    );
+    input.value = DNA;
+    update();
+  })();
+</script>
+
+<style is:global>
+  .aas-lrs-find-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lrs-find-demo .lf-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-lrs-find-demo .lf-head {
+    font-size: 0.95em;
+  }
+  .aas-lrs-find-demo .lf-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-lrs-find-demo .lf-chip {
+    padding: 0.2em 0.65em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lrs-find-demo .lf-mono {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lrs-find-demo .lf-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lrs-find-demo .lf-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lrs-find-demo .lf-input {
+    display: flex;
+    gap: 0.45em;
+    align-items: center;
+    margin: 0.4em 0;
+    font-size: 0.82em;
+    font-weight: 700;
+  }
+  .aas-lrs-find-demo .lf-input input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.15em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-lrs-find-demo .lf-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-lrs-find-demo .lf-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    min-height: 6.6em;
+    padding: 0.3em 0.45em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.76em;
+    line-height: 1.3;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-lrs-find-demo .lf-text.is-short {
+    font-size: 1em;
+    letter-spacing: 0.05em;
+  }
+  .aas-lrs-find-demo .lf-text span {
+    display: inline-block;
+    min-width: 0.62em;
+    text-align: center;
+  }
+  .aas-lrs-find-demo .lf-text .is-a {
+    background: color-mix(in srgb, var(--aas-role-model) 38%, transparent);
+    font-weight: 700;
+  }
+  .aas-lrs-find-demo .lf-text .is-b {
+    background: color-mix(in srgb, var(--aas-role-trace) 38%, transparent);
+    font-weight: 700;
+  }
+  .aas-lrs-find-demo .lf-text .is-both {
+    background: color-mix(in srgb, var(--aas-role-eval) 45%, transparent);
+    font-weight: 700;
+  }
+  .aas-lrs-find-demo .lf-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    align-items: flex-start;
+    margin-top: 0.5em;
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo table {
+    flex: 1 1 18em;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.8em;
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo :is(th, td) {
+    padding: 0.08em 0.6em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: center;
+    white-space: nowrap;
+    line-height: 1.35;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo .lf-sub {
+    text-align: left;
+    width: 100%;
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo tbody tr {
+    cursor: pointer;
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo tbody tr:hover td {
+    background: color-mix(in srgb, var(--aas-muted) 12%, transparent);
+  }
+  .aas-lrs-find-demo.aas-lrs-find-demo tbody tr.is-sel td {
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-lrs-find-demo .lf-costs {
+    flex: 1 1 14em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+  }
+  .aas-lrs-find-demo .lf-cost {
+    padding: 0.25em 0.6em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-lrs-find-demo .lf-cost.is-good {
+    border-color: var(--aas-role-eval);
+  }
+  .aas-lrs-find-demo .lf-cost strong {
+    display: block;
+  }
+  .aas-lrs-find-demo .lf-cost span {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lrs-find-demo .lf-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-lrs-find-demo.is-slide {
+    font-size: clamp(1rem, 2.5vh, 1.7rem);
+    margin: 0.5rem 0;
+  }
+</style>
