@@ -1,0 +1,487 @@
+---
+// LSD와 MSD가 실제로 몇 번 읽고 카운팅 칸을 몇 번 훑는지 세어 보는 데모.
+//
+// 입력을 고르거나 직접 넣고, 기수 k와 삽입 정렬로 넘기는 버킷 크기를 바꾼다. 데모 안에서 두
+// 정렬을 정말 돌려 자리 읽기, 호출 수, 카운팅 칸 훑기(호출 × k), 삽입 정렬 비교를 센다.
+// 자리 읽기는 02_msd_radix_sort의 examined와 같은 규칙이라 교안 입력에서 14와 24, 111…은
+// 12, 100…은 4가 나온다. 무작위 입력은 시드를 고정해 같은 값이 다시 나온다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `mc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LSD와 MSD의 비용',
+    input: '입력',
+    presetDeck: '교안 예제',
+    presetSame: '앞자리가 같음',
+    presetDiff: '첫 자리에서 갈림',
+    presetEq: '같은 키만',
+    presetRand: '무작위 1,000개',
+    radix: '기수 k',
+    cutoff: '삽입 정렬로 넘길 크기',
+    cutoffOff: '안 넘김',
+    colSort: '',
+    colReads: '자리 읽기',
+    colCalls: '호출',
+    colScan: '칸 훑기 (호출 × k)',
+    colIns: '삽입 비교',
+    colSum: '합계',
+    lsd: 'LSD',
+    msd: 'MSD',
+    sumNote: '자리 읽기는 MSD {m}번, LSD {l}번입니다.',
+    scanBad: '다만 MSD는 호출이 {c}번이라 빈 칸을 포함해 {s}칸을 훑습니다. 합계는 LSD보다 많습니다.',
+    scanOk: '합계도 MSD가 적습니다.',
+    cutoffGood: '크기 {c} 이하의 버킷을 삽입 정렬로 넘기면 호출이 {calls}번으로 줄고 합계가 {sum}이 됩니다.',
+    bad: '0 이상의 정수를 하나 이상 입력하세요.',
+  },
+  en: {
+    title: 'What LSD and MSD cost',
+    input: 'Input',
+    presetDeck: 'Slide example',
+    presetSame: 'Same leading digits',
+    presetDiff: 'Differ at first digit',
+    presetEq: 'Equal keys only',
+    presetRand: '1,000 random',
+    radix: 'Radix k',
+    cutoff: 'Hand off to insertion sort at',
+    cutoffOff: 'off',
+    colSort: '',
+    colReads: 'Digit reads',
+    colCalls: 'Calls',
+    colScan: 'Cell scans (calls × k)',
+    colIns: 'Insertion compares',
+    colSum: 'Total',
+    lsd: 'LSD',
+    msd: 'MSD',
+    sumNote: 'Digit reads: MSD {m}, LSD {l}.',
+    scanBad: 'But MSD makes {c} calls and scans {s} cells, empty ones included. Its total is above LSD.',
+    scanOk: 'MSD is lower in total as well.',
+    cutoffGood: 'Handing buckets of size {c} or less to insertion sort cuts the calls to {calls} and the total to {sum}.',
+    bad: 'Enter at least one non-negative integer.',
+  },
+  zh: {
+    title: 'LSD 与 MSD 的开销',
+    input: '输入',
+    presetDeck: '课件的例子',
+    presetSame: '高位相同',
+    presetDiff: '第一位就分开',
+    presetEq: '全是相同的键',
+    presetRand: '随机 1,000 个',
+    radix: '基数 k',
+    cutoff: '交给插入排序的大小',
+    cutoffOff: '不交',
+    colSort: '',
+    colReads: '读取位数',
+    colCalls: '调用',
+    colScan: '扫描格子 (调用 × k)',
+    colIns: '插入比较',
+    colSum: '合计',
+    lsd: 'LSD',
+    msd: 'MSD',
+    sumNote: '读取位数：MSD {m} 次，LSD {l} 次。',
+    scanBad: '但 MSD 调用了 {c} 次，连空格子一起扫描了 {s} 格。合计比 LSD 多。',
+    scanOk: '合计也是 MSD 更少。',
+    cutoffGood: '把大小不超过 {c} 的桶交给插入排序，调用减到 {calls} 次，合计变为 {sum}。',
+    bad: '请至少输入一个非负整数。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = [
+  ['presetDeck', '170 45 75 90 2 802 24 66'],
+  ['presetSame', '111 112 113 114'],
+  ['presetDiff', '100 200 300 400'],
+  ['presetEq', '555 555 555 555'],
+  ['presetRand', 'random'],
+];
+---
+
+<div class:list={['aas-msd-cost-demo', slide && 'is-slide']} id={id} data-mc-strings={JSON.stringify(t)}>
+  <div class="mc-bar">
+    <span class="mc-head"><strong>{t.title}</strong></span>
+    <div class="mc-tabs">
+      {presets.map(([key, val]) => <button type="button" class="mc-tab" data-mc-preset={val}>{t[key]}</button>)}
+    </div>
+  </div>
+
+  <label class="mc-input">
+    <span>{t.input}</span>
+    <input type="text" data-mc-in value={presets[0][1]} maxlength="80" spellcheck="false" autocomplete="off" />
+  </label>
+
+  <div class="mc-sets">
+    <div class="mc-set">
+      <span>{t.radix}</span>
+      <button type="button" class="mc-tab" data-mc-k="10">10</button>
+      <button type="button" class="mc-tab" data-mc-k="256">256</button>
+    </div>
+    <label class="mc-slider">
+      <span>{t.cutoff}: <b data-mc-cv></b></span>
+      <input type="range" min="0" max="32" value="0" data-mc-cut aria-label={t.cutoff} />
+    </label>
+  </div>
+
+  <table class="mc-table">
+    <thead>
+      <tr><th></th><th>{t.colReads}</th><th>{t.colCalls}</th><th>{t.colScan}</th><th>{t.colIns}</th><th>{t.colSum}</th></tr>
+    </thead>
+    <tbody>
+      <tr data-mc-row="lsd"><td class="mc-name">{t.lsd}</td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr data-mc-row="msd"><td class="mc-name">{t.msd}</td><td></td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <div class="mc-bars">
+    <div class="mc-barline"><span>{t.lsd}</span><div class="mc-track" data-mc-bar="lsd"></div></div>
+    <div class="mc-barline"><span>{t.msd}</span><div class="mc-track" data-mc-bar="msd"></div></div>
+    <div class="mc-legend"><i class="is-reads"></i>{t.colReads} <i class="is-scan"></i>{t.colScan} <i class="is-ins"></i>{t.colIns}</div>
+  </div>
+
+  <p class="mc-note" data-mc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.mcStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const num = (x) => x.toLocaleString('en-US');
+
+    const input = root.querySelector('[data-mc-in]');
+    const cutIn = root.querySelector('[data-mc-cut]');
+    const note = root.querySelector('[data-mc-note]');
+    let k = 10;
+    let randomMode = false;
+
+    /* 시드가 고정된 무작위 값 1,000개, 값은 0 이상 2^32 미만 */
+    function randomValues() {
+      let s = 0x2f6e2b1;
+      return Array.from({ length: 1000 }, () => {
+        s = (s + 0x6d2b79f5) | 0;
+        let x = Math.imul(s ^ (s >>> 15), 1 | s);
+        x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+        return (x ^ (x >>> 14)) >>> 0;
+      });
+    }
+
+    const widthOf = (max) => {
+      let d = 1;
+      let e = k;
+      while (max >= e) {
+        e *= k;
+        d += 1;
+      }
+      return d;
+    };
+
+    function runLsd(a) {
+      const d = widthOf(Math.max(...a));
+      return { reads: a.length * d, calls: d, scan: d * k, ins: 0 };
+    }
+
+    /* msd_radix_sort.py와 같은 재귀. 크기가 cut 이하인 구간은 삽입 정렬로 넘긴다. */
+    function runMsd(values, cut) {
+      const a = values.slice();
+      const r = { reads: 0, calls: 0, scan: 0, ins: 0 };
+      const insertion = (lo, hi) => {
+        for (let i = lo + 1; i <= hi; i++) {
+          const v = a[i];
+          let j = i - 1;
+          while (j >= lo) {
+            r.ins += 1;
+            if (a[j] <= v) break;
+            a[j + 1] = a[j];
+            j -= 1;
+          }
+          a[j + 1] = v;
+        }
+      };
+      const go = (lo, hi, e) => {
+        if (lo >= hi || e < 1) return;
+        if (cut > 1 && hi - lo + 1 <= cut) {
+          insertion(lo, hi);
+          return;
+        }
+        r.calls += 1;
+        r.scan += k;
+        const size = new Array(k).fill(0);
+        for (let i = lo; i <= hi; i++) {
+          size[Math.floor(a[i] / e) % k] += 1;
+          r.reads += 1;
+        }
+        const pos = size.slice();
+        for (let d = 1; d < k; d++) pos[d] += pos[d - 1];
+        const out = new Array(hi - lo + 1);
+        for (let i = hi; i >= lo; i--) out[--pos[Math.floor(a[i] / e) % k]] = a[i];
+        for (let i = lo; i <= hi; i++) a[i] = out[i - lo];
+        let start = lo;
+        for (let d = 0; d < k; d++) {
+          if (size[d] > 1) go(start, start + size[d] - 1, e === 1 ? 0 : e / k);
+          start += size[d];
+        }
+      };
+      go(0, a.length - 1, k ** (widthOf(Math.max(...a)) - 1));
+      const sorted = a.every((v, i) => i === 0 || a[i - 1] <= v);
+      if (!sorted) throw new Error('msd not sorted');
+      return r;
+    }
+
+    const sum = (r) => r.reads + r.scan + r.ins;
+
+    function setRow(name, r) {
+      const cells = root.querySelectorAll(`[data-mc-row="${name}"] td`);
+      [r.reads, r.calls, r.scan, r.ins, sum(r)].forEach((v, i) => (cells[i + 1].textContent = num(v)));
+    }
+    function setBar(name, r, top) {
+      const seg = (v, cls) => `<i class="${cls}" style="width:${((v / top) * 100).toFixed(2)}%"></i>`;
+      root.querySelector(`[data-mc-bar="${name}"]`).innerHTML = seg(r.reads, 'is-reads') + seg(r.scan, 'is-scan') + seg(r.ins, 'is-ins');
+    }
+
+    function render() {
+      const values = randomMode ? randomValues() : (input.value.match(/\d+/g) || []).map(Number).slice(0, 16);
+      const cut = Number(cutIn.value);
+      root.querySelector('[data-mc-cv]').textContent = cut > 1 ? `≤ ${cut}` : S.cutoffOff;
+      root.querySelectorAll('[data-mc-k]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.mcK) === k));
+      root.querySelectorAll('[data-mc-preset]').forEach((b) =>
+        b.classList.toggle('is-on', randomMode ? b.dataset.mcPreset === 'random' : b.dataset.mcPreset === input.value.trim()),
+      );
+      if (!values.length) {
+        setLines(note, S.bad);
+        return;
+      }
+      const lsd = runLsd(values);
+      const msd = runMsd(values, cut);
+      const base = cut > 1 ? runMsd(values, 0) : msd;
+      setRow('lsd', lsd);
+      setRow('msd', msd);
+      const top = Math.max(sum(lsd), sum(msd), 1);
+      setBar('lsd', lsd, top);
+      setBar('msd', msd, top);
+      const lines = [fill(S.sumNote, { m: num(msd.reads), l: num(lsd.reads) })];
+      if (cut > 1) lines.push(fill(S.cutoffGood, { c: cut, calls: num(msd.calls), sum: num(sum(msd)) }));
+      else if (sum(base) > sum(lsd)) lines.push(fill(S.scanBad, { c: num(base.calls), s: num(base.scan) }));
+      else if (sum(base) < sum(lsd)) lines.push(S.scanOk);
+      setLines(note, join(...lines));
+    }
+
+    root.querySelectorAll('[data-mc-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        randomMode = b.dataset.mcPreset === 'random';
+        input.value = randomMode ? '' : b.dataset.mcPreset;
+        input.placeholder = randomMode ? b.textContent : '';
+        input.disabled = randomMode;
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-mc-k]').forEach((b) =>
+      b.addEventListener('click', () => {
+        k = Number(b.dataset.mcK);
+        render();
+      }),
+    );
+    input.addEventListener('input', render);
+    cutIn.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-msd-cost-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-msd-cost-demo .mc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-msd-cost-demo .mc-head {
+    font-size: 0.95em;
+  }
+  .aas-msd-cost-demo .mc-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-msd-cost-demo .mc-tab {
+    padding: 0.22em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-msd-cost-demo .mc-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-msd-cost-demo .mc-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-msd-cost-demo .mc-input {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    margin: 0.5em 0 0.4em;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-msd-cost-demo .mc-input input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.2em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-msd-cost-demo .mc-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-msd-cost-demo .mc-sets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1.4em;
+    align-items: center;
+  }
+  .aas-msd-cost-demo .mc-set {
+    display: flex;
+    gap: 0.35em;
+    align-items: center;
+    font-size: 0.85em;
+  }
+  .aas-msd-cost-demo .mc-slider {
+    flex: 1 1 14em;
+    font-size: 0.85em;
+  }
+  .aas-msd-cost-demo .mc-slider b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-msd-cost-demo .mc-slider input {
+    display: block;
+    width: 100%;
+    accent-color: var(--aas-accent);
+  }
+  .aas-msd-cost-demo.aas-msd-cost-demo table {
+    width: 100%;
+    max-width: none;
+    margin: 0.5em 0 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.82em;
+  }
+  .aas-msd-cost-demo.aas-msd-cost-demo :is(th, td) {
+    padding: 0.2em 0.6em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-msd-cost-demo.aas-msd-cost-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-msd-cost-demo.aas-msd-cost-demo .mc-name {
+    text-align: left;
+    font-weight: 700;
+  }
+  .aas-msd-cost-demo .mc-bars {
+    margin-top: 0.5em;
+  }
+  .aas-msd-cost-demo .mc-barline {
+    display: grid;
+    grid-template-columns: 3em 1fr;
+    gap: 0.4em;
+    align-items: center;
+    margin-bottom: 0.2em;
+    font-size: 0.8em;
+    font-weight: 700;
+  }
+  .aas-msd-cost-demo .mc-track {
+    display: flex;
+    height: 0.95em;
+    border-radius: 0.2em;
+    background: color-mix(in srgb, var(--aas-muted) 12%, var(--aas-bg));
+    overflow: hidden;
+  }
+  .aas-msd-cost-demo .mc-track i {
+    display: block;
+    height: 100%;
+    transition: width 0.25s;
+  }
+  .aas-msd-cost-demo .is-reads {
+    background: var(--aas-role-model);
+  }
+  .aas-msd-cost-demo .is-scan {
+    background: var(--aas-role-focus);
+  }
+  .aas-msd-cost-demo .is-ins {
+    background: var(--aas-role-trace);
+  }
+  .aas-msd-cost-demo .mc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 0.45em;
+    align-items: center;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-msd-cost-demo .mc-legend i {
+    display: inline-block;
+    width: 0.8em;
+    height: 0.8em;
+    margin-left: 0.5em;
+    border-radius: 0.15em;
+  }
+  .aas-msd-cost-demo .mc-note {
+    margin: 0.45em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-msd-cost-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.85rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-msd-cost-demo .mc-track i {
+      transition: none;
+    }
+  }
+</style>
