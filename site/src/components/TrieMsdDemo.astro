@@ -1,0 +1,483 @@
+---
+// MSD 기수 정렬의 묶음이 곧 트라이의 한 층이라는 것을 보는 데모.
+//
+// 정렬한 키를 앞의 d글자로 묶는다. 슬라이더로 d를 늘리면 묶음이 쪼개지고, 트라이에서는 깊이
+// d의 노드가 같은 색으로 칠해진다. 묶음 하나가 노드 하나다. d보다 짧은 키는 이미 자리가 정해져
+// 묶음에서 빠진다. 주제 09의 MSD 기수 정렬이 첫 글자로 나누고, 같은 묶음 안에서 다음 글자로
+// 나누던 것과 같은 모양이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+
+interface Props {
+  /** 처음 고른 글자 수 */
+  depth?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { depth = 1, slide = false } = Astro.props;
+const id = `ty-${Math.random().toString(36).slice(2, 9)}`;
+
+const SETS: Record<string, string[]> = {
+  six: ['by', 'sea', 'sells', 'she', 'shells', 'the'],
+  apple: ['apple', 'application', 'apply', 'applaud', 'applet', 'appliance', 'applicable'],
+};
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'MSD의 묶음과 트라이의 층',
+    input: '키',
+    depth: '앞의 글자 수 d',
+    back: '뒤로',
+    step: '한 걸음',
+    root: '루트',
+    groups: '묶음',
+    finished: '자리가 정해진 키',
+    none: '없음',
+    note0: 'd = 0이면 키 전체가 한 묶음이고, 트라이의 루트 하나입니다.',
+    note: '앞의 {d}글자로 나누면 묶음이 {g}개입니다. 트라이의 깊이 {d}에도 노드가 {g}개 있습니다.',
+    noteDone: '키 {f}개는 {d}글자보다 짧아 이미 자리가 정해졌습니다.',
+    noteEnd: '묶음마다 키가 하나씩 남으면 정렬이 끝납니다. 위에서 아래로 읽으면 사전 순입니다.',
+    empty: '키를 쳐 보세요. a부터 z까지의 소문자만 씁니다.',
+  },
+  en: {
+    title: 'MSD groups and trie levels',
+    input: 'Keys',
+    depth: 'Leading characters d',
+    back: 'Back',
+    step: 'Step',
+    root: 'root',
+    groups: 'groups',
+    finished: 'keys already placed',
+    none: 'none',
+    note0: 'At d = 0 all the keys form one group, the root of the trie.',
+    note: 'Splitting on the first {d} characters makes {g} groups. Depth {d} of the trie also has {g} nodes.',
+    noteDone: '{f} keys are shorter than {d} characters, so they are already placed.',
+    noteEnd: 'Once every group holds one key, sorting is done. Read top to bottom, it is alphabetical order.',
+    empty: 'Type some keys. Only lowercase letters a to z are used.',
+  },
+  zh: {
+    title: 'MSD 的分组与字典树的层',
+    input: '键',
+    depth: '前面的字符数 d',
+    back: '后退',
+    step: '单步',
+    root: '根',
+    groups: '分组',
+    finished: '位置已定的键',
+    none: '无',
+    note0: 'd = 0 时全部键是一组，也就是字典树的根。',
+    note: '按前 {d} 个字符分成 {g} 组。字典树的深度 {d} 上也有 {g} 个节点。',
+    noteDone: '有 {f} 个键短于 {d} 个字符，位置已经确定。',
+    noteEnd: '每组只剩一个键时排序结束。从上往下读就是字典序。',
+    empty: '请输入键。只用小写字母 a 到 z。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-trie-msd-demo', slide && 'is-slide']} id={id} data-ty-config={JSON.stringify({ depth, sets: SETS })} data-ty-strings={JSON.stringify(t)}>
+  <div class="ty-bar">
+    <span class="ty-head"><strong>{t.title}</strong></span>
+    <div class="ty-tabs">
+      <label class="ty-input">{t.input}<input type="text" data-ty-input autocomplete="off" spellcheck="false" /></label>
+      <button type="button" class="ty-tab" data-ty-tab="six">by..the</button>
+      <button type="button" class="ty-tab" data-ty-tab="apple">apple..</button>
+    </div>
+  </div>
+  <div class="ty-depth">
+    <label class="ty-range">{t.depth} <strong data-ty-dval></strong><input type="range" data-ty-d min="0" step="1" /></label>
+    <button type="button" class="ty-btn" data-ty-act="back">{t.back}</button>
+    <button type="button" class="ty-btn" data-ty-act="step">{t.step}</button>
+    <span class="ty-count">{t.groups} <strong data-ty-groups></strong></span>
+  </div>
+  <div class="ty-body">
+    <div class="ty-list" data-ty-list></div>
+    <svg class="ty-svg" data-ty-svg role="img" aria-label={t.title}></svg>
+  </div>
+  <p class="ty-note" data-ty-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const cfg = JSON.parse(root.dataset.tyConfig);
+    const S = JSON.parse(root.dataset.tyStrings);
+    const { buildTrie, layoutTrie, cleanWords } = globalThis.aasTrieAlgos;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const COLORS = ['--aas-role-model', '--aas-role-eval', '--aas-role-focus', '--aas-role-trace', '--aas-role-source', '--aas-role-tool', '--aas-role-guard'];
+    const svg = root.querySelector('[data-ty-svg]');
+    const listBox = root.querySelector('[data-ty-list]');
+    const slider = root.querySelector('[data-ty-d]');
+    const input = root.querySelector('[data-ty-input]');
+    let words = [];
+    let trie = null;
+    let nodeEls = new Map();
+    let edgeEls = new Map();
+    let d = cfg.depth;
+    let tab = 'six';
+
+    function draw() {
+      trie = buildTrie(words.map((w, i) => [w, i]));
+      const UNIT = 42;
+      const LEVEL = 40;
+      const RAD = 14;
+      const { pos, slots, depth } = layoutTrie(trie, UNIT, LEVEL);
+      svg.setAttribute('viewBox', `-28 ${-RAD - 16} ${Math.max(slots - 1, 1) * UNIT + 56} ${Math.max(depth, 3) * LEVEL + 2 * RAD + 22}`);
+      svg.replaceChildren();
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      svg.append(edges, nodes);
+      nodeEls = new Map();
+      edgeEls = new Map();
+      for (const [nid, n] of trie) {
+        const p = pos.get(nid);
+        if (n.parent !== null) {
+          const q = pos.get(n.parent);
+          const line = el('line', { class: 'ty-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+          edges.appendChild(line);
+          edgeEls.set(nid, line);
+        }
+        const g = el('g', { class: 'ty-nd', transform: `translate(${p.x} ${p.y})` });
+        if (nid === '') {
+          g.append(el('circle', { r: RAD * 0.8 }), el('text', { class: 'ty-root', y: -RAD - 2 }, S.root));
+        } else {
+          g.append(el('circle', { r: RAD }), el('text', { class: 'ty-ch' }, n.ch));
+        }
+        nodes.appendChild(g);
+        nodeEls.set(nid, g);
+      }
+      slider.max = String(depth);
+    }
+
+    function render() {
+      const maxD = Number(slider.max);
+      if (d > maxD) d = maxD;
+      slider.value = String(d);
+      root.querySelector('[data-ty-dval]').textContent = String(d);
+      /* plan:start (앞의 d글자로 묶는다. d보다 짧은 키는 자리가 정해졌다) */
+      const sorted = [...words].sort();
+      const groups = new Map();
+      const placed = [];
+      for (const w of sorted) {
+        if (w.length < d) placed.push(w);
+        else {
+          const k = w.slice(0, d);
+          if (!groups.has(k)) groups.set(k, []);
+          groups.get(k).push(w);
+        }
+      }
+      /* plan:end */
+      const colorOf = new Map();
+      [...groups.keys()].forEach((k, i) => colorOf.set(k, COLORS[i % COLORS.length]));
+      /* 그림: 깊이 d의 노드와 그 위의 길 */
+      const maxOf = (nid) => nid.length;
+      for (const [nid, g] of nodeEls) {
+        const atDepth = maxOf(nid) === d && colorOf.has(nid);
+        const above = maxOf(nid) < d;
+        g.classList.toggle('is-above', above);
+        g.classList.toggle('is-below', maxOf(nid) > d);
+        g.classList.toggle('is-at', atDepth);
+        g.style.setProperty('--ty-c', atDepth ? `var(${colorOf.get(nid)})` : '');
+        const line = edgeEls.get(nid);
+        if (line) {
+          line.classList.toggle('is-above', above || atDepth);
+          line.classList.toggle('is-below', maxOf(nid) > d);
+        }
+      }
+      /* 목록: 정렬한 키를 그대로 위에서 아래로 놓는다. */
+      const parts = [];
+      for (const w of sorted) {
+        if (w.length < d) {
+          const row = Object.assign(document.createElement('div'), { className: 'ty-row is-placed' });
+          row.append(Object.assign(document.createElement('span'), { textContent: w }));
+          parts.push(row);
+        } else {
+          const k = w.slice(0, d);
+          const row = Object.assign(document.createElement('div'), { className: 'ty-row' });
+          const group = groups.get(k);
+          row.style.setProperty('--ty-c', `var(${colorOf.get(k)})`);
+          if (group[0] === w) row.classList.add('is-first');
+          if (group[group.length - 1] === w) row.classList.add('is-last');
+          row.append(Object.assign(document.createElement('b'), { textContent: k }), w.slice(d));
+          parts.push(row);
+        }
+      }
+      listBox.replaceChildren(...parts);
+      root.querySelector('[data-ty-groups]').textContent = String(groups.size);
+      const lines = [];
+      const finished = groups.size + placed.length === words.length && d > 0;
+      lines.push(d === 0 ? S.note0 : finished ? '' : fill(S.note, { d, g: groups.size }));
+      if (placed.length) lines.push(fill(S.noteDone, { f: placed.length, d }));
+      if (finished) lines.push(S.noteEnd);
+      setLines(root.querySelector('[data-ty-note]'), join(...lines));
+      root.querySelectorAll('[data-ty-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.tyTab === tab));
+    }
+    function use(next) {
+      words = next;
+      draw();
+      render();
+    }
+    slider.addEventListener('input', () => {
+      d = Number(slider.value);
+      render();
+    });
+    root.querySelector('[data-ty-act="back"]').addEventListener('click', () => {
+      if (d > 0) d -= 1;
+      render();
+    });
+    root.querySelector('[data-ty-act="step"]').addEventListener('click', () => {
+      if (d < Number(slider.max)) d += 1;
+      render();
+    });
+    root.querySelectorAll('[data-ty-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        tab = b.dataset.tyTab;
+        input.value = cfg.sets[tab].join(' ');
+        use(cfg.sets[tab]);
+      }),
+    );
+    input.addEventListener('input', () => {
+      const w = cleanWords(input.value).map((s) => s.slice(0, 12)).slice(0, 12);
+      if (w.length === 0) return setLines(root.querySelector('[data-ty-note]'), S.empty);
+      tab = '';
+      use(w);
+    });
+    input.value = cfg.sets.six.join(' ');
+    use(cfg.sets.six);
+  })();
+</script>
+
+<style is:global>
+  .aas-trie-msd-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-msd-demo .ty-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-trie-msd-demo .ty-head {
+    font-size: 0.95em;
+  }
+  .aas-trie-msd-demo .ty-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-trie-msd-demo .ty-input {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-right: 0.4em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-msd-demo .ty-input input {
+    width: 16em;
+    padding: 0.15em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.45em;
+  }
+  .aas-trie-msd-demo .ty-tab {
+    padding: 0.2em 0.7em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-msd-demo .ty-tab:hover,
+  .aas-trie-msd-demo .ty-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-msd-demo .ty-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-trie-msd-demo .ty-depth {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.6em;
+    align-items: center;
+    margin: 0.4em 0;
+  }
+  .aas-trie-msd-demo .ty-range {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-msd-demo .ty-range strong,
+  .aas-trie-msd-demo .ty-count strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-trie-msd-demo .ty-range input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-trie-msd-demo .ty-count {
+    margin-left: auto;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-msd-demo .ty-btn {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-msd-demo .ty-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: flex-start;
+  }
+  .aas-trie-msd-demo .ty-list {
+    flex: 0 1 14em;
+    min-width: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+  }
+  .aas-trie-msd-demo .ty-row {
+    padding: 0.08em 0.55em;
+    line-height: 1.5;
+    border-left: 4px solid var(--ty-c, var(--aas-border));
+    background: color-mix(in srgb, var(--ty-c, transparent) 12%, transparent);
+    transition: background-color 0.2s;
+  }
+  .aas-trie-msd-demo .ty-row.is-first {
+    margin-top: 0.3em;
+    border-top-right-radius: 0.4em;
+  }
+  .aas-trie-msd-demo .ty-row.is-last {
+    border-bottom-right-radius: 0.4em;
+  }
+  .aas-trie-msd-demo .ty-row b {
+    color: var(--ty-c, var(--aas-text));
+  }
+  .aas-trie-msd-demo .ty-row.is-placed {
+    margin-top: 0.3em;
+    color: var(--aas-muted);
+    background: none;
+  }
+  .aas-trie-msd-demo .ty-svg {
+    flex: 1 1 20em;
+    min-width: 0;
+    max-height: 22em;
+  }
+  .aas-trie-msd-demo .ty-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+  .aas-trie-msd-demo .ty-edge.is-above {
+    stroke: var(--aas-role-model);
+    stroke-width: 2.5;
+  }
+  .aas-trie-msd-demo .ty-edge.is-below {
+    opacity: 0.25;
+  }
+  .aas-trie-msd-demo .ty-nd circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.2s,
+      stroke 0.2s,
+      opacity 0.2s;
+  }
+  .aas-trie-msd-demo .ty-nd.is-above circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-trie-msd-demo .ty-nd.is-at circle {
+    fill: var(--ty-c);
+    stroke: var(--ty-c);
+  }
+  .aas-trie-msd-demo .ty-nd.is-below circle {
+    opacity: 0.25;
+  }
+  .aas-trie-msd-demo .ty-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-msd-demo .ty-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-trie-msd-demo .ty-note {
+    margin: 0.4em 0 0;
+    min-height: 2.6em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-msd-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-msd-demo.is-slide .ty-body {
+    flex-wrap: nowrap;
+  }
+  .aas-trie-msd-demo.is-slide .ty-svg {
+    flex: 1 1 auto;
+    width: auto;
+    height: 36vh;
+    max-height: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-msd-demo .ty-edge,
+    .aas-trie-msd-demo .ty-row,
+    .aas-trie-msd-demo .ty-nd circle {
+      transition: none;
+    }
+  }
+</style>
