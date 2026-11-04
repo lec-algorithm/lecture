@@ -1,0 +1,499 @@
+---
+// 길이가 다른 문자열을 MSD로 정렬하며 어느 글자를 읽었는지 칠해 보는 데모.
+//
+// 단어 하나가 한 줄, 글자 하나가 한 칸이다. 호출 하나가 두 걸음이다. (1) 구간의 단어에서
+// 같은 위치의 글자를 읽는다. (2) 그 글자로 안정 정렬해 줄을 옮기고 버킷을 표시한다. 먼저
+// 끝난 단어는 "끝" 버킷으로 가서 어떤 글자보다 앞에 온다. 둘 이상인 글자 버킷만 다음
+// 위치로 재귀한다. 읽은 칸은 칠해지고 끝까지 안 읽은 칸은 흐리게 남는다.
+// 단어를 직접 넣을 수 있고, 결과는 코드 단위 사전순 정렬과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ms-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '문자열 MSD',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    words: '단어',
+    end: '끝',
+    bucketCol: '버킷',
+    readLabel: '읽은 글자',
+    callLabel: '호출',
+    idle: '단어들을 첫 글자로 나누는 것부터 시작합니다. 읽은 칸이 칠해지고, 읽지 않은 칸은 흐리게 남습니다.',
+    read: '구간 [{lo}..{hi}]에서 {pos}번 글자를 읽습니다. 글자 {r}개를 읽고 끝 표시 {e}개를 만났습니다.',
+    split: '{list}로 나눕니다. 둘 이상인 글자 버킷만 다음 글자로 재귀합니다.',
+    splitEnd: '{list}로 나눕니다. 끝 버킷은 가장 앞에 옵니다. 그 단어들은 완전히 같은 키이므로 더 읽을 것이 없습니다.',
+    doneSome: '끝났습니다. 전체 {t}글자 중 {r}글자만 읽었습니다. 나머지는 버킷에 하나만 남아 볼 필요가 없었습니다.',
+    doneAll: '끝났습니다. 전체 {t}글자를 모두 읽었습니다. 앞이 같은 키는 끝까지 읽어야 갈리는지 같은지를 압니다.',
+    tooFew: '단어를 하나 이상 입력하세요.',
+  },
+  en: {
+    title: 'MSD on strings',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    words: 'Words',
+    end: 'end',
+    bucketCol: 'bucket',
+    readLabel: 'chars read',
+    callLabel: 'calls',
+    idle: 'We begin by splitting on the first character. Cells read get colored; cells never read stay faded.',
+    read: 'In range [{lo}..{hi}], read character {pos}: {r} characters and {e} end marks.',
+    split: 'Split into {list}. Only character buckets with two or more words recurse on the next character.',
+    splitEnd: 'Split into {list}. The end bucket comes first. Those words are identical keys, so nothing is left to read.',
+    doneSome: 'Done. Only {r} of {t} characters were read. The rest sat in buckets of one and did not need a look.',
+    doneAll: 'Done. All {t} characters were read. Keys with a shared front must be read to the end to tell whether they differ.',
+    tooFew: 'Enter at least one word.',
+  },
+  zh: {
+    title: '字符串上的 MSD',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    words: '单词',
+    end: '结束',
+    bucketCol: '桶',
+    readLabel: '读取字符',
+    callLabel: '调用',
+    idle: '先按第一个字符分开。读过的格子会涂色，没读过的格子保持浅色。',
+    read: '在区间 [{lo}..{hi}] 读第 {pos} 个字符：读了 {r} 个字符，遇到 {e} 个结束标记。',
+    split: '分成 {list}。只有两个以上单词的字符桶才对下一个字符递归。',
+    splitEnd: '分成 {list}。结束桶排在最前面。这些单词是完全相同的键，没有可读的了。',
+    doneSome: '结束。{t} 个字符中只读了 {r} 个。其余的所在桶里只剩一个单词，不必再看。',
+    doneAll: '结束。{t} 个字符全部读过。开头相同的键要读到最后才知道是否不同。',
+    tooFew: '请至少输入一个单词。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = ['she shells sea by the shore', 'ant bee cat dog elk fox', 'sea sea sea sea', 'car card care cat'];
+---
+
+<div class:list={['aas-msd-string-demo', slide && 'is-slide']} id={id} data-ms-strings={JSON.stringify(t)}>
+  <div class="ms-bar">
+    <span class="ms-head"><strong>{t.title}</strong></span>
+    <div class="ms-controls">
+      <button type="button" data-act="back" class="ms-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ms-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ms-btn ms-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ms-btn">{t.reset}</button>
+    </div>
+  </div>
+  <div class="ms-inputs">
+    <label class="ms-input">
+      <span>{t.words}</span>
+      <input type="text" data-ms-in value={presets[0]} maxlength="60" spellcheck="false" autocomplete="off" />
+    </label>
+    <div class="ms-chips">
+      {presets.map((p) => <button type="button" class="ms-chip" data-ms-preset={p}>{p.split(' ').slice(0, 2).join(' ')} …</button>)}
+    </div>
+  </div>
+
+  <div class="ms-stage" data-ms-stage></div>
+
+  <div class="ms-foot">
+    <p class="ms-note" data-ms-note></p>
+    <span class="ms-stat">
+      {t.readLabel} <strong data-ms-read>0</strong>/<span data-ms-total>0</span> · {t.callLabel} <strong data-ms-calls>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.msStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const input = root.querySelector('[data-ms-in]');
+    const stage = root.querySelector('[data-ms-stage]');
+    const note = root.querySelector('[data-ms-note]');
+    const readEl = root.querySelector('[data-ms-read]');
+    const callsEl = root.querySelector('[data-ms-calls]');
+    const totalEl = root.querySelector('[data-ms-total]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let words = [];
+    let steps = [];
+    let at = -1;
+    let timer = null;
+    let total = 0;
+
+    /* 재귀 호출을 미리 펼친다. 끝난 단어의 값은 -1이라 어떤 글자보다 앞이다. */
+    function plan() {
+      const out = [];
+      const order = words.map((_, i) => i);
+      const read = words.map(() => 0);
+      const tags = words.map(() => '');
+      const finished = words.map(() => words.length === 1);
+      let readCount = 0;
+      let calls = 0;
+      const snap = (x) =>
+        out.push({ order: order.slice(), read: read.slice(), tags: tags.slice(), finished: finished.slice(), readCount, calls, ...x });
+
+      const go = (lo, hi, pos) => {
+        calls += 1;
+        const range = order.slice(lo, hi + 1);
+        let r = 0;
+        let e = 0;
+        for (const w of range) {
+          if (pos < words[w].length) {
+            read[w] = Math.max(read[w], pos + 1);
+            r += 1;
+            readCount += 1;
+          } else {
+            e += 1;
+          }
+        }
+        snap({ lo, hi, pos, phase: 'read', note: fill(S.read, { lo, hi, pos, r, e }) });
+
+        const code = (w) => (pos < words[w].length ? words[w].charCodeAt(pos) : -1);
+        const keys = [...new Set(range.map(code))].sort((a, b) => a - b);
+        const sorted = keys.flatMap((k) => range.filter((w) => code(w) === k));
+        sorted.forEach((w, i) => (order[lo + i] = w));
+        const parts = keys.map((k) => {
+          const c = range.filter((w) => code(w) === k).length;
+          return `${k === -1 ? S.end : String.fromCharCode(k)}=${c}`;
+        });
+        let start = lo;
+        const buckets = [];
+        for (const k of keys) {
+          const c = range.filter((w) => code(w) === k).length;
+          for (let i = start; i < start + c; i++) {
+            tags[order[i]] = k === -1 ? S.end : String.fromCharCode(k);
+            if (c === 1 || k === -1) finished[order[i]] = true;
+          }
+          buckets.push({ k, start, c });
+          start += c;
+        }
+        snap({ lo, hi, pos, phase: 'split', buckets, note: fill(keys[0] === -1 && parts.length >= 1 && range.filter((w) => code(w) === -1).length > 1 ? S.splitEnd : S.split, { list: parts.join(' ') }) });
+        for (const b of buckets) if (b.k !== -1 && b.c > 1) go(b.start, b.start + b.c - 1, pos + 1);
+      };
+      if (words.length > 1) go(0, words.length - 1, 0);
+      snap({ phase: 'done', done: true, note: fill(readCount === total ? S.doneAll : S.doneSome, { r: readCount, t: total }) });
+      return out;
+    }
+
+    const maxLen = () => Math.max(...words.map((w) => w.length));
+
+    function build() {
+      const cols = maxLen();
+      stage.style.setProperty('--ms-cols', String(cols));
+      stage.style.setProperty('--ms-rows', String(words.length));
+      stage.innerHTML = words
+        .map(
+          (w, i) =>
+            `<div class="ms-row" data-ms-row="${i}" style="--ms-slot:${i}"><span class="ms-tag" data-ms-tag></span>${[...w]
+              .map((c, k) => `<span class="ms-ch" data-ms-k="${k}">${c}</span>`)
+              .join('')}${`<span class="ms-ch ms-end" data-ms-k="${w.length}">$</span>`}</div>`,
+        )
+        .join('');
+    }
+
+    function render() {
+      const st = at >= 0 ? steps[at] : null;
+      const order = st ? st.order : words.map((_, i) => i);
+      const slot = new Array(words.length);
+      order.forEach((w, s) => (slot[w] = s));
+      stage.querySelectorAll('[data-ms-row]').forEach((row) => {
+        const w = Number(row.dataset.msRow);
+        const s = slot[w];
+        row.style.setProperty('--ms-slot', String(s));
+        const inRange = !!st && st.lo !== undefined && s >= st.lo && s <= st.hi;
+        row.classList.toggle('is-range', inRange);
+        row.classList.toggle('is-fin', !!st && st.finished[w]);
+        row.querySelector('[data-ms-tag]').textContent = st ? st.tags[w] : '';
+        row.querySelectorAll('[data-ms-k]').forEach((c) => {
+          const k = Number(c.dataset.msK);
+          const isEnd = c.classList.contains('ms-end');
+          c.classList.toggle('is-read', !!st && !isEnd && k < st.read[w]);
+          c.classList.toggle('is-cur', inRange && st.pos === k);
+        });
+      });
+      readEl.textContent = String(st ? st.readCount : 0);
+      callsEl.textContent = String(st ? st.calls : 0);
+      totalEl.textContent = String(total);
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', !!(st && st.done));
+      root.querySelectorAll('[data-ms-preset]').forEach((b) => b.classList.toggle('is-on', b.dataset.msPreset === input.value.trim()));
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function rebuild() {
+      stop();
+      const parsed = input.value.toLowerCase().split(/\s+/).map((w) => w.replace(/[^a-z0-9]/g, '').slice(0, 10)).filter(Boolean).slice(0, 8);
+      if (!parsed.length) {
+        setLines(note, S.tooFew);
+        return;
+      }
+      words = parsed;
+      total = words.reduce((a, w) => a + w.length, 0);
+      steps = plan();
+      at = -1;
+      build();
+      render();
+    }
+
+    input.addEventListener('input', rebuild);
+    root.querySelectorAll('[data-ms-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = b.dataset.msPreset;
+        rebuild();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+    rebuild();
+  })();
+</script>
+
+<style is:global>
+  .aas-msd-string-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --ms-rowh: 1.62em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-msd-string-demo .ms-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-msd-string-demo .ms-head {
+    font-size: 0.95em;
+  }
+  .aas-msd-string-demo .ms-controls {
+    display: flex;
+    gap: 0.35em;
+  }
+  .aas-msd-string-demo .ms-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-msd-string-demo .ms-btn:hover,
+  .aas-msd-string-demo .ms-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-msd-string-demo .ms-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-msd-string-demo .ms-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.8em;
+    align-items: center;
+    margin: 0.5em 0;
+  }
+  .aas-msd-string-demo .ms-input {
+    display: inline-flex;
+    flex: 1 1 16em;
+    gap: 0.45em;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-msd-string-demo .ms-input input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.2em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-msd-string-demo .ms-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-msd-string-demo .ms-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-msd-string-demo .ms-chip {
+    padding: 0.2em 0.65em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-msd-string-demo .ms-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-msd-string-demo .ms-stage {
+    position: relative;
+    width: max-content;
+    max-width: 100%;
+    min-width: 12em;
+    height: calc(var(--ms-rows, 1) * var(--ms-rowh));
+    margin: 0 auto;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-msd-string-demo .ms-row {
+    position: absolute;
+    left: 0;
+    top: calc(var(--ms-slot) * var(--ms-rowh));
+    display: flex;
+    gap: 0.14em;
+    align-items: center;
+    height: var(--ms-rowh);
+    padding: 0.1em 0.3em;
+    border-radius: 0.35em;
+    white-space: nowrap;
+    transition:
+      top 0.5s cubic-bezier(0.65, 0, 0.35, 1),
+      background-color 0.25s;
+  }
+  /* 칸이 줄 너비를 정하므로, 위치를 잡기 전에도 무대 너비가 잡히도록 한 줄은 자리를 차지하게 둔다. */
+  .aas-msd-string-demo .ms-stage::before {
+    content: '';
+    display: block;
+    width: calc((var(--ms-cols, 1) + 1) * 1.5em + 3em);
+    height: 0;
+  }
+  .aas-msd-string-demo .ms-row.is-range {
+    background: color-mix(in srgb, var(--aas-role-focus) 12%, transparent);
+  }
+  .aas-msd-string-demo .ms-tag {
+    display: inline-block;
+    width: 2.4em;
+    margin-right: 0.3em;
+    text-align: center;
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-msd-string-demo .ms-ch {
+    display: inline-block;
+    width: 1.35em;
+    text-align: center;
+    border-radius: 0.2em;
+    opacity: 0.45;
+    transition:
+      background-color 0.25s,
+      opacity 0.25s;
+  }
+  .aas-msd-string-demo .ms-ch.ms-end {
+    color: var(--aas-muted);
+    opacity: 0.35;
+  }
+  .aas-msd-string-demo .ms-ch.is-read {
+    opacity: 1;
+    background: color-mix(in srgb, var(--aas-role-model) 26%, transparent);
+  }
+  .aas-msd-string-demo .ms-row.is-fin .ms-ch.is-read {
+    background: color-mix(in srgb, var(--aas-role-eval) 26%, transparent);
+  }
+  .aas-msd-string-demo .ms-ch.is-cur,
+  .aas-msd-string-demo .ms-row.is-fin .ms-ch.is-cur {
+    opacity: 1;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-focus) 45%, transparent);
+  }
+  .aas-msd-string-demo .ms-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 0.4em;
+  }
+  .aas-msd-string-demo .ms-note {
+    flex: 1 1 20em;
+    margin: 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+  .aas-msd-string-demo .ms-stat {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-msd-string-demo .ms-stat strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-msd-string-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.95rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-msd-string-demo .ms-row,
+    .aas-msd-string-demo .ms-ch {
+      transition: none;
+    }
+  }
+</style>
