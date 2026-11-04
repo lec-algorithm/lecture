@@ -1,0 +1,341 @@
+---
+// 키를 어떻게 자리로 쪼갤지 고르는 데모.
+//
+// 원소 수 n과 값의 범위 U를 슬라이더로 정하면, 기수 k마다 자릿수 d와 일의 양 d(n + k)를
+// 계산해 카운팅 정렬(n + U)과 비교 정렬(n log2 n)과 나란히 놓는다. 범위를 고정하면 d가
+// 그대로라 n에 비례하지만, 범위를 n²으로 묶으면 d가 함께 커져 n log n 꼴로 돌아온다.
+// 수치는 공식으로 계산한 값이고 막대는 로그 눈금이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `rc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '자리를 어떻게 쪼갤까',
+    fixed: '범위 고정',
+    grow: '범위 = n²',
+    n: '원소 수 n',
+    range: '값의 범위 U',
+    colWay: '방법',
+    colD: '패스 d',
+    colCells: '카운팅 칸',
+    colWork: '일의 양',
+    radix: '기수 k = {k}',
+    counting: '카운팅 정렬',
+    comparison: '비교 정렬 (n log₂ n)',
+    log: '막대는 로그 눈금',
+    best: '가장 적은 쪽은 {way}입니다.',
+    fixedNote: 'U가 고정이면 d도 고정입니다. n을 늘려도 일의 양은 n에 비례합니다.',
+    growNote: 'U = n²이면 k = {k}에서 d = {d}입니다. n이 커지면 d도 커져 비교 정렬과 같은 꼴이 됩니다.',
+    dup: 'U가 n보다 작아서 같은 값이 반드시 생깁니다. 서로 다른 값 n개를 담으려면 자릿수가 적어도 log_k n이어야 합니다.',
+    cellsWarn: '카운팅 정렬은 칸 {c}개를 잡아야 합니다.',
+  },
+  en: {
+    title: 'How to split the key',
+    fixed: 'Fixed range',
+    grow: 'Range = n²',
+    n: 'Elements n',
+    range: 'Value range U',
+    colWay: 'Method',
+    colD: 'Passes d',
+    colCells: 'Counting cells',
+    colWork: 'Work',
+    radix: 'Radix k = {k}',
+    counting: 'Counting sort',
+    comparison: 'Comparison sort (n log₂ n)',
+    log: 'Bars use a log scale',
+    best: 'The cheapest is {way}.',
+    fixedNote: 'With U fixed, d is fixed too. Grow n and the work stays proportional to n.',
+    growNote: 'With U = n², radix {k} needs d = {d}. As n grows, d grows too, and the cost takes the same shape as a comparison sort.',
+    dup: 'U is smaller than n, so some values must repeat. To hold n distinct values, the digit count must be at least log_k n.',
+    cellsWarn: 'Counting sort has to allocate {c} cells.',
+  },
+  zh: {
+    title: '键怎么拆成位',
+    fixed: '范围固定',
+    grow: '范围 = n²',
+    n: '元素数 n',
+    range: '值的范围 U',
+    colWay: '方法',
+    colD: '趟数 d',
+    colCells: '计数格',
+    colWork: '工作量',
+    radix: '基数 k = {k}',
+    counting: '计数排序',
+    comparison: '比较排序 (n log₂ n)',
+    log: '条形是对数刻度',
+    best: '最少的是{way}。',
+    fixedNote: 'U 固定时 d 也固定。n 增大时，工作量与 n 成正比。',
+    growNote: 'U = n² 时，k = {k} 需要 d = {d}。n 变大，d 也变大，开销变得与比较排序同样形状。',
+    dup: 'U 小于 n，必然出现相同的值。要容纳 n 个不同的值，位数至少是 log_k n。',
+    cellsWarn: '计数排序要开 {c} 个格子。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-radix-cost-demo', slide && 'is-slide']} id={id} data-rc-lang={lang} data-rc-strings={JSON.stringify(t)}>
+  <div class="rc-bar">
+    <span class="rc-head"><strong>{t.title}</strong></span>
+    <div class="rc-tabs">
+      <button type="button" class="rc-tab" data-rc-mode="fixed">{t.fixed}</button>
+      <button type="button" class="rc-tab" data-rc-mode="grow">{t.grow}</button>
+    </div>
+  </div>
+
+  <div class="rc-sliders">
+    <label class="rc-slider">
+      <span>{t.n} = <b data-rc-nv></b></span>
+      <input type="range" min="0" max="8" step="1" value="2" data-rc-n aria-label={t.n} />
+    </label>
+    <label class="rc-slider" data-rc-rangewrap>
+      <span>{t.range} = <b data-rc-uv></b></span>
+      <input type="range" min="0" max="10" step="1" value="2" data-rc-u aria-label={t.range} />
+    </label>
+  </div>
+
+  <table class="rc-table">
+    <thead>
+      <tr>
+        <th class="rc-way">{t.colWay}</th>
+        <th>{t.colD}</th>
+        <th>{t.colCells}</th>
+        <th>{t.colWork}</th>
+        <th class="rc-barcol">{t.log}</th>
+      </tr>
+    </thead>
+    <tbody data-rc-body></tbody>
+  </table>
+
+  <p class="rc-note" data-rc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.rcStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const NS = [10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9];
+    const US = [
+      [10, '10'], [100, '100'], [1000, '1,000'], [1e4, '10⁴'], [1e5, '10⁵'], [1e6, '10⁶'], [1e8, '10⁸'],
+      [2 ** 32, '2³²'], [1e12, '10¹²'], [2 ** 48, '2⁴⁸'], [2 ** 64, '2⁶⁴'],
+    ];
+    const RADICES = [2, 10, 16, 256, 65536];
+    const nIn = root.querySelector('[data-rc-n]');
+    const uIn = root.querySelector('[data-rc-u]');
+    const body = root.querySelector('[data-rc-body]');
+    const note = root.querySelector('[data-rc-note]');
+    const wrap = root.querySelector('[data-rc-rangewrap]');
+    let mode = 'fixed';
+
+    /* 천 단위까지는 그대로, 그 위는 지수로 적는다. */
+    const fmt = (x) => (x < 1e7 ? Math.round(x).toLocaleString('en-US') : x.toExponential(1).replace('e+', 'e'));
+    /* k^d >= U인 가장 작은 d. 값이 0부터 U-1까지면 자리 d개로 담긴다. */
+    const digitsOf = (U, k) => {
+      let d = 1;
+      let p = k;
+      while (p < U) {
+        p *= k;
+        d += 1;
+      }
+      return d;
+    };
+
+    function render() {
+      const n = NS[Number(nIn.value)];
+      const U = mode === 'grow' ? n * n : US[Number(uIn.value)][0];
+      root.querySelector('[data-rc-nv]').textContent = fmt(n);
+      root.querySelector('[data-rc-uv]').textContent = mode === 'grow' ? `n² = ${fmt(U)}` : US[Number(uIn.value)][1];
+      uIn.disabled = mode === 'grow';
+      wrap.classList.toggle('is-off', mode === 'grow');
+
+      const rows = RADICES.map((k) => {
+        const d = digitsOf(U, k);
+        return { way: fill(S.radix, { k: k.toLocaleString('en-US') }), d, cells: k, work: d * (n + k), kind: 'radix', k };
+      });
+      rows.push({ way: S.counting, d: 1, cells: U, work: n + U, kind: 'counting' });
+      rows.push({ way: S.comparison, d: '-', cells: '-', work: n * Math.log2(n), kind: 'comparison' });
+
+      const best = rows.reduce((a, b) => (b.work < a.work ? b : a));
+      const top = Math.max(...rows.map((r) => r.work));
+      const low = Math.log10(Math.min(...rows.map((r) => r.work))) - 0.4;
+      const span = Math.max(Math.log10(top) - low, 0.5);
+      body.innerHTML = rows
+        .map((r) => {
+          const w = ((Math.log10(r.work) - low) / span) * 100;
+          return `<tr class="rc-${r.kind}${r === best ? ' is-best' : ''}"><td class="rc-way">${r.way}</td><td>${r.d}</td><td>${typeof r.cells === 'number' ? fmt(r.cells) : r.cells}</td><td><b>${fmt(r.work)}</b></td><td class="rc-barcol"><i style="width:${w.toFixed(1)}%"></i></td></tr>`;
+        })
+        .join('');
+
+      const mid = rows.find((r) => r.k === 10);
+      const lines = [fill(S.best, { way: best.way })];
+      if (mode === 'grow') lines.push(fill(S.growNote, { k: 10, d: mid.d }));
+      else if (U < n) lines.push(S.dup);
+      else lines.push(S.fixedNote);
+      if (mode === 'fixed' && U > 1e7) lines.push(fill(S.cellsWarn, { c: fmt(U) }));
+      setLines(note, join(...lines));
+      root.querySelectorAll('[data-rc-mode]').forEach((b) => b.classList.toggle('is-on', b.dataset.rcMode === mode));
+    }
+
+    root.querySelectorAll('[data-rc-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        mode = b.dataset.rcMode;
+        render();
+      }),
+    );
+    nIn.addEventListener('input', render);
+    uIn.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-radix-cost-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-radix-cost-demo .rc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-radix-cost-demo .rc-head {
+    font-size: 0.95em;
+  }
+  .aas-radix-cost-demo .rc-tabs {
+    display: flex;
+    gap: 0.3em;
+  }
+  .aas-radix-cost-demo .rc-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-radix-cost-demo .rc-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-radix-cost-demo .rc-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-radix-cost-demo .rc-sliders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14em), 1fr));
+    gap: 0.3em 1.2em;
+    margin: 0.5em 0;
+  }
+  .aas-radix-cost-demo .rc-slider {
+    display: block;
+    font-size: 0.85em;
+    transition: opacity 0.2s;
+  }
+  .aas-radix-cost-demo .rc-slider.is-off {
+    opacity: 0.75;
+  }
+  .aas-radix-cost-demo .rc-slider b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-radix-cost-demo .rc-slider input {
+    display: block;
+    width: 100%;
+    margin-top: 0.15em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-radix-cost-demo.aas-radix-cost-demo table {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.82em;
+  }
+  .aas-radix-cost-demo.aas-radix-cost-demo :is(th, td) {
+    padding: 0.14em 0.5em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+    line-height: 1.35;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-radix-cost-demo.aas-radix-cost-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-radix-cost-demo.aas-radix-cost-demo .rc-way {
+    text-align: left;
+    font-family: var(--aas-sans, inherit);
+  }
+  .aas-radix-cost-demo.aas-radix-cost-demo tr.is-best td {
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, transparent);
+  }
+  .aas-radix-cost-demo.aas-radix-cost-demo .rc-barcol {
+    width: 34%;
+    text-align: left;
+    font-family: var(--aas-sans, inherit);
+  }
+  .aas-radix-cost-demo .rc-barcol i {
+    display: block;
+    height: 0.8em;
+    border-radius: 0.2em;
+    background: var(--aas-role-model);
+    transition: width 0.25s;
+  }
+  .aas-radix-cost-demo .rc-counting .rc-barcol i {
+    background: var(--aas-role-focus);
+  }
+  .aas-radix-cost-demo .rc-comparison .rc-barcol i {
+    background: var(--aas-role-trace);
+  }
+  .aas-radix-cost-demo .rc-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 3.2em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-radix-cost-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.85rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-radix-cost-demo .rc-barcol i,
+    .aas-radix-cost-demo .rc-slider {
+      transition: none;
+    }
+  }
+</style>
