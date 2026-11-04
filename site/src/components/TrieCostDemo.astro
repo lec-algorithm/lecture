@@ -1,0 +1,458 @@
+---
+// 키를 한 번 찾는 데 글자를 몇 번 보는지 이진 탐색 트리, 해시 테이블, 트라이로 세어 보는 데모.
+//
+// 길이 m인 무작위 키 N개를 세 구조에 실제로 넣고 1000번 찾아, 글자를 본 횟수의 평균을
+// 표로 보인다. 공통 접두사 길이 p를 늘리면 키들이 앞의 p글자를 함께 갖는다.
+// - 이진 탐색 트리: 비교 한 번마다 두 키를 앞에서부터 맞춰 본다(같은 글자 수 + 1, 최대 m).
+// - 해시 테이블: 해시를 세려고 m글자를 보고, 체인의 키를 같은 방식으로 맞춰 본다. 칸 수는
+//   M = N/4(홀수로 맞춤)이고 해시는 호너 방식 31이다.
+// - 트라이: 노드마다 글자 하나만 본다.
+//
+// 난수와 절차는 algorithm-code의 topic-10-trie/01_trie의 searchMiss와 같아서, m = 7, p = 0의
+// 검색 실패에서 트라이의 값이 실습 코드 출력 2.15 · 2.82 · 3.45와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+
+interface Props {
+  /** 처음 고른 키 길이 */
+  length?: number;
+  /** 처음 고른 공통 접두사 길이 */
+  common?: number;
+  /** hit · miss */
+  mode?: 'hit' | 'miss';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { length = 20, common = 0, mode = 'hit', slide = false } = Astro.props;
+const id = `tu-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '글자를 몇 번 보는가',
+    hit: '찾기 성공',
+    miss: '찾기 실패',
+    length: '키 길이 m',
+    common: '공통 접두사 p',
+    sample: '예',
+    unit: '키를 1000번 찾을 때 한 번에 본 글자 수의 평균',
+    bst: '이진 탐색 트리',
+    hash: '해시 테이블',
+    trie: '트라이',
+    keys: '키 N',
+    hitNote: 'N을 {a}에서 {b}까지 늘리면 이진 탐색 트리는 {c}글자에서 {d}글자가 됩니다. 트라이는 키 길이인 {t}글자 그대로입니다.',
+    missNote: 'N을 {a}에서 {b}까지 늘려도 트라이는 {c}글자에서 {d}글자가 될 뿐입니다. 해시 테이블은 먼저 {m}글자를 다 읽어야 합니다.',
+    commonNote: '키들이 앞의 {p}글자를 공유하면 이진 탐색 트리는 비교할 때마다 그 {p}글자를 다시 봅니다.',
+    noCommon: '접두사를 늘려 보세요. 트라이만 그대로입니다.',
+  },
+  en: {
+    title: 'How many characters do you look at?',
+    hit: 'Search hit',
+    miss: 'Search miss',
+    length: 'Key length m',
+    common: 'Common prefix p',
+    sample: 'e.g.',
+    unit: 'Average characters looked at per search, over 1000 searches',
+    bst: 'Binary search tree',
+    hash: 'Hash table',
+    trie: 'Trie',
+    keys: 'keys N',
+    hitNote: 'As N grows from {a} to {b}, the binary search tree goes from {c} to {d} characters. The trie stays at {t}, the key length.',
+    missNote: 'As N grows from {a} to {b}, the trie only goes from {c} to {d} characters. The hash table must first read all {m}.',
+    commonNote: 'When the keys share their first {p} characters, the binary search tree rereads those {p} on every compare.',
+    noCommon: 'Try a longer prefix. Only the trie stays put.',
+  },
+  zh: {
+    title: '要看多少个字符',
+    hit: '查找成功',
+    miss: '查找失败',
+    length: '键长 m',
+    common: '公共前缀 p',
+    sample: '例',
+    unit: '查找 1000 次，平均每次看的字符数',
+    bst: '二叉搜索树',
+    hash: '哈希表',
+    trie: '字典树',
+    keys: '键 N',
+    hitNote: 'N 从 {a} 增加到 {b}，二叉搜索树从 {c} 个字符增加到 {d} 个。字典树一直是键长 {t} 个。',
+    missNote: 'N 从 {a} 增加到 {b}，字典树也只从 {c} 个字符增加到 {d} 个。哈希表要先读完 {m} 个。',
+    commonNote: '键共享前 {p} 个字符时，二叉搜索树每比较一次都要重看这 {p} 个。',
+    noCommon: '试着加长前缀。只有字典树不变。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const sizes = [10, 100, 1000, 10000];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-trie-cost-demo', slide && 'is-slide']} id={id} data-tu-config={JSON.stringify({ length, common, mode, sizes })} data-tu-strings={JSON.stringify(t)}>
+  <div class="tu-bar">
+    <span class="tu-head"><strong>{t.title}</strong></span>
+    <div class="tu-tabs">
+      <button type="button" class="tu-tab" data-tu-mode="hit">{t.hit}</button>
+      <button type="button" class="tu-tab" data-tu-mode="miss">{t.miss}</button>
+    </div>
+    <div class="tu-tabs">
+      <span class="tu-label">{t.length}</span>
+      <button type="button" class="tu-tab tu-mono" data-tu-len="7">7</button>
+      <button type="button" class="tu-tab tu-mono" data-tu-len="20">20</button>
+    </div>
+    <label class="tu-range">
+      {t.common} <strong data-tu-pval></strong>
+      <input type="range" data-tu-p min="0" max="16" step="1" />
+    </label>
+  </div>
+  <p class="tu-sample"><span>{t.sample}</span> <span class="tu-mono" data-tu-sample></span></p>
+
+  <table class="tu-table">
+    <thead>
+      <tr>
+        <th class="tu-unit">{t.unit}</th>
+        {sizes.map((n) => <th>{t.keys} = {n.toLocaleString('en-US')}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        (['bst', 'hash', 'trie'] as const).map((k) => (
+          <tr class={`is-${k}`}>
+            <th>{t[k]}</th>
+            {sizes.map((n) => (
+              <td data-tu-cell={`${k}:${n}`}>
+                <b></b>
+                <i></i>
+              </td>
+            ))}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+  <p class="tu-note" data-tu-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const cfg = JSON.parse(root.dataset.tuConfig);
+    const S = JSON.parse(root.dataset.tuStrings);
+    const { makeRandom } = globalThis.aasTrieAlgos;
+    const STEM = 'internationalizat';
+    const R = 26;
+    const QUERIES = 1000;
+
+    /* plan:start (세 구조에 실제로 넣고 찾아서 글자를 센다) */
+    /* a와 b를 앞에서부터 맞춰 본 글자 수: 같은 글자 수 + 1, 최대 m */
+    function matchCost(a, b) {
+      const m = a.length;
+      let i = 0;
+      while (i < m && a[i] === b[i]) i += 1;
+      return i < m ? i + 1 : m;
+    }
+    function experiment(N, L, p, mode) {
+      const next = makeRandom(2026);
+      const prefix = STEM.slice(0, p);
+      const key = () => {
+        let s = prefix;
+        for (let i = p; i < L; i++) s += String.fromCharCode(97 + (next() % R));
+        return s;
+      };
+      const set = new Set();
+      for (let i = 0; i < N; i++) set.add(key());
+      const list = [...set];
+
+      /* 이진 탐색 트리 */
+      const left = new Int32Array(list.length).fill(-1);
+      const right = new Int32Array(list.length).fill(-1);
+      for (let i = 1; i < list.length; i++) {
+        let at = 0;
+        for (;;) {
+          const side = list[i] < list[at] ? left : right;
+          if (side[at] === -1) {
+            side[at] = i;
+            break;
+          }
+          at = side[at];
+        }
+      }
+      /* 해시 테이블: 개별 체이닝, 호너 방식 */
+      const M = Math.floor(N / 4) | 1;
+      const hashOf = (s) => {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % M;
+        return h;
+      };
+      const chains = Array.from({ length: M }, () => []);
+      list.forEach((s) => chains[hashOf(s)].push(s));
+      /* 트라이: 키 끝의 표시는 $ */
+      const top = {};
+      list.forEach((s) => {
+        let cur = top;
+        for (let i = 0; i < s.length; i++) {
+          const c = s[i];
+          cur = cur[c] || (cur[c] = {});
+        }
+        cur.$ = true;
+      });
+
+      let bst = 0;
+      let hash = 0;
+      let trie = 0;
+      let done = 0;
+      let guard = 0;
+      while (done < QUERIES && guard < QUERIES * 3) {
+        guard += 1;
+        const q = mode === 'hit' ? list[next() % list.length] : key();
+        if (mode === 'miss' && set.has(q)) continue;
+        done += 1;
+        let at = 0;
+        while (at !== -1) {
+          bst += matchCost(q, list[at]);
+          if (q === list[at]) break;
+          at = (q < list[at] ? left : right)[at];
+        }
+        hash += L;
+        for (const s of chains[hashOf(q)]) {
+          hash += matchCost(q, s);
+          if (s === q) break;
+        }
+        let cur = top;
+        for (let i = 0; i < q.length; i++) {
+          trie += 1;
+          cur = cur[q[i]];
+          if (!cur) break;
+        }
+      }
+      return { bst: bst / done, hash: hash / done, trie: trie / done, sample: list[0], unique: list.length };
+    }
+    /* plan:end */
+
+    const cache = new Map();
+    const run = (N, L, p, mode) => {
+      const k = `${N}:${L}:${p}:${mode}`;
+      if (!cache.has(k)) cache.set(k, experiment(N, L, p, mode));
+      return cache.get(k);
+    };
+
+    let mode = cfg.mode;
+    let L = cfg.length;
+    let p = cfg.common;
+    const slider = root.querySelector('[data-tu-p]');
+    const pval = root.querySelector('[data-tu-pval]');
+    const note = root.querySelector('[data-tu-note]');
+    const sample = root.querySelector('[data-tu-sample]');
+    const fmt = (n) => n.toLocaleString('en-US');
+    const num = (x) => (x >= 100 ? x.toFixed(0) : x.toFixed(x >= 10 ? 1 : 2));
+
+    function render() {
+      const maxP = L - 4;
+      if (p > maxP) p = maxP;
+      slider.max = String(maxP);
+      slider.value = String(p);
+      pval.textContent = String(p);
+      const data = {};
+      cfg.sizes.forEach((n) => (data[n] = run(n, L, p, mode)));
+      const top = Math.max(...cfg.sizes.flatMap((n) => [data[n].bst, data[n].hash, data[n].trie]));
+      for (const k of ['bst', 'hash', 'trie']) {
+        for (const n of cfg.sizes) {
+          const cell = root.querySelector(`[data-tu-cell="${k}:${n}"]`);
+          cell.querySelector('b').textContent = num(data[n][k]);
+          cell.querySelector('i').style.width = `${(data[n][k] / top) * 100}%`;
+        }
+      }
+      const a = cfg.sizes[0];
+      const b = cfg.sizes[cfg.sizes.length - 1];
+      const line =
+        mode === 'hit'
+          ? fill(S.hitNote, { a: fmt(a), b: fmt(b), c: num(data[a].bst), d: num(data[b].bst), t: L })
+          : fill(S.missNote, { a: fmt(a), b: fmt(b), c: num(data[a].trie), d: num(data[b].trie), m: L });
+      setLines(note, join(line, p > 0 ? fill(S.commonNote, { p }) : S.noCommon));
+      const s = data[b].sample;
+      sample.replaceChildren(Object.assign(document.createElement('b'), { textContent: s.slice(0, p) }), s.slice(p));
+      root.querySelectorAll('[data-tu-mode]').forEach((x) => x.classList.toggle('is-on', x.dataset.tuMode === mode));
+      root.querySelectorAll('[data-tu-len]').forEach((x) => x.classList.toggle('is-on', Number(x.dataset.tuLen) === L));
+    }
+    root.querySelectorAll('[data-tu-mode]').forEach((x) =>
+      x.addEventListener('click', () => {
+        mode = x.dataset.tuMode;
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-tu-len]').forEach((x) =>
+      x.addEventListener('click', () => {
+        L = Number(x.dataset.tuLen);
+        render();
+      }),
+    );
+    slider.addEventListener('input', () => {
+      p = Number(slider.value);
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-trie-cost-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-cost-demo .tu-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+  }
+  .aas-trie-cost-demo .tu-head {
+    margin-right: auto;
+    font-size: 0.95em;
+  }
+  .aas-trie-cost-demo .tu-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-trie-cost-demo .tu-label,
+  .aas-trie-cost-demo .tu-range {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-cost-demo .tu-range {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-trie-cost-demo .tu-range strong {
+    min-width: 1.4em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-trie-cost-demo .tu-range input {
+    width: 8em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-trie-cost-demo .tu-tab {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-cost-demo .tu-mono {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-cost-demo .tu-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-cost-demo .tu-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-trie-cost-demo .tu-sample {
+    margin: 0.5em 0;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-cost-demo .tu-sample .tu-mono {
+    font-size: 1.05em;
+  }
+  .aas-trie-cost-demo .tu-sample b {
+    color: var(--aas-role-focus);
+  }
+  .aas-trie-cost-demo .tu-table {
+    width: 100% !important;
+    margin: 0;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  .aas-trie-cost-demo .tu-table th {
+    padding: 0.3em 0.6em;
+    font-size: 0.8em;
+    font-weight: 600;
+    text-align: left;
+    color: var(--aas-text);
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-trie-cost-demo .tu-table thead th {
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-trie-cost-demo .tu-table thead th.tu-unit {
+    width: 24%;
+    font-size: 0.68em;
+    font-weight: 400;
+    white-space: normal;
+  }
+  .aas-trie-cost-demo .tu-table td {
+    padding: 0.4em 0.6em;
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-trie-cost-demo .tu-table td b {
+    display: block;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.1em;
+  }
+  .aas-trie-cost-demo .tu-table td i {
+    display: block;
+    height: 0.45em;
+    margin-top: 0.1em;
+    border-radius: 0.2em;
+    background: var(--aas-muted);
+    transition: width 0.25s;
+  }
+  .aas-trie-cost-demo .is-bst td i {
+    background: var(--aas-role-guard);
+  }
+  .aas-trie-cost-demo .is-hash td i {
+    background: var(--aas-role-trace);
+  }
+  .aas-trie-cost-demo .is-trie td i {
+    background: var(--aas-role-model);
+  }
+  .aas-trie-cost-demo .is-trie td b {
+    color: var(--aas-role-model);
+  }
+  .aas-trie-cost-demo .tu-note {
+    margin: 0.6em 0 0;
+    min-height: 3.6em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-cost-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-trie-cost-demo.is-slide .tu-table td {
+    padding: 0.7em 0.6em;
+  }
+  .aas-trie-cost-demo.is-slide .tu-table td b {
+    font-size: 1.35em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-cost-demo .tu-table td i {
+      transition: none;
+    }
+  }
+</style>
