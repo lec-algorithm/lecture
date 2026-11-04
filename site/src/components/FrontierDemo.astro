@@ -1,0 +1,436 @@
+---
+// 일반 탐색 알고리즘을 손으로 돌려 보는 데모. "경계에 걸친 간선 중 무엇부터
+// 고르는가"를 학생이 직접 정한다.
+//
+// 그래프는 연결 요소가 셋인 g13이다. 파란 점선이 경계 간선(한 끝만 탐색함)이고,
+// 간선이나 칩을 누르면 반대쪽 정점이 탐색된다. 가장 오래된 간선만 고르면 BFS의
+// 순서(0 1 2 5 6 3 4), 가장 새 간선만 고르면 스택 DFS의 순서(0 6 4 5 3 2 1)가
+// 나온다. 어떻게 골라도 끝에 탐색된 정점은 s에서 닿는 정점 전부이고, 다른
+// 연결 요소의 정점은 탐색되지 않는다. 정점을 누르면 그 정점에서 다시 시작한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 시작 정점 */
+  start?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { start = 0, slide = false } = Astro.props;
+const g = getGraph('g13');
+const id = `fr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '경계 간선 직접 고르기',
+    oldest: '가장 오래된 간선',
+    newest: '가장 새 간선',
+    undo: '되돌리기',
+    reset: '처음으로',
+    frontier: '경계 간선 (왼쪽이 오래된 것)',
+    order: '탐색 순서',
+    count: '탐색',
+    none: '없음',
+    idle: '{s}만 탐색했습니다. 파란 점선이 경계 간선입니다. 아무 간선이나 눌러 보세요. 정점을 누르면 거기서 다시 시작합니다.',
+    pick: '{e} 선택, 정점 {v} 탐색. 경계 간선은 {k}개입니다.',
+    done: '경계 간선이 없으니 끝입니다. 닿은 정점은 {list}입니다.',
+    rest: '{rest}에는 경로가 없어 탐색되지 않았습니다.',
+    prev: '지난번 순서는 {prev}입니다. 고른 순서가 달라도 닿은 정점은 같습니다.',
+  },
+  en: {
+    title: 'Pick the frontier edges yourself',
+    oldest: 'Oldest edge',
+    newest: 'Newest edge',
+    undo: 'Undo',
+    reset: 'Reset',
+    frontier: 'Frontier edges (oldest on the left)',
+    order: 'Exploration order',
+    count: 'explored',
+    none: 'none',
+    idle: 'Only {s} is explored. The dashed blue edges are the frontier. Click any of them. Click a vertex to start over from it.',
+    pick: 'Chose {e}, explored vertex {v}. The frontier has {k} edges.',
+    done: 'No frontier edges left, so we stop. Reached: {list}.',
+    rest: 'No path leads to {rest}, so they stay unexplored.',
+    prev: 'Last time the order was {prev}. A different order, but the same vertices reached.',
+  },
+  zh: {
+    title: '亲手选择边界边',
+    oldest: '最早的边',
+    newest: '最新的边',
+    undo: '撤销',
+    reset: '重置',
+    frontier: '边界边（左边最早）',
+    order: '探索顺序',
+    count: '已探索',
+    none: '无',
+    idle: '只探索了 {s}。蓝色虚线是边界边。任选一条点击。点击顶点可从那里重新开始。',
+    pick: '选择 {e}，探索顶点 {v}。边界边有 {k} 条。',
+    done: '没有边界边了，结束。到达的顶点：{list}。',
+    rest: '没有通往 {rest} 的路径，所以未被探索。',
+    prev: '上次的顺序是 {prev}。选择顺序不同，到达的顶点却相同。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-frontier-demo', slide && 'is-slide']}
+  id={id}
+  data-fr-n={g.nodes.length}
+  data-fr-edges={JSON.stringify(g.edges)}
+  data-fr-start={start}
+  data-fr-strings={JSON.stringify(t)}
+>
+  <div class="fr-bar">
+    <span class="fr-head"><strong>{t.title}</strong></span>
+    <div class="fr-controls">
+      <button type="button" class="fr-btn fr-btn-primary" data-fr-act="oldest">{t.oldest}</button>
+      <button type="button" class="fr-btn fr-btn-primary" data-fr-act="newest">{t.newest}</button>
+      <button type="button" class="fr-btn" data-fr-act="undo">{t.undo}</button>
+      <button type="button" class="fr-btn" data-fr-act="reset">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="fr-body">
+    <div class="fr-graph">
+      <GraphFigure graph="g13" bare slide={slide} />
+    </div>
+    <div class="fr-panel">
+      <div class="fr-stats">
+        <span class="fr-big"><span>{t.count}</span><strong data-fr-count></strong><small>/ {g.nodes.length}</small></span>
+      </div>
+      <div class="fr-label">{t.frontier}</div>
+      <div class="fr-list" data-fr-list></div>
+      <div class="fr-order">{t.order}: <strong data-fr-order></strong></div>
+      <p class="fr-note" data-fr-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.frStrings);
+    const n = Number(root.dataset.frN);
+    const edges = JSON.parse(root.dataset.frEdges);
+
+    /* 인접 목록. 무방향이므로 양쪽에 넣고, 이웃은 작은 번호부터 본다. */
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+
+    let s = Number(root.dataset.frStart);
+    let picks = []; // 고른 정점의 순서. 상태는 여기서 다시 계산한다.
+    let lastOrder = null; // 끝까지 간 지난번 순서(같은 시작 정점)
+
+    /* picks로 상태를 만든다. 경계 간선은 생긴 순서대로 둔다. */
+    function state() {
+      const seen = new Array(n).fill(false);
+      const from = new Array(n).fill(null);
+      const order = [s];
+      seen[s] = true;
+      let fr = adj[s].map((w) => [s, w]);
+      picks.forEach(([u, v]) => {
+        seen[v] = true;
+        from[v] = u;
+        order.push(v);
+        fr = fr.filter(([, w]) => !seen[w]);
+        adj[v].forEach((w) => {
+          if (!seen[w]) fr.push([v, w]);
+        });
+      });
+      return { seen, from, order, fr };
+    }
+
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => {
+      const [a, b] = el.dataset.gfEdge.split('-');
+      edgeEls.set(`${a}-${b}`, el);
+      edgeEls.set(`${b}-${a}`, el);
+      /* 선이 가늘어서 누르기 쉽도록 투명한 굵은 선을 겹친다. */
+      const hit = el.querySelector('line').cloneNode();
+      hit.classList.add('fr-hit');
+      el.appendChild(hit);
+      el.addEventListener('click', () => {
+        const cur = state();
+        const e = cur.fr.find(([u, v]) => (u === +a && v === +b) || (u === +b && v === +a));
+        if (e) pick(e);
+      });
+    });
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const listEl = root.querySelector('[data-fr-list]');
+    const noteEl = root.querySelector('[data-fr-note]');
+    const buttons = {};
+    root.querySelectorAll('[data-fr-act]').forEach((b) => (buttons[b.dataset.frAct] = b));
+    let note = '';
+
+    function render() {
+      const { seen, from, order, fr } = state();
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', seen[v]);
+        el.classList.toggle('is-ring', v === s);
+        el.classList.toggle('is-focus', picks.length > 0 && v === order[order.length - 1]);
+      });
+      const tree = new Set();
+      from.forEach((u, v) => u !== null && tree.add(`${u}-${v}`));
+      const cand = new Set(fr.map(([u, v]) => `${u}-${v}`));
+      const seenEl = new Set();
+      edgeEls.forEach((el) => {
+        if (seenEl.has(el)) return;
+        seenEl.add(el);
+        const [a, b] = el.dataset.gfEdge.split('-');
+        const isTree = tree.has(`${a}-${b}`) || tree.has(`${b}-${a}`);
+        const isCand = cand.has(`${a}-${b}`) || cand.has(`${b}-${a}`);
+        el.classList.toggle('is-tree', isTree);
+        el.classList.toggle('is-cand', isCand);
+        el.classList.toggle('fr-can', isCand);
+      });
+      listEl.replaceChildren(
+        ...(fr.length
+          ? fr.map((e) => {
+              const c = document.createElement('button');
+              c.type = 'button';
+              c.className = 'fr-chip';
+              c.textContent = `${e[0]}-${e[1]}`;
+              c.addEventListener('click', () => pick(e));
+              return c;
+            })
+          : [Object.assign(document.createElement('span'), { className: 'fr-empty', textContent: S.none })]),
+      );
+      root.querySelector('[data-fr-count]').textContent = String(order.length);
+      root.querySelector('[data-fr-order]').textContent = order.join(' ');
+      buttons.oldest.disabled = !fr.length;
+      buttons.newest.disabled = !fr.length;
+      buttons.undo.disabled = !picks.length;
+      root.classList.toggle('is-done', !fr.length);
+      const last = picks[picks.length - 1];
+      const fallback = last ? fill(S.pick, { e: `${last[0]}-${last[1]}`, v: last[1], k: fr.length }) : fill(S.idle, { s });
+      setLines(noteEl, note || fallback);
+    }
+
+    function pick(e) {
+      picks.push(e);
+      const { order, fr, seen } = state();
+      if (fr.length) {
+        note = fill(S.pick, { e: `${e[0]}-${e[1]}`, v: e[1], k: fr.length });
+      } else {
+        const reach = order.slice().sort((a, b) => a - b).join(' ');
+        const rest = seen.map((x, v) => (x ? -1 : v)).filter((v) => v >= 0).join(' ');
+        const now = order.join(' ');
+        note = join(
+          fill(S.done, { list: reach }),
+          rest && fill(S.rest, { rest }),
+          lastOrder && lastOrder !== now && fill(S.prev, { prev: lastOrder }),
+        );
+        lastOrder = now;
+      }
+      render();
+    }
+
+    buttons.oldest.addEventListener('click', () => {
+      const { fr } = state();
+      if (fr.length) pick(fr[0]);
+    });
+    buttons.newest.addEventListener('click', () => {
+      const { fr } = state();
+      if (fr.length) pick(fr[fr.length - 1]);
+    });
+    buttons.undo.addEventListener('click', () => {
+      picks.pop();
+      note = '';
+      render();
+    });
+    buttons.reset.addEventListener('click', () => {
+      picks = [];
+      note = '';
+      render();
+    });
+    const restart = (v) => {
+      if (v !== s) lastOrder = null;
+      s = v;
+      picks = [];
+      note = '';
+      render();
+    };
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => restart(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          restart(v);
+        }
+      });
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-frontier-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-frontier-demo .fr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-frontier-demo .fr-head {
+    font-size: 0.95em;
+  }
+  .aas-frontier-demo .fr-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-frontier-demo .fr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-frontier-demo .fr-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-frontier-demo .fr-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-frontier-demo .fr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-frontier-demo .fr-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-frontier-demo .fr-graph {
+    flex: 0 1 19em;
+    min-width: 12em;
+  }
+  .aas-frontier-demo .gf-node {
+    cursor: pointer;
+  }
+  .aas-frontier-demo .aas-graph-figure .gf-edge line.fr-hit {
+    stroke: transparent;
+    stroke-width: 22;
+    stroke-dasharray: none;
+    pointer-events: none;
+  }
+  .aas-frontier-demo .aas-graph-figure .gf-edge.fr-can line.fr-hit {
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+  .aas-frontier-demo .fr-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-frontier-demo .fr-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-frontier-demo .fr-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-frontier-demo .fr-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-frontier-demo .fr-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    min-height: 1.9em;
+  }
+  .aas-frontier-demo .fr-chip {
+    padding: 0.1em 0.55em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    border: 1px solid var(--aas-role-model);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-frontier-demo .fr-chip:hover {
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-frontier-demo .fr-empty {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-frontier-demo .fr-order {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-frontier-demo .fr-order strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-frontier-demo .fr-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-frontier-demo.is-done .fr-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-frontier-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-frontier-demo.is-slide .fr-body {
+    flex-wrap: nowrap;
+  }
+  .aas-frontier-demo.is-slide .fr-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+</style>
