@@ -1,7 +1,7 @@
 ---
 title: "主题 09. 基数排序与后缀数组"
 description: "每一位重复做计数排序的 LSD·MSD 基数排序，把所有后缀排好序的后缀数组与 LCP 数组，以及在其上求解的最长重复子串与最长公共子串"
-date: "主题 09 · v1"
+date: "主题 09 · v2"
 order: 9
 transition: none
 toc_level: 4
@@ -18,6 +18,18 @@ import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
+import CountingPassDemo from '@components/CountingPassDemo.astro';
+import RadixCostDemo from '@components/RadixCostDemo.astro';
+import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
+import MsdStringDemo from '@components/MsdStringDemo.astro';
+import MsdCostDemo from '@components/MsdCostDemo.astro';
+import SuffixTableDemo from '@components/SuffixTableDemo.astro';
+import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
+import KasaiCostDemo from '@components/KasaiCostDemo.astro';
+import LrsFindDemo from '@components/LrsFindDemo.astro';
+import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
+import LcsPlayDemo from '@components/LcsPlayDemo.astro';
+import KwicDemo from '@components/KwicDemo.astro';
 
 {/* 幻灯片的编写规则见 docs/writing-rules.md 中关于幻灯片的一节。
     数字与实践代码（topic-09-radix-sort）的运行结果一致。 */}
@@ -180,6 +192,15 @@ void countingSortByDigit(int a[], int n, int exp) {
 
 </Slide>
 
+<Slide>
+
+### 一步一步：计数、累加、放置
+::sub[逐行跟随代码的四个阶段 · 切换标签会改变第 3 步的方向]
+
+<CountingPassDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 运行结果
@@ -287,6 +308,15 @@ sorted  : 008 042 074 437 531
 
 <Slide>
 
+### 动手试试：键怎么拆成位
+::sub[改变 n 和值的范围，每种基数的工作量都会变 · 绿色是最少的]
+
+<RadixCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 运行时间
 ::sub[不同大小整数数组的排序时间 · LSD 的一位 = 一个字节（R = 256）]
 
@@ -299,6 +329,15 @@ sorted  : 008 042 074 437 531
 
 - $$n$$ 变成 10 倍时，插入排序约变成 100 倍，LSD 几乎正好 10 倍。
 - 一百万个元素时，LSD 比快速排序快约四倍。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：亲手测一测
+::sub[四种排序真的在这个浏览器里运行 · 用标签改变输入的顺序]
+
+<RuntimeRaceDemo slide />
 
 </Slide>
 
@@ -430,6 +469,15 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 
 <Slide>
 
+### 一步一步：字符串上的 MSD
+::sub[涂色的格子才是读过的字符 · 橙色是正在读的字符，绿色是处理完的单词]
+
+<MsdStringDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 分析
 ::sub[MSD Radix Sort]
 
@@ -442,6 +490,15 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 
 小桶一多，扫描空计数格的时间反而比处理元素还多。  
 所以实际的实现会在桶变小时改用插入排序。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：数一数开销
+::sub[统计读取位数和扫描格子 · 在 k = 256 时选随机输入试试]
+
+<MsdCostDemo slide />
 
 </Slide>
 
@@ -510,20 +567,10 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 
 <Slide>
 
-#### 例：banana$
-::sub[第 1 步：列出所有后缀 · 第 2 步：按字典序排序]
+### 例：banana$
+::sub[左边按起始位置，右边按字典序 · 点击一行，同一个后缀在两边都会涂色]
 
-| 起始位置 | 后缀 | | $$j$$ | $$SA[j]$$ | 后缀 |
-| --- | --- | --- | --- | --- | --- |
-| 0 | `banana$` | | 0 | 6 | `$` |
-| 1 | `anana$` | | 1 | 5 | `a$` |
-| 2 | `nana$` | | 2 | 3 | `ana$` |
-| 3 | `ana$` | | 3 | 1 | `anana$` |
-| 4 | `na$` | | 4 | 0 | `banana$` |
-| 5 | `a$` | | 5 | 4 | `na$` |
-| 6 | `$` | | 6 | 2 | `nana$` |
-
-$$SA = [6, 5, 3, 1, 0, 4, 2]$$
+<SuffixTableDemo slide />
 
 </Slide>
 
@@ -540,6 +587,15 @@ $$SA = [6, 5, 3, 1, 0, 4, 2]$$
 <br/>
 
 把后缀当作字符串存起来要 $$O(n^2)$$ 空间，只记起始位置是 $$O(n)$$。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：去掉 $
+::sub[这里已用按钮去掉 $ · 是另一个后缀前缀的行带红色标记]
+
+<SuffixTableDemo sentinel={false} slide />
 
 </Slide>
 
@@ -589,23 +645,9 @@ void buildSuffixArrayNaive(const char *text, int sa[], int n) {
 <Slide>
 
 ### 一步一步：banana$
-::sub[一个数对代替涂色的前 k 个字符。排名相同的行用橙色框在一起]
+::sub[一个数对代替涂色的前 k 个字符，排名相同为橙色 · 点击一行，构成数对的两格会涂色]
 
 <SuffixArrayDemo slide />
-
-</Slide>
-
-<Slide>
-
-#### 两轮
-::sub[k = 2 时排名 5 种，k = 4 时 7 种]
-
-- **k = 2**：数对是（首字符，第二个字符）的字符编码
-  - `anana$` 与 `ana$` 都是 (97, 110)，`nana$` 与 `na$` 都是 (110, 97)
-- **k = 4**：数对是（前 2 个字符的排名，往后 2 格的后缀的排名）
-  - `ana$`：位置 3，往后 2 格 `a$` 的排名 1 → (2, 1)
-  - `anana$`：位置 1，往后 2 格 `ana$` 的排名 2 → (2, 2)
-  - 现在分开了。排名全都不同就结束。
 
 </Slide>
 
@@ -695,6 +737,15 @@ same = yes
 
 </Slide>
 
+<Slide>
+
+### 一步一步：对数对做基数排序
+::sub[按低位一次，按高位一次 · 点击一行，构成数对的两格会涂色]
+
+<DoublingRadixDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 例 4. LCP 数组
@@ -704,20 +755,10 @@ same = yes
 
 <Slide>
 
-#### LCP 数组
-::sub[相邻后缀从开头起共享几个字符]
+### LCP 数组
+::sub[LCP[j] = 后缀 SA[j-1] 与 SA[j] 的最长公共前缀长度 · 点击一行，与前一个邻居对照]
 
-| $$j$$ | $$SA[j]$$ | 后缀 | $$LCP[j]$$ | 说明 |
-| --- | --- | --- | --- | --- |
-| 0 | 6 | `$` | - | 不定义 |
-| 1 | 5 | `a$` | 0 | `$` 与 `a$` |
-| 2 | 3 | `ana$` | 1 | 公共前缀 `a` |
-| 3 | 1 | `anana$` | 3 | 公共前缀 `ana` |
-| 4 | 0 | `banana$` | 0 | `anana$` 与 `banana$` |
-| 5 | 4 | `na$` | 0 | `banana$` 与 `na$` |
-| 6 | 2 | `nana$` | 2 | 公共前缀 `na` |
-
-$$LCP[j]$$ = 后缀 $$SA[j-1]$$ 与 $$SA[j]$$ 的最长公共前缀长度
+<SuffixTableDemo lcp slide />
 
 </Slide>
 
@@ -807,6 +848,15 @@ char compares: kasai 9, naive 12
 
 </Slide>
 
+<Slide>
+
+### 动手试试：Kasai 的开销
+::sub[把 a 的个数增大试试 · 一个条形对应一个位置 i]
+
+<KasaiCostDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 例 5. 最长重复子串
@@ -887,6 +937,15 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 </Slide>
 
+<Slide>
+
+### 动手试试：在 283 个字符里找
+::sub[点击一行，原文中重复的两处会涂色 · 暴力法也跑到底并计数]
+
+<LrsFindDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 运行结果
@@ -958,6 +1017,15 @@ brute force: "acaag", 120 pairs, 161 char compares
 
 后缀排序必须做到 $$O(n \log n)$$ 以下。  
 适合变长键的 MSD 一类排序，或者用上基数排序的倍增，才是出路。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：把 n 增大看看
+::sub[用滑块估算四种方法的时间 · 机器再快，n² 也还是 n²]
+
+<GenomeScaleDemo slide />
 
 </Slide>
 
@@ -1034,6 +1102,15 @@ LCS = "iss" (length 3) at j = 5
 
 <Slide>
 
+### 动手试试：关掉规则
+::sub[关掉分隔符或来源规则，答案就会出错 · 也可以输入自己的字符串]
+
+<LcsPlayDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 后缀数组的用途：KWIC
 ::sub[Keyword in context · 把查询词出现的所有位置连同上下文一起显示]
 
@@ -1061,6 +1138,15 @@ n that bed and search the straw hold
 ```
 
 文本再长，每次查询也只是在后缀数组上做一次二分查找。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：KWIC 二分查找
+::sub[以查询词开头的后缀集中在一个区间 · 找到区间的开头和结尾]
+
+<KwicDemo slide />
 
 </Slide>
 
