@@ -12,7 +12,11 @@
 // 트라이는 키 목록으로 스크립트 안에서 실제로 만든다. 기본 키는 실습 코드
 // (algorithm-code의 topic-10-trie/01_trie)와 같은 by=4 sea=2 sells=1 she=0
 // shells=3 the=5이고, complete 모드는 실습 코드처럼 shore=7을 더한다.
+//
+// 든 키와 값은 데모 안의 표로 보인다. node 모드는 고른 노드 아래의 키를, complete 모드는
+// 모은 키를 그 표에서 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import TrieKeyTable from './TrieKeyTable.astro';
 
 type Mode = 'node' | 'complete';
 interface Props {
@@ -148,6 +152,7 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
       <strong>{t[`title.${mode}`]}</strong>
       {mode === 'node' && <span class="tn-hint">{t.hint}</span>}
     </span>
+    {mode === 'node' && <TrieKeyTable words={words.concat(extra)} />}
     {
       mode === 'complete' && (
         <div class="tn-controls">
@@ -169,15 +174,18 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
     <svg class="tn-svg" data-tn-svg role="img" aria-label={t[`title.${mode}`]}></svg>
     {
       mode === 'complete' && (
-        <table class="tn-table">
-          <thead>
-            <tr>
-              <th>{t.found}</th>
-              <th>{t.value}</th>
-            </tr>
-          </thead>
-          <tbody data-tn-rows />
-        </table>
+        <div class="tn-side">
+          <table class="tn-table">
+            <thead>
+              <tr>
+                <th>{t.found}</th>
+                <th>{t.value}</th>
+              </tr>
+            </thead>
+            <tbody data-tn-rows />
+          </table>
+          <TrieKeyTable words={words.concat(extra)} />
+        </div>
       )
     }
   </div>
@@ -302,6 +310,7 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
     }
     const note = root.querySelector('[data-tn-note]');
     const count = root.querySelector('[data-tn-count]');
+    const keyCells = [...root.querySelectorAll('[data-tk-key]')];
     const setCount = (pairs) => {
       count.replaceChildren();
       pairs.forEach(([label, value], k) => {
@@ -337,6 +346,11 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
           const on = used.includes(c.dataset.tnCell);
           c.classList.toggle('is-on', on);
           c.disabled = !on;
+        });
+        keyCells.forEach((c) => {
+          const w = c.dataset.tkKey;
+          c.classList.toggle('is-take', w === sel);
+          c.classList.toggle('is-now', sel !== '' && w !== sel && w.startsWith(sel));
         });
         name.textContent = sel === '' ? S.rootName : `"${sel}"`;
         has.textContent = n.value !== null ? 'true' : 'false';
@@ -398,6 +412,7 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
         marks[cur] = 'miss';
       }
       mark(marks);
+      keyCells.forEach((c) => c.classList.toggle('is-take', found.some(([w]) => w === c.dataset.tkKey)));
       rows.replaceChildren(
         ...found.map(([w, v]) => {
           const tr = document.createElement('tr');
@@ -726,8 +741,20 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
   }
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-node-demo .tn-side {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 0.6em;
+    align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .aas-trie-node-demo .tn-side .aas-trie-keys {
+    max-width: 22em;
+  }
   .aas-trie-node-demo.is-slide {
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
     margin: 0.5rem 0;
   }
   .aas-trie-node-demo.is-slide .tn-body {
@@ -735,10 +762,10 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
   }
   .aas-trie-node-demo.is-slide .tn-svg {
     flex: 1 1 auto;
-    max-height: 46vh;
+    max-height: 44vh;
   }
   .aas-trie-node-demo.is-slide.is-node .tn-svg {
-    max-height: 41vh;
+    max-height: 36vh;
   }
   .aas-trie-node-demo.is-slide .tn-note {
     min-height: 1.6em;
