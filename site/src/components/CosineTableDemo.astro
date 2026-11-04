@@ -1,0 +1,391 @@
+---
+// 작은 평점 행렬과 코사인 표를 나란히 두고, 칸을 바꾸면 표 전체가 다시 계산되는 데모.
+//
+// 왼쪽 4 × 4 평점 칸을 누르면 0→1→…→5→0으로 바뀌고, 오른쪽 코사인 표가 바로 바뀐다. 코사인
+// 칸을 누르면 그 쌍의 두 행을 칠하고 내적과 길이를 적는다. 안 본 칸을 0으로 넣는 단순화의
+// 값을 눈으로 보려는 것이다. A가 아이템 3에 1점을 주면 C의 5점과 곱해져, 낮게 줬는데도 A와 C의
+// 코사인이 0에서 0.132로 올라간다.
+//
+// 처음 표는 algorithm-code의 collaborativeFiltering.c 첫 출력과 같다(A·B 0.857, C·D 0.781).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `cm-${Math.random().toString(36).slice(2, 9)}`;
+const RATINGS = [
+  [5, 3, 0, 0],
+  [4, 0, 0, 0],
+  [0, 0, 5, 4],
+  [0, 0, 4, 0],
+];
+const USERS = ['A', 'B', 'C', 'D'];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '작은 행렬의 코사인 표',
+    reset: '처음으로',
+    dislike: 'A가 아이템 3을 싫어한다면',
+    item: '아이템',
+    ratings: '평점 (0은 안 본 칸)',
+    cosine: '코사인 (칸을 누르면 그 쌍을 봅니다)',
+    calc: '{u}와 {v}: 내적 {dot}, 길이 {nu} · {nv} → 코사인 {c}',
+    start: 'A·B가 비슷하고, C·D가 비슷합니다. 서로 좋아하는 것을 추천해 주면 됩니다.',
+    zeroNote: '다만 안 본 칸을 0점으로 넣었습니다. 안 본 것과 싫어한 것이 구별되지 않습니다.',
+    moved: '이 쌍의 처음 값은 {b}입니다.',
+    trap: '{u}는 아이템 {i}에 {r}점으로 낮게 줬는데, {v}와의 코사인은 {b}에서 올라 {c}입니다.',
+    trapWhy: '안 본 칸이 0점이라, 낮은 점수도 안 본 것보다 더 비슷하게 잡힙니다.',
+    zeroVec: '{u}: 평점이 하나도 없어 0벡터입니다. 코사인을 0으로 둡니다.',
+  },
+  en: {
+    title: 'Cosine table of a small matrix',
+    reset: 'Reset',
+    dislike: 'If A dislikes item 3',
+    item: 'item',
+    ratings: 'ratings (0 = not rated)',
+    cosine: 'cosine (click a cell to see that pair)',
+    calc: '{u} and {v}: dot product {dot}, lengths {nu} · {nv} → cosine {c}',
+    start: 'A and B are alike, and so are C and D. Each can be recommended what the other likes.',
+    zeroNote: 'But unrated cells went in as 0, so not having seen a movie looks the same as disliking it.',
+    moved: 'It started at {b}.',
+    trap: '{u} gave item {i} a low {r}, yet the cosine with {v} rose from {b} to {c}.',
+    trapWhy: 'Unrated cells count as 0, so even a low rating looks closer than not having seen it.',
+    zeroVec: '{u} has no ratings, so it is the zero vector. The cosine is taken as 0.',
+  },
+  zh: {
+    title: '小矩阵的余弦表',
+    reset: '重置',
+    dislike: '如果 A 讨厌物品 3',
+    item: '物品',
+    ratings: '评分（0 表示没看过）',
+    cosine: '余弦（点击格子查看那一对）',
+    calc: '{u} 与 {v}：内积 {dot}，长度 {nu} · {nv} → 余弦 {c}',
+    start: 'A、B 相似，C、D 相似。把对方喜欢的推荐给彼此就行。',
+    zeroNote: '不过没看过的格子记成了 0 分，分不清没看过和不喜欢。',
+    moved: '一开始是 {b}。',
+    trap: '{u} 给物品 {i} 打了很低的 {r} 分，与 {v} 的余弦却从 {b} 升到了 {c}。',
+    trapWhy: '没看过的格子是 0 分，所以低分也比没看过显得更相似。',
+    zeroVec: '{u} 一个评分也没有，是零向量。余弦取 0。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const items = [1, 2, 3, 4];
+---
+
+<div
+  class:list={['aas-costab-demo', slide && 'is-slide']}
+  id={id}
+  data-cm-ratings={JSON.stringify(RATINGS)}
+  data-cm-users={JSON.stringify(USERS)}
+  data-cm-strings={JSON.stringify(t)}
+>
+  <div class="cm-bar">
+    <span class="cm-head"><strong>{t.title}</strong></span>
+    <div class="cm-controls">
+      <button type="button" class="cm-btn" data-cm-dislike>{t.dislike}</button>
+      <button type="button" class="cm-btn" data-cm-reset>{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cm-body">
+    <div class="cm-panel">
+      <div class="cm-cap">{t.ratings}</div>
+      <div class="cm-grid">
+        <span></span>
+        {items.map((i) => <span class="cm-colhead">{t.item} {i}</span>)}
+        {
+          RATINGS.map((row, u) => (
+            <>
+              <span class="cm-rowhead" data-cm-rowhead={u}>{USERS[u]}</span>
+              {row.map((_, i) => (
+                <button type="button" class="cm-cell" data-cm-cell={`${u}-${i}`} />
+              ))}
+            </>
+          ))
+        }
+      </div>
+    </div>
+    <div class="cm-panel">
+      <div class="cm-cap">{t.cosine}</div>
+      <div class="cm-grid">
+        <span></span>
+        {USERS.map((u) => <span class="cm-colhead">{u}</span>)}
+        {
+          USERS.map((name, u) => (
+            <>
+              <span class="cm-rowhead" data-cm-rowhead2={u}>{name}</span>
+              {USERS.map((_, v) => (
+                <button type="button" class:list={['cm-cos', u === v && 'is-self']} data-cm-cos={`${u}-${v}`} disabled={u === v} />
+              ))}
+            </>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <p class="cm-calc" data-cm-calc></p>
+  <p class="cm-note" data-cm-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const R0 = JSON.parse(root.dataset.cmRatings);
+    const R = R0.map((row) => row.slice());
+    const users = JSON.parse(root.dataset.cmUsers);
+    const S = JSON.parse(root.dataset.cmStrings);
+    const f3 = (x) => x.toFixed(3);
+
+    /* 실습 코드의 cosineSimilarity와 같다. 안 본 칸도 0으로 그대로 넣고, 0벡터면 0이다. */
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      return { dot, na: Math.sqrt(na), nb: Math.sqrt(nb), c: na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb) };
+    }
+
+    let pair = [0, 1];
+    const cells = [...root.querySelectorAll('[data-cm-cell]')];
+    const cosEls = [...root.querySelectorAll('[data-cm-cos]')];
+    const heads = [...root.querySelectorAll('[data-cm-rowhead]')];
+    const calc = root.querySelector('[data-cm-calc]');
+    const note = root.querySelector('[data-cm-note]');
+
+    function render() {
+      const [u, v] = pair;
+      cells.forEach((el) => {
+        const [a, i] = el.dataset.cmCell.split('-').map(Number);
+        const x = R[a][i];
+        el.textContent = String(x);
+        el.classList.toggle('is-empty', x === 0);
+        el.classList.toggle('is-on', a === u || a === v);
+        el.classList.toggle('is-shared', (a === u || a === v) && R[u][i] > 0 && R[v][i] > 0);
+        el.classList.toggle('is-changed', x !== R0[a][i]);
+      });
+      heads.forEach((h) => h.classList.toggle('is-on', Number(h.dataset.cmRowhead) === u || Number(h.dataset.cmRowhead) === v));
+      cosEls.forEach((el) => {
+        const [a, b] = el.dataset.cmCos.split('-').map(Number);
+        const c = cosine(R[a], R[b]).c;
+        el.textContent = f3(c);
+        el.style.setProperty('--cm-heat', `${Math.round(c * 55)}%`);
+        el.classList.toggle('is-sel', (a === u && b === v) || (a === v && b === u));
+      });
+
+      const c = cosine(R[u], R[v]);
+      const base = cosine(R0[u], R0[v]).c;
+      calc.textContent = fill(S.calc, { u: users[u], v: users[v], dot: c.dot, nu: f3(c.na), nv: f3(c.nb), c: f3(c.c) });
+
+      const same = R.every((row, a) => row.every((x, i) => x === R0[a][i]));
+      let msg;
+      if (same) msg = join(S.start, S.zeroNote);
+      else if (c.na === 0 || c.nb === 0) msg = fill(S.zeroVec, { u: users[c.na === 0 ? u : v] });
+      else {
+        /* 새로 준 낮은 점수가 상대의 높은 점수와 만나 코사인을 올린 경우 */
+        let trap = null;
+        for (const [p, q] of [[u, v], [v, u]]) {
+          for (let i = 0; i < R[p].length; i++) {
+            if (!trap && R0[p][i] === 0 && R[p][i] > 0 && R[p][i] <= 2 && R[q][i] >= 4 && c.c > base + 1e-9) trap = { p, q, i };
+          }
+        }
+        if (trap) {
+          msg = join(fill(S.trap, { u: users[trap.p], v: users[trap.q], i: trap.i + 1, r: R[trap.p][trap.i], b: f3(base), c: f3(c.c) }), S.trapWhy);
+        } else if (Math.abs(c.c - base) > 1e-9) msg = fill(S.moved, { b: f3(base) });
+        else msg = S.zeroNote;
+      }
+      setLines(note, msg);
+    }
+
+    cells.forEach((el) =>
+      el.addEventListener('click', () => {
+        const [a, i] = el.dataset.cmCell.split('-').map(Number);
+        R[a][i] = (R[a][i] + 1) % 6;
+        render();
+      }),
+    );
+    cosEls.forEach((el) =>
+      el.addEventListener('click', () => {
+        pair = el.dataset.cmCos.split('-').map(Number);
+        render();
+      }),
+    );
+    root.querySelector('[data-cm-reset]').addEventListener('click', () => {
+      R0.forEach((row, a) => row.forEach((x, i) => (R[a][i] = x)));
+      pair = [0, 1];
+      render();
+    });
+    root.querySelector('[data-cm-dislike]').addEventListener('click', () => {
+      R0.forEach((row, a) => row.forEach((x, i) => (R[a][i] = x)));
+      R[0][2] = 1;
+      pair = [0, 2];
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-costab-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-costab-demo .cm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-costab-demo .cm-head {
+    font-size: 0.95em;
+  }
+  .aas-costab-demo .cm-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-costab-demo .cm-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-costab-demo .cm-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-costab-demo .cm-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 2.4em;
+    justify-content: center;
+  }
+  .aas-costab-demo .cm-panel {
+    flex: 0 1 auto;
+  }
+  .aas-costab-demo .cm-cap {
+    margin-bottom: 0.35em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-costab-demo .cm-grid {
+    display: grid;
+    grid-template-columns: 1.8em repeat(4, minmax(3.4em, 4.2em));
+    gap: 0.3em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-costab-demo .cm-colhead,
+  .aas-costab-demo .cm-rowhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-costab-demo .cm-colhead {
+    font-family: var(--aas-sans, inherit);
+  }
+  .aas-costab-demo .cm-rowhead.is-on {
+    color: var(--aas-role-focus);
+  }
+  .aas-costab-demo .cm-cell,
+  .aas-costab-demo .cm-cos {
+    height: 2.1em;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    font-weight: 700;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-costab-demo .cm-cell:hover,
+  .aas-costab-demo .cm-cos:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-costab-demo .cm-cell.is-empty {
+    color: var(--aas-muted);
+    font-weight: 400;
+  }
+  .aas-costab-demo .cm-cell.is-on {
+    background: color-mix(in srgb, var(--aas-role-model) 12%, var(--aas-bg));
+  }
+  .aas-costab-demo .cm-cell.is-shared {
+    background: color-mix(in srgb, var(--aas-role-eval) 26%, var(--aas-bg));
+  }
+  .aas-costab-demo .cm-cell.is-changed {
+    border-color: var(--aas-role-focus);
+    border-width: 2px;
+  }
+  .aas-costab-demo .cm-cos {
+    font-size: 0.85em;
+    height: 2.47em;
+    background: color-mix(in srgb, var(--aas-role-focus) var(--cm-heat, 0%), var(--aas-bg));
+  }
+  .aas-costab-demo .cm-cos.is-self {
+    color: var(--aas-muted);
+    font-weight: 400;
+    cursor: default;
+    background: var(--aas-bg);
+  }
+  .aas-costab-demo .cm-cos.is-sel {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-costab-demo .cm-calc {
+    margin: 0.7em 0 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-costab-demo .cm-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.6em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-costab-demo.is-slide {
+    font-size: clamp(1rem, 2.55vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-costab-demo .cm-cell,
+    .aas-costab-demo .cm-cos {
+      transition: none;
+    }
+  }
+</style>
