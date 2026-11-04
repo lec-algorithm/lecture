@@ -1,0 +1,509 @@
+---
+// 백트래킹이 같은 자리를 몇 번 다시 보는지 세어 보는 데모.
+//
+// 패턴 a*a*…a*b(a*가 n번)와 텍스트 aa…a(a가 n개)에서 match를 실제로 돌린다.
+// match(패턴의 나머지, 텍스트의 나머지)가 한 칸이고, 가로는 남은 a의 수, 세로는 남은 패턴이다.
+// 칸의 숫자는 그 호출이 몇 번 불렸는지이고, 전체 합이 교안의 비교 횟수다
+// (n = 2에서 10, n = 10에서 352,716). 답은 칸에만 달렸으므로 다시 부를 까닭이 없다.
+// "같은 칸은 한 번만"으로 바꾸면 처음 보는 칸만 계산하고 수가 n²쯤으로 줄어든다.
+// NFA의 상태 집합이 하는 일이 이것이다. 절차는 algorithm-code의 regexMatch.c와 같고,
+// NFA 작업량은 regexCore로 같은 입력을 돌린 값이다(nfaRegex.c의 work).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexCore from './RegexCore.astro';
+
+interface Props {
+  /** 처음 고른 n */
+  n?: number;
+  /** 처음부터 같은 칸을 한 번만 계산한다. */
+  dedupe?: boolean;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { n = 3, dedupe = false, slide = false } = Astro.props;
+const id = `cg-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '같은 칸을 몇 번 부르나',
+    all: '모두 다시 계산',
+    once: '같은 칸은 한 번만',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    toEnd: '끝까지',
+    reset: '처음으로',
+    corner: '남은 패턴 \\ 남은 a',
+    calls: '비교 횟수',
+    cells: '서로 다른 칸',
+    most: '가장 많이 부른 칸',
+    nfa: '같은 입력의 NFA 작업량',
+    idle: 'match(남은 패턴, 남은 텍스트)가 한 칸입니다. 한 걸음에 match를 한 번 부르고 그 칸의 수를 올립니다.',
+    now: 'match({p}, {t}) 호출. 앞의 a*들이 먹은 a: {d}',
+    nowPlain: 'match({p}, {t}) 호출',
+    doneAll: '답은 칸에만 달렸는데 같은 칸을 최대 {m}번 불렀습니다. 맨 아래 줄은 파스칼 삼각형의 수이고, 전체 합이 이항계수 C({a}, {n}) = {c}입니다.',
+    doneOnce: '칸마다 한 번만 계산하니 {c}번에 끝납니다. NFA는 같은 상태에 두 길로 와도 집합에 한 번만 넣으므로 같은 일을 합니다.',
+  },
+  en: {
+    title: 'Calls per cell',
+    all: 'Recompute all',
+    once: 'Each cell once',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    toEnd: 'To end',
+    reset: 'Reset',
+    corner: 'pattern left \\ a left',
+    calls: 'comparisons',
+    cells: 'distinct cells',
+    most: 'most calls to a cell',
+    nfa: 'NFA work on the same input',
+    idle: 'One cell is match(pattern left, text left). Each step calls match once and raises the count of that cell.',
+    now: 'Call match({p}, {t}). The earlier a* parts ate: {d}',
+    nowPlain: 'Call match({p}, {t})',
+    doneAll: 'The answer depends only on the cell, yet a cell was called up to {m} times. The bottom row holds numbers from Pascal\'s triangle, and the total is the binomial C({a}, {n}) = {c}.',
+    doneOnce: 'Computing each cell once takes only {c} calls. The NFA does the same: reaching a state by two paths still puts it in the set once.',
+  },
+  zh: {
+    title: '同一格要调用几次',
+    all: '全部重新计算',
+    once: '同一格只算一次',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    toEnd: '到结尾',
+    reset: '重置',
+    corner: '剩余模式 \\ 剩余 a',
+    calls: '比较次数',
+    cells: '不同的格子',
+    most: '调用最多的格子',
+    nfa: '同一输入的 NFA 工作量',
+    idle: 'match(剩余模式, 剩余文本) 是一格。每一步调用一次 match，并给那一格加一。',
+    now: '调用 match({p}, {t})。前面的 a* 吃掉的 a：{d}',
+    nowPlain: '调用 match({p}, {t})',
+    doneAll: '答案只取决于格子，同一格却最多调用了 {m} 次。最下面一行是帕斯卡三角形的数，总和是二项式系数 C({a}, {n}) = {c}。',
+    doneOnce: '每格只算一次，{c} 次就结束了。NFA 也是如此：两条路到达同一状态，也只放入集合一次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<RegexCore />
+<div class:list={['aas-call-grid-demo', slide && 'is-slide']} id={id} data-cg-n={n} data-cg-once={dedupe ? '1' : ''} data-cg-strings={JSON.stringify(t)}>
+  <div class="cg-bar">
+    <span class="cg-head"><strong>{t.title}</strong></span>
+    <label class="cg-range">n = <strong data-cg-nval></strong><input type="range" min="1" max="10" step="1" value={n} data-cg-range /></label>
+    <span class="cg-tabs">
+      <button type="button" class="cg-tab" data-cg-mode="all">{t.all}</button>
+      <button type="button" class="cg-tab" data-cg-mode="once">{t.once}</button>
+    </span>
+    <div class="cg-controls">
+      <button type="button" data-act="back" class="cg-btn">{t.back}</button>
+      <button type="button" data-act="step" class="cg-btn">{t.step}</button>
+      <button type="button" data-act="play" class="cg-btn cg-btn-primary">{t.play}</button>
+      <button type="button" data-act="end" class="cg-btn">{t.toEnd}</button>
+      <button type="button" data-act="reset" class="cg-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cg-body">
+    <div class="cg-grid" data-cg-grid></div>
+    <div class="cg-side">
+      <div class="cg-stat is-main"><span>{t.calls}</span><strong data-cg-calls>0</strong></div>
+      <div class="cg-stat"><span>{t.cells}</span><strong data-cg-cells>0</strong></div>
+      <div class="cg-stat"><span>{t.most}</span><strong data-cg-most>0</strong></div>
+      <div class="cg-stat"><span>{t.nfa}</span><strong data-cg-nfa>0</strong></div>
+    </div>
+  </div>
+  <p class="cg-note" data-cg-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.cgStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    const core = globalThis.aasRegexCore;
+
+    /* regexMatch.pseudo의 Match와 MatchStar를 그대로 돌리며 호출 순서를 적는다. 줄 r은
+       a*를 r개 쓴 뒤의 패턴, 칸 t는 a를 t개 먹은 뒤의 텍스트다. once면 처음 보는 칸만
+       계산한다. 작은 n에서는 a*별로 먹은 수도 적어 둔다. */
+    function trace(n, once) {
+      const P = 'a*'.repeat(n) + 'b';
+      const T = 'a'.repeat(n);
+      const rows = [];
+      const cols = [];
+      const eats = n <= 6 ? [] : null;
+      const eaten = [];
+      const seen = new Set();
+      function match(p, t) {
+        if (once) {
+          const key = p * 100 + t;
+          if (seen.has(key)) return false;
+          seen.add(key);
+        }
+        rows.push(p / 2);
+        cols.push(t);
+        if (eats) eats.push(eaten.join(', '));
+        if (p === P.length) return true;
+        if (P[p + 1] === '*') return matchStar(P[p], p + 2, t);
+        if (t < T.length && (P[p] === '.' || P[p] === T[t])) return match(p + 1, t + 1);
+        return false;
+      }
+      function matchStar(c, p, t) {
+        let k = 0;
+        eaten.push(k);
+        if (match(p, t)) return true;
+        while (t < T.length && (T[t] === c || c === '.')) {
+          t += 1;
+          k += 1;
+          eaten[eaten.length - 1] = k;
+          if (match(p, t)) return true;
+        }
+        eaten.pop();
+        return false;
+      }
+      match(0, 0);
+      return { rows: Int8Array.from(rows), cols: Int8Array.from(cols), eats };
+    }
+
+    const gridEl = root.querySelector('[data-cg-grid]');
+    const range = root.querySelector('[data-cg-range]');
+    const nval = root.querySelector('[data-cg-nval]');
+    const callsEl = root.querySelector('[data-cg-calls]');
+    const cellsEl = root.querySelector('[data-cg-cells]');
+    const mostEl = root.querySelector('[data-cg-most]');
+    const nfaEl = root.querySelector('[data-cg-nfa]');
+    const note = root.querySelector('[data-cg-note]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let n = Number(root.dataset.cgN);
+    let once = !!root.dataset.cgOnce;
+    let tr = null;
+    let at = 0;           // 지금까지 부른 횟수
+    let counts = [];
+    let cells = [];
+    let timer = null;
+
+    const rowName = (r) => {
+      const left = n - r;
+      if (left === 0) return 'b';
+      return left <= 2 ? `${'a*'.repeat(left)}b` : `a*×${left} b`;
+    };
+    const argPattern = (r) => `"${'a*'.repeat(Math.min(n - r, 3))}${n - r > 3 ? '…' : ''}b"`;
+    const argText = (c) => (n - c > 0 ? `"${'a'.repeat(n - c)}"` : '""');
+
+    function buildGrid() {
+      const rowEm = Math.min(1.7, 12.5 / (n + 2));
+      gridEl.style.setProperty('--cg-row', `${rowEm}em`);
+      gridEl.style.setProperty('--cg-cols', String(n + 1));
+      gridEl.style.setProperty('--cg-font', `${Math.min(1, rowEm * 0.62)}em`);
+      const frag = [];
+      const span = (cls, text) => {
+        const el = document.createElement('span');
+        el.className = cls;
+        el.textContent = text;
+        return el;
+      };
+      frag.push(span('cg-corner', S.corner));
+      for (let c = 0; c <= n; c++) frag.push(span('cg-colhead', String(n - c)));
+      cells = [];
+      counts = [];
+      for (let r = 0; r <= n; r++) {
+        frag.push(span('cg-rowhead', rowName(r)));
+        cells.push([]);
+        counts.push(new Array(n + 1).fill(0));
+        for (let c = 0; c <= n; c++) {
+          const cell = span('cg-cell', '');
+          cells[r].push(cell);
+          frag.push(cell);
+        }
+      }
+      gridEl.replaceChildren(...frag);
+    }
+
+    function paintAll() {
+      let maxV = 1;
+      for (const row of counts) for (const v of row) if (v > maxV) maxV = v;
+      const logMax = Math.log(Math.max(maxV, 6) + 1);
+      let distinct = 0;
+      counts.forEach((row, r) => row.forEach((v, c) => {
+        const el = cells[r][c];
+        if (v > 0) distinct += 1;
+        el.textContent = v > 0 ? fmt(v) : '';
+        el.style.setProperty('--cg-heat', `${Math.round((Math.log(v + 1) / logMax) * 70)}%`);
+        el.classList.toggle('is-on', v > 0);
+        el.classList.toggle('is-now', at > 0 && tr.rows[at - 1] === r && tr.cols[at - 1] === c);
+      }));
+      callsEl.textContent = fmt(at);
+      cellsEl.textContent = fmt(distinct);
+      mostEl.textContent = fmt(at ? maxV : 0);
+      nval.textContent = String(n);
+      const total = tr.rows.length;
+      if (at === 0) setLines(note, S.idle);
+      else if (at === total) {
+        setLines(note, once ? fill(S.doneOnce, { c: fmt(total) })
+          : fill(S.doneAll, { m: fmt(maxV), a: 2 * n + 1, n, c: fmt(total) }));
+      } else {
+        const r = tr.rows[at - 1];
+        const c = tr.cols[at - 1];
+        const vars = { p: argPattern(r), t: argText(c), d: tr.eats ? tr.eats[at - 1] || '-' : '' };
+        setLines(note, tr.eats ? fill(S.now, vars) : fill(S.nowPlain, vars));
+      }
+      root.classList.toggle('is-done', at === total);
+      root.querySelectorAll('[data-cg-mode]').forEach((b) => b.classList.toggle('is-on', (b.dataset.cgMode === 'once') === once));
+    }
+
+    function setAt(next) {
+      const total = tr.rows.length;
+      next = Math.max(0, Math.min(total, next));
+      while (at < next) {
+        counts[tr.rows[at]][tr.cols[at]] += 1;
+        at += 1;
+      }
+      while (at > next) {
+        at -= 1;
+        counts[tr.rows[at]][tr.cols[at]] -= 1;
+      }
+      paintAll();
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function load() {
+      stop();
+      tr = trace(n, once);
+      at = 0;
+      buildGrid();
+      nfaEl.textContent = fmt(core.run(core.build(`${'a*'.repeat(n)}b`), 'a'.repeat(n)).work);
+      paintAll();
+    }
+
+    range.addEventListener('input', () => {
+      n = Number(range.value);
+      load();
+    });
+    root.querySelectorAll('[data-cg-mode]').forEach((b) => b.addEventListener('click', () => {
+      once = b.dataset.cgMode === 'once';
+      load();
+    }));
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      setAt(at - 1);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      setAt(at + 1);
+    });
+    root.querySelector('[data-act="end"]').addEventListener('click', () => {
+      stop();
+      setAt(tr.rows.length);
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      setAt(0);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= tr.rows.length) setAt(0);
+      playBtn.textContent = S.stop;
+      /* 큰 n에서도 몇 초 안에 끝나도록 한 번에 여러 걸음을 간다. */
+      const chunk = Math.max(1, Math.ceil(tr.rows.length / 60));
+      timer = setInterval(() => {
+        setAt(at + chunk);
+        if (at >= tr.rows.length) stop();
+      }, 400);
+    });
+    load();
+  })();
+</script>
+
+<style is:global>
+  .aas-call-grid-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-call-grid-demo .cg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.8em;
+    align-items: center;
+    margin-bottom: 0.6em;
+  }
+  .aas-call-grid-demo .cg-head {
+    font-size: 0.95em;
+  }
+  .aas-call-grid-demo .cg-range {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-call-grid-demo .cg-range strong {
+    min-width: 1.2em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-call-grid-demo .cg-range input {
+    width: 6em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-call-grid-demo .cg-tabs,
+  .aas-call-grid-demo .cg-controls {
+    display: flex;
+    gap: 0.3em;
+  }
+  .aas-call-grid-demo .cg-controls {
+    margin-left: auto;
+  }
+  .aas-call-grid-demo .cg-tab {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-call-grid-demo .cg-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-call-grid-demo .cg-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-call-grid-demo .cg-tab:hover,
+  .aas-call-grid-demo .cg-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-call-grid-demo .cg-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-call-grid-demo .cg-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 1.2em;
+    align-items: flex-start;
+  }
+  .aas-call-grid-demo .cg-grid {
+    flex: 1 1 22em;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto repeat(var(--cg-cols), minmax(0, 1fr));
+    grid-auto-rows: var(--cg-row);
+    gap: 1px;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-call-grid-demo .cg-grid span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    font-size: var(--cg-font);
+    white-space: nowrap;
+  }
+  .aas-call-grid-demo .cg-corner {
+    padding: 0 0.6em;
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+  }
+  .aas-call-grid-demo .cg-grid .cg-corner {
+    font-size: min(var(--cg-font), 0.7em);
+  }
+  .aas-call-grid-demo .cg-colhead {
+    color: var(--aas-muted);
+  }
+  .aas-call-grid-demo .cg-rowhead {
+    padding: 0 0.6em;
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-call-grid-demo .cg-cell {
+    border: 1px solid var(--aas-border);
+    border-radius: 0.2em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-call-grid-demo .cg-cell.is-on {
+    background: color-mix(in srgb, var(--aas-role-guard) var(--cg-heat), var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-call-grid-demo .cg-cell.is-now {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-call-grid-demo .cg-side {
+    flex: 0 1 12em;
+    min-width: 11em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+  }
+  .aas-call-grid-demo .cg-stat {
+    padding: 0.2em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-call-grid-demo .cg-stat span {
+    display: block;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-call-grid-demo .cg-stat strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.1em;
+  }
+  .aas-call-grid-demo .cg-stat.is-main strong {
+    color: var(--aas-role-guard);
+    font-size: 1.3em;
+  }
+  .aas-call-grid-demo .cg-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.8em;
+  }
+  .aas-call-grid-demo.is-done .cg-note {
+    color: var(--aas-text);
+  }
+  .aas-call-grid-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.95rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-call-grid-demo * {
+      transition: none !important;
+    }
+  }
+</style>
