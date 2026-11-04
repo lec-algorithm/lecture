@@ -1,7 +1,7 @@
 ---
 title: "Topic 10. Tries and Ternary Search Trees"
 description: "The trie, which stores string keys one character at a time along a path; its search, insertion, prefix search, deletion and space cost; and the TST, which cuts the links down to three"
-date: "Topic 10 · v1"
+date: "Topic 10 · v2"
 order: 10
 transition: none
 toc_level: 4
@@ -11,12 +11,19 @@ toc_open: false
 import Slide from 'stack-site-builder/components/Slide.astro';
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
-import TrieFigure from '@components/TrieFigure.astro';
 import TrieNodeDemo from '@components/TrieNodeDemo.astro';
 import TrieOrderDemo from '@components/TrieOrderDemo.astro';
 import TrieMissDemo from '@components/TrieMissDemo.astro';
 import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
 import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+import TrieWalkDemo from '@components/TrieWalkDemo.astro';
+import TstWalkDemo from '@components/TstWalkDemo.astro';
+import TrieCostDemo from '@components/TrieCostDemo.astro';
+import TrieRadixDemo from '@components/TrieRadixDemo.astro';
+import TstMapDemo from '@components/TstMapDemo.astro';
+import TstOrderDemo from '@components/TstOrderDemo.astro';
+import TstCostDemo from '@components/TstCostDemo.astro';
+import TrieMsdDemo from '@components/TrieMsdDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-10-trie) exactly. */}
@@ -114,7 +121,7 @@ A missing link is NULL; a new node starts with all 26 slots set to NULL.
 <Slide>
 
 ### A trie with six keys
-::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · click a node to see its link array]
+::sub[Click a node to see its link array and the keys below it]
 
 <TrieNodeDemo slide />
 
@@ -196,6 +203,15 @@ ALGORITHM Insert(root, word, value)
 
 </Slide>
 
+<Slide>
+
+### One line at a time: insert
+::sub[Type your own key and value · inserting an existing key only changes its value]
+
+<TrieWalkDemo op="insert" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Trie search
@@ -259,6 +275,15 @@ ALGORITHM Search(root, word)
 
 </Slide>
 
+<Slide>
+
+### One line at a time: search
+::sub[Make both kinds of miss yourself]
+
+<TrieWalkDemo op="search" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Keys with a prefix
@@ -319,6 +344,15 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 
 </Slide>
 
+<Slide>
+
+### One line at a time: prefix
+::sub[The trie with shore=7 added · try another prefix]
+
+<TrieWalkDemo op="prefix" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Trie deletion
@@ -366,6 +400,15 @@ ALGORITHM DeleteHelper(node, word, index)
         return (not node.hasValue) and node has no children at all
     return false
 ```
+
+</Slide>
+
+<Slide>
+
+### One line at a time: delete
+::sub[Which nodes come off depends on the key]
+
+<TrieWalkDemo op="delete" slide />
 
 </Slide>
 
@@ -436,6 +479,15 @@ nodes = 17
 <br/>
 
 From the output: `shells` (6 letters) gives `visited 7`
+
+</Slide>
+
+<Slide>
+
+### Count it yourself: characters looked at
+::sub[More keys or longer prefixes, and the trie stays the same]
+
+<TrieCostDemo slide />
 
 </Slide>
 
@@ -526,8 +578,17 @@ Each node has only one incoming link, so all the rest are NULL.
 
 <Slide>
 
+### Try it: shrinking R
+::sub[Fewer links per node, but deeper]
+
+<TrieRadixDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### Step by step: folding one-way branches
-::sub[The biggest cause of wasted space is nodes that use only one link]
+::sub[Nodes that use only one link waste the most space · try another key set]
 
 <TrieCompressDemo slide />
 
@@ -585,10 +646,10 @@ Left and right stay at **the same position**; only the middle moves to **the nex
 
 <Slide>
 
-#### The same six keys as a TST
-::sub[The first-position b, s, t form a binary search tree · small dots are empty links]
+### The same six keys as a TST
+::sub[One trie node becomes a small binary search tree · click a node or a key]
 
-<TrieFigure kind="tst" words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+<TstMapDemo slide />
 
 </Slide>
 
@@ -651,21 +712,6 @@ The same six keys take 16 nodes and 48 links.
 
 </Slide>
 
-<Slide>
-
-#### Inserting appliance
-::sub[One comparison at a time]
-
-- To place `i`, `e` is already there and `e < i`
-  - Go right.
-- To place `i`, `i` is already there and `i == i`
-  - Move on to the next character here.
-- To place `a`, `c` is already there and `a < c`
-  - Go left.
-- That spot is empty, so fill it with new nodes `a n c e`.
-
-</Slide>
-
 <Slide class="compact">
 
 #### Insertion in code
@@ -690,6 +736,15 @@ ALGORITHM Insert(root, word, value, index)
 
 </Slide>
 
+<Slide>
+
+### One line at a time: TST insert
+::sub[The state before appliance · the character moves only on the middle link]
+
+<TstWalkDemo op="insert" word="appliance" value={60} prefill={5} slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## TST search and prefix search
@@ -703,6 +758,15 @@ ALGORITHM Insert(root, word, value, index)
 ::sub[applaud steps aside left once; apply steps aside right twice]
 
 <TstDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+### One line at a time: TST search
+::sub[The same rule finds a key · try another key]
+
+<TstWalkDemo op="search" slide />
 
 </Slide>
 
@@ -748,6 +812,15 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 
 </Slide>
 
+<Slide>
+
+### One line at a time: TST prefix
+::sub[Left, self, middle, right · try another prefix]
+
+<TstWalkDemo op="prefix" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Run
@@ -771,6 +844,15 @@ space (3 links per node)
   apple..   7     24     72     49      12
   sorted    7     24     72     49      15
 ```
+
+</Slide>
+
+<Slide>
+
+### Step by step: the TST and insertion order
+::sub[Nodes and links stay the same, but the height changes]
+
+<TstOrderDemo slide />
 
 </Slide>
 
@@ -825,6 +907,15 @@ space (3 links per node)
 
 <Slide>
 
+### Count it yourself: the sideways share
+::sub[Build a TST from random keys and search it 1000 times]
+
+<TstCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Trade-off
 ::sub[What you save and what you give up]
 
@@ -865,6 +956,15 @@ Which one wins depends on the implementation.
 - **Topic 09 MSD radix sort**
   - Splits by the first character, then splits each group by the next.
   - The same shape as building a trie from the top down.
+
+</Slide>
+
+<Slide>
+
+### Try it: MSD groups and trie levels
+::sub[One group is one node · try more characters]
+
+<TrieMsdDemo slide />
 
 </Slide>
 
