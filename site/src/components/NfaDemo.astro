@@ -10,12 +10,17 @@
 // 텍스트를 다 읽었을 때 집합에 수락 상태(맨 오른쪽)가 있으면 수락이다.
 //
 // 그래프 만들기와 시뮬레이션은 algorithm-code의 nfaRegex.c · nfa_regex.py와
-// 같다. 기본 입력 (0|1(01*0)*1)*와 1001은 출력의 집합 여덟 개를 그대로 지난다.
+// 같다. 기본 입력 (0|1(01*0)*1)*와 1001은 출력의 집합 아홉 개를 그대로 지난다.
 //
 // mode="build"면 그래프를 만드는 과정(BuildNFA)을 한 걸음씩 보여 준다. 한 걸음에
 // 정규식 글자 하나를 보고, ops 스택과 그 걸음에 더한 전이를 칠한다. 아직 더하지
 // 않은 전이는 흐리게 둔다. 기본값 mode="run"은 예전과 똑같이 동작한다.
+//
+// run 모드에서는 입력 칸에 텍스트를 적으면 처음부터 다시 돈다. texts를 주면 그 텍스트들의
+// 수락·거부를 미리 계산해 단추로 늘어놓고, trace를 주면 실습 코드의 출력과 같은 줄을
+// 그림 옆에 쌓아 지금 줄을 칠한다. build 모드에는 규칙 표를 두어 지금 쓰는 규칙을 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import NfaRuleKey from './NfaRuleKey.astro';
 
 interface Props {
   /** 글자, '.', '*', '|', 괄호로 된 정규식. 괄호 한 쌍 안에 '|'는 하나만 */
@@ -24,10 +29,16 @@ interface Props {
   text?: string;
   /** 'run': 상태 집합으로 돌리기(기본), 'build': 그래프 만들기 */
   mode?: 'run' | 'build';
+  /** run 모드에서 눌러 볼 텍스트들 */
+  texts?: string[];
+  /** 단추의 텍스트를 이진수로 읽어 십진값을 덧붙인다. */
+  binary?: boolean;
+  /** 실습 코드의 출력과 같은 기록을 그림 옆에 쌓는다. */
+  trace?: boolean;
   /** 슬라이드용: 글자와 그림을 키운다. */
   slide?: boolean;
 }
-const { regex = '(0|1(01*0)*1)*', text = '1001', mode = 'run', slide = false } = Astro.props;
+const { regex = '(0|1(01*0)*1)*', text = '1001', mode = 'run', texts = [], binary = false, trace = false, slide = false } = Astro.props;
 const id = `nd-${Math.random().toString(36).slice(2, 9)}`;
 
 /* BuildNFA. nfaRegex.pseudo와 같은 순서로 ε 전이를 만든다. build 모드를 위해
@@ -92,6 +103,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     play: '자동 재생',
     stop: '멈춤',
     reset: '처음으로',
+    inputLabel: '텍스트',
     setSize: '상태 ',
     setPost: '개',
     idle: '정규식 {r}의 NFA로 "{t}"를 읽습니다. 수락 상태는 {m}입니다.',
@@ -124,6 +136,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     play: 'Play',
     stop: 'Pause',
     reset: 'Reset',
+    inputLabel: 'text',
     setSize: '',
     setPost: ' states',
     idle: 'Read "{t}" with the NFA of {r}. The accept state is {m}.',
@@ -156,6 +169,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     play: '播放',
     stop: '暂停',
     reset: '重置',
+    inputLabel: '文本',
     setSize: '状态 ',
     setPost: ' 个',
     idle: '用 {r} 的 NFA 读入 "{t}"。接受状态是 {m}。',
@@ -223,7 +237,7 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
 ---
 
 <div
-  class:list={['aas-nfa-demo', slide && 'is-slide', mode === 'build' && 'is-build']}
+  class:list={['aas-nfa-demo', slide && 'is-slide', mode === 'build' && 'is-build', trace && 'is-trace']}
   id={id}
   data-nd-mode={mode}
   data-nd-build={mode === 'build' ? JSON.stringify(buildSteps) : undefined}
@@ -231,6 +245,8 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
   data-nd-regex={regex}
   data-nd-eps={JSON.stringify(eps)}
   data-nd-text={text}
+  data-nd-texts={JSON.stringify(texts)}
+  data-nd-binary={binary ? '1' : ''}
   data-nd-strings={JSON.stringify(t)}
 >
   <div class="nd-bar">
@@ -243,6 +259,9 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     </div>
   </div>
 
+  {texts.length > 0 && <div class="nd-chips" data-nd-chips></div>}
+
+  <div class="nd-main">
   <div class="nd-scroll">
     <svg class="nd-graph" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t.title} ${regex}`}>
       <defs>
@@ -279,17 +298,22 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
       ))}
     </svg>
   </div>
+  {trace && <div class="nd-log" data-nd-log></div>}
+  </div>
 
   {mode === 'build' ? (
     <div class="nd-ops">
       <span class="nd-ops-label">{t.stack}</span>
       <span class="nd-ops-cells" data-nd-ops></span>
+      <span class="nd-ops-key"><NfaRuleKey /></span>
     </div>
   ) : (
-    <div class="nd-tape">
-      {[...text].map((c, i) => (
-        <span class="nd-cell" data-nd-cell={i}>{c}</span>
-      ))}
+    <div class="nd-tapebar">
+      <label class="nd-input">
+        {t.inputLabel}
+        <input type="text" maxlength="16" spellcheck="false" autocomplete="off" value={text} data-nd-input />
+      </label>
+      <div class="nd-tape" data-nd-tape></div>
     </div>
   )}
 
@@ -315,7 +339,7 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     const re = root.dataset.ndRe;
     const M = re.length;
     const eps = JSON.parse(root.dataset.ndEps);
-    const input = [...root.dataset.ndText];
+    let input = [...root.dataset.ndText];
     const S = JSON.parse(root.dataset.ndStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const isLiteral = (c) => !'()*|'.includes(c);
@@ -333,7 +357,7 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     }
 
     /* Recognizes를 실제로 돌려 단계 배열을 만든다. 글자마다 두 걸음(읽기, 닫힘). */
-    function plan() {
+    function plan(input) {
       const steps = [];
       let pc = closure(new Set([0]));
       steps.push({ set: pc, pos: 0, phase: 'close', note: fill(S.start, { set: show(pc) }) });
@@ -382,16 +406,54 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
         if (b.starAdded.length) parts.push(fill(S.bStarAdd, v));
         const keys = [...b.added, ...b.starAdded].map(([a, w]) => `e${a}-${w}`);
         if (isLiteral(c)) keys.push(`m${i}`);
-        return { ...b, parts, keys, nEps: b.added.length + b.starAdded.length };
+        const rules = [];
+        if (isLiteral(c)) rules.push('match');
+        if (c === '(' || c === '*' || c === ')') rules.push('sym');
+        if (b.kind === 'closeOr') rules.push('or');
+        if (b.starAdded.length) rules.push('star');
+        return { ...b, parts, keys, rules, nEps: b.added.length + b.starAdded.length };
       });
       const total = out.reduce((a, b) => a + b.nEps, 0);
-      out.push({ done: true, ops: [], keys: [], nEps: 0, parts: [fill(S.bDone, { m: M, n: total })] });
+      out.push({ done: true, ops: [], keys: [], rules: [], nEps: 0, parts: [fill(S.bDone, { m: M, n: total })] });
       return out;
     }
-    const steps = mode === 'build' ? planBuild() : plan();
+    let steps = mode === 'build' ? planBuild() : plan(input);
     const states = [...root.querySelectorAll('[data-nd-state]')];
     const edges = [...root.querySelectorAll('[data-nd-edge]')];
-    const cells = [...root.querySelectorAll('[data-nd-cell]')];
+    const tape = root.querySelector('[data-nd-tape]');
+    const textIn = root.querySelector('[data-nd-input]');
+    const logEl = root.querySelector('[data-nd-log]');
+    const chipBox = root.querySelector('[data-nd-chips]');
+    const ruleCells = [...root.querySelectorAll('[data-nk-rule]')];
+    let cells = [];
+    let logLines = [];
+    /* 실습 코드의 출력과 같은 줄. 걸음 하나에 한 줄이다. */
+    const logText = (st) => {
+      if (st.done) return `  -> ${st.done}`;
+      const set = show(st.set);
+      if (st.phase === 'read') return `  ${`read '${input[st.pos - 1]}'`.padEnd(10)} ${set}`;
+      return `  ${(st.pos === 0 ? 'start' : 'closure').padEnd(10)} ${set}`;
+    };
+    function buildRun() {
+      if (!tape) return;
+      cells = input.map((c) => {
+        const cell = document.createElement('span');
+        cell.className = 'nd-cell';
+        cell.textContent = c;
+        return cell;
+      });
+      tape.replaceChildren(...cells);
+      if (logEl) {
+        logLines = steps.map((st) => {
+          const line = document.createElement('span');
+          line.className = 'nd-logline';
+          line.textContent = `${logText(st)}\n`;
+          return line;
+        });
+        logEl.replaceChildren(...logLines);
+      }
+    }
+    buildRun();
     const note = root.querySelector('[data-nd-note]');
     const countEl = root.querySelector('[data-nd-count]');
 
@@ -429,6 +491,7 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
         p.classList.toggle('is-on', on);
         p.setAttribute('marker-end', on ? p.dataset.ndOn : p.dataset.ndOff);
       });
+      ruleCells.forEach((c) => c.classList.toggle('is-now', !!step && step.rules.includes(c.dataset.nkRule)));
       opsEl.replaceChildren(...(step ? step.ops : []).map((i) => {
         const cell = document.createElement('span');
         cell.className = 'nd-op';
@@ -476,9 +539,14 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
         cell.classList.toggle('is-read', !!step && i < pos && !(reading && i === pos - 1));
         cell.classList.toggle('is-now', reading && i === pos - 1);
       });
+      logLines.forEach((line, i) => {
+        line.hidden = !step || i > s;
+        line.classList.toggle('is-now', i === s);
+      });
       countEl.textContent = String(set.size);
       setLines(note, step ? step.note
         : fill(S.idle, { r: root.dataset.ndRegex, t: input.join(''), m: M }));
+      chips.forEach((b) => b.classList.toggle('is-picked', b.dataset.ndWord === input.join('')));
       root.classList.toggle('is-done', !!(step && step.done));
     }
 
@@ -522,6 +590,34 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
       playBtn.textContent = S.stop;
       timer = setInterval(step, 1100);
     });
+
+    /* 텍스트를 바꾸면 처음부터 다시 돈다. */
+    function load(word) {
+      stop();
+      input = [...word];
+      steps = plan(input);
+      at = -1;
+      buildRun();
+      render(-1);
+    }
+    if (textIn) textIn.addEventListener('input', () => load(textIn.value));
+
+    /* texts: 끝까지 돌려 본 결과를 단추에 칠한다. */
+    const binary = !!root.dataset.ndBinary;
+    const chips = mode === 'build' ? [] : JSON.parse(root.dataset.ndTexts).map((word) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      const ok = plan([...word]).at(-1).done === 'accept';
+      b.className = `nd-chip ${ok ? 'is-yes' : 'is-no'}`;
+      b.textContent = binary ? `${word} (${parseInt(word, 2)})` : word;
+      b.dataset.ndWord = word;
+      b.addEventListener('click', () => {
+        textIn.value = word;
+        load(word);
+      });
+      return b;
+    });
+    if (chipBox) chipBox.replaceChildren(...chips);
 
     render(-1);
   })();
@@ -569,8 +665,62 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     color: #fff;
   }
 
+  .aas-nfa-demo .nd-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    justify-content: center;
+    margin-bottom: 0.3em;
+  }
+  .aas-nfa-demo .nd-chip {
+    padding: 0.1em 0.6em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-nfa-demo .nd-chip.is-yes {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, var(--aas-bg));
+  }
+  .aas-nfa-demo .nd-chip.is-no {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, var(--aas-bg));
+  }
+  .aas-nfa-demo .nd-chip.is-picked {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-nfa-demo .nd-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.8em;
+    align-items: center;
+  }
   .aas-nfa-demo .nd-scroll {
+    flex: 1 1 24em;
+    min-width: 0;
     overflow-x: auto;
+  }
+  .aas-nfa-demo .nd-log {
+    flex: 0 0 auto;
+    align-self: stretch;
+    min-width: 15em;
+    padding: 0.4em 0.6em;
+    white-space: pre;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.68em;
+    line-height: 1.4;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+  }
+  .aas-nfa-demo .nd-logline.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, transparent);
   }
   .aas-nfa-demo .nd-graph {
     display: block;
@@ -663,8 +813,12 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     stroke: var(--aas-role-model);
     stroke-width: 3;
   }
+  .aas-nfa-demo .nd-ops-key {
+    margin-left: auto;
+  }
   .aas-nfa-demo .nd-ops {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.6em;
     align-items: center;
     justify-content: center;
@@ -696,11 +850,39 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
     font-size: 0.7em;
     color: var(--aas-muted);
   }
-  .aas-nfa-demo .nd-tape {
+  .aas-nfa-demo .nd-tapebar {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+    margin-top: 0.4em;
+  }
+  .aas-nfa-demo .nd-input {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-nfa-demo .nd-input input {
+    width: 7em;
+    padding: 0.15em 0.4em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-nfa-demo .nd-tape {
+    flex: 1 1 auto;
+    display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 0.25em;
-    margin-top: 0.4em;
+    /* 입력 칸의 폭만큼 오른쪽을 비워 테이프가 가운데에 온다. */
+    padding-right: 8em;
   }
   .aas-nfa-demo .nd-cell {
     width: 1.9em;
@@ -758,7 +940,10 @@ for (const [v, w] of arcs) lines.push({ key: `e${v}-${w}`, d: arcPath(v, w), kin
   }
   .aas-nfa-demo.is-slide .nd-graph {
     min-width: 0;
-    max-height: 40vh;
+    max-height: 34vh;
+  }
+  .aas-nfa-demo.is-slide.is-trace .nd-graph {
+    max-height: 28vh;
   }
   .aas-nfa-demo.is-slide .nd-note {
     min-height: 1.6em;

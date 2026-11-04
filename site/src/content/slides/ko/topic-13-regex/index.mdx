@@ -1,7 +1,7 @@
 ---
 title: "주제 13. 정규식과 오토마타"
 description: "찾을 문자열을 집합(언어)으로 적는 정규식, 그것을 재귀로 맞추는 백트래킹의 한계, 그리고 상태와 전이로 되돌아가지 않고 맞추는 유한 상태 오토마타와 NFA"
-date: "주제 13 · v1"
+date: "주제 13 · v2"
 order: 13
 transition: none
 toc_level: 4
@@ -16,6 +16,15 @@ import LanguageDemo from '@components/LanguageDemo.astro';
 import RegexPlayDemo from '@components/RegexPlayDemo.astro';
 import BlowupDemo from '@components/BlowupDemo.astro';
 import ParenDemo from '@components/ParenDemo.astro';
+import ShorthandDemo from '@components/ShorthandDemo.astro';
+import ValidateDemo from '@components/ValidateDemo.astro';
+import Mod3Demo from '@components/Mod3Demo.astro';
+import CallGridDemo from '@components/CallGridDemo.astro';
+import FsaTableDemo from '@components/FsaTableDemo.astro';
+import SubsetDemo from '@components/SubsetDemo.astro';
+import NfaLabDemo from '@components/NfaLabDemo.astro';
+import ClosureDemo from '@components/ClosureDemo.astro';
+import MnWorkDemo from '@components/MnWorkDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-13-regex)의 실행 결과와 같습니다. */}
@@ -112,6 +121,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 
 <Slide>
 
+### 직접 해 보기: 연결과 또는
+::sub[탭을 바꿔 보세요 · 연결은 문자열 하나, 또는은 갈래마다 문자열 하나입니다]
+
+<LanguageDemo regexes={['AB', 'A|B', 'A|E|I|O|U']} tests={{ 'AB': ['A', 'BA'], 'A|B': ['AB'], 'A|E|I|O|U': ['B', 'AE'] }} slide />
+
+</Slide>
+
+<Slide>
+
 #### 클로저
 ::sub[Closure · 패턴의 일부가 임의의 횟수만큼 반복되는 것]
 
@@ -201,6 +219,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 
 <Slide>
 
+### 직접 해 보기: 문자 집합
+::sub[조각을 누르면 받는 글자가 켜집니다 · 글자판을 누르면 문자열에 붙습니다]
+
+<ShorthandDemo kind="class" slide />
+
+</Slide>
+
+<Slide>
+
 #### 클로저 축약어
 ::sub[복제 횟수를 다르게 정합니다]
 
@@ -210,6 +237,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 | `?` | 한 번 이하 (0번 포함) | `AB?` | `A\|AB` |
 | `{n}` | 정확히 n번 | `[0-9]{3}` | `[0-9][0-9][0-9]` |
 | `{m,n}` | m번 이상 n번 이하 | `A{2,3}` | `AA\|AAA` |
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 횟수 축약어
+::sub[예를 고르면 세 연산으로 풀린 꼴이 나옵니다 · 파란 칸이 복제 횟수입니다]
+
+<ShorthandDemo kind="quant" slide />
 
 </Slide>
 
@@ -226,6 +262,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 | `\n` | 개행 문자 |
 | `\s` | 공백 문자 (스페이스, 탭, 개행 등) |
 | `\d` | 숫자 하나, `[0-9]`와 같다 |
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 특별한 글자
+::sub[`A.B`와 `A\.B`에 같은 문자열을 넣어 보세요]
+
+<ShorthandDemo kind="escape" slide />
 
 </Slide>
 
@@ -263,51 +308,28 @@ import ParenDemo from '@components/ParenDemo.astro';
 
 <Slide>
 
-#### 유효성 검증: 전화번호
-::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
+### 유효성 검증: 전화번호
+::sub[예를 바꿔 어느 조각에서 막히는지 보세요 · 글자의 색은 그 글자를 먹은 조각입니다]
 
-| 조각 | 뜻 |
-| --- | --- |
-| `\(` `\)` | 괄호 글자 그 자체 (이스케이프 시퀀스) |
-| `[0-9]` | 숫자 0\~9 중 하나 |
-| `{3}` | 반복이 3번 허용됨 |
-
-<br/>
-
-`(800) 867-5309`가 속합니다.  
-우리나라 휴대전화는 `\d{3}-\d{3,4}-\d{4}`, 예를 들어 `010-1234-5678`
+<ValidateDemo tabs={['phone', 'mobile']} slide />
 
 </Slide>
 
 <Slide>
 
-#### 유효성 검증: 이메일 주소
-::sub[`[a-z]+@([a-z]+\.)+(edu|com)`]
+### 유효성 검증: 이메일 주소
+::sub[`([a-z]+\.)+`가 `cs.`와 `princeton.`을 하나씩 먹습니다 · 실제 검사는 넓혀서 씁니다]
 
-| 조각 | 뜻 |
-| --- | --- |
-| `+` | 한 번 이상의 복제 |
-| `\.` | 아무 글자가 아니고 실제 점 |
-| `(edu\|com)` | edu 혹은 com으로 제한 |
-
-<br/>
-
-`rs@cs.princeton.edu`가 속합니다.  
-실제로는 `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`처럼 넓힙니다.
+<ValidateDemo tabs={['email', 'wide']} slide />
 
 </Slide>
 
 <Slide>
 
-#### 유효성 검증: URL
-::sub[`https?://[^\s/$.?#].[^\s]*`]
+### 유효성 검증: URL
+::sub[`https?`는 s가 있어도 없어도 됩니다 · 주소의 첫 글자는 공백이나 `/ $ . ? #`가 아닙니다]
 
-- `https?`
-  - `s`가 있어도 없어도 됩니다. http와 https 둘 다
-- `[^\s/$.?#]`
-  - 주소의 첫 글자는 공백이나 `/ $ . ? #`가 아닙니다.
-- `[^\s]*`
-  - 그 뒤로 공백이 나올 때까지
+<ValidateDemo tabs={['url']} slide />
 
 </Slide>
 
@@ -348,6 +370,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 <br/>
 
 이 정규식은 예제 3에서 NFA로 실제로 돌려 봅니다.
+
+</Slide>
+
+<Slide>
+
+### 왜 3의 배수인가
+::sub[값은 두 배가 되고 비트가 더해집니다 · 기억할 것은 나머지 셋뿐입니다]
+
+<Mod3Demo slide />
 
 </Slide>
 
@@ -458,45 +489,12 @@ static bool matchStar(char c, const char *pattern, const char *text) {
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 실행
-::sub[`search("ab*c", "aabbc")` · 위치 1에서 찾고 match를 9번 부릅니다]
+### 직접 해 보기: 실행
+::sub[묶음을 누르고 한 걸음씩 · 위치와 비교 횟수는 실습 코드의 출력과 같습니다]
 
-<div class="aas-split">
-<div>
-
-```console
-search("ab*c", "aabbc")
-  start 0
-    match("ab*c", "aabbc")
-      match("b*c", "abbc")
-          match("c", "abbc")
-  start 1
-    match("ab*c", "abbc")
-      match("b*c", "bbc")
-          match("c", "bbc")
-          match("c", "bc")
-          match("c", "c")
-            match("", "")
-  -> found at 1, comparisons = 9
-```
-
-</div>
-<div>
-
-```console
-tests
-  pattern  text        at  comparisons
-  ab*c     ac           0            4
-  ab*c     abbbbc       0            8
-  ab*c     abd         -1            7
-  a.c      xxabcxx      2            6
-  .*ab*c   zzabbbcz     0           10
-```
-
-</div>
-</div>
+<RegexMatchDemo cases={[['ab*c', 'aabbc'], ['ab*c', 'ac'], ['ab*c', 'abbbbc'], ['ab*c', 'abd'], ['a.c', 'xxabcxx'], ['.*ab*c', 'zzabbbcz']]} slide />
 
 </Slide>
 
@@ -526,6 +524,15 @@ tests
 
 a를 어느 `a*`에 몇 개씩 나눠 줄지 **모든 경우**를 시도합니다.  
 $$\binom{2n+1}{n}$$, 거의 $$4^n$$으로 자라는 **지수 시간**입니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 같은 칸을 몇 번
+::sub[match(남은 패턴, 남은 텍스트)가 한 칸 · 숫자는 그 호출을 부른 횟수입니다]
+
+<CallGridDemo slide />
 
 </Slide>
 
@@ -623,6 +630,15 @@ S1에서 S2로는 입력 없이 넘어갑니다. 이것이 ε 전이입니다.
 
 </Slide>
 
+<Slide>
+
+### 직접 해 보기: 전이표 고치기
+::sub[칸과 수락을 바꿔 보세요 · 마지막 열은 표를 실제로 돌린 결과입니다]
+
+<FsaTableDemo start="back" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 절차
@@ -666,38 +682,12 @@ bool accept(const char *input) {
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 실행
+### 직접 해 보기: 실행
 ::sub[거부되는 경우는 둘: 갈 곳이 없을 때, 끝났는데 수락 상태가 아닐 때]
 
-<div class="aas-split">
-<div>
-
-```console
-input "abd"
-  start S0
-  'a' -> S1
-  eps -> S2
-  'b' -> S3
-  'd' -> no move from S3: reject
-```
-
-</div>
-<div>
-
-```console
-summary
-  abc      accept
-  abbbbc   accept
-  ac       accept
-  ab       reject
-  abd      reject
-  abcc     reject
-```
-
-</div>
-</div>
+<FsaDemo input="abc" cases={['abc', 'abbbbc', 'ac', 'ab', 'abd', 'abcc']} slide />
 
 </Slide>
 
@@ -741,6 +731,15 @@ summary
 
 <Slide>
 
+### 직접 해 보기: 상태 수의 폭발
+::sub[끝에서 k번째 글자가 a인 언어 · k를 올려 DFA를 실제로 만들어 보세요]
+
+<SubsetDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 만드는 법
 ::sub[정규식 전체를 괄호로 감싸고, 글자 하나를 상태 하나로 · 상태 0…M, M이 수락]
 
@@ -754,6 +753,15 @@ summary
 <br/>
 
 괄호의 짝은 스택으로 찾습니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 규칙에서 그래프로
+::sub[정규식을 고치면 그림이 다시 만들어집니다 · 규칙이나 전이를 눌러 보세요]
+
+<NfaLabDemo slide />
 
 </Slide>
 
@@ -807,6 +815,15 @@ ALGORITHM BuildNFA(re)
 
 <Slide>
 
+### 직접 해 보기: ε 닫힘
+::sub[그림의 상태를 눌러 시작 집합을 고르세요 · 파란 테두리가 시작 집합입니다]
+
+<ClosureDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 한 걸음씩: 1001은 3의 배수인가
 ::sub[검은 실선은 매치 전이, 파란 점선은 ε 전이 · 주황이 지금 집합입니다]
 
@@ -836,48 +853,12 @@ ALGORITHM Recognizes(re, text)
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 실행
-::sub[`nfaRegex.c` · 데모의 집합 여덟 개와 원래 자료의 예 일곱 개]
+### 직접 해 보기: 실행
+::sub[오른쪽은 `nfaRegex.c`가 찍는 줄입니다 · 시작 집합의 16은 빈 문자열도 0, 곧 3의 배수이기 때문입니다]
 
-<div class="aas-split">
-<div>
-
-```console
-text = 1001
-  start      {0 1 2 4 14 15 16}
-  read '1'   {5}
-  closure    {5 6 11 12}
-  read '0'   {7}
-  closure    {7 8 9}
-  read '0'   {10}
-  closure    {5 6 10 11 12}
-  read '1'   {13}
-  closure    {1 2 4 13 14 15 16}
-  -> accept
-```
-
-</div>
-<div>
-
-```console
-  text   value  result
-  11         3  accept
-  110        6  accept
-  1001       9  accept
-  1100      12  accept
-  10         2  reject
-  1011      11  reject
-  10000     16  reject
-```
-
-</div>
-</div>
-
-<br/>
-
-시작 집합에 이미 16이 있는 것은 빈 문자열도 0, 곧 3의 배수이기 때문입니다.
+<NfaDemo texts={['11', '110', '1001', '1100', '10', '1011', '10000']} binary trace slide />
 
 </Slide>
 
@@ -891,6 +872,15 @@ text = 1001
   - 집합에는 상태가 많아야 $$M+1$$개입니다.
   - 인접 리스트를 쓰면 ε 닫힘의 DFS는 상태와 전이를 한 번씩만 봅니다.
   - 글자당 $$O(M)$$, 전체로는 최악 $$O(MN)$$
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: O(MN) 재 보기
+::sub[M이나 N을 올려 보세요 · 막대 하나가 글자 하나를 읽는 동안의 작업량입니다]
+
+<MnWorkDemo slide />
 
 </Slide>
 
@@ -920,6 +910,15 @@ text = 1001
 
 백트래킹은 가능성을 **하나씩 차례로**, NFA는 **모두 한꺼번에** 따라갑니다.  
 같은 상태에 두 길로 와도 집합에는 한 번만 들어갑니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 한 번만 계산하면
+::sub[같은 칸은 답도 같습니다 · 탭을 바꿔 비교 횟수를 견주어 보세요]
+
+<CallGridDemo n={10} dedupe slide />
 
 </Slide>
 

@@ -11,8 +11,9 @@
 // ')'에서 '|'를 모두 꺼내 갈래마다 같은 ε 전이 두 개를 더한다. '|'가 하나면
 // 실습 코드와 같은 그래프다.
 //
-// 문법: 글자(영문·숫자), '.', '*', '|', 괄호
+// 문법: 글자(영문·숫자), '.', '*', '|', 괄호. 표로 함께 두고 지금 정규식에 쓴 기호를 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexSyntaxKey from './RegexSyntaxKey.astro';
 
 interface Props {
   /** 탭으로 고를 정규식들 */
@@ -102,6 +103,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         <button type="button" role="tab" class="lg-tab" data-lg-tab={i}><code>{r}</code></button>
       ))}
     </div>
+    <span class="lg-key"><RegexSyntaxKey set="core" /></span>
   </div>
 
   <label class="lg-range" data-lg-krow>
@@ -325,6 +327,10 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     function render() {
       const src = regexes[cur];
       const ast = parse(src);
+      root.querySelectorAll('[data-sk-token]').forEach((c) => {
+        const k = c.dataset.skToken;
+        c.classList.toggle('is-now', k === '( )' ? /[()]/.test(src) : src.includes(k));
+      });
       const star = hasStar(ast);
       krow.hidden = !star;
       kval.textContent = String(K);
@@ -428,6 +434,10 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     background: var(--aas-accent);
     border-color: var(--aas-accent);
     color: #fff;
+  }
+  .aas-language-demo .lg-key {
+    display: inline-flex;
+    margin-left: auto;
   }
   .aas-language-demo .lg-range {
     display: flex;
@@ -570,6 +580,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-language-demo.is-slide {
     font-size: clamp(1rem, 3vh, 2rem);
     margin: 0.5rem 0;
+  }
+  .aas-language-demo.is-slide .lg-word {
+    font-size: 0.76em;
+  }
+  .aas-language-demo.is-slide .lg-items {
+    gap: 0.3em;
   }
   @media (prefers-reduced-motion: reduce) {
     .aas-language-demo * {

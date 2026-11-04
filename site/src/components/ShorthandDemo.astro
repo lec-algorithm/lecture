@@ -1,0 +1,763 @@
+---
+// 축약어를 세 연산으로 풀어 써 보는 데모.
+//
+// 축약어 정규식을 적으면 두 단계로 푼다. 먼저 횟수 축약어(+ ? {n} {m,n} {m,})를 없애고,
+// 다음에 문자 집합([ ] [A-Z] [^ ] \d \s)을 또는으로 푼다. 교안의 표와 같은 꼴이 나온다
+// (A+ → AA*, AB? → A|AB, A{2,3} → AA|AAA, [0-9]{3} → [0-9][0-9][0-9]).
+// 줄임말이라는 주장은 실제로 잰다. 정규식에 나오는 글자로 짧은 문자열을 모두 만들어 축약어와
+// 풀어 쓴 것을 브라우저의 RegExp로 함께 돌리고 답이 같은지 센다.
+// [^ ]의 "모든 글자"는 출력 가능한 ASCII 95글자로 잡았다. 그래서 입력도 ASCII만 받는다.
+// 조각을 누르면 그 조각이 받는 글자와 복제 횟수를 보여 준다. 글자판을 누르면 입력에 붙는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexSyntaxKey from './RegexSyntaxKey.astro';
+
+interface Props {
+  /** class 문자 집합 · quant 횟수 · escape 이스케이프 */
+  kind?: 'class' | 'quant' | 'escape';
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { kind = 'class', slide = false } = Astro.props;
+const id = `sh-${Math.random().toString(36).slice(2, 9)}`;
+const PRESETS: Record<string, [string, string][]> = {
+  class: [['A.B', 'A7B'], ['[AEIOU]*', 'EIEIO'], ['[A-C][0-9]', 'B7'], ['[^AEIOU]*', 'XYZ']],
+  quant: [['A+', 'AAA'], ['AB?', 'A'], ['[0-9]{3}', '123'], ['A{2,3}', 'AAAA'], ['A{2,}', 'AAAA']],
+  escape: [['A.B', 'AXB'], ['A\\.B', 'AXB'], ['\\(A\\*\\)', '(A*)'], ['\\d{3}-\\d{4}', '867-5309'], ['A\\sB', 'A B']],
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '축약어 풀어 쓰기',
+    regex: '축약어',
+    text: '문자열',
+    stage1: '횟수를 풀면',
+    stage2: '집합까지 풀면',
+    glyphs: '이 조각이 받는 글자',
+    counts: '복제 횟수',
+    yes: '✓ 속함',
+    no: '✕ 속하지 않음',
+    errBad: '이 정규식은 읽을 수 없습니다. 괄호와 대괄호의 짝, 횟수 표기를 확인해 보세요.',
+    errBig: '풀어 쓴 결과가 너무 깁니다. 횟수를 줄여 보세요.',
+    errAscii: '문자열은 영문, 숫자, 기호만 받습니다.',
+    grow: '축약어는 {a}글자, 풀어 쓰면 {b}글자입니다.',
+    same: '길이 {l}까지 {n}개 문자열에서 축약어와 풀어 쓴 것의 답이 모두 같습니다. 새로운 능력이 아니라 줄임말입니다.',
+    diff: '길이 {l}까지 {n}개 문자열 중 {d}개에서 답이 다릅니다. 예: {w}',
+    empty: '빈 문자열',
+    negNote: '[^ ]는 출력 가능한 ASCII 95글자에서 뺀 나머지로 풀었습니다.',
+  },
+  en: {
+    title: 'Expanding shorthand',
+    regex: 'shorthand',
+    text: 'string',
+    stage1: 'counts expanded',
+    stage2: 'sets expanded too',
+    glyphs: 'chars this piece takes',
+    counts: 'copies',
+    yes: '✓ belongs',
+    no: '✕ does not belong',
+    errBad: 'This regex cannot be read. Check the parentheses, the brackets and the count notation.',
+    errBig: 'The expansion is too long. Try smaller counts.',
+    errAscii: 'The string takes only letters, digits and symbols.',
+    grow: 'The shorthand has {a} characters, the expansion {b}.',
+    same: 'All {n} strings up to length {l} get the same answer from the shorthand and the expansion. It is an abbreviation, not a new power.',
+    diff: '{d} of the {n} strings up to length {l} differ. For example: {w}',
+    empty: 'the empty string',
+    negNote: '[^ ] is expanded as the rest of the 95 printable ASCII characters.',
+  },
+  zh: {
+    title: '展开缩写',
+    regex: '缩写',
+    text: '字符串',
+    stage1: '展开次数后',
+    stage2: '再展开集合后',
+    glyphs: '这一段接受的字符',
+    counts: '复制次数',
+    yes: '✓ 属于',
+    no: '✕ 不属于',
+    errBad: '无法读取这个正则。请检查括号、方括号和次数写法。',
+    errBig: '展开结果太长。请减小次数。',
+    errAscii: '字符串只接受字母、数字和符号。',
+    grow: '缩写是 {a} 个字符，展开后是 {b} 个。',
+    same: '长度 {l} 以内的 {n} 个字符串，缩写和展开形式的答案都相同。这不是新能力，只是简写。',
+    diff: '长度 {l} 以内的 {n} 个字符串中有 {d} 个答案不同。例如：{w}',
+    empty: '空字符串',
+    negNote: '[^ ] 按 95 个可打印 ASCII 字符中去掉所列字符后展开。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = PRESETS[kind];
+---
+
+<div class:list={['aas-shorthand-demo', slide && 'is-slide']} id={id} data-sh-kind={kind} data-sh-presets={JSON.stringify(presets)} data-sh-strings={JSON.stringify(t)}>
+  <div class="sh-bar">
+    <span class="sh-head"><strong>{t.title}</strong></span>
+    <div class="sh-chips">
+      {presets.map(([r, x]) => <button type="button" class="sh-chip" data-sh-preset={JSON.stringify([r, x])}><code>{r}</code></button>)}
+    </div>
+    <RegexSyntaxKey set={kind} />
+  </div>
+
+  <div class="sh-fields">
+    <label class="sh-field">{t.regex}<input type="text" maxlength="24" spellcheck="false" autocomplete="off" data-sh-re /></label>
+    <label class="sh-field">{t.text}<input type="text" maxlength="24" spellcheck="false" autocomplete="off" data-sh-tx /></label>
+    <span class="sh-verdict" data-sh-verdict></span>
+  </div>
+  <p class="sh-error" data-sh-error hidden></p>
+
+  <div data-sh-out>
+    <div class="sh-stage"><span>{t.stage1}</span><code data-sh-s1></code></div>
+    <div class="sh-stage"><span>{t.stage2}</span><code data-sh-s2></code></div>
+
+    <div class="sh-detail">
+      <div class="sh-pills" data-sh-pills></div>
+      <div class="sh-counts">
+        <span class="sh-cap">{t.counts}</span>
+        <div class="sh-line" data-sh-line></div>
+      </div>
+    </div>
+    <div class="sh-glyphs">
+      <span class="sh-cap">{t.glyphs}</span>
+      <div class="sh-board" data-sh-board></div>
+    </div>
+  </div>
+  <p class="sh-note" data-sh-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])\s*(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.shStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    const LIMIT = 6000;
+
+    const ASCII = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i));
+    const META = '.*+?()[]{}|\\^$';
+    const lit = (c) => {
+      if (c === '\t') return '\\t';
+      if (c === '\n') return '\\n';
+      return META.includes(c) ? `\\${c}` : c;
+    };
+    const ESC_SET = {
+      d: () => [...'0123456789'],
+      s: () => [' ', '\t', '\n'],
+    };
+
+    /* 구문 트리. 우선순위는 클로저, 연결, 또는 순서다. tokens에는 쓴 기호를 모은다. */
+    function parse(src) {
+      let i = 0;
+      const tokens = new Set();
+      const fail = () => {
+        throw new Error('bad');
+      };
+      function alt() {
+        const xs = [cat()];
+        while (src[i] === '|') {
+          i += 1;
+          xs.push(cat());
+        }
+        return xs.length === 1 ? xs[0] : { t: 'alt', xs };
+      }
+      function cat() {
+        const xs = [];
+        while (i < src.length && src[i] !== '|' && src[i] !== ')') xs.push(rep());
+        return { t: 'cat', xs };
+      }
+      function rep() {
+        const start = i;
+        const x = atom();
+        let m = 1;
+        let n = 1;
+        let has = false;
+        const c = src[i];
+        if (c === '*') {
+          m = 0;
+          n = Infinity;
+          has = true;
+          i += 1;
+        } else if (c === '+') {
+          m = 1;
+          n = Infinity;
+          has = true;
+          i += 1;
+          tokens.add('+');
+        } else if (c === '?') {
+          m = 0;
+          n = 1;
+          has = true;
+          i += 1;
+          tokens.add('?');
+        } else if (c === '{') {
+          const found = /^\{(\d+)(,(\d*))?\}/.exec(src.slice(i));
+          if (!found) fail();
+          m = Number(found[1]);
+          n = found[2] ? (found[3] ? Number(found[3]) : Infinity) : m;
+          if (n < m || m > 12 || (n !== Infinity && n > 12)) fail();
+          i += found[0].length;
+          has = true;
+          tokens.add(!found[2] ? '{n}' : found[3] ? '{m,n}' : '{m,}');
+        }
+        if (src[i] === '*' || src[i] === '+' || src[i] === '?' || src[i] === '{') fail();
+        return { t: 'rep', x, m, n, has, src: src.slice(start, i) };
+      }
+      function atom() {
+        const c = src[i];
+        if (c === undefined || c === '*' || c === '+' || c === '?' || c === '{' || c === '}') fail();
+        if (c === '(') {
+          i += 1;
+          const x = alt();
+          if (src[i] !== ')') fail();
+          i += 1;
+          return { t: 'group', x };
+        }
+        if (c === ')' || c === ']') fail();
+        if (c === '[') return cls();
+        if (c === '.') {
+          i += 1;
+          tokens.add('.');
+          return { t: 'any' };
+        }
+        if (c === '\\') {
+          const e = src[i + 1];
+          if (e === undefined) fail();
+          i += 2;
+          if (ESC_SET[e]) {
+            tokens.add(`\\${e}`);
+            return { t: 'set', members: ESC_SET[e](), src: `\\${e}` };
+          }
+          if (e === 't' || e === 'n') {
+            tokens.add(`\\${e}`);
+            return { t: 'chr', c: e === 't' ? '\t' : '\n' };
+          }
+          if (!META.includes(e) && e !== ' ' && e !== '-') fail();
+          tokens.add(e === '\\' ? '\\\\' : '\\.');
+          return { t: 'chr', c: e };
+        }
+        i += 1;
+        return { t: 'chr', c };
+      }
+      function cls() {
+        const start = i;
+        i += 1;
+        const neg = src[i] === '^';
+        if (neg) i += 1;
+        const picked = new Set();
+        let range = false;
+        while (i < src.length && src[i] !== ']') {
+          let a = src[i];
+          if (a === '\\') {
+            const e = src[i + 1];
+            if (e === undefined) fail();
+            i += 2;
+            if (ESC_SET[e]) {
+              ESC_SET[e]().forEach((x) => picked.add(x));
+              continue;
+            }
+            a = e;
+          } else i += 1;
+          if (src[i] === '-' && src[i + 1] !== ']' && src[i + 1] !== undefined) {
+            const b = src[i + 1];
+            i += 2;
+            if (a.charCodeAt(0) > b.charCodeAt(0)) fail();
+            range = true;
+            for (let c = a.charCodeAt(0); c <= b.charCodeAt(0); c++) picked.add(String.fromCharCode(c));
+          } else picked.add(a);
+        }
+        if (src[i] !== ']' || picked.size === 0) fail();
+        i += 1;
+        tokens.add(neg ? '[^ ]' : range ? '[A-Z]' : '[ ]');
+        const members = neg ? ASCII.filter((c) => !picked.has(c)) : [...picked];
+        return { t: 'set', members, src: src.slice(start, i), neg };
+      }
+      const tree = alt();
+      if (i < src.length) fail();
+      return { tree, tokens };
+    }
+
+    /* 풀어 쓰기. toAlts는 "또는"으로 이을 후보들의 목록을 돌려준다.
+       stage 1이면 집합을 그대로 두고, stage 2면 집합도 또는으로 푼다.
+       ?와 {m,n}은 후보를 늘려 A|AB처럼 전체로 펼치되, 너무 많으면 묶음으로 둔다. */
+    function toAlts(node, stage) {
+      if (node.t === 'chr') return [lit(node.c)];
+      if (node.t === 'any') return ['.'];
+      if (node.t === 'set') {
+        if (stage === 1) return [node.src];
+        return node.members.length === 1 ? [lit(node.members[0])] : [`(${node.members.map(lit).join('|')})`];
+      }
+      if (node.t === 'group') {
+        const inner = toAlts(node.x, stage);
+        return inner.length === 1 ? [`(${inner[0]})`] : [`(${inner.join('|')})`];
+      }
+      if (node.t === 'alt') return node.xs.flatMap((x) => toAlts(x, stage));
+      if (node.t === 'cat') {
+        let acc = [''];
+        for (const x of node.xs) {
+          const opts = toAlts(x, stage);
+          if (acc.length * opts.length > 6) {
+            const one = opts.length > 1 ? `(${opts.join('|')})` : opts[0];
+            acc = acc.map((a) => a + one);
+          } else acc = acc.flatMap((a) => opts.map((b) => a + b));
+        }
+        return acc;
+      }
+      /* rep */
+      const base = toAlts(node.x, stage);
+      const one = base.length > 1 ? `(${base.join('|')})` : base[0];
+      const star = /^(\\.|.)$/.test(one) || /^\[[^\]]*\]$/.test(one) || /^\([^()]*\)$/.test(one) || /^\(.*\)$/.test(one) ? `${one}*` : `(${one})*`;
+      if (node.n === Infinity) return [`${one.repeat(node.m)}${star}`];
+      const out = [];
+      for (let k = node.m; k <= node.n; k++) out.push(one.repeat(k));
+      return out;
+    }
+    const expanded = (tree, stage) => toAlts(tree, stage).join('|');
+
+    /* 정규식에 나오는 글자로 짧은 문자열을 모두 만들어 두 정규식의 답을 견준다. */
+    function sampleAlphabet(tree) {
+      const out = new Set();
+      const walk = (n) => {
+        if (n.t === 'chr') out.add(n.c);
+        else if (n.t === 'set') {
+          n.members.slice(0, 2).forEach((c) => out.add(c));
+          out.add(n.members.at(-1));
+          const miss = ASCII.find((c) => !n.members.includes(c) && /[A-Z0-9]/.test(c));
+          if (miss) out.add(miss);
+        } else if (n.t === 'any') out.add('Z');
+        (n.xs ?? []).forEach(walk);
+        if (n.x) walk(n.x);
+      };
+      walk(tree);
+      return [...out].filter((c) => c !== '\t' && c !== '\n').slice(0, 8);
+    }
+    function compare(short, long, alphabet) {
+      const a = new RegExp(`^(?:${short})$`);
+      const b = new RegExp(`^(?:${long})$`);
+      const size = Math.max(alphabet.length, 1);
+      let l = 1;
+      while (size ** (l + 1) <= 6000 && l < 10) l += 1;
+      let layer = [''];
+      let n = 0;
+      let d = 0;
+      let first = null;
+      for (let len = 0; len <= l; len++) {
+        for (const w of layer) {
+          n += 1;
+          if (a.test(w) !== b.test(w)) {
+            d += 1;
+            if (first === null) first = w;
+          }
+        }
+        if (len < l) layer = layer.flatMap((w) => alphabet.map((c) => w + c));
+      }
+      return { l, n, d, first };
+    }
+
+    const reIn = root.querySelector('[data-sh-re]');
+    const txIn = root.querySelector('[data-sh-tx]');
+    const errEl = root.querySelector('[data-sh-error]');
+    const outEl = root.querySelector('[data-sh-out]');
+    const s1El = root.querySelector('[data-sh-s1]');
+    const s2El = root.querySelector('[data-sh-s2]');
+    const pillsEl = root.querySelector('[data-sh-pills]');
+    const boardEl = root.querySelector('[data-sh-board]');
+    const lineEl = root.querySelector('[data-sh-line]');
+    const verdictEl = root.querySelector('[data-sh-verdict]');
+    const note = root.querySelector('[data-sh-note]');
+    const chips = [...root.querySelectorAll('[data-sh-preset]')];
+    const keyCells = [...root.querySelectorAll('[data-sk-token]')];
+
+    /* 글자판: 대문자·숫자 한 줄, 소문자·기호 한 줄 */
+    const BOARD = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', ...'abcdefghijklmnopqrstuvwxyz.-_@()*\\', ' '];
+    const boardCells = BOARD.map((c) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sh-key';
+      b.textContent = c === ' ' ? '␣' : c;
+      b.addEventListener('click', () => {
+        if (txIn.value.length >= 24) return;
+        txIn.value += c;
+        render();
+      });
+      return { c, b };
+    });
+    boardEl.replaceChildren(...boardCells.map((x) => x.b));
+
+    let picked = -1;
+
+    /* 빈 갈래를 ε로 보인다. 이스케이프된 괄호와 파이프는 갈래의 경계가 아니다. */
+    const display = (s) => (s === '' ? 'ε' : s.replace(/(^|(?<!\\)\(|(?<!\\)\|)(?=(?<!\\)\||\)|$)/g, '$1ε'));
+    const clip = (s) => (s.length > 92 ? `${s.slice(0, 90)}…` : s);
+
+    /* 위쪽 수준의 조각들. 또는이 있으면 사이에 칸막이를 둔다. */
+    function pieces(tree) {
+      const list = [];
+      const cats = tree.t === 'alt' ? tree.xs : [tree];
+      cats.forEach((c, i) => {
+        if (i) list.push(null);
+        c.xs.forEach((x) => list.push(x));
+      });
+      return list;
+    }
+    const firstUseful = (list) => {
+      const score = (r) => (r.m !== 1 || r.n !== 1 ? 2 : 0) + (r.x.t === 'set' ? 3 : r.x.t === 'any' ? 2 : 0);
+      let best = -1;
+      let bestScore = -1;
+      list.forEach((r, i) => {
+        if (r && score(r) > bestScore) {
+          best = i;
+          bestScore = score(r);
+        }
+      });
+      return best;
+    };
+    const membersOf = (r) => {
+      if (r.x.t === 'set') return new Set(r.x.members);
+      if (r.x.t === 'any') return new Set(ASCII);
+      if (r.x.t === 'chr') return new Set([r.x.c]);
+      return null;
+    };
+
+    function renderDetail(list) {
+      const r = list[picked];
+      pillsEl.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.shPill) === picked));
+      const members = r ? membersOf(r) : null;
+      boardCells.forEach(({ c, b }) => b.classList.toggle('is-on', !!members && members.has(c)));
+      lineEl.replaceChildren();
+      if (!r) return;
+      const MAXN = 8;
+      for (let k = 0; k <= MAXN; k++) {
+        const c = document.createElement('span');
+        c.className = `sh-n${k >= r.m && k <= r.n ? ' is-on' : ''}`;
+        c.textContent = String(k);
+        lineEl.appendChild(c);
+      }
+      const inf = document.createElement('span');
+      inf.className = `sh-n${r.n === Infinity ? ' is-on' : ''}`;
+      inf.textContent = '…';
+      lineEl.appendChild(inf);
+    }
+
+    function render() {
+      const re = reIn.value;
+      const tx = txIn.value;
+      chips.forEach((b) => {
+        const [r, x] = JSON.parse(b.dataset.shPreset);
+        b.classList.toggle('is-on', r === re);
+        void x;
+      });
+      let parsed = null;
+      let s1 = '';
+      let s2 = '';
+      let err = null;
+      try {
+        parsed = parse(re);
+        s1 = expanded(parsed.tree, 1);
+        s2 = expanded(parsed.tree, 2);
+        if (s2.length > LIMIT) err = 'errBig';
+        new RegExp(`^(?:${re})$`);
+        new RegExp(`^(?:${s2})$`);
+      } catch {
+        err = err ?? 'errBad';
+      }
+      if (!err && !/^[\x20-\x7e]*$/.test(tx)) err = 'errAscii';
+      errEl.hidden = !err;
+      outEl.hidden = !!err;
+      verdictEl.hidden = !!err;
+      if (err) {
+        errEl.textContent = S[err];
+        keyCells.forEach((c) => c.classList.remove('is-now'));
+        setLines(note, '');
+        return;
+      }
+      keyCells.forEach((c) => c.classList.toggle('is-now', parsed.tokens.has(c.dataset.skToken)));
+      s1El.textContent = clip(display(s1));
+      s2El.textContent = clip(display(s2));
+
+      const list = pieces(parsed.tree);
+      if (picked < 0 || picked >= list.length || !list[picked]) picked = firstUseful(list);
+      pillsEl.replaceChildren(...list.map((r, i) => {
+        if (!r) {
+          const bar = document.createElement('span');
+          bar.className = 'sh-or';
+          bar.textContent = '|';
+          return bar;
+        }
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'sh-pill';
+        b.dataset.shPill = String(i);
+        b.textContent = r.src;
+        b.addEventListener('click', () => {
+          picked = i;
+          renderDetail(list);
+        });
+        return b;
+      }));
+      renderDetail(list);
+
+      const ok = new RegExp(`^(?:${re})$`).test(tx);
+      verdictEl.textContent = ok ? S.yes : S.no;
+      verdictEl.className = `sh-verdict ${ok ? 'is-yes' : 'is-no'}`;
+
+      const cmp = compare(re, s2, sampleAlphabet(parsed.tree));
+      const lines = [fill(S.grow, { a: re.length, b: fmt(s2.length) })];
+      lines.push(cmp.d === 0 ? fill(S.same, { l: cmp.l, n: fmt(cmp.n) })
+        : fill(S.diff, { l: cmp.l, n: fmt(cmp.n), d: fmt(cmp.d), w: cmp.first || S.empty }));
+      if (parsed.tokens.has('[^ ]')) lines.push(S.negNote);
+      setLines(note, lines.join(' '));
+    }
+
+    const first = JSON.parse(root.dataset.shPresets)[0];
+    reIn.value = first[0];
+    txIn.value = first[1];
+    reIn.addEventListener('input', () => {
+      picked = -1;
+      render();
+    });
+    txIn.addEventListener('input', render);
+    chips.forEach((b) => b.addEventListener('click', () => {
+      const [r, x] = JSON.parse(b.dataset.shPreset);
+      reIn.value = r;
+      txIn.value = x;
+      picked = -1;
+      render();
+    }));
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-shorthand-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-shorthand-demo .sh-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.7em;
+    align-items: center;
+    margin-bottom: 0.5em;
+  }
+  .aas-shorthand-demo .sh-head {
+    font-size: 0.95em;
+  }
+  .aas-shorthand-demo .sh-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    margin-right: auto;
+  }
+  .aas-shorthand-demo .sh-chip {
+    padding: 0.15em 0.6em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-shorthand-demo .sh-chip code {
+    padding: 0;
+    background: none;
+    color: inherit;
+  }
+  .aas-shorthand-demo .sh-chip:hover,
+  .aas-shorthand-demo .sh-pill:hover,
+  .aas-shorthand-demo .sh-key:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-shorthand-demo .sh-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-shorthand-demo .sh-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+  }
+  .aas-shorthand-demo .sh-field {
+    flex: 1 1 11em;
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-shorthand-demo .sh-field input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.15em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-shorthand-demo .sh-verdict {
+    min-width: 7.5em;
+    font-size: 0.85em;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .aas-shorthand-demo .sh-verdict[hidden] {
+    display: none;
+  }
+  .aas-shorthand-demo .sh-verdict.is-yes {
+    color: var(--aas-role-eval);
+  }
+  .aas-shorthand-demo .sh-verdict.is-no {
+    color: var(--aas-role-guard);
+  }
+  .aas-shorthand-demo .sh-error {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    font-weight: 700;
+    color: var(--aas-role-guard);
+  }
+  .aas-shorthand-demo [data-sh-out][hidden] {
+    display: none;
+  }
+  .aas-shorthand-demo .sh-stage {
+    display: flex;
+    gap: 0.6em;
+    align-items: baseline;
+    margin-top: 0.35em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-shorthand-demo .sh-stage span {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .aas-shorthand-demo .sh-stage code {
+    min-width: 0;
+    font-variant-ligatures: none;
+    overflow-wrap: anywhere;
+    color: var(--aas-text);
+    font-weight: 700;
+    background: none;
+    padding: 0;
+  }
+  .aas-shorthand-demo .sh-pills {
+    flex: 1 1 10em;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    align-items: center;
+  }
+  .aas-shorthand-demo .sh-pill {
+    padding: 0.05em 0.55em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-shorthand-demo .sh-pill.is-on {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+  }
+  .aas-shorthand-demo .sh-or {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-shorthand-demo .sh-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1.2em;
+    align-items: flex-end;
+    margin-top: 0.4em;
+  }
+  .aas-shorthand-demo .sh-cap {
+    display: block;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-shorthand-demo .sh-glyphs {
+    margin-top: 0.2em;
+  }
+  .aas-shorthand-demo .sh-board {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em;
+  }
+  .aas-shorthand-demo .sh-key {
+    width: 1.28em;
+    height: 1.32em;
+    padding: 0;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    line-height: 1;
+    color: var(--aas-muted);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.2em;
+    background: var(--aas-bg);
+    cursor: pointer;
+  }
+  .aas-shorthand-demo .sh-key.is-on {
+    color: var(--aas-text);
+    font-weight: 700;
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 28%, var(--aas-bg));
+  }
+  .aas-shorthand-demo .sh-counts {
+    flex: 0 0 auto;
+  }
+  .aas-shorthand-demo .sh-line {
+    display: flex;
+    gap: 0.1em;
+  }
+  .aas-shorthand-demo .sh-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.28em;
+    height: 1.32em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.2em;
+    background: var(--aas-bg);
+  }
+  .aas-shorthand-demo .sh-n.is-on {
+    color: var(--aas-text);
+    font-weight: 700;
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 28%, var(--aas-bg));
+  }
+  .aas-shorthand-demo .sh-note {
+    margin: 0.4em 0 0;
+    font-size: 0.8em;
+    color: var(--aas-text);
+    min-height: 2.8em;
+  }
+  .aas-shorthand-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-shorthand-demo * {
+      transition: none !important;
+    }
+  }
+</style>

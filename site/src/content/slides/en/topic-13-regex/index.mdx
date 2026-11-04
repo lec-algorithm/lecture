@@ -1,7 +1,7 @@
 ---
 title: "Topic 13. Regular Expressions and Automata"
 description: "Regular expressions, which write the strings to find as a set (a language); the limits of matching them by recursion and backtracking; and finite state automata and NFAs, which match through states and transitions without ever backing up"
-date: "Topic 13 · v1"
+date: "Topic 13 · v2"
 order: 13
 transition: none
 toc_level: 4
@@ -16,6 +16,15 @@ import LanguageDemo from '@components/LanguageDemo.astro';
 import RegexPlayDemo from '@components/RegexPlayDemo.astro';
 import BlowupDemo from '@components/BlowupDemo.astro';
 import ParenDemo from '@components/ParenDemo.astro';
+import ShorthandDemo from '@components/ShorthandDemo.astro';
+import ValidateDemo from '@components/ValidateDemo.astro';
+import Mod3Demo from '@components/Mod3Demo.astro';
+import CallGridDemo from '@components/CallGridDemo.astro';
+import FsaTableDemo from '@components/FsaTableDemo.astro';
+import SubsetDemo from '@components/SubsetDemo.astro';
+import NfaLabDemo from '@components/NfaLabDemo.astro';
+import ClosureDemo from '@components/ClosureDemo.astro';
+import MnWorkDemo from '@components/MnWorkDemo.astro';
 
 {/* Slides follow the "Slide rules" in docs/writing-rules.md.
     Numbers match the output of the practice code (topic-13-regex). */}
@@ -112,6 +121,15 @@ By the end of this topic we reach a method that keeps this promise.
 
 <Slide>
 
+### Try it: concatenation and or
+::sub[Switch tabs · concatenation gives one string, or gives one string per branch]
+
+<LanguageDemo regexes={['AB', 'A|B', 'A|E|I|O|U']} tests={{ 'AB': ['A', 'BA'], 'A|B': ['AB'], 'A|E|I|O|U': ['B', 'AE'] }} slide />
+
+</Slide>
+
+<Slide>
+
 #### Closure
 ::sub[Closure · part of the pattern repeats any number of times]
 
@@ -201,6 +219,15 @@ They are **abbreviations**, not new powers.
 
 <Slide>
 
+### Try it: character classes
+::sub[Press a piece to light up the characters it takes · press a key to add it to the string]
+
+<ShorthandDemo kind="class" slide />
+
+</Slide>
+
+<Slide>
+
 #### Closure shorthands
 ::sub[A different number of repetitions]
 
@@ -210,6 +237,15 @@ They are **abbreviations**, not new powers.
 | `?` | at most one (including zero) | `AB?` | `A\|AB` |
 | `{n}` | exactly n | `[0-9]{3}` | `[0-9][0-9][0-9]` |
 | `{m,n}` | at least m, at most n | `A{2,3}` | `AA\|AAA` |
+
+</Slide>
+
+<Slide>
+
+### Try it: count shorthands
+::sub[Pick an example to see it written with the three operations · blue cells are the copies]
+
+<ShorthandDemo kind="quant" slide />
 
 </Slide>
 
@@ -226,6 +262,15 @@ They are **abbreviations**, not new powers.
 | `\n` | newline |
 | `\s` | whitespace (space, tab, newline, …) |
 | `\d` | one digit, the same as `[0-9]` |
+
+</Slide>
+
+<Slide>
+
+### Try it: special characters
+::sub[Feed the same string to `A.B` and `A\.B`]
+
+<ShorthandDemo kind="escape" slide />
 
 </Slide>
 
@@ -263,51 +308,28 @@ Search tools such as `grep` ask this question for every line.
 
 <Slide>
 
-#### Validation: phone numbers
-::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
+### Validation: phone numbers
+::sub[Change the example and see which piece gets stuck · a character takes the color of the piece that ate it]
 
-| Piece | Meaning |
-| --- | --- |
-| `\(` `\)` | literal parentheses (escape sequences) |
-| `[0-9]` | one digit from 0\~9 |
-| `{3}` | repeated exactly 3 times |
-
-<br/>
-
-`(800) 867-5309` belongs to it.  
-A Korean mobile number: `\d{3}-\d{3,4}-\d{4}`, for example `010-1234-5678`
+<ValidateDemo tabs={['phone', 'mobile']} slide />
 
 </Slide>
 
 <Slide>
 
-#### Validation: email addresses
-::sub[`[a-z]+@([a-z]+\.)+(edu|com)`]
+### Validation: email addresses
+::sub[`([a-z]+\.)+` eats `cs.` and `princeton.` one at a time · real checks are wider]
 
-| Piece | Meaning |
-| --- | --- |
-| `+` | one or more repetitions |
-| `\.` | a real dot, not any character |
-| `(edu\|com)` | restricted to edu or com |
-
-<br/>
-
-`rs@cs.princeton.edu` belongs to it.  
-In practice it is widened, as in `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+<ValidateDemo tabs={['email', 'wide']} slide />
 
 </Slide>
 
 <Slide>
 
-#### Validation: URLs
-::sub[`https?://[^\s/$.?#].[^\s]*`]
+### Validation: URLs
+::sub[In `https?` the s is optional · the first character of the address is not a space or `/ $ . ? #`]
 
-- `https?`
-  - The `s` may or may not be there, so both http and https
-- `[^\s/$.?#]`
-  - The first character of the address is not whitespace or `/ $ . ? #`.
-- `[^\s]*`
-  - then everything up to the next whitespace
+<ValidateDemo tabs={['url']} slide />
 
 </Slide>
 
@@ -348,6 +370,15 @@ In practice it is widened, as in `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
 <br/>
 
 We actually run this regex as an NFA in Example 3.
+
+</Slide>
+
+<Slide>
+
+### Why multiples of 3?
+::sub[The value doubles and the bit is added · only three remainders need remembering]
+
+<Mod3Demo slide />
 
 </Slide>
 
@@ -458,45 +489,12 @@ static bool matchStar(char c, const char *pattern, const char *text) {
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Run
-::sub[`search("ab*c", "aabbc")` · found at position 1 after 9 calls to match]
+### Try it: run
+::sub[Press a pair and step through · the position and comparisons match the practice code]
 
-<div class="aas-split">
-<div>
-
-```console
-search("ab*c", "aabbc")
-  start 0
-    match("ab*c", "aabbc")
-      match("b*c", "abbc")
-          match("c", "abbc")
-  start 1
-    match("ab*c", "abbc")
-      match("b*c", "bbc")
-          match("c", "bbc")
-          match("c", "bc")
-          match("c", "c")
-            match("", "")
-  -> found at 1, comparisons = 9
-```
-
-</div>
-<div>
-
-```console
-tests
-  pattern  text        at  comparisons
-  ab*c     ac           0            4
-  ab*c     abbbbc       0            8
-  ab*c     abd         -1            7
-  a.c      xxabcxx      2            6
-  .*ab*c   zzabbbcz     0           10
-```
-
-</div>
-</div>
+<RegexMatchDemo cases={[['ab*c', 'aabbc'], ['ab*c', 'ac'], ['ab*c', 'abbbbc'], ['ab*c', 'abd'], ['a.c', 'xxabcxx'], ['.*ab*c', 'zzabbbcz']]} slide />
 
 </Slide>
 
@@ -526,6 +524,15 @@ tests
 
 It tries **every way** of handing the as out among the `a*`s.  
 $$\binom{2n+1}{n}$$, growing almost like $$4^n$$: **exponential time**.
+
+</Slide>
+
+<Slide>
+
+### Try it: how often is a cell called?
+::sub[One cell is match(pattern left, text left) · the number is how many times it was called]
+
+<CallGridDemo slide />
 
 </Slide>
 
@@ -623,6 +630,15 @@ From S1 to S2 it moves with no input. That is the ε-transition.
 
 </Slide>
 
+<Slide>
+
+### Try it: edit the transition table
+::sub[Change cells and accept states · the last column comes from really running the table]
+
+<FsaTableDemo start="back" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### The procedure
@@ -666,38 +682,12 @@ bool accept(const char *input) {
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Run
+### Try it: run
 ::sub[Two ways to be rejected: nowhere to go, or ending outside an accept state]
 
-<div class="aas-split">
-<div>
-
-```console
-input "abd"
-  start S0
-  'a' -> S1
-  eps -> S2
-  'b' -> S3
-  'd' -> no move from S3: reject
-```
-
-</div>
-<div>
-
-```console
-summary
-  abc      accept
-  abbbbc   accept
-  ac       accept
-  ab       reject
-  abd      reject
-  abcc     reject
-```
-
-</div>
-</div>
+<FsaDemo input="abc" cases={['abc', 'abbbbc', 'ac', 'ab', 'abd', 'abcc']} slide />
 
 </Slide>
 
@@ -741,6 +731,15 @@ Could we build the automaton from the regex automatically?
 
 <Slide>
 
+### Try it: the blow-up in states
+::sub[The language whose k-th character from the end is a · raise k and really build the DFA]
+
+<SubsetDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### How to build it
 ::sub[Wrap the regex in parentheses, one state per character · states 0…M, M accepts]
 
@@ -754,6 +753,15 @@ Could we build the automaton from the regex automatically?
 <br/>
 
 Matching parentheses are found with a stack.
+
+</Slide>
+
+<Slide>
+
+### Try it: from rules to a graph
+::sub[Edit the regex and the graph is rebuilt · press a rule or a transition]
+
+<NfaLabDemo slide />
 
 </Slide>
 
@@ -807,6 +815,15 @@ When the text is used up, accept if the set contains the accept state.
 
 <Slide>
 
+### Try it: ε-closure
+::sub[Press states in the graph to choose the start set · a blue rim marks the start set]
+
+<ClosureDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### Step by step: is 1001 a multiple of 3?
 ::sub[Solid black: match transitions, dashed blue: ε-transitions · orange is the current set]
 
@@ -836,48 +853,12 @@ It does not carry just one state, so **there is nothing to back up to**.
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Run
-::sub[`nfaRegex.c` · the demo's eight sets and the seven examples from the original material]
+### Try it: run
+::sub[On the right are the lines `nfaRegex.c` prints · 16 is in the start set because the empty string is 0, a multiple of 3]
 
-<div class="aas-split">
-<div>
-
-```console
-text = 1001
-  start      {0 1 2 4 14 15 16}
-  read '1'   {5}
-  closure    {5 6 11 12}
-  read '0'   {7}
-  closure    {7 8 9}
-  read '0'   {10}
-  closure    {5 6 10 11 12}
-  read '1'   {13}
-  closure    {1 2 4 13 14 15 16}
-  -> accept
-```
-
-</div>
-<div>
-
-```console
-  text   value  result
-  11         3  accept
-  110        6  accept
-  1001       9  accept
-  1100      12  accept
-  10         2  reject
-  1011      11  reject
-  10000     16  reject
-```
-
-</div>
-</div>
-
-<br/>
-
-The start set already holds 16 because the empty string is 0, a multiple of 3.
+<NfaDemo texts={['11', '110', '1001', '1100', '10', '1011', '10000']} binary trace slide />
 
 </Slide>
 
@@ -891,6 +872,15 @@ The start set already holds 16 because the empty string is 0, a multiple of 3.
   - A set holds at most $$M+1$$ states.
   - With adjacency lists, the DFS of an ε-closure sees each state and transition once.
   - $$O(M)$$ per character, $$O(MN)$$ in the worst case overall
+
+</Slide>
+
+<Slide>
+
+### Try it: measuring O(MN)
+::sub[Raise M or N · one bar is the work while reading one character]
+
+<MnWorkDemo slide />
 
 </Slide>
 
@@ -920,6 +910,15 @@ The start set already holds 16 because the empty string is 0, a multiple of 3.
 
 Backtracking follows possibilities **one after another**; the NFA follows them **all at once**.  
 Even if two paths reach the same state, it enters the set only once.
+
+</Slide>
+
+<Slide>
+
+### Try it: computing each cell once
+::sub[The same cell has the same answer · switch tabs and compare the comparisons]
+
+<CallGridDemo n={10} dedupe slide />
 
 </Slide>
 

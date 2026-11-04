@@ -8,17 +8,23 @@
 //
 // 절차와 결과는 algorithm-code의 regexMatch.c · regex_match.py와 같다.
 // 기본 입력 search("ab*c", "aabbc")는 위치 1에서 찾고, match를 9번 부른다.
+//
+// cases를 주면 패턴과 텍스트 칸, 그리고 눌러 볼 묶음을 함께 보인다. 묶음마다 찾은 위치와
+// 비교 횟수를 미리 계산해 적으니 실습 코드의 tests 표와 같다. 지금 쓰는 문법은 표에서 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexSyntaxKey from './RegexSyntaxKey.astro';
 
 interface Props {
   /** 글자, '.', 'x*'로 된 패턴 */
   pattern?: string;
   /** 찾을 텍스트 */
   text?: string;
+  /** 눌러 볼 [패턴, 텍스트] 묶음. 주면 입력 칸도 함께 보인다. */
+  cases?: [string, string][];
   /** 슬라이드용: 글자와 칸을 키운다. */
   slide?: boolean;
 }
-const { pattern = 'ab*c', text = 'aabbc', slide = false } = Astro.props;
+const { pattern = 'ab*c', text = 'aabbc', cases = [], slide = false } = Astro.props;
 const id = `rm-${Math.random().toString(36).slice(2, 9)}`;
 
 const STRINGS: Record<string, Record<string, string>> = {
@@ -43,6 +49,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     end: "텍스트가 끝났는데 '{pc}'가 남았습니다 → 실패. 되돌아갑니다.",
     found: '위치 {i}에서 찾았습니다. match를 {n}번 불렀습니다.',
     none: '어느 위치에서도 맞지 않습니다. match를 {n}번 불렀습니다.',
+    errPat: "패턴은 글자, '.', 'x*'로만 적습니다.",
+    errBig: '이 입력은 match를 {n}번 부릅니다. 한 걸음씩 보기에 너무 많으니 줄여 보세요.',
+    caseAt: '위치',
+    caseCalls: '비교',
   },
   en: {
     title: 'Backtracking match',
@@ -65,6 +75,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     end: "The text ran out but '{pc}' is left → fail. Back up.",
     found: 'Found at position {i}. match was called {n} times.',
     none: 'No position matches. match was called {n} times.',
+    errPat: "A pattern is written with characters, '.' and 'x*' only.",
+    errBig: 'This input calls match {n} times. That is too many to step through, so make it smaller.',
+    caseAt: 'at',
+    caseCalls: 'calls',
   },
   zh: {
     title: '回溯匹配',
@@ -87,6 +101,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     end: "文本已结束，但还剩 '{pc}' → 失败。退回。",
     found: '在位置 {i} 找到。共调用 match {n} 次。',
     none: '任何位置都不匹配。共调用 match {n} 次。',
+    errPat: "模式只能由字符、'.' 和 'x*' 组成。",
+    errBig: '这个输入会调用 match {n} 次。太多了，不便逐步查看，请减小输入。',
+    caseAt: '位置',
+    caseCalls: '比较',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -98,6 +116,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   id={id}
   data-rm-pattern={pattern}
   data-rm-text={text}
+  data-rm-cases={JSON.stringify(cases)}
   data-rm-strings={JSON.stringify(t)}
 >
   <div class="rm-bar">
@@ -110,25 +129,31 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     </div>
   </div>
 
+  {cases.length > 0 && (
+    <>
+      <div class="rm-cases" data-rm-chips></div>
+      <div class="rm-fields">
+        <label>{t.patternLabel}<input type="text" maxlength="10" spellcheck="false" autocomplete="off" value={pattern} data-rm-in="p" /></label>
+        <label>{t.textLabel}<input type="text" maxlength="12" spellcheck="false" autocomplete="off" value={text} data-rm-in="t" /></label>
+        <span class="rm-error" data-rm-error></span>
+      </div>
+    </>
+  )}
+
   <div class="rm-body">
     <div class="rm-main">
       <div class="rm-row">
         <span class="rm-label">{t.textLabel}</span>
-        <span class="rm-cells">
-          {[...text].map((c, i) => <span class="rm-cell" data-rm-t={i}>{c}</span>)}
-          <span class="rm-cell is-end" data-rm-t={text.length}></span>
-        </span>
+        <span class="rm-cells" data-rm-tcells></span>
       </div>
       <div class="rm-row">
         <span class="rm-label">{t.patternLabel}</span>
-        <span class="rm-cells">
-          {[...pattern].map((c, i) => <span class="rm-cell" data-rm-p={i}>{c}</span>)}
-          <span class="rm-cell is-end" data-rm-p={pattern.length}></span>
-        </span>
+        <span class="rm-cells" data-rm-pcells></span>
       </div>
       <div class="rm-stats">
         <span>{t.calls}<strong data-rm-count>0</strong></span>
         <span>{t.depth}<strong data-rm-depth>0</strong></span>
+        <span class="rm-key"><RegexSyntaxKey set="backtrack" /></span>
       </div>
       <p class="rm-note" data-rm-note></p>
     </div>
@@ -147,8 +172,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
 
-    const P = root.dataset.rmPattern;
-    const T = root.dataset.rmText;
+    let P = root.dataset.rmPattern;
+    let T = root.dataset.rmText;
     const S = JSON.parse(root.dataset.rmStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
 
@@ -228,22 +253,44 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       return { steps, lines };
     }
 
-    const { steps, lines } = plan();
-    const tCells = [...root.querySelectorAll('[data-rm-t]')];
-    const pCells = [...root.querySelectorAll('[data-rm-p]')];
+    let { steps, lines } = plan();
+    let tCells = [];
+    let pCells = [];
+    const tBox = root.querySelector('[data-rm-tcells]');
+    const pBox = root.querySelector('[data-rm-pcells]');
+    const keyCells = [...root.querySelectorAll('[data-sk-token]')];
+    function buildCells(box, word) {
+      const cells = [...word].map((c) => {
+        const el = document.createElement('span');
+        el.className = 'rm-cell';
+        el.textContent = c;
+        return el;
+      });
+      const end = document.createElement('span');
+      end.className = 'rm-cell is-end';
+      cells.push(end);
+      box.replaceChildren(...cells);
+      return cells;
+    }
+    tCells = buildCells(tBox, T);
+    pCells = buildCells(pBox, P);
     const log = root.querySelector('[data-rm-log]');
     const note = root.querySelector('[data-rm-note]');
     const countEl = root.querySelector('[data-rm-count]');
     const depthEl = root.querySelector('[data-rm-depth]');
 
     /* 기록 줄은 한 번에 다 만들어 두고, 단계마다 보이는 줄 수와 색만 바꾼다. */
-    const lineEls = lines.map((ln) => {
-      const el = document.createElement('span');
-      el.className = 'rm-line';
-      el.textContent = `${ln.text}\n`;
-      log.appendChild(el);
-      return el;
-    });
+    let lineEls = [];
+    function buildLines() {
+      lineEls = lines.map((ln) => {
+        const el = document.createElement('span');
+        el.className = 'rm-line';
+        el.textContent = `${ln.text}\n`;
+        return el;
+      });
+      log.replaceChildren(...lineEls);
+    }
+    buildLines();
 
     function render(s) {
       const step = s >= 0 ? steps[s] : null;
@@ -282,6 +329,13 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           && (step.kind === 'bad' || step.kind === 'end'));
         cell.classList.toggle('is-yes', yes);
       });
+      /* 지금 패턴 자리가 어떤 문법인지 표에서 칠한다. */
+      let token = null;
+      if (step && !step.done && step.p !== null && step.p < P.length) {
+        if (P[step.p + 1] === '*') token = 'x*';
+        else token = P[step.p] === '.' ? '.' : 'x';
+      }
+      keyCells.forEach((c) => c.classList.toggle('is-now', c.dataset.skToken === token));
       countEl.textContent = String(step ? step.calls : 0);
       depthEl.textContent = String(step && !step.done ? step.depth : 0);
       setLines(note, step ? step.note : fill(S.idle, { p: P, t: T }));
@@ -329,6 +383,91 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       timer = setInterval(step, 1100);
     });
 
+    /* cases: 패턴과 텍스트를 바꾸면 처음부터 다시 돈다. */
+    const errEl = root.querySelector('[data-rm-error]');
+    const inP = root.querySelector('[data-rm-in="p"]');
+    const inT = root.querySelector('[data-rm-in="t"]');
+    /* 단계를 쌓기 전에 호출 수만 먼저 센다. */
+    function countCalls(p0, t0) {
+      let calls = 0;
+      const LIMIT = 400;
+      const match = (p, t) => {
+        calls += 1;
+        if (calls > 200000) return true;
+        if (p === p0.length) return true;
+        if (p0[p + 1] === '*') {
+          if (match(p + 2, t)) return true;
+          while (t < t0.length && (t0[t] === p0[p] || p0[p] === '.')) {
+            t += 1;
+            if (match(p + 2, t)) return true;
+          }
+          return false;
+        }
+        if (t < t0.length && (p0[p] === '.' || p0[p] === t0[t])) return match(p + 1, t + 1);
+        return false;
+      };
+      let at = -1;
+      for (let i = 0; i <= t0.length; i++) {
+        if (match(0, i)) {
+          at = i;
+          break;
+        }
+      }
+      return { calls, at, big: calls > LIMIT };
+    }
+    const chips = JSON.parse(root.dataset.rmCases).map(([p, x]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'rm-case';
+      const r = countCalls(p, x);
+      const code = document.createElement('code');
+      code.textContent = `${p} · ${x}`;
+      const small = document.createElement('small');
+      small.textContent = `${S.caseAt} ${r.at} · ${S.caseCalls} ${r.calls}`;
+      b.append(code, small);
+      b.dataset.rmCase = `${p}|${x}`;
+      b.addEventListener('click', () => {
+        inP.value = p;
+        inT.value = x;
+        load();
+      });
+      return b;
+    });
+    const chipBox = root.querySelector('[data-rm-chips]');
+    if (chipBox) chipBox.replaceChildren(...chips);
+    function markChips() {
+      chips.forEach((b) => b.classList.toggle('is-on', b.dataset.rmCase === `${P}|${T}`));
+    }
+    function load() {
+      stop();
+      const p = inP.value;
+      const x = inT.value;
+      errEl.textContent = '';
+      if (!/^([^*]\*?)*$/.test(p)) {
+        errEl.textContent = S.errPat;
+        return;
+      }
+      const r = countCalls(p, x);
+      if (r.big) {
+        errEl.textContent = fill(S.errBig, { n: r.calls > 200000 ? '200,000+' : r.calls.toLocaleString('en-US') });
+        return;
+      }
+      P = p;
+      T = x;
+      ({ steps, lines } = plan());
+      tCells = buildCells(tBox, T);
+      pCells = buildCells(pBox, P);
+      buildLines();
+      at = -1;
+      render(-1);
+      markChips();
+    }
+    if (inP) {
+      inP.addEventListener('input', load);
+      inT.addEventListener('input', load);
+    }
+    markChips();
+
     render(-1);
   })();
 </script>
@@ -375,6 +514,74 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     color: #fff;
   }
 
+  .aas-regex-match-demo .rm-cases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    margin-bottom: 0.4em;
+  }
+  .aas-regex-match-demo .rm-case {
+    display: inline-flex;
+    gap: 0.5em;
+    align-items: baseline;
+    padding: 0.08em 0.55em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-regex-match-demo .rm-case code {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font-weight: 700;
+  }
+  .aas-regex-match-demo .rm-case small {
+    font-size: 0.82em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-regex-match-demo .rm-case:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-regex-match-demo .rm-case.is-on {
+    border-color: var(--aas-accent);
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+  }
+  .aas-regex-match-demo .rm-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    align-items: center;
+    margin-bottom: 0.6em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-regex-match-demo .rm-fields label {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-regex-match-demo .rm-fields input {
+    width: 7em;
+    padding: 0.12em 0.4em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-regex-match-demo .rm-error {
+    font-weight: 700;
+    color: var(--aas-role-guard);
+  }
+  .aas-regex-match-demo .rm-key {
+    margin-left: auto;
+  }
   .aas-regex-match-demo .rm-body {
     display: flex;
     flex-wrap: wrap;
@@ -447,7 +654,9 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   }
   .aas-regex-match-demo .rm-stats {
     display: flex;
-    gap: 1.2em;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3em 1.2em;
     font-size: 0.85em;
     color: var(--aas-muted);
   }

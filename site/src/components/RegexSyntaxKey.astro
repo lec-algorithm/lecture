@@ -1,0 +1,90 @@
+---
+// 주제 13의 문법 표. 기호와 뜻을 데모 안에서 바로 보게 한다.
+//
+// 데모가 [data-sk-token]에 is-now를 달면 그 기호의 열이 칠해진다(지금 쓰는 기호).
+// 축약어 슬라이드까지 오가지 않아도 되도록 슬라이드의 표와 같은 뜻을 짧게 적었다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** core 세 연산과 괄호 · backtrack 예제 1의 문법 · class 문자 집합 · quant 횟수 · escape 이스케이프 */
+  set?: 'core' | 'backtrack' | 'class' | 'quant' | 'escape';
+}
+const { set = 'core' } = Astro.props;
+type Row = [string, string];
+const TABLE: Record<string, Record<string, Row[]>> = {
+  ko: {
+    core: [['.', '아무 글자'], ['*', '앞을 0번 이상'], ['|', '또는'], ['( )', '묶기']],
+    backtrack: [['x', '그 글자'], ['.', '아무 글자'], ['x*', 'x를 0개 이상']],
+    class: [['.', '아무 글자'], ['[ ]', '나열 중 하나'], ['[A-Z]', '범위 안 하나'], ['[^ ]', '나열 밖 하나']],
+    quant: [['+', '1번 이상'], ['?', '0번 또는 1번'], ['{n}', '정확히 n번'], ['{m,n}', 'm번에서 n번'], ['{m,}', 'm번 이상']],
+    escape: [['\\.', '점 그 자체'], ['\\\\', '역슬래시'], ['\\t', '탭'], ['\\n', '개행'], ['\\s', '공백 문자'], ['\\d', '숫자 하나']],
+  },
+  en: {
+    core: [['.', 'any char'], ['*', 'zero or more'], ['|', 'or'], ['( )', 'group']],
+    backtrack: [['x', 'that char'], ['.', 'any char'], ['x*', 'zero or more x']],
+    class: [['.', 'any char'], ['[ ]', 'one listed'], ['[A-Z]', 'one in range'], ['[^ ]', 'one not listed']],
+    quant: [['+', '1 or more'], ['?', '0 or 1'], ['{n}', 'exactly n'], ['{m,n}', 'm to n'], ['{m,}', 'm or more']],
+    escape: [['\\.', 'a literal dot'], ['\\\\', 'backslash'], ['\\t', 'tab'], ['\\n', 'newline'], ['\\s', 'whitespace'], ['\\d', 'one digit']],
+  },
+  zh: {
+    core: [['.', '任意字符'], ['*', '前项 0 次以上'], ['|', '或'], ['( )', '分组']],
+    backtrack: [['x', '该字符'], ['.', '任意字符'], ['x*', '0 个以上 x']],
+    class: [['.', '任意字符'], ['[ ]', '所列之一'], ['[A-Z]', '范围内之一'], ['[^ ]', '所列之外之一']],
+    quant: [['+', '1 次以上'], ['?', '0 或 1 次'], ['{n}', '恰好 n 次'], ['{m,n}', 'm 到 n 次'], ['{m,}', 'm 次以上']],
+    escape: [['\\.', '点本身'], ['\\\\', '反斜杠'], ['\\t', '制表符'], ['\\n', '换行'], ['\\s', '空白字符'], ['\\d', '一个数字']],
+  },
+};
+const LABELS: Record<string, { sym: string; mean: string }> = {
+  ko: { sym: '기호', mean: '뜻' },
+  en: { sym: 'symbol', mean: 'meaning' },
+  zh: { sym: '符号', mean: '含义' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const rows = (TABLE[lang] ?? TABLE.ko)[set];
+const l = LABELS[lang] ?? LABELS.ko;
+---
+
+<div class="aas-syntax-key" style={`--sk-cols: ${rows.length}`}>
+  <span class="sk-label">{l.sym}</span>
+  {rows.map(([s]) => <code class="sk-cell sk-sym" data-sk-token={s}>{s}</code>)}
+  <span class="sk-label">{l.mean}</span>
+  {rows.map(([s, m]) => <span class="sk-cell" data-sk-token={s}>{m}</span>)}
+</div>
+
+<style is:global>
+  .aas-syntax-key {
+    display: inline-grid;
+    grid-template-columns: auto repeat(var(--sk-cols), auto);
+    font-size: 0.68em;
+    line-height: 1.3;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-syntax-key .sk-label {
+    padding: 0.05em 0.6em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-syntax-key .sk-cell {
+    padding: 0.05em 0.55em;
+    text-align: center;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+  }
+  .aas-syntax-key code.sk-sym {
+    background: none;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-syntax-key .sk-cell.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-syntax-key .sk-cell {
+      transition: none;
+    }
+  }
+</style>

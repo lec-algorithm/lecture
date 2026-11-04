@@ -15,8 +15,9 @@
 // "어디서 매치가 끝나는가"와 "전체가 속하는가"가 언어만으로 정해지므로 브라우저의
 // RegExp와 답이 같아야 한다. 화면에서도 RegExp로 한 번 더 물어 같은지 보여 준다.
 // 괄호 한 쌍에 '|'가 여럿이어도 되도록 ')'에서 '|'를 모두 꺼낸다. '|'가 하나면
-// 실습 코드와 같은 그래프다.
+// 실습 코드와 같은 그래프다. 받는 문법은 표로 두고, 정규식에 쓴 기호를 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexSyntaxKey from './RegexSyntaxKey.astro';
 
 interface Props {
   regex?: string;
@@ -175,6 +176,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     <span class="rp-verdict" data-rp-main></span>
     <span class="rp-js" data-rp-js></span>
     <span class="rp-work">{t.work} <strong data-rp-work></strong></span>
+    <span class="rp-key"><RegexSyntaxKey set="core" /></span>
   </div>
 
   {list.length > 0 && <div class="rp-list" data-rp-listbox></div>}
@@ -302,6 +304,10 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     function render() {
       const re = reIn.value;
       const tx = txIn.value;
+      root.querySelectorAll('[data-sk-token]').forEach((c) => {
+        const k = c.dataset.skToken;
+        c.classList.toggle('is-now', k === '( )' ? /[()]/.test(re) : re.includes(k));
+      });
       presetBtns.forEach((b) => {
         const [r, x] = JSON.parse(b.dataset.rpPreset);
         b.classList.toggle('is-on', r === re && x === tx);
@@ -569,9 +575,14 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     flex-wrap: wrap;
     gap: 0.4em 1em;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     margin-top: 0.6em;
     font-size: 0.85em;
+  }
+  .aas-regex-play-demo .rp-key {
+    display: inline-flex;
+    margin-left: auto;
+    font-size: 1em;
   }
   .aas-regex-play-demo .rp-verdict {
     font-weight: 700;

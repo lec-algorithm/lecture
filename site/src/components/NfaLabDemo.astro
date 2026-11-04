@@ -1,0 +1,351 @@
+---
+// 정규식을 고치면 NFA 그림이 다시 만들어지는 데모.
+//
+// "이 그림은 손으로 그렸습니다"의 답이다. 정규식을 적으면 regexCore의 BuildNFA가 바로
+// 그래프를 만든다. 규칙 칸을 누르면 그 규칙이 더한 전이를 모두 칠하고, 그림의 전이를
+// 누르면 어느 규칙이 왜 더했는지 알려 준다. 상태 수와 전이 수도 함께 세어, 글자 수 M에
+// 비례한다는 분석을 숫자로 본다. 규칙 표는 "만드는 법" 슬라이드와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexCore from './RegexCore.astro';
+import NfaRuleKey from './NfaRuleKey.astro';
+
+interface Props {
+  regex?: string;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { regex = '(A*B|AC)D', slide = false } = Astro.props;
+const id = `nl-${Math.random().toString(36).slice(2, 9)}`;
+const PRESETS = ['ab', 'a*', '(ab)*', '(a|b)', '(a|b)*c', '(A*B|AC)D', '(0|1(01*0)*1)*'];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '규칙에서 그래프로',
+    regex: '정규식',
+    m: '글자 M',
+    states: '상태',
+    match: '매치 전이',
+    eps: 'ε 전이',
+    perM: '전이 ÷ M',
+    errChar: "쓸 수 있는 것은 글자, '.', '*', '|', 괄호뿐입니다.",
+    errParen: '괄호 짝이 맞지 않습니다.',
+    errStar: "'*' 앞에 반복할 덩어리가 없습니다.",
+    errLen: '정규식은 24글자까지입니다.',
+    idle: '정규식을 고치면 그림이 바로 다시 만들어집니다. 표의 규칙을 누르면 그 규칙이 더한 전이를 칠하고, 그림의 전이를 누르면 왜 있는지 알려 줍니다.',
+    rule_match: '글자 상태는 그 글자를 읽고 다음 상태로 갑니다. 이 정규식에 {n}개 있습니다.',
+    rule_sym: "'(', ')', '*'는 읽을 글자가 없으니 바로 다음 상태로 갑니다. 이 정규식에 {n}개 있습니다.",
+    rule_star: "덩어리 시작과 '*' 사이를 양쪽으로 잇습니다. 건너뛰면 0번, 돌아오면 한 번 더입니다. 이 정규식에 {n}개 있습니다.",
+    rule_or: "'('에서 오른쪽 갈래로, '|'에서 ')'로 갑니다. 이 정규식에 {n}개 있습니다.",
+    edge_match: "{a}→{b}: 글자 '{c}'를 읽고 다음으로 가는 매치 전이입니다.",
+    edge_sym: "{a}→{b}: '{c}'는 읽을 글자가 없으니 바로 다음으로 갑니다.",
+    edge_star0: "{a}→{b}: 덩어리를 0번 쓰도록 '*'로 건너뜁니다.",
+    edge_star1: "{a}→{b}: '*'에서 덩어리 시작으로 돌아가 한 번 더 씁니다.",
+    edge_orB: "{a}→{b}: '('에서 왼쪽 갈래를 건너뛰고 오른쪽 갈래로 갑니다.",
+    edge_orEnd: "{a}→{b}: 왼쪽 갈래를 마치고 '|'에서 ')'로 갑니다.",
+  },
+  en: {
+    title: 'From rules to a graph',
+    regex: 'regex',
+    m: 'length M',
+    states: 'states',
+    match: 'match',
+    eps: 'ε',
+    perM: 'transitions ÷ M',
+    errChar: "Only letters, '.', '*', '|' and parentheses are allowed.",
+    errParen: 'The parentheses do not match.',
+    errStar: "There is nothing before '*' to repeat.",
+    errLen: 'Up to 24 characters for the regex.',
+    idle: 'Edit the regex and the graph is rebuilt at once. Press a rule in the table to highlight the transitions it added, or press a transition in the graph to see why it is there.',
+    rule_match: 'A character state reads that character and moves to the next state. This regex has {n} of them.',
+    rule_sym: "'(', ')' and '*' read nothing, so they move straight to the next state. This regex has {n} of them.",
+    rule_star: "Connect the start of the block and '*' both ways. Skipping means zero times, and coming back means once more. This regex has {n} of them.",
+    rule_or: "Go from '(' to the right branch and from '|' to ')'. This regex has {n} of them.",
+    edge_match: "{a}→{b}: a match transition that reads '{c}' and moves on.",
+    edge_sym: "{a}→{b}: '{c}' reads nothing, so it moves straight on.",
+    edge_star0: "{a}→{b}: skip to '*' so the block is used zero times.",
+    edge_star1: "{a}→{b}: go back from '*' to the start of the block to use it once more.",
+    edge_orB: "{a}→{b}: skip the left branch and go from '(' to the right branch.",
+    edge_orEnd: "{a}→{b}: the left branch is done, so go from '|' to ')'.",
+  },
+  zh: {
+    title: '从规则到图',
+    regex: '正则',
+    m: '长度 M',
+    states: '状态',
+    match: '匹配转移',
+    eps: 'ε 转移',
+    perM: '转移 ÷ M',
+    errChar: "只能使用字母、'.'、'*'、'|' 和括号。",
+    errParen: '括号不配对。',
+    errStar: "'*' 前面没有可重复的部分。",
+    errLen: '正则最多 24 个字符。',
+    idle: '修改正则，图会立刻重新构造。点击表中的规则会高亮它添加的转移，点击图中的转移会说明它为什么存在。',
+    rule_match: '字符状态读入该字符后转到下一个状态。这个正则中有 {n} 条。',
+    rule_sym: "'('、')'、'*' 没有要读的字符，直接转到下一个状态。这个正则中有 {n} 条。",
+    rule_star: "把部分的开始和 '*' 双向连接。跳过是 0 次，回来是再来一次。这个正则中有 {n} 条。",
+    rule_or: "从 '(' 到右分支，从 '|' 到 ')'。这个正则中有 {n} 条。",
+    edge_match: "{a}→{b}：读入字符 '{c}' 后前进的匹配转移。",
+    edge_sym: "{a}→{b}：'{c}' 没有要读的字符，直接前进。",
+    edge_star0: "{a}→{b}：跳到 '*'，这样部分用 0 次。",
+    edge_star1: "{a}→{b}：从 '*' 回到部分的开始，再用一次。",
+    edge_orB: "{a}→{b}：从 '(' 跳过左分支，转到右分支。",
+    edge_orEnd: "{a}→{b}：左分支结束，从 '|' 转到 ')'。",
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<RegexCore />
+<div class:list={['aas-nfa-lab-demo', slide && 'is-slide']} id={id} data-nl-regex={regex} data-nl-strings={JSON.stringify(t)}>
+  <div class="nl-bar">
+    <span class="nl-head"><strong>{t.title}</strong></span>
+    <div class="nl-chips">
+      {PRESETS.map((r) => <button type="button" class="nl-chip" data-nl-preset={r}><code>{r}</code></button>)}
+    </div>
+  </div>
+
+  <div class="nl-row">
+    <label class="nl-field">
+      {t.regex}
+      <input type="text" maxlength="24" spellcheck="false" autocomplete="off" data-nl-re />
+    </label>
+    <NfaRuleKey buttons />
+  </div>
+
+  <p class="nl-error" data-nl-error hidden></p>
+  <div class="nl-fig" data-nl-fig></div>
+
+  <div class="nl-stats" data-nl-stats>
+    <span>{t.m} <strong data-nl-m></strong></span>
+    <span>{t.states} <strong data-nl-states></strong></span>
+    <span>{t.match} <strong data-nl-match></strong></span>
+    <span>{t.eps} <strong data-nl-eps></strong></span>
+    <span>{t.perM} <strong data-nl-ratio></strong></span>
+  </div>
+  <p class="nl-note" data-nl-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.nlStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const core = globalThis.aasRegexCore;
+
+    const reIn = root.querySelector('[data-nl-re]');
+    const errEl = root.querySelector('[data-nl-error]');
+    const fig = root.querySelector('[data-nl-fig]');
+    const stats = root.querySelector('[data-nl-stats]');
+    const note = root.querySelector('[data-nl-note]');
+    const presets = [...root.querySelectorAll('[data-nl-preset]')];
+    const ruleCells = [...root.querySelectorAll('[data-nk-rule]')];
+    const GROUP = { sym: 'sym', star0: 'star', star1: 'star', orB: 'or', orEnd: 'or' };
+    let g = null;
+    let edgeRules = new Map();  // 전이 열쇠 → 만든 규칙들
+    let picked = null;          // { rule } 또는 { key }
+
+    function paint() {
+      if (!g) return;
+      const keys = [...edgeRules.keys()];
+      let lit = new Set();
+      let group = null;
+      if (picked && picked.rule) {
+        group = picked.rule;
+        lit = new Set(keys.filter((k) => edgeRules.get(k).some((r) => (r === 'match' ? 'match' : GROUP[r]) === group)));
+      } else if (picked && picked.key) {
+        lit = new Set([picked.key]);
+        const r = edgeRules.get(picked.key)[0];
+        group = r === 'match' ? 'match' : GROUP[r];
+      }
+      keys.forEach((k) => core.paintEdge(root, id, k, lit.has(k)));
+      ruleCells.forEach((c) => c.classList.toggle('is-now', c.dataset.nkRule === group));
+      if (picked && picked.rule) {
+        setLines(note, fill(S[`rule_${group}`], { n: lit.size }));
+      } else if (picked && picked.key) {
+        const k = picked.key;
+        const [a, b] = k[0] === 'm' ? [Number(k.slice(1)), Number(k.slice(1)) + 1] : k.slice(1).split('-').map(Number);
+        const r = edgeRules.get(k)[0];
+        setLines(note, fill(S[`edge_${r}`], { a, b, c: g.re[a] }));
+      } else setLines(note, S.idle);
+    }
+
+    function render() {
+      const re = reIn.value;
+      presets.forEach((b) => b.classList.toggle('is-on', b.dataset.nlPreset === re));
+      const err = re.length > 24 ? 'errLen' : core.validate(re);
+      errEl.hidden = !err;
+      fig.hidden = !!err;
+      stats.hidden = !!err;
+      if (err) {
+        errEl.textContent = S[err];
+        g = null;
+        ruleCells.forEach((c) => c.classList.remove('is-now'));
+        setLines(note, '');
+        return;
+      }
+      g = core.build(re);
+      edgeRules = new Map();
+      for (let i = 0; i < g.M; i++) if (core.isLiteral(g.re[i])) edgeRules.set(`m${i}`, ['match']);
+      g.eps.forEach(([a, b], i) => {
+        const k = `e${a}-${b}`;
+        edgeRules.set(k, [...(edgeRules.get(k) ?? []), g.rules[i]]);
+      });
+      fig.innerHTML = core.svg(g, id, S.title);
+      fig.querySelectorAll('[data-ng-edge]').forEach((p) => p.addEventListener('click', () => {
+        picked = { key: p.dataset.ngEdge };
+        paint();
+      }));
+      const nMatch = [...edgeRules.keys()].filter((k) => k[0] === 'm').length;
+      root.querySelector('[data-nl-m]').textContent = String(g.M);
+      root.querySelector('[data-nl-states]').textContent = String(g.M + 1);
+      root.querySelector('[data-nl-match]').textContent = String(nMatch);
+      root.querySelector('[data-nl-eps]').textContent = String(g.eps.length);
+      root.querySelector('[data-nl-ratio]').textContent = ((nMatch + g.eps.length) / g.M).toFixed(2);
+      paint();
+    }
+
+    reIn.value = root.dataset.nlRegex;
+    reIn.addEventListener('input', () => {
+      picked = null;
+      render();
+    });
+    presets.forEach((b) => b.addEventListener('click', () => {
+      reIn.value = b.dataset.nlPreset;
+      picked = null;
+      render();
+    }));
+    root.querySelectorAll('[data-nk-pick]').forEach((b) => b.addEventListener('click', () => {
+      picked = picked && picked.rule === b.dataset.nkPick ? null : { rule: b.dataset.nkPick };
+      paint();
+    }));
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-nfa-lab-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-nfa-lab-demo .nl-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-nfa-lab-demo .nl-head {
+    font-size: 0.95em;
+  }
+  .aas-nfa-lab-demo .nl-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-nfa-lab-demo .nl-chip {
+    padding: 0.15em 0.6em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-nfa-lab-demo .nl-chip code {
+    padding: 0;
+    background: none;
+    color: inherit;
+  }
+  .aas-nfa-lab-demo .nl-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-nfa-lab-demo .nl-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-nfa-lab-demo .nl-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-nfa-lab-demo .nl-field {
+    flex: 1 1 12em;
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-nfa-lab-demo .nl-field input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.2em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-nfa-lab-demo .nl-error {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    font-weight: 700;
+    color: var(--aas-role-guard);
+  }
+  .aas-nfa-lab-demo .nl-fig {
+    margin-top: 0.5em;
+    overflow-x: auto;
+  }
+  .aas-nfa-lab-demo .nl-fig[hidden],
+  .aas-nfa-lab-demo .nl-stats[hidden] {
+    display: none;
+  }
+  .aas-nfa-lab-demo .nl-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.2em;
+    justify-content: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-nfa-lab-demo .nl-stats strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-nfa-lab-demo .nl-note {
+    margin: 0.4em 0 0;
+    font-size: 0.82em;
+    color: var(--aas-text);
+    min-height: 2.8em;
+  }
+  .aas-nfa-lab-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-nfa-lab-demo.is-slide .ng-graph {
+    max-height: 30vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-nfa-lab-demo * {
+      transition: none !important;
+    }
+  }
+</style>

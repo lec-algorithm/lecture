@@ -1,0 +1,395 @@
+---
+// ε 닫힘을 직접 따라가 보는 데모.
+//
+// 그림의 상태를 눌러 시작 집합을 고르거나 아래 단추로 1001을 읽을 때의 집합을 고른다.
+// 한 걸음마다 실습 코드의 dfs가 하는 일을 하나씩 한다(표시, 이미 표시된 곳 건너뛰기,
+// 되돌아오기). 칠한 상태가 지금까지의 집합, 아래 줄이 DFS의 재귀 스택이다.
+// 단추의 시작 집합과 결과는 nfaRegex.c 출력의 read 줄과 closure 줄과 같다.
+// {5} → {5 6 11 12}, {7} → {7 8 9}, {10} → {5 6 10 11 12}, {13} → {1 2 4 13 14 15 16}
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexCore from './RegexCore.astro';
+
+interface Props {
+  regex?: string;
+  /** 슬라이드용: 글자와 그림을 키운다. */
+  slide?: boolean;
+}
+const { regex = '(0|1(01*0)*1)*', slide = false } = Astro.props;
+const id = `cl-${Math.random().toString(36).slice(2, 9)}`;
+const SEEDS: [string, number[]][] = [
+  ['start', [0]],
+  ["'1'", [5]],
+  ["'0'", [7]],
+  ["'0' ", [10]],
+  ["'1' ", [13]],
+];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'ε 닫힘 따라가기',
+    seeds: '1001을 읽을 때',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    seed: '시작 집합',
+    stack: 'DFS 스택',
+    size: '집합',
+    edges: '살펴본 ε 전이',
+    idle: '그림의 상태를 눌러 시작 집합을 바꿔 보세요. 한 걸음씩 ε 전이만 따라갑니다.',
+    empty: '시작 집합이 비었습니다. 상태를 눌러 고르세요.',
+    mark: '상태 {v}: 집합에 넣고, 여기서 나가는 ε 전이를 차례로 봅니다.',
+    follow: '{f}→{v}: 전이를 따라가 집합에 {v}도 넣습니다.',
+    skip: '{v}→{w}: 이미 집합에 있으니 가지 않습니다.',
+    leave: '상태 {v}: 더 볼 ε 전이가 없어 되돌아갑니다.',
+    done: 'ε 닫힘은 {set}입니다. 상태마다 한 번만 넣으므로 많아야 {m}개이고, ε 전이도 한 번씩만 봅니다.',
+  },
+  en: {
+    title: 'Following an ε-closure',
+    seeds: 'while reading 1001',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    seed: 'start set',
+    stack: 'DFS stack',
+    size: 'set',
+    edges: 'ε-transitions looked at',
+    idle: 'Press states in the graph to change the start set. Each step follows ε-transitions only.',
+    empty: 'The start set is empty. Press a state to choose one.',
+    mark: 'Put {v} in the set. Look at the ε-transitions leaving it in turn.',
+    follow: 'Follow {f}→{v} and put {v} in the set.',
+    skip: '{v}→{w}: {w} is already in the set, so do not go there.',
+    leave: '{v} has no more ε-transitions to look at. Go back.',
+    done: 'The ε-closure is {set}. Each state enters once, so at most {m} states, and each ε-transition is looked at once.',
+  },
+  zh: {
+    title: '跟踪 ε 闭包',
+    seeds: '读入 1001 时',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    seed: '开始集合',
+    stack: 'DFS 栈',
+    size: '集合',
+    edges: '查看的 ε 转移',
+    idle: '点击图中的状态可以改变开始集合。每一步只沿 ε 转移前进。',
+    empty: '开始集合为空。请点击状态来选择。',
+    mark: '把 {v} 放入集合。依次查看从这里出发的 ε 转移。',
+    follow: '沿 {f}→{v} 把 {v} 放入集合。',
+    skip: '{v}→{w}：{w} 已在集合中，不再前往。',
+    leave: '{v} 没有更多要看的 ε 转移。返回。',
+    done: 'ε 闭包是 {set}。每个状态只放入一次，所以最多 {m} 个，每条 ε 转移也只看一次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<RegexCore />
+<div class:list={['aas-closure-demo', slide && 'is-slide']} id={id} data-cl-regex={regex} data-cl-strings={JSON.stringify(t)}>
+  <div class="cl-bar">
+    <span class="cl-head"><strong>{t.title}</strong> <code>{regex}</code></span>
+    <div class="cl-controls">
+      <button type="button" data-act="back" class="cl-btn">{t.back}</button>
+      <button type="button" data-act="step" class="cl-btn">{t.step}</button>
+      <button type="button" data-act="play" class="cl-btn cl-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="cl-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cl-seeds">
+    <span class="cl-label">{t.seeds}</span>
+    {SEEDS.map(([label, set]) => (
+      <button type="button" class="cl-chip" data-cl-seed={JSON.stringify(set)}>{label.trim()} <code>{`{${set.join(' ')}}`}</code></button>
+    ))}
+  </div>
+
+  <div class="cl-fig" data-cl-fig></div>
+
+  <div class="cl-stats">
+    <span>{t.seed} <code data-cl-seedset></code></span>
+    <span class="cl-stack-wrap">{t.stack} <span class="cl-stack" data-cl-stack></span></span>
+    <span class="cl-push">{t.size} <strong data-cl-size>0</strong></span>
+    <span>{t.edges} <strong data-cl-edges>0</strong></span>
+  </div>
+  <p class="cl-note" data-cl-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.clStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const core = globalThis.aasRegexCore;
+    const g = core.build(root.dataset.clRegex);
+
+    const fig = root.querySelector('[data-cl-fig]');
+    fig.innerHTML = core.svg(g, id, S.title);
+    const note = root.querySelector('[data-cl-note]');
+    const stackEl = root.querySelector('[data-cl-stack]');
+    const playBtn = root.querySelector('[data-act="play"]');
+    const edgeKeys = [...fig.querySelectorAll('[data-ng-line]')].map((p) => p.dataset.ngLine);
+
+    let seed = new Set([5]);
+    let steps = [];
+    let at = -1;
+    let timer = null;
+
+    /* closure를 실제로 돌려 사건마다 집합, 스택, 전이 수를 찍어 둔다. */
+    function plan() {
+      const out = [];
+      const set = new Set();
+      const stack = [];
+      let seen = 0;
+      const final = core.closure(g, seed, (ev) => {
+        if (ev.kind === 'mark') {
+          if (ev.from !== null) seen += 1;
+          set.add(ev.v);
+          stack.push(ev.v);
+          out.push({ kind: ev.from === null ? 'mark' : 'follow', v: ev.v, f: ev.from, set: new Set(set), stack: [...stack], seen });
+        } else if (ev.kind === 'skip') {
+          seen += 1;
+          out.push({ kind: 'skip', v: ev.v, w: ev.w, set: new Set(set), stack: [...stack], seen });
+        } else {
+          out.push({ kind: 'leave', v: ev.v, set: new Set(set), stack: [...stack], seen });
+          stack.pop();
+        }
+      });
+      out.push({ kind: 'done', set: final.set, stack: [], seen });
+      return out;
+    }
+
+    function render() {
+      const step = at >= 0 ? steps[at] : null;
+      const set = step ? step.set : new Set();
+      fig.querySelectorAll('[data-ng-state]').forEach((s) => {
+        const i = Number(s.dataset.ngState);
+        s.classList.toggle('is-seed', seed.has(i));
+        s.classList.toggle('is-in', set.has(i) && !(step && step.v === i && step.kind !== 'done'));
+        s.classList.toggle('is-now', !!step && step.v === i && step.kind !== 'done');
+      });
+      let key = null;
+      if (step && step.kind === 'follow') key = `e${step.f}-${step.v}`;
+      if (step && step.kind === 'skip') key = `e${step.v}-${step.w}`;
+      edgeKeys.forEach((k) => core.paintEdge(fig, id, k, k === key));
+      root.querySelector('[data-cl-seedset]').textContent = core.show(seed);
+      stackEl.replaceChildren(...(step ? step.stack : []).map((v) => {
+        const c = document.createElement('b');
+        c.textContent = String(v);
+        return c;
+      }));
+      root.querySelector('[data-cl-size]').textContent = String(set.size);
+      root.querySelector('[data-cl-edges]').textContent = String(step ? step.seen : 0);
+      const chosen = JSON.stringify([...seed].sort((a, b) => a - b));
+      root.querySelectorAll('[data-cl-seed]').forEach((b) => b.classList.toggle('is-on', b.dataset.clSeed === chosen));
+      if (!step) setLines(note, seed.size ? S.idle : S.empty);
+      else if (step.kind === 'done') setLines(note, fill(S.done, { set: core.show(step.set), m: g.M + 1 }));
+      else setLines(note, fill(S[step.kind], step));
+      root.classList.toggle('is-done', !!step && step.kind === 'done');
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function reseed() {
+      stop();
+      steps = plan();
+      at = -1;
+      render();
+    }
+    fig.querySelectorAll('[data-ng-state]').forEach((s) => {
+      s.style.cursor = 'pointer';
+      s.addEventListener('click', () => {
+        const i = Number(s.dataset.ngState);
+        if (seed.has(i)) seed.delete(i);
+        else seed.add(i);
+        reseed();
+      });
+    });
+    root.querySelectorAll('[data-cl-seed]').forEach((b) => b.addEventListener('click', () => {
+      seed = new Set(JSON.parse(b.dataset.clSeed));
+      reseed();
+    }));
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+    reseed();
+  })();
+</script>
+
+<style is:global>
+  .aas-closure-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-closure-demo .cl-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.4em;
+  }
+  .aas-closure-demo .cl-head {
+    font-size: 0.95em;
+  }
+  .aas-closure-demo .cl-controls {
+    display: flex;
+    gap: 0.35em;
+  }
+  .aas-closure-demo .cl-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.82em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-closure-demo .cl-btn:hover,
+  .aas-closure-demo .cl-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-closure-demo .cl-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-closure-demo .cl-seeds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-closure-demo .cl-label {
+    margin-right: 0.3em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-closure-demo .cl-chip {
+    padding: 0.1em 0.6em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-closure-demo .cl-chip code {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font-weight: 700;
+  }
+  .aas-closure-demo .cl-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+  }
+  .aas-closure-demo .cl-fig {
+    margin: 0.3em 0;
+    overflow-x: auto;
+  }
+  .aas-closure-demo .cl-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.2em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-closure-demo .cl-stats strong,
+  .aas-closure-demo .cl-stats code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-closure-demo .cl-stack-wrap {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-closure-demo .cl-stack {
+    display: inline-flex;
+    gap: 0.2em;
+    min-width: 2em;
+    min-height: 1.5em;
+    padding: 0 0.2em;
+    border-bottom: 2px solid var(--aas-muted);
+  }
+  .aas-closure-demo .cl-stack b {
+    padding: 0 0.35em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+  }
+  .aas-closure-demo .cl-push {
+    margin-left: auto;
+  }
+  .aas-closure-demo .cl-note {
+    margin: 0.4em 0 0;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+    min-height: 2.8em;
+  }
+  .aas-closure-demo.is-done .cl-note {
+    color: var(--aas-text);
+  }
+  .aas-closure-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-closure-demo.is-slide .ng-graph {
+    max-height: 32vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-closure-demo * {
+      transition: none !important;
+    }
+  }
+</style>
