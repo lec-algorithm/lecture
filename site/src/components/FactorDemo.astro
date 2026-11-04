@@ -1,0 +1,454 @@
+---
+// 곱하기는 쉽고 되돌리기는 어렵다는 것을 실제로 재는 데모.
+//
+// 자릿수를 고르면 소수 p, q를 뽑아 곱하고, n을 시행 나눗셈으로 되돌린다. 나눠 본
+// 횟수와 시간을 실제로 재어, 자릿수별 막대(로그 눈금)에 쌓는다. 자릿수가 하나 늘 때마다
+// 횟수가 약 열 배가 된다. 아래 표는 같은 계산을 실제 키 크기까지 늘린 것이다. 실제
+// 공격은 시행 나눗셈보다 훨씬 빠른 일반 수체 체를 쓰므로 기록을 함께 적었다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 소수 자릿수 (2에서 8) */
+  digits?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { digits = 5, slide = false } = Astro.props;
+const id = `fa-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '곱하기와 되돌리기',
+    digits: '소수 자릿수',
+    run: '곱하고 되돌리기',
+    all: '2자리부터 8자리까지',
+    mul: '곱셈',
+    once: '한 번',
+    div: '되돌리기: 나눠 본 횟수',
+    ms: '걸린 시간',
+    chart: '자릿수별 나눠 본 횟수 (로그 눈금)',
+    head1: 'n의 자릿수',
+    head2: '시행 나눗셈 (초당 10억 번)',
+    head3: '실제 기록',
+    d30: '약 6일',
+    r30: '일반 PC로 순식간',
+    d100: '약 10<sup>33</sup>년',
+    r100: '1991년 소인수분해 (RSA-100)',
+    d250: '약 10<sup>108</sup>년',
+    r250: '2020년 약 2,700코어·년 (RSA-250)',
+    d617: '약 10<sup>292</sup>년',
+    r617: '2048비트 RSA. 소인수분해된 적 없음',
+    idle: '소수 둘을 곱해 n을 만들고, n만 보고 p와 q를 되찾아 봅니다.',
+    done: '곱셈은 한 번인데, 되돌리는 데는 {c}번 나눴습니다. 자릿수가 하나 늘면 횟수는 약 열 배가 됩니다.',
+    outro: '이 비대칭이 RSA의 안전을 지탱합니다.',
+  },
+  en: {
+    title: 'Multiplying and undoing',
+    digits: 'prime digits',
+    run: 'Multiply, then undo',
+    all: 'All of 2 to 8 digits',
+    mul: 'multiply',
+    once: 'once',
+    div: 'undo: divisions tried',
+    ms: 'time',
+    chart: 'Divisions tried per digit count (log scale)',
+    head1: 'Digits of n',
+    head2: 'Trial division (1 billion per second)',
+    head3: 'Actual record',
+    d30: 'about 6 days',
+    r30: 'Instant on an ordinary PC',
+    d100: 'about 10<sup>33</sup> years',
+    r100: 'Factored in 1991 (RSA-100)',
+    d250: 'about 10<sup>108</sup> years',
+    r250: 'About 2,700 core-years in 2020 (RSA-250)',
+    d617: 'about 10<sup>292</sup> years',
+    r617: '2048-bit RSA. Never factored',
+    idle: 'Multiply two primes into n, then try to recover p and q from n alone.',
+    done: 'Multiplying took one step, while undoing took {c} divisions. One more digit means about ten times the divisions.',
+    outro: 'This asymmetry is what RSA rests on.',
+  },
+  zh: {
+    title: '相乘与还原',
+    digits: '素数位数',
+    run: '相乘再还原',
+    all: '从 2 位到 8 位',
+    mul: '乘法',
+    once: '一次',
+    div: '还原：试除次数',
+    ms: '耗时',
+    chart: '各位数的试除次数（对数刻度）',
+    head1: 'n 的位数',
+    head2: '试除法（每秒 10 亿次）',
+    head3: '实际记录',
+    d30: '约 6 天',
+    r30: '普通电脑转眼就能分解',
+    d100: '约 10<sup>33</sup> 年',
+    r100: '1991 年分解（RSA-100）',
+    d250: '约 10<sup>108</sup> 年',
+    r250: '2020 年约 2700 核心年（RSA-250）',
+    d617: '约 10<sup>292</sup> 年',
+    r617: '2048 位 RSA。从未被分解',
+    idle: '把两个素数相乘得到 n，再只看 n 找回 p 和 q。',
+    done: '乘法只要一次，还原却试除了 {c} 次。位数每多一位，次数约变成十倍。',
+    outro: '这种不对称正是 RSA 安全的基础。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const ladder = [
+  { n: 30, time: t.d30, note: t.r30 },
+  { n: 100, time: t.d100, note: t.r100 },
+  { n: 250, time: t.d250, note: t.r250 },
+  { n: 617, time: t.d617, note: t.r617 },
+];
+const bars = [2, 3, 4, 5, 6, 7, 8];
+---
+
+<div class:list={['aas-factor-demo', slide && 'is-slide']} id={id} data-fa-digits={digits} data-fa-strings={JSON.stringify(t)}>
+  <div class="fa-bar">
+    <span class="fa-head"><strong>{t.title}</strong></span>
+    <label class="fa-count">
+      {t.digits} <strong data-fa-dval></strong>
+      <input type="range" min="2" max="8" step="1" data-fa-range />
+    </label>
+    <div class="fa-controls">
+      <button type="button" class="fa-btn fa-btn-primary" data-fa-run>{t.run}</button>
+      <button type="button" class="fa-btn" data-fa-all>{t.all}</button>
+    </div>
+  </div>
+
+  <p class="fa-eq" data-fa-eq>&nbsp;</p>
+
+  <div class="fa-body">
+    <div class="fa-stats">
+      <span class="fa-big"><span>{t.mul}</span><strong class="is-good">{t.once}</strong></span>
+      <span class="fa-big"><span>{t.div}</span><strong data-fa-tries>-</strong></span>
+      <span class="fa-big"><span>{t.ms}</span><strong class="is-plain" data-fa-ms>-</strong></span>
+    </div>
+    <div class="fa-chart">
+      <span class="fa-chart-label">{t.chart}</span>
+      <div class="fa-bars">
+        {
+          bars.map((d) => (
+            <div class="fa-col" data-fa-col={d}>
+              <small data-fa-val />
+              <i data-fa-h />
+              <span>{d}</span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="fa-table">
+    <div class="fa-tr fa-th"><span>{t.head1}</span><span>{t.head2}</span><span>{t.head3}</span></div>
+    {
+      ladder.map((r) => (
+        <div class:list={['fa-tr', r.n === 617 && 'is-last']}>
+          <span>{r.n}</span>
+          <span set:html={r.time} />
+          <span>{r.note}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="fa-note" data-fa-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.faStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const fmt = (x) => x.toLocaleString('en-US');
+
+    const range = root.querySelector('[data-fa-range]');
+    const triesEl = root.querySelector('[data-fa-tries]');
+    const msEl = root.querySelector('[data-fa-ms]');
+    const eq = root.querySelector('[data-fa-eq]');
+    const note = root.querySelector('[data-fa-note]');
+    const buttons = [root.querySelector('[data-fa-run]'), root.querySelector('[data-fa-all]')];
+    let digits = Math.min(8, Math.max(2, Number(root.dataset.faDigits)));
+    let job = 0;
+
+    const isPrime = (x) => {
+      if (x % 2 === 0) return x === 2;
+      for (let i = 3; i * i <= x; i += 2) if (x % i === 0) return false;
+      return true;
+    };
+    /* d자리 소수를 무작위로 뽑는다. 곱이 2^53을 넘지 않게 8자리는 9,400만 아래로 둔다. */
+    const randomPrime = (d) => {
+      const lo = 10 ** (d - 1);
+      const hi = Math.min(10 ** d, 94000000);
+      let x = lo + Math.floor(Math.random() * (hi - lo));
+      if (x % 2 === 0) x += 1;
+      while (!isPrime(x)) x += 2;
+      return x;
+    };
+
+    function record(d, tries) {
+      const col = root.querySelector(`[data-fa-col="${d}"]`);
+      col.querySelector('[data-fa-val]').textContent = tries >= 1e6 ? `${(tries / 1e6).toFixed(1)}M` : tries >= 1e3 ? `${Math.round(tries / 1e3)}k` : String(tries);
+      /* 로그 눈금. 숫자와 자릿수 자리(2.2em)를 뺀 높이에서 10^8을 꼭대기로 둔다. */
+      const frac = Math.max(Math.log10(tries + 1) / 8, 0.04);
+      col.querySelector('[data-fa-h]').style.height = `calc((100% - 2.2em) * ${frac})`;
+      root.querySelectorAll('[data-fa-col]').forEach((c) => c.classList.toggle('is-now', c === col));
+    }
+
+    /* 3부터 홀수로 나눠 본다. 화면이 멈추지 않게 나눠서 돈다. */
+    function factor(d, me, then) {
+      const p = randomPrime(d);
+      let q = randomPrime(d);
+      while (q === p) q = randomPrime(d);
+      const n = p * q;
+      eq.textContent = `${fmt(p)} × ${fmt(q)} = ${fmt(n)}`;
+      let i = 3;
+      let tries = 0;
+      let spent = 0;
+      const chunk = () => {
+        if (me !== job) return;
+        const s = performance.now();
+        const until = s + 16;
+        while (performance.now() < until) {
+          for (let c = 0; c < 20000; c++) {
+            tries += 1;
+            if (n % i === 0) {
+              spent += performance.now() - s;
+              eq.textContent = `${fmt(n)} = ${fmt(i)} × ${fmt(n / i)}`;
+              triesEl.textContent = fmt(tries);
+              msEl.textContent = `${spent < 10 ? spent.toFixed(2) : Math.round(spent)} ms`;
+              record(d, tries);
+              setLines(note, join(fill(S.done, { c: fmt(tries) }), S.outro));
+              return then();
+            }
+            i += 2;
+          }
+        }
+        spent += performance.now() - s;
+        triesEl.textContent = fmt(tries);
+        setTimeout(chunk, 0);
+      };
+      chunk();
+    }
+    const busy = (on) => buttons.forEach((b) => (b.disabled = on));
+    function run(list) {
+      job += 1;
+      const me = job;
+      busy(true);
+      const next = (k) => {
+        if (me !== job) return;
+        if (k >= list.length) return busy(false);
+        factor(list[k], me, () => next(k + 1));
+      };
+      next(0);
+    }
+
+    root.querySelector('[data-fa-dval]').textContent = String(digits);
+    range.value = String(digits);
+    range.addEventListener('input', () => {
+      digits = Number(range.value);
+      root.querySelector('[data-fa-dval]').textContent = String(digits);
+    });
+    buttons[0].addEventListener('click', () => run([digits]));
+    buttons[1].addEventListener('click', () => run([2, 3, 4, 5, 6, 7, 8]));
+    setLines(note, S.idle);
+  })();
+</script>
+
+<style is:global>
+  .aas-factor-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-factor-demo .fa-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-factor-demo .fa-head {
+    font-size: 0.95em;
+  }
+  .aas-factor-demo .fa-count {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-factor-demo .fa-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-factor-demo .fa-count input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-factor-demo .fa-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-factor-demo .fa-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-factor-demo .fa-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-factor-demo .fa-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-factor-demo .fa-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-factor-demo .fa-eq {
+    margin: 0.5em 0 0.3em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.05em;
+    font-weight: 700;
+  }
+  .aas-factor-demo .fa-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.5em;
+    align-items: stretch;
+  }
+  .aas-factor-demo .fa-stats {
+    display: flex;
+    flex: 1 1 15em;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15em;
+  }
+  .aas-factor-demo .fa-big {
+    display: flex;
+    gap: 0.5em;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-factor-demo .fa-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.7em;
+    line-height: 1.15;
+    color: var(--aas-role-guard);
+  }
+  .aas-factor-demo .fa-big strong.is-good {
+    color: var(--aas-role-eval);
+  }
+  .aas-factor-demo .fa-big strong.is-plain {
+    font-size: 1.3em;
+    color: var(--aas-text);
+  }
+  .aas-factor-demo .fa-chart {
+    flex: 1.5 1 18em;
+    min-width: 0;
+  }
+  .aas-factor-demo .fa-chart-label {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-factor-demo .fa-bars {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.3em;
+    height: 6em;
+  }
+  .aas-factor-demo .fa-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 0;
+  }
+  .aas-factor-demo .fa-col small {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.65em;
+    line-height: 1.2;
+  }
+  .aas-factor-demo .fa-col i {
+    width: 100%;
+    height: 0;
+    background: var(--aas-role-model);
+    transition: height 0.3s;
+  }
+  .aas-factor-demo .fa-col.is-now i {
+    background: var(--aas-role-guard);
+  }
+  .aas-factor-demo .fa-col span {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.3;
+    color: var(--aas-muted);
+  }
+  .aas-factor-demo .fa-table {
+    margin-top: 0.4em;
+    font-size: 0.8em;
+    line-height: 1.4;
+  }
+  .aas-factor-demo .fa-tr {
+    display: grid;
+    grid-template-columns: 6.5em 19em minmax(0, 1fr);
+    gap: 0 0.8em;
+    padding: 0.12em 0.4em;
+    border-top: 1px solid var(--aas-border);
+  }
+  .aas-factor-demo .fa-tr sup {
+    font-size: 0.72em;
+    line-height: 0;
+  }
+  .aas-factor-demo .fa-th {
+    border-top: 0;
+    color: var(--aas-muted);
+    font-weight: 700;
+  }
+  .aas-factor-demo .fa-tr.is-last {
+    font-weight: 700;
+  }
+  .aas-factor-demo .fa-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-factor-demo.is-slide {
+    font-size: clamp(1rem, 2.5vh, 1.75rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-factor-demo .fa-col i {
+      transition: none;
+    }
+  }
+</style>
