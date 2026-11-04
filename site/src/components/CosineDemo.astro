@@ -9,6 +9,7 @@
 // 기본값은 교안의 작은 예에 나오는 사용자 A (5, 3)와 B (4, 0)이다. 두 사용자
 // 모두 아이템 3·4를 보지 않았으므로, 네 칸 벡터의 코사인 0.857이 이 평면에서
 // 그대로 나온다. 계산은 algorithm-code의 cosineSimilarity와 같고, 0벡터면 0이다.
+// 오른쪽에는 평점 벡터를 네 칸 전체로 적어, 작은 평점 행렬을 보러 가지 않아도 된다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -18,10 +19,12 @@ interface Props {
   b?: [number, number];
   /** 벡터 이름 */
   names?: [string, string];
+  /** 그림 밖의 나머지 칸. 두 벡터 모두 0이라 코사인에 영향이 없다. */
+  rest?: number[];
   /** 슬라이드용: 글자와 그림을 키운다. */
   slide?: boolean;
 }
-const { a = [5, 3], b = [4, 0], names = ['A', 'B'], slide = false } = Astro.props;
+const { a = [5, 3], b = [4, 0], names = ['A', 'B'], rest = [0, 0], slide = false } = Astro.props;
 const id = `cs-${Math.random().toString(36).slice(2, 9)}`;
 const MAX = 5;
 
@@ -101,6 +104,7 @@ const geo = { U, PADL, PADB, W, H, MAX };
   data-cs-a={JSON.stringify(a)}
   data-cs-b={JSON.stringify(b)}
   data-cs-names={JSON.stringify(names)}
+  data-cs-rest={JSON.stringify(rest)}
   data-cs-geo={JSON.stringify(geo)}
   data-cs-strings={JSON.stringify(t)}
 >
@@ -186,6 +190,7 @@ const geo = { U, PADL, PADB, W, H, MAX };
     const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const S = JSON.parse(root.dataset.csStrings);
     const names = JSON.parse(root.dataset.csNames);
+    const rest = JSON.parse(root.dataset.csRest);
     const G = JSON.parse(root.dataset.csGeo);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const start = { a: JSON.parse(root.dataset.csA), b: JSON.parse(root.dataset.csB) };
@@ -256,8 +261,8 @@ const geo = { U, PADL, PADB, W, H, MAX };
         theta.style.visibility = 'hidden';
       }
       const deg = zero ? null : (Math.acos(Math.max(-1, Math.min(1, r.c))) * 180) / Math.PI;
-      out('va').textContent = `(${v.a[0]}, ${v.a[1]})`;
-      out('vb').textContent = `(${v.b[0]}, ${v.b[1]})`;
+      out('va').textContent = `(${[...v.a, ...rest].join(', ')})`;
+      out('vb').textContent = `(${[...v.b, ...rest].join(', ')})`;
       out('dot').textContent = `${v.a[0]}·${v.b[0]} + ${v.a[1]}·${v.b[1]} = ${r.dot}`;
       out('len').textContent = `${r.np.toFixed(3)} · ${r.nq.toFixed(3)}`;
       out('deg').textContent = deg === null ? '-' : `${deg.toFixed(1)}°`;
@@ -517,7 +522,7 @@ const geo = { U, PADL, PADB, W, H, MAX };
 
   /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
   .aas-cosine-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.75vh, 2rem);
     margin: 0.5rem 0;
   }
   .aas-cosine-demo.is-slide .cs-svg {
