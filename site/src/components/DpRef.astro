@@ -1,0 +1,153 @@
+---
+// 주제 14의 참고 띠. 점화식과 동전·물건 같은 예제 데이터를 데모 안에서 바로 보게 한다.
+//
+// 표를 채우는 데모는 "이 칸을 어떤 식으로 구하지?", "동전이 뭐였지?"를 물으면
+// 앞 슬라이드로 돌아가야 했다. 데모의 막대 줄에 이 띠를 끼우면 높이를 거의 쓰지
+// 않고 그 답이 늘 보인다. 데모가 [data-dr-key]에 is-now를 달면 그 동전·물건이,
+// [data-dr-term]에 달면 점화식의 그 항이 칠해진다. HashKeyTable(주제 08)과 같은 방식.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 어느 문제의 점화식인가 */
+  kind: 'fib' | 'coin' | 'coinMemo' | 'lis' | 'grid' | 'knap' | 'path';
+  /** 동전 묶음 */
+  coins?: number[];
+  /** 물건마다 [무게, 가치]. 주면 작은 표를 함께 그린다. */
+  items?: [number, number][];
+}
+const { kind, coins = [], items = [] } = Astro.props;
+const LABELS: Record<string, { coin: string; item: string; w: string; v: string }> = {
+  ko: { coin: '동전', item: '물건', w: '무게', v: '가치' },
+  en: { coin: 'coins', item: 'item', w: 'w', v: 'v' },
+  zh: { coin: '硬币', item: '物品', w: '重', v: '价值' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const l = LABELS[lang] ?? LABELS.ko;
+---
+
+<div class="aas-dp-ref" data-dr>
+  <code class="dr-rec">
+    {kind === 'fib' && <Fragment>dp[i] = dp[i-1] + dp[i-2]</Fragment>}
+    {kind === 'coin' && <Fragment>dp[a] = min(dp[a-c] + 1)</Fragment>}
+    {kind === 'coinMemo' && <Fragment>memo[a] = min(solve(a-c) + 1)</Fragment>}
+    {kind === 'lis' && <Fragment>dp[i] = 1 + max(dp[j]), j &lt; i, arr[j] &lt; arr[i]</Fragment>}
+    {
+      kind === 'grid' && (
+        <Fragment>
+          dp[x][y] = <span class="dr-term" data-dr-term="up">dp[x-1][y]</span> +{' '}
+          <span class="dr-term" data-dr-term="left">dp[x][y-1]</span>
+        </Fragment>
+      )
+    }
+    {
+      kind === 'knap' && (
+        <Fragment>
+          dp[i][c] = max(<span class="dr-term" data-dr-term="skip">dp[i-1][c]</span>,{' '}
+          <span class="dr-term" data-dr-term="take">dp[i-1][c-w] + v</span>)
+        </Fragment>
+      )
+    }
+    {kind === 'path' && <Fragment>S(u, k) = min(w(u, x) + S(x, k-1))</Fragment>}
+  </code>
+  {
+    coins.length > 0 && (
+      <span class="dr-coins">
+        <span class="dr-label">{l.coin} c</span>
+        {coins.map((c) => <b class="dr-chip" data-dr-key={c}>{c}</b>)}
+      </span>
+    )
+  }
+  {
+    items.length > 0 && (
+      <span class="dr-items" style={`--dr-cols: ${items.length}`}>
+        <span class="dr-label">{l.item}</span>
+        {items.map((_, i) => <b class="dr-cell" data-dr-key={i + 1}>{i + 1}</b>)}
+        <span class="dr-label">{l.w}</span>
+        {items.map(([w], i) => <span class="dr-cell" data-dr-key={i + 1}>{w}</span>)}
+        <span class="dr-label">{l.v}</span>
+        {items.map(([, v], i) => <span class="dr-cell" data-dr-key={i + 1}>{v}</span>)}
+      </span>
+    )
+  }
+</div>
+
+<style is:global>
+  .aas-dp-ref {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25em 0.9em;
+    font-size: 0.72em;
+    line-height: 1.3;
+  }
+  .aas-dp-ref .dr-rec {
+    padding: 0.15em 0.55em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    white-space: nowrap;
+  }
+  .aas-dp-ref .dr-term {
+    border-radius: 0.25em;
+    transition: background-color 0.2s;
+  }
+  .aas-dp-ref .dr-term.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 30%, var(--aas-bg));
+  }
+  .aas-dp-ref .dr-coins {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    white-space: nowrap;
+  }
+  .aas-dp-ref .dr-label {
+    padding-right: 0.25em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-dp-ref .dr-chip {
+    min-width: 1.6em;
+    padding: 0.1em 0.35em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    transition: background-color 0.2s;
+  }
+  .aas-dp-ref .dr-items {
+    display: inline-grid;
+    grid-template-columns: auto repeat(var(--dr-cols), minmax(2.6em, auto));
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-dp-ref .dr-items .dr-label {
+    padding: 0 0.6em;
+  }
+  .aas-dp-ref .dr-cell {
+    padding: 0 0.3em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    transition: background-color 0.2s;
+  }
+  .aas-dp-ref b.dr-cell {
+    font-weight: 700;
+  }
+  .aas-dp-ref .dr-chip.is-now,
+  .aas-dp-ref .dr-cell.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 30%, var(--aas-bg));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-dp-ref .dr-term,
+    .aas-dp-ref .dr-chip,
+    .aas-dp-ref .dr-cell {
+      transition: none;
+    }
+  }
+</style>
