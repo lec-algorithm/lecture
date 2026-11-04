@@ -27,6 +27,10 @@ import HashKindsDemo from '@components/HashKindsDemo.astro';
 import AvalancheDemo from '@components/AvalancheDemo.astro';
 import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
 import HashFloodDemo from '@components/HashFloodDemo.astro';
+import KeyPathDemo from '@components/KeyPathDemo.astro';
+import RsaDemo from '@components/RsaDemo.astro';
+import FactorDemo from '@components/FactorDemo.astro';
+import SignDemo from '@components/SignDemo.astro';
 
 {/* Slide rules follow the slide rules section of docs/writing-rules.md.
     Numbers match the practice code (topic-08-hashing) exactly. */}
@@ -1004,6 +1008,101 @@ It gets worse **sharply** as it nears 1. So $$\alpha$$ is kept near 1/2.
 ::sub[Aa and BB share a Horner value. Switch tabs to compare attack keys and a secret key]
 
 <HashFloodDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## Aside: public-key encryption
+::sub[Locking with one key, unlocking with another]
+
+</Slide>
+
+<Slide>
+
+#### Hashing and encryption
+::sub[A hash cannot be reversed; encryption can, with the key]
+
+- **A hash goes one way.**
+  - It has no key, and the input cannot be recovered from the result.
+- **Symmetric encryption locks and unlocks with the same key.**
+  - It is fast, like AES, but the key must first be handed over safely.
+- **Public-key encryption has two keys.**
+  - What the public key locks, only the private key unlocks.
+  - The public key can be told to everyone.
+
+</Slide>
+
+<Slide>
+
+### How the key travels
+::sub[Eve copies everything on the channel. Switch tabs to compare the two approaches]
+
+<KeyPathDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### The RSA procedure
+::sub[Rivest, Shamir and Adleman, 1977. Remainders take center stage here too]
+
+```plaintext
+ALGORITHM KeyGen()
+    pick two different large primes p, q
+    n <- p × q
+    φ <- (p - 1) × (q - 1)
+    e <- a number coprime to φ           // often 65537
+    d <- the number with e × d mod φ = 1 // extended Euclidean algorithm
+    public key (e, n), private key (d, n)
+```
+
+$$
+c = m^e \bmod n \qquad m = c^d \bmod n
+$$
+
+</Slide>
+
+<Slide>
+
+### Locking and unlocking by hand
+::sub[Pick p, q, e and change the message. Click a letter to see its computation]
+
+<RsaDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Multiplying and undoing
+::sub[n can be public because turning it back into p and q is hard]
+
+<FactorDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Digital signatures: hash plus private key
+::sub[Lock the message's hash with the private key, and anyone can check it with the public key]
+
+<SignDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### In practice
+::sub[Do not use the RSA in these demos as is]
+
+- **Keys and padding**
+  - Keys are 2048 bits or more, with random padding (OAEP, PSS) mixed in.
+- **The body uses a symmetric key**
+  - Public-key operations are slow, so they only settle a symmetric key. HTTPS works this way.
+- **Is the public key genuine?**
+  - So that Eve cannot swap it, certificates signed by certificate authorities vouch for it.
+- **Quantum computers**
+  - Shor's algorithm threatens RSA, so systems are moving to post-quantum cryptography.
 
 </Slide>
 

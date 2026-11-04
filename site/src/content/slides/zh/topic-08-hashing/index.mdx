@@ -27,6 +27,10 @@ import HashKindsDemo from '@components/HashKindsDemo.astro';
 import AvalancheDemo from '@components/AvalancheDemo.astro';
 import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
 import HashFloodDemo from '@components/HashFloodDemo.astro';
+import KeyPathDemo from '@components/KeyPathDemo.astro';
+import RsaDemo from '@components/RsaDemo.astro';
+import FactorDemo from '@components/FactorDemo.astro';
+import SignDemo from '@components/SignDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 中的幻灯片规则一节。
     数字与实践代码（topic-08-hashing）的运行结果一致。 */}
@@ -1004,6 +1008,101 @@ $$
 ::sub[Aa 和 BB 的霍纳值相同。切换标签，比较攻击键和秘密密钥]
 
 <HashFloodDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 参考：公钥加密
+::sub[Public-Key Encryption]
+
+</Slide>
+
+<Slide>
+
+#### 哈希与加密
+::sub[哈希无法还原，加密有密钥就能还原]
+
+- **哈希是单向的。**
+  - 没有密钥，也无法从结果找回输入。
+- **对称加密用同一把密钥上锁和开锁。**
+  - 像 AES 一样快，但要先把密钥安全地交给对方。
+- **公钥加密有两把密钥。**
+  - 公钥锁上的，只有私钥能打开。
+  - 公钥可以告诉所有人。
+
+</Slide>
+
+<Slide>
+
+### 密钥怎么传
+::sub[伊芙复制信道上的一切。用标签比较两种方式]
+
+<KeyPathDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### RSA 的步骤
+::sub[1977 年 Rivest、Shamir、Adleman。这里的主角也是取余运算]
+
+```plaintext
+ALGORITHM KeyGen()
+    选两个不同的大素数 p, q
+    n <- p × q
+    φ <- (p - 1) × (q - 1)
+    e <- 与 φ 互素的数                   // 常用 65537
+    d <- 满足 e × d mod φ = 1 的数       // 扩展欧几里得算法
+    公钥 (e, n)，私钥 (d, n)
+```
+
+$$
+c = m^e \bmod n \qquad m = c^d \bmod n
+$$
+
+</Slide>
+
+<Slide>
+
+### 亲手上锁和开锁
+::sub[选择 p、q、e，改改消息。点击字母可以看它的计算]
+
+<RsaDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 相乘与还原
+::sub[n 可以公开，是因为很难把它还原成 p 和 q]
+
+<FactorDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 数字签名：哈希加私钥
+::sub[用私钥锁上消息的哈希，任何人都能用公钥验证]
+
+<SignDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 实际中
+::sub[不能直接使用这些演示里的 RSA]
+
+- **密钥与填充**
+  - 密钥在 2048 位以上，并混入随机填充（OAEP、PSS）。
+- **正文用对称密钥**
+  - 公钥运算很慢，只用来确定对称密钥。HTTPS 就是这种结构。
+- **公钥是不是真的**
+  - 为防止伊芙调包，用证书机构签名的证书来确认。
+- **量子计算机**
+  - Shor 算法威胁 RSA，所以正在转向抗量子密码。
 
 </Slide>
 
