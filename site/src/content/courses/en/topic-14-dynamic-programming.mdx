@@ -17,6 +17,16 @@ import PathDpDemo from '@components/PathDpDemo.astro';
 import FibCountDemo from '@components/FibCountDemo.astro';
 import CoinMemoDemo from '@components/CoinMemoDemo.astro';
 import CoinCompareDemo from '@components/CoinCompareDemo.astro';
+import GeneratorDemo from '@components/GeneratorDemo.astro';
+import CoinCellDemo from '@components/CoinCellDemo.astro';
+import LazyEagerDemo from '@components/LazyEagerDemo.astro';
+import LisPlayDemo from '@components/LisPlayDemo.astro';
+import LisMemoDemo from '@components/LisMemoDemo.astro';
+import GridWaysDemo from '@components/GridWaysDemo.astro';
+import PathTableDemo from '@components/PathTableDemo.astro';
+import KnapCellDemo from '@components/KnapCellDemo.astro';
+import OptimalityDemo from '@components/OptimalityDemo.astro';
+import OverlapDemo from '@components/OverlapDemo.astro';
 
 > In Topic 01 we saw why recursive Fibonacci is slow. The culprit was not
 > recursion but **computing the same value over and over**.  
@@ -318,6 +328,15 @@ fib = fibonacci_infinite()
 first_10 = [next(fib) for _ in range(10)]   # only 10 are actually computed
 ```
 
+Click through the difference. When you change `n`, the list computes that many values at once, while the
+generator stays at 0 until you press `next()`.
+
+<GeneratorDemo />
+
+With `n` at 10, ten presses of `next()` give 0 through 81, and one more raises `StopIteration`.
+Stop after three and the other seven are never computed.
+The infinite Fibonacci cannot be made into a list at all, so lazy is the only way.
+
 ### Which one when \{#lazy-when}
 
 **When lazy (memoization) is better**
@@ -453,6 +472,14 @@ tab  -> 2 coins: 3 + 3, filled 6 amounts
 The table filled in `dp[5] = 1` too but never used it for the answer. That is
 **eager**. For amount $$A$$ and $$m$$ coins, time is $$O(Am)$$ and space is $$O(A)$$.
 
+Go straight to the cell you are curious about. Click a cell to see which cell each coin read and what candidate
+it gave, and the path back through `choice`. The first screen is the 6-won cell above.
+
+<CoinCellDemo />
+
+For `{2, 3, 5}`, 7 won is a tie: coins 2 and 5 both give a candidate of 2. The code keeps the one found first, so
+`choice[7] = 2`. With `{5, 7}`, 11 won is INF, because every coin leaves an amount that cannot be made.
+
 ### Topic 06's 80 won \{#coin-revisit}
 
 In Topic 06, making change for 80 won with the coins `{50, 40, 10}`, greedy
@@ -495,6 +522,14 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 For 80 won, the memo solved only **8** amounts, all multiples of 10, while the
 table filled all **80** cells from 1 won up. Both answer 2 coins, 40 + 40.
 
+The memo does not always solve less. Change the coins and the amount and compare what the memo really solved
+(top strip) with what the table filled (bottom strip).
+
+<LazyEagerDemo />
+
+For `{50, 40, 10}` and 80 won, it solves only 8 of 80 with a stack depth of 5. For `{1, 5, 10}` and 100 won, the memo
+also solves all 100 and the stack reaches 101 levels. There the table, which uses no stack, is better.
+
 80 won is not the only amount where greedy and DP disagree. Pick a coin set or
 type one in, then click an amount to compare the coins the two methods pay. Some
 sets, like `{100, 50, 10}`, are always right for greedy; others, like `{2, 3, 5}`,
@@ -518,6 +553,13 @@ four of length 4.
                                    2  3  7  101
                                    2  3  7  18
 ```
+
+Pick for yourself. Click numbers to see the length of your sequence. If it stops being strictly increasing, it
+turns red from that point. Each longest answer you find opens one entry in the list below.
+
+<LisPlayDemo mode="pick" />
+
+The example array has the four answers above. Change the sequence to `2, 10, 5, 7, 3` and the only answer is `2 5 7`.
 
 ### Memoization: take it or leave it \{#lis-memo}
 
@@ -590,6 +632,15 @@ With 8 elements, the same `(i, prev)` repeats less than you might expect. As
 the array grows, the plain recursion grows like $$2^n$$ and the memo like
 $$n^2$$, so the gap widens quickly.
 
+Watch the same thing on the table, one step at a time. The row and column heads carry the element values, and
+yellow marks a cell taken from the table. Changing the sequence changes the numbers a lot.
+
+<LisMemoDemo />
+
+The rising sequence 1 to 8 takes 511 calls without a memo and 73 with one, 21 of them from the table. The falling
+sequence 8 to 1 never hits the table, so both take 45 calls. With the same number of elements, the table is worth
+more or less depending on the shape of the sequence.
+
 ### Tabulation: the longest that ends here \{#lis-tab}
 
 Tabulation changes the question. Let `dp[i]` be the length of the longest
@@ -648,6 +699,14 @@ tab  = 4
 element 2 (2); reversed, that is `2 5 7 101`. Choosing the 18 of equal length
 instead gives `2 5 7 18`. When several answers exist, which one comes out is
 decided by how ties are handled.
+
+Play with the finished table. Click a cell to restore the longest sequence ending at that element. Changing the
+tie rule changes the path it follows.
+
+<LisPlayDemo mode="dp" />
+
+Choosing the earlier gives `2 5 7 101`, as the code does, and choosing the later gives `2 3 7 18`. Pick `Small last value`
+and you get `dp[8] = 1` while the answer is 4. That is why the answer is the largest `dp`, not `dp[n-1]`.
 
 ## Example 3. Grid paths \{#grid-paths}
 
@@ -732,6 +791,15 @@ table is filled again from the start. Remove all three and the count becomes 252
 Blocking a single cell removes every path that used to pass through it at once.
 
 <DpGridDemo problem="grid" editable />
+
+Put the memo's "from here to the end" next to the table's "from the start to here". Click a cell and the two numbers
+multiply into the number of paths through it. Switch to `Place obstacles` and both tables change together.
+
+<GridWaysDemo />
+
+`(1, 1)` has 2 × 10 = 20 paths. Adding every cell on the same diagonal always gives 48, because every path crosses
+that diagonal exactly once. The memo solves 32 cells, all but the three obstacles and the goal, matching the program
+output. Build a wall and the memo never calls the cells that cannot be reached (the dashed cells).
 
 ## Example 4. Path finding: shortest path with k edges \{#shortest-path}
 
@@ -879,6 +947,14 @@ Dijkstra finds the cheapest path with no limit on the number of edges. Here
 the condition "exactly $$k$$ edges" rules out 0 → 2 → 3 (6), which uses only 2
 edges.
 
+Click the other cells too. Pick a goal and click a cell to see its candidates and the path restored through `next`
+on the graph.
+
+<PathTableDemo />
+
+0 → 3 costs 6 at $$k$$ = 2 and 3, and has no path at $$k$$ = 1 and 4. Change the goal to 5 and click column 0 at
+$$k$$ = 4 for 0 → 2 → 4 → 3 → 5, cost 9.
+
 ## Example 5. 0/1 knapsack \{#knapsack}
 
 This is the problem Topic 06 deferred.
@@ -964,6 +1040,14 @@ above, so item 3 was taken, and we move to capacity 20. `dp[2][20] = 100` also
 differs from the 60 above it, so item 2 was taken. `dp[1][0] = 0` equals the
 cell above, so item 1 was not taken.
 
+Check what one cell of the table means by clicking it. The recurrence fills in with that cell's numbers, and on the
+right the eight item sets show which are candidates for that cell and which one is best.
+
+<KnapCellDemo />
+
+Click `dp[2][20] = 100` to see the set that drops item 1 and takes only item 2, the case greedy missed. The best set
+found by counting all sets separately matches the table in every cell.
+
 Change the capacity and the items. Lower the capacity to 40 and the answer becomes
 180 (items 1 and 3). The line under the table shows what greedy (by value per
 weight) gets under the same conditions.
@@ -1000,6 +1084,15 @@ strictly called pseudo-polynomial.
   - Counterexample: the **longest simple path** lacks this property. Making
     each subpath as long as possible can reuse vertices and break simplicity.
 
+Test shortest paths and longest simple paths on a small graph. Pick the start, the end and a vertex to pass through,
+and the two pieces are solved optimally and joined.
+
+<OptimalityDemo />
+
+Joining the longest simple path from 0 to 2 through 1 gives 0 → 3 → 2 → 1 and 1 → 0 → 3 → 2, length 6, but it visits
+vertices 0, 2 and 3 twice. The real best has length 2. All 24 combinations you can pick on this graph overlap this way.
+For shortest paths, whenever the vertex lies on a shortest path, the joined path is always optimal.
+
 ### How it differs from divide and conquer \{#vs-divide}
 
 | | Divide and conquer | Dynamic programming |
@@ -1013,6 +1106,14 @@ strictly called pseudo-polynomial.
 Recursive Fibonacci has the shape of divide and conquer, but its subproblems
 overlap, so it is inefficient. Seen as dynamic programming, the same problem
 takes a single loop.
+
+Whether subproblems overlap shows directly in the call tree. Move $$n$$ and turn on the memo. Red marks a call that
+solves the same problem again, and yellow marks a call taken from the table.
+
+<OverlapDemo />
+
+At $$n = 7$$, all 13 merge sort calls are different ranges, while Fibonacci makes 41 calls for only 8 distinct problems.
+With the memo on, Fibonacci drops to 13 calls ($$2n - 1$$), but merge sort stays at 13.
 
 ### Order of design \{#design}
 
@@ -1101,8 +1202,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-11-04 | Added ten hands-on demos and put the recurrences, coins and items inside the table demos |

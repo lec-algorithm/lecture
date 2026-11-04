@@ -1,7 +1,7 @@
 ---
 title: "Topic 14. Dynamic Programming"
 description: "Dynamic programming computes each overlapping subproblem once. Memoization and tabulation, lazy and eager, then coin change, LIS, grid paths, k-edge shortest paths, 0/1 knapsack, and restoring the path"
-date: "Topic 14 · v1"
+date: "Topic 14 · v2"
 order: 14
 transition: none
 toc_level: 4
@@ -17,6 +17,16 @@ import PathDpDemo from '@components/PathDpDemo.astro';
 import FibCountDemo from '@components/FibCountDemo.astro';
 import CoinMemoDemo from '@components/CoinMemoDemo.astro';
 import CoinCompareDemo from '@components/CoinCompareDemo.astro';
+import GeneratorDemo from '@components/GeneratorDemo.astro';
+import CoinCellDemo from '@components/CoinCellDemo.astro';
+import LazyEagerDemo from '@components/LazyEagerDemo.astro';
+import LisPlayDemo from '@components/LisPlayDemo.astro';
+import LisMemoDemo from '@components/LisMemoDemo.astro';
+import GridWaysDemo from '@components/GridWaysDemo.astro';
+import PathTableDemo from '@components/PathTableDemo.astro';
+import KnapCellDemo from '@components/KnapCellDemo.astro';
+import OptimalityDemo from '@components/OptimalityDemo.astro';
+import OverlapDemo from '@components/OverlapDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-14-dynamic-programming) exactly. */}
@@ -398,6 +408,15 @@ Languages such as Haskell do this at the language level.
 
 <Slide>
 
+### Click it yourself: generators
+::sub[Each next() computes one value. Compare the work with the list]
+
+<GeneratorDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### When lazy is better
 ::sub[The memoization side]
 
@@ -520,20 +539,10 @@ memo -> 2 coins, solved 5 amounts
 
 <Slide>
 
-#### The moment the 6-won cell is filled
-::sub[For each coin, look at the a - c won cell]
+### Click it yourself: the moment a cell is filled
+::sub[Click a cell to see each coin's candidate and the path back through choice]
 
-| Last coin | Cell referenced | Candidate |
-| --- | --- | --- |
-| 2 | `dp[4]` = 2 | 3 |
-| 3 | `dp[3]` = 1 | **2** (minimum) |
-| 5 | `dp[1]` = INF | impossible |
-
-<br/>
-
-- Whenever the minimum changes, write that coin into `choice[a]`.
-- At the end, `choice[6] = 3` → the 3-won cell, `choice[3] = 3` → the 0-won cell
-- **Walking the table backwards to recover the choices** is path restoration.
+<CoinCellDemo slide />
 
 </Slide>
 
@@ -570,6 +579,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 <Slide>
 
+### Try it yourself: how much lazy and eager solve
+::sub[Change the coins and the amount, and what the memo and the table solve changes with them]
+
+<LazyEagerDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### Try it yourself: amounts where greedy differs
 ::sub[Pick a coin set or type one in, then click an amount to compare the two answers]
 
@@ -601,6 +619,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 | 2 3 7 18 | 4 |
 
 The answer need not be unique.
+
+</Slide>
+
+<Slide>
+
+### Pick your own: increasing subsequences
+::sub[Click numbers to pick. Try to find every longest answer]
+
+<LisPlayDemo mode="pick" slide />
 
 </Slide>
 
@@ -645,29 +672,12 @@ The first and third rows are **the same subproblem**. It needs solving only once
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Putting the memo to use
-::sub[Surprisingly, the memo table is not used all that much]
+### One step at a time: how often the table is used
+::sub[Surprisingly, the memo table is not used that much. Change the sequence and that changes]
 
-```console
-plain recursion = 4, calls = 108
-memo hits (i, prev + 1)
-  hit memo[7][7] = 0
-  hit memo[7][7] = 0
-  hit memo[6][6] = 1
-  hit memo[7][7] = 0
-  hit memo[6][6] = 1
-  hit memo[7][7] = 0
-  hit memo[6][6] = 1
-  hit memo[5][5] = 2
-  hit memo[4][4] = 2
-  hit memo[7][7] = 0
-  hit memo[7][7] = 0
-memo = 4, calls = 62, hits = 11, filled 36 of 72
-```
-
-With 8 elements, 11 hits. As the array grows, the gap between $$2^n$$ and $$n^2$$ widens.
+<LisMemoDemo slide />
 
 </Slide>
 
@@ -712,6 +722,15 @@ tab  = 4
 - The maximum 4 first appears at element 6 (101).
 - Following `prev`: element 5 (7), 3 (5), 2 (2); reversed, `2 5 7 101`
 - Choosing 18 instead gives `2 5 7 18`; tie handling decides which answer comes out.
+
+</Slide>
+
+<Slide>
+
+### Try it yourself: the sequence and the tie rule
+::sub[Click a cell to restore the longest sequence ending at that element]
+
+<LisPlayDemo mode="dp" slide />
 
 </Slide>
 
@@ -774,6 +793,15 @@ Without obstacles there are $$\binom{10}{5} = 252$$; the three diagonal obstacle
 ::sub[Click a cell to place or remove an obstacle; the table is filled again from the start]
 
 <DpGridDemo problem="grid" editable slide />
+
+</Slide>
+
+<Slide>
+
+### Click it yourself: the table from both ends
+::sub[Paths into a cell times paths out of it is the number of paths through it]
+
+<GridWaysDemo slide />
 
 </Slide>
 
@@ -921,6 +949,15 @@ next[1][4][3] = 3    4 → 3   (cost 1)
 
 <Slide>
 
+### Try it yourself: the goal and k
+::sub[Click a cell to see its candidates and restored path. A different edge count gives a different answer]
+
+<PathTableDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### One extra line that records the choice
 ::sub[choice, prev, next]
 
@@ -961,7 +998,7 @@ $$
 <Slide>
 
 ### One step at a time: the knapsack table
-::sub[All weights are multiples of 10, so only every tenth column is shown. At the end it climbs back up to restore the items]
+::sub[Weights are multiples of 10, so only every tenth column shows. At the end it climbs back to restore the items]
 
 <DpGridDemo problem="knapsack" slide />
 
@@ -992,8 +1029,17 @@ best = 220
 
 <Slide>
 
+### Click it yourself: one cell of the table
+::sub[Click a cell to see the recurrence with its numbers and the item set it holds]
+
+<KnapCellDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### Try it yourself: capacity and items
-::sub[Lower the capacity to 40 or change a weight or value; the table, the restored items and the greedy answer change together]
+::sub[Lower the capacity to 40 or change an item; the table, the restored items and the greedy answer follow]
 
 <DpGridDemo problem="knapsack" editable slide />
 
@@ -1038,6 +1084,15 @@ best = 220
 
 <Slide>
 
+### Test it yourself: joining optimal pieces
+::sub[Compare shortest paths and longest simple paths. Change the three vertices]
+
+<OptimalityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Divide and conquer vs. dynamic programming
 
 | | Divide and conquer | Dynamic programming |
@@ -1050,6 +1105,15 @@ best = 220
 <br/>
 
 Recursive Fibonacci has the shape of divide and conquer, but its subproblems overlap, so it is inefficient.
+
+</Slide>
+
+<Slide>
+
+### Count it yourself: do subproblems overlap
+::sub[Move n and turn on the memo. Click a node to color every copy of that problem]
+
+<OverlapDemo slide />
 
 </Slide>
 
