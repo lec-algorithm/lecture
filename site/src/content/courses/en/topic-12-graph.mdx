@@ -18,6 +18,19 @@ import GraphTermsDemo from '@components/GraphTermsDemo.astro';
 import GraphRepDemo from '@components/GraphRepDemo.astro';
 import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
+import DensityDemo from '@components/DensityDemo.astro';
+import FrontierDemo from '@components/FrontierDemo.astro';
+import SearchCompareDemo from '@components/SearchCompareDemo.astro';
+import TopoPickDemo from '@components/TopoPickDemo.astro';
+import SpanSwapDemo from '@components/SpanSwapDemo.astro';
+import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import WeightPathDemo from '@components/WeightPathDemo.astro';
+import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
+import PqCostDemo from '@components/PqCostDemo.astro';
+import NegWeightDemo from '@components/NegWeightDemo.astro';
+import NegCycleDemo from '@components/NegCycleDemo.astro';
+import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
+import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 
 > So far we have worked with data that lines up or has an up and a down: arrays, trees, tables.  
 > This topic is about data where **anything can connect to anything**: graphs.  
@@ -178,6 +191,18 @@ adjacency list
 Only 18 of the matrix's 49 cells are 1. The list writes just those 18 neighbours. The
 fewer the edges, the more the list wins.
 
+### Edges and cells \{#edge-cells}
+
+Move the edge range from earlier together with the cell counts of the two representations.
+Changing $$n$$ and $$m$$ redraws the graph and updates the counts.
+
+<DensityDemo />
+
+- With $$n = 5$$, $$m$$ moves from 4 to 10. At the minimum, the list takes 13 cells and the matrix 25.
+- The list's $$n + 2m$$ cells equal the matrix's $$n^2$$ only when $$m$$ is at its maximum. With $$n = 5$$, $$m = 10$$, both take 25.
+- With $$n = 12$$, $$m = 11$$, the list takes 34 cells and the matrix 144.
+- Only for checking a single edge does the matrix lead, with 1 cell.
+
 ### Comparing the two \{#representation-compare}
 
 Suppose four cities, Seoul (0), Busan (1), Daegu (2) and Gwangju (3), are joined by three
@@ -251,6 +276,16 @@ s to v but v is unexplored at the end.
 One question remains. **When several edges cross the frontier, which comes first?**
 Picking the ones closest to the explored region gives BFS; going deeper from where you
 just arrived gives DFS.
+
+Check by hand that the claim holds whichever edge you pick.
+The dashed blue edges are the frontier. Click an edge, or use the buttons to pick the oldest or newest one.
+Click a vertex to start over from it.
+
+<FrontierDemo />
+
+- Picking only the oldest edge explores in the order 0 1 2 5 6 3 4; picking only the newest, 0 6 4 5 3 2 1. These are the BFS and DFS orders coming up.
+- However you pick, starting from 0 reaches the seven vertices 0 to 6.
+- No path leads to 7 through 12, so they stay unexplored, exactly as the claim says.
 
 | | BFS | DFS |
 | --- | --- | --- |
@@ -543,6 +578,14 @@ order of courses that respects every prerequisite is a **topological sort**.
 
 <GraphFigure graph="dag" caption="0 Algorithms · 1 Complexity Theory · 2 Artificial Intelligence · 3 Intro to CS · 4 Cryptography · 5 Scientific Computing · 6 Advanced Programming" />
 
+Before DFS numbers the vertices, build a course order by hand.
+Only a course whose prerequisites are done can be picked.
+
+<TopoPickDemo />
+
+- There are 6 possible orders. 3, 6, 0 are forced, and the rest is the number of ways to interleave 1 → 4 and 5 → 2.
+- "Add a cycle edge" adds 4 → 0, making 0 → 1 → 4 → 0 a cycle. After 3 and 6 nothing can be picked, and the number of orders is 0.
+
 A topological order of a directed graph G labels the vertices with numbers
 $$f(v) \in \{1, 2, \dots, n\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
 produces these numbers directly. A vertex gets its number **after all its outgoing
@@ -606,6 +649,16 @@ number, 7. Nothing points to 3, so it comes first and gets number 1.
 
 ### BFS and DFS \{#bfs-vs-dfs}
 
+Run BFS and recursive DFS side by side on the same graph and measure what the table says.
+Change the shape and the neighbour order, and click a vertex to change the start.
+Shaded cells are vertices whose DFS tree depth differs from their distance.
+
+<SearchCompareDemo />
+
+- Looking at the largest neighbour first changes the BFS visit order to 0 6 5 2 1 4 3, but the depths (the distances) stay 0 1 1 2 2 1 1.
+- The DFS depths are 0 1 1 2 3 4 4 smallest first and 0 1 5 4 2 3 1 largest first. They are not distances.
+- Memory depends on the shape. The peak queue and call stack are 6 and 2 on the star, 1 and 7 on the long line.
+
 | Property | BFS | DFS |
 | --- | --- | --- |
 | Data structure | queue (FIFO) | stack (LIFO) or recursion |
@@ -643,6 +696,16 @@ The example graph has 8 vertices and 16 edges. Weights have two decimal places.
 - All edge weights are distinct. Then the MST is **unique**. With equal weights there may
   be several MSTs.
 - The graph is connected. Otherwise we get a forest, one tree per component, instead of an MST.
+
+Swap edges by hand and work down to the MST.
+Clicking an edge outside the tree makes a cycle. Clicking an edge on that cycle removes it and brings the new edge in.
+
+<SpanSwapDemo />
+
+- This graph has 3108 spanning trees. The starting tree is the heaviest, 3.51, and the rank is its place among them.
+- Keep swapping until no swap helps and you reach the total 1.81. The next lightest tree is 1.83.
+- "Make a tie" changes 2-7 to 0.26, equal to 0-2. Then 2 trees have the total 1.81. That is why we assume all weights differ.
+- This exchange returns in the proof of the cut property below.
 
 ### The cut property \{#cut-property}
 
@@ -873,6 +936,14 @@ element moving; blue is the parent or child it is compared with.
 climbing to the root. On extraction, the last element 5 comes up to the root and then
 sinks again, swapping with the smaller children 1 and 2. The final heap is the starting
 one with 10 added.
+
+Now insert and extract values yourself. Clicking a cell in the tree or array shades its parent and children.
+
+<HeapPlayDemo />
+
+- Inserting 0 into the starting heap climbs to the root in 3 comparisons. The height is 3.
+- An extract compares once per child on each level. Extracting from the starting heap takes 5 comparisons.
+- Equal values are fine. A value only moves up when it is smaller than its parent, so an equal value stays.
 
 - Pseudocode
 
@@ -1145,6 +1216,15 @@ Doesn't BFS already find shortest paths in linear time? Yes, but **only when eve
 has weight 1**. If a path through three edges is 3 + 3 + 3 = 9 and a one-edge path is 20,
 BFS finds the one-edge path first and stops there. With weights, we need another method.
 
+Move the sliders and run BFS and Dijkstra side by side. Thick green is the Dijkstra path, dashed blue is the BFS path.
+
+<WeightPathDemo />
+
+- At the starting values BFS uses 1 edge at cost 20, and Dijkstra uses 3 edges at cost 9.
+- With the lower edge $$d$$ at 9 or less, the two paths coincide.
+- On the example graph from 0 to 6, BFS takes 0 → 4 → 6 at cost 29, and Dijkstra takes 0 → 4 → 5 → 2 → 6 at cost 25.
+- "Set all to 1" makes the edge count and the cost equal, so BFS is shortest too.
+
 ## Example 6. Dijkstra's algorithm \{#dijkstra}
 
 Dijkstra's algorithm finds the **shortest distance from one source to every other
@@ -1191,6 +1271,15 @@ dashed blue lines are the from edges of vertices not yet finalised.
 Vertex 2's distance dropped three times: 17, 15, 14. The first path found, 0 → 1 → 2,
 is 17; the next, 0 → 7 → 2, is 15; and the last, 0 → 4 → 5 → 2, is 14. By the time 2
 is finalised, no shorter path remains.
+
+We said only one line differs. Run both side by side on the same graph to check.
+The graph is the undirected Prim example. Click a vertex to change the start.
+
+<PrimDijkstraDemo />
+
+- From 0, Prim finalises 0 7 1 2 3 5 4 6 and Dijkstra finalises 0 7 2 1 4 3 5 6.
+- Prim's tree totals 1.81 from any start. The Dijkstra tree's total depends on the start: 2.02 from 0, 3.41 from 6.
+- In return, Dijkstra's distances are short. From 0 to 4 the MST takes 0.79 and the shortest distance is 0.38. From 0 to 6 they are 0.66 and 0.58.
 
 - Pseudocode
 
@@ -1315,6 +1404,14 @@ Dijkstra's algorithm computes a shortest-path tree in a directed graph with non-
 Each vertex is inserted and extracted once, and each edge may trigger one update-key. So
 the cost depends on what the priority queue is built from.
 
+Compute the total formulas of the table below by moving $$V$$ and $$E$$. The bars use a log scale and the values drop constants.
+
+<PqCostDemo />
+
+- With $$V = 1000$$, $$E = 3V$$: the array gives 1,000,000 and the binary heap 29,897.
+- With $$V = 1000$$, $$E = V(V-1)$$: the array gives 1,000,000 and the binary heap 9,955,819. The order flips.
+- The array and the binary heap meet at $$E = V^2 / \log_2 V$$, about 100,343 for $$V = 1000$$.
+
 | Data structure | insert | extract-min | update-key | total |
 | --- | --- | --- | --- | --- |
 | unordered array | $$1$$ | $$V$$ | $$1$$ | $$V^2$$ |
@@ -1362,6 +1459,13 @@ What if we add 9 to every weight to remove the negative one? The weights become 
 more edges a path has, the more times the added amount is counted. Graphs with negative
 weights need a different algorithm (Bellman-Ford).
 
+Move two values and find out when Dijkstra goes wrong. One slider is the weight $$w$$ of 2 → 3, the other a value $$c$$ added to every edge.
+
+<NegWeightDemo />
+
+- With $$c = 0$$, Dijkstra is wrong when $$w$$ is $$-9$$ or less. With $$w = -8$$ both paths cost 2, so it is right.
+- With $$c = 9$$, Dijkstra correctly answers 11 for this graph, but that path 0 → 3 is not the original shortest path 0 → 1 → 2 → 3.
+
 ### Negative cycles \{#negative-cycle}
 
 A **negative cycle** is a directed cycle whose total edge weight is negative. Add an edge
@@ -1371,6 +1475,15 @@ to 6 is **undefined.** It can be made as short as you like, down to $$-\infty$$.
 
 - A shortest-path tree exists **only if** no negative cycle is reachable from s.
 - So an algorithm that handles negative weights must also report whether there is a negative cycle.
+
+Walk around the cycle yourself. Choose the weight of 5 → 7 with the slider and press "One more lap".
+You see the cost of 0 → 7 followed by that many laps of 7 → 5 → 7.
+
+<NegCycleDemo />
+
+- With $$w = -8$$ the cycle totals $$-2$$, so the cost falls 8, 6, 4, 2, … without end.
+- With $$w = -6$$ it totals 0, so the cost stays 8.
+- With $$w = -5$$ it totals 1, so each lap is longer. A negative edge alone is fine: without a negative cycle, the shortest path is defined.
 
 ## Example 7. The A* algorithm \{#a-star}
 
@@ -1476,6 +1589,16 @@ There are two fixes.
 
 - When a shorter path to a closed vertex is found, **reopen** it.
 - Use a **consistent** $$h$$ from the start. Straight-line distance on a map is always consistent.
+
+Edit $$h$$ yourself and measure the two conditions. Raising or lowering $$h$$ at any vertex updates the verdicts and both runs at once.
+Dashed red edges break consistency, and green is the path without reopening.
+
+<HeuristicLabDemo />
+
+- With the example $$h$$, the run without reopening gives 26 and the run with reopening gives 25.
+- Lowering $$h(4)$$ to 9 and $$h(5)$$ to 5 makes it consistent, and 25 comes without reopening.
+- Lowering only $$h(4)$$ to 10 leaves one violated edge, 5 → 2, and the run without reopening still gives 26.
+- The chip $$h = 2h^*$$ is not admissible, so both runs stop at 29.
 
 ### One step at a time: reopening \{#a-star-reopen}
 
@@ -1604,6 +1727,15 @@ fewest vertices but returns 29, which is not the shortest path.
   path; with a consistent $$h$$ it does so even without reopening. Consistency is the
   stronger condition, and it guarantees efficiency as well.
 
+Measure the cells of the table below on this graph. The four algorithms run from 0 to 6, and we note how many vertices each closes before taking the goal, and its path.
+Click a row to step through what that algorithm closes, and use the chips to change $$h$$.
+
+<SearchRaceDemo />
+
+- With the example $$h$$: BFS closes 7 and costs 29, Dijkstra 7 and 25, A* 8 and 25, Greedy 3 and 26.
+- With this $$h$$, A* closes more than Dijkstra, because it is not consistent and closes 2 twice. With $$h^*$$, A* closes 4, and Greedy closes 2 and costs 29.
+- So the efficiency column below is a general tendency. The result on one small graph depends on $$h$$.
+
 | Algorithm | Search style | Optimality | Efficiency | Memory |
 | --- | --- | --- | --- | --- |
 | BFS | blind | guaranteed (unit weights) | low | high |
@@ -1672,8 +1804,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-11-04 | Added 13 hands-on demos (edges and cells, picking frontier edges, BFS and DFS side by side, topological sort, swapping spanning-tree edges, min heap, the paths of BFS and Dijkstra, Prim and Dijkstra side by side, choosing the priority queue, negative weights, negative cycles, editing h, measuring four algorithms). Added an adjacency-list table inside the search demos |
