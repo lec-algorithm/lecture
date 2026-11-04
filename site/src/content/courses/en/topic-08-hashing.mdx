@@ -930,6 +930,80 @@ Chaining is a different story. The lists just get longer and there is nowhere
 to overflow, so it works even with $$\alpha$$ above 1 (the example had 2),
 and the cost grows gently, in proportion to $$\alpha$$.
 
+## Aside: hash functions outside hash tables \{#other-hash-functions}
+
+The hash algorithms you hear about elsewhere, such as MD5 and SHA-256, are hash
+functions too. Like `k mod M` and Horner's method, they turn an input of any
+length into a value in a fixed range. What they must guarantee depends on the
+use, so they are usually split into three groups.
+
+| | For hash tables | Non-cryptographic | Cryptographic |
+| --- | --- | --- | --- |
+| Examples | `k mod M`, Horner's method | MurmurHash, xxHash | SHA-256, SHA-3 |
+| Output | An array index | 32- to 128-bit integer | Long value, such as 256 bits |
+| What matters | Fast and even | Very fast and even | Attackers cannot break it |
+| Used for | Dictionaries, sets | Partitioning data, checksums | Digital signatures, integrity checks |
+
+- **Non-cryptographic hashes** ignore security and aim for speed and an even
+  spread. Taking `mod M` of the result makes them usable in a hash table too.
+  Cassandra uses MurmurHash3 to split data across nodes, and Zstandard uses
+  xxHash for the checksum of compressed data.
+- **Cryptographic hashes** must hold up against an attacker. Nobody should be
+  able to find an input from its result (preimage resistance), find another
+  input with the same result as a given one (second-preimage resistance), or
+  find any two inputs with the same result (collision resistance).
+
+### One letter apart \{#avalanche}
+
+Compute the sum of letter codes and SHA-256 side by side for the words from
+earlier. Only the first 16 digits of SHA-256 are printed.
+
+- Run
+
+```python
+import hashlib
+
+for w in ["stop", "pots", "stoq"]:
+    print(w, sum(map(ord, w)) % 97, hashlib.sha256(w.encode()).hexdigest()[:16])
+```
+
+- Output
+
+```console
+stop 66 6c45cb72a36e63d5
+pots 66 d4714f5c6b2efd1a
+stoq 67 63bc07d74b91d2ee
+```
+
+Adding letter codes gives `stop` and `pots` the same 66, and `stoq`, one letter
+different, lands next door at 67. The three SHA-256 results look nothing alike:
+`stop` and `stoq` differ in 135 of the 256 bits. This property, where a small
+change in the input flips about half of the output, is called the avalanche
+effect.
+
+### How each treats collisions \{#collision-attitude}
+
+The pigeonhole principle applies to cryptographic hashes too. Inputs are
+unlimited and outputs are not, so collisions must exist. The difference is
+**whether anyone can find one**. By the birthday problem, with $$M$$ slots
+collisions show up at around $$\sqrt{M}$$ keys. A 256-bit output means
+$$M = 2^{256}$$, so it takes about $$2^{128}$$ tries, which is out of reach in
+practice. A hash table has a small $$M$$, so collisions are routine and a way to
+handle them comes built in. For a cryptographic hash, being able to find a
+collision means the function is broken. MD5 and SHA-1 have known real collisions
+and are no longer used for security.
+
+The two worlds are connected.
+
+- SHA-256 could serve a hash table by taking `mod M`, but it is usually slower
+  than the job needs.
+- Hash tables get attacked too. If an attacker sends only keys that pile into
+  one slot, the average $$O(1)$$ falls to the worst case $$O(N)$$. This is called
+  hash flooding. So Python's string hash and the default hash of Rust's `HashMap`
+  use the SipHash family, which mixes in a randomly chosen secret key.
+- A cryptographic hash is not right for everything. For storing passwords, speed
+  is a weakness, so deliberately slow functions like bcrypt and Argon2 are used.
+
 ## Comparing the two methods \{#comparison}
 
 | | Separate chaining | Linear probing |

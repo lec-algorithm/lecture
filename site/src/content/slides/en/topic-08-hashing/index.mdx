@@ -930,6 +930,63 @@ It gets worse **sharply** as it nears 1. So $$\alpha$$ is kept near 1/2.
 
 </Slide>
 
+<Slide>
+
+#### Aside: hash functions outside hash tables
+::sub[All turn an input into a value in a fixed range. What they must guarantee differs]
+
+| | For hash tables | Non-cryptographic | Cryptographic |
+| --- | --- | --- | --- |
+| Examples | `k mod M`, Horner's method | MurmurHash, xxHash | SHA-256, SHA-3 |
+| Output | An array index | 32- to 128-bit integer | Long value, such as 256 bits |
+| What matters | Fast and even | Very fast and even | Attackers cannot break it |
+| Used for | Dictionaries, sets | Partitioning data, checksums | Digital signatures, integrity checks |
+
+</Slide>
+
+<Slide class="compact">
+
+#### Aside: one letter apart
+::sub[Computed with Python `hashlib`. Middle: sum of letter codes mod 97. Right: first 16 digits of SHA-256]
+
+- Run
+
+```python
+import hashlib
+
+for w in ["stop", "pots", "stoq"]:
+    print(w, sum(map(ord, w)) % 97, hashlib.sha256(w.encode()).hexdigest()[:16])
+```
+
+- Output
+
+```console
+stop 66 6c45cb72a36e63d5
+pots 66 d4714f5c6b2efd1a
+stoq 67 63bc07d74b91d2ee
+```
+
+Adding letter codes gives `stop` and `pots` the same value, and `stoq` lands next door.  
+With SHA-256, changing one letter flips 135 of the 256 bits.
+
+</Slide>
+
+<Slide>
+
+#### Aside: how each treats collisions
+::sub[The pigeonhole principle applies to cryptographic hashes too]
+
+- **Hash tables: collisions are routine.**
+  - With few slots they cannot be avoided, so a way to handle them comes built in.
+- **Cryptographic hashes: collisions must be impossible to find.**
+  - With 256 bits, even the birthday problem leaves about $$2^{128}$$ tries.
+  - MD5 and SHA-1 have known real collisions and are no longer used for security.
+- **Hash tables get attacked too.**
+  - Sending only keys that pile into one slot makes operations $$O(N)$$ (hash flooding).
+  - So Python strings and Rust's `HashMap` mix in a secret key.
+
+</Slide>
+
 <Slide class="center">
 
 ## Summary
