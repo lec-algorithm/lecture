@@ -1,0 +1,420 @@
+---
+// 0/1 배낭 표의 칸 하나가 무슨 뜻인지 눌러서 확인하는 데모.
+//
+// dp[i][c]를 누르면 점화식에 그 칸의 숫자를 넣어 보이고, 비교한 두 칸(위 칸,
+// 위 줄에서 w만큼 왼쪽 칸)을 칠한다. 오른쪽에는 물건 조합 8가지를 모두 늘어놓아
+// 물건 1..i만 쓰고 무게가 c 이하인 조합 가운데 가장 값진 것이 정말 그 칸의 값인지
+// 눈으로 맞춰 보게 한다. "표의 한 칸 = 그 조건에서의 최댓값"이라는 정의가 말이 아니라
+// 사실임을 보이는 것이 목적이다.
+//
+// 표와 복원은 algorithm-code topic-14 06_knapsack과 같은 절차를 스크립트가 실제로 돌린다.
+// 조합 목록은 표와 따로 전부 세어 본 값이다(둘이 어긋나면 안 된다).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
+
+interface Props {
+  /** 물건마다 [무게, 가치] */
+  items?: [number, number][];
+  /** 배낭 용량 */
+  capacity?: number;
+  /** 열 간격. 모든 무게가 이 값의 배수여야 한다. */
+  unit?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  items = [
+    [10, 60],
+    [20, 100],
+    [30, 120],
+  ],
+  capacity = 50,
+  unit = 10,
+  slide = false,
+} = Astro.props;
+const id = `kc-${Math.random().toString(36).slice(2, 9)}`;
+const nRows = items.length + 1;
+const nCols = capacity / unit + 1;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '칸 하나의 뜻',
+    tableHead: '칸을 눌러 보세요',
+    corner: 'i \\ c',
+    listHead: '물건 조합 전부',
+    weight: '무게',
+    value: '가치',
+    none: '없음',
+    locked: '물건 {i}까지만',
+    over: '용량 초과',
+    best: '최댓값',
+    zero: 'dp[0][{c}] = 0입니다. 아직 고를 물건이 없습니다.',
+    noFit: '물건 {i}(무게 {w})은 용량 {c}에 들어가지 않습니다. 위 칸 dp[{p}][{c}] = {x}을 그대로 받습니다.',
+    fit: 'dp[{i}][{c}] = max(dp[{p}][{c}] = {x}, dp[{p}][{r}] + {v} = {y}) = {z}입니다.',
+    take: '물건 {i} 담기가 이겼습니다.',
+    skip: '물건 {i} 안 담기가 이겼습니다.',
+    tie: '둘이 같으니 코드는 담지 않는 쪽을 따릅니다.',
+    holds: '이 칸의 조합은 {list}이고, 후보 {n}개 가운데 최댓값입니다.',
+  },
+  en: {
+    title: 'What one cell means',
+    tableHead: 'Click a cell',
+    corner: 'i \\ c',
+    listHead: 'All item sets',
+    weight: 'w',
+    value: 'v',
+    none: 'none',
+    locked: 'items up to {i}',
+    over: 'too heavy',
+    best: 'best',
+    zero: 'dp[0][{c}] = 0. There are no items to pick yet.',
+    noFit: 'Item {i} (weight {w}) does not fit in capacity {c}. Take the cell above, dp[{p}][{c}] = {x}.',
+    fit: 'dp[{i}][{c}] = max(dp[{p}][{c}] = {x}, dp[{p}][{r}] + {v} = {y}) = {z}.',
+    take: 'Taking item {i} wins.',
+    skip: 'Skipping item {i} wins.',
+    tie: 'They tie, so the code stays with skipping.',
+    holds: 'This cell holds {list}, the best of {n} candidates.',
+  },
+  zh: {
+    title: '一格的含义',
+    tableHead: '点一下格子',
+    corner: 'i \\ c',
+    listHead: '全部物品组合',
+    weight: '重',
+    value: '价值',
+    none: '无',
+    locked: '只到物品 {i}',
+    over: '超重',
+    best: '最大',
+    zero: 'dp[0][{c}] = 0。还没有物品可选。',
+    noFit: '物品 {i}（重 {w}）放不进容量 {c}。照抄上一格 dp[{p}][{c}] = {x}。',
+    fit: 'dp[{i}][{c}] = max(dp[{p}][{c}] = {x}, dp[{p}][{r}] + {v} = {y}) = {z}。',
+    take: '放入物品 {i} 的一方胜出。',
+    skip: '不放物品 {i} 的一方胜出。',
+    tie: '两者相同，代码沿用不放的一方。',
+    holds: '这一格的组合是 {list}，是 {n} 个候选里最大的。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const config = { items, capacity, unit, nRows, nCols };
+---
+
+<div
+  class:list={['aas-knap-cell-demo', slide && 'is-slide']}
+  id={id}
+  data-kc-strings={JSON.stringify(t)}
+  data-kc-config={JSON.stringify(config)}
+  style={`--kc-cols: ${nCols}; --kc-rows: ${nRows}`}
+>
+  <div class="kc-bar">
+    <span class="kc-head"><strong>{t.title}</strong></span>
+    <DpRef kind="knap" items={items} />
+  </div>
+
+  <div class="kc-body">
+    <div class="kc-left">
+      <h4>{t.tableHead}</h4>
+      <div class="kc-table">
+        <span class="kc-corner">{t.corner}</span>
+        {Array.from({ length: nCols }, (_, k) => <span class="kc-colhead">{k * unit}</span>)}
+        {
+          Array.from({ length: nRows }, (_, i) => (
+            <>
+              <span class="kc-rowhead">{i}</span>
+              {Array.from({ length: nCols }, (_, k) => (
+                <button type="button" class="kc-cell" data-kc-i={i} data-kc-k={k} />
+              ))}
+            </>
+          ))
+        }
+      </div>
+    </div>
+    <div class="kc-right">
+      <h4>{t.listHead}</h4>
+      <div class="kc-sets" data-kc-sets></div>
+    </div>
+  </div>
+
+  <p class="kc-note" data-kc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.kcStrings);
+    const { items, unit, nRows, nCols } = JSON.parse(root.dataset.kcConfig);
+
+    /* 표: knapsack.py와 같은 순서로 채운다. */
+    const dp = Array.from({ length: nRows }, () => new Array(nCols).fill(0));
+    for (let i = 1; i < nRows; i++) {
+      const [w, v] = items[i - 1];
+      for (let k = 0; k < nCols; k++) {
+        dp[i][k] = dp[i - 1][k];
+        const r = k - w / unit;
+        if (r >= 0 && dp[i - 1][r] + v > dp[i][k]) dp[i][k] = dp[i - 1][r] + v;
+      }
+    }
+    /* 복원: 위 칸과 다르면 그 물건을 담은 것 */
+    const restore = (i, k) => {
+      const got = [];
+      for (let a = i; a >= 1; a--) {
+        if (dp[a][k] !== dp[a - 1][k]) {
+          got.push(a);
+          k -= items[a - 1][0] / unit;
+        }
+      }
+      return got.reverse();
+    };
+    /* 조합은 표를 보지 않고 전부 센다. */
+    const subsets = [];
+    for (let m = 0; m < 1 << items.length; m++) {
+      const list = items.map((_, b) => b + 1).filter((b) => (m >> (b - 1)) & 1);
+      subsets.push({
+        list,
+        top: list.length ? list[list.length - 1] : 0,
+        w: list.reduce((s, b) => s + items[b - 1][0], 0),
+        v: list.reduce((s, b) => s + items[b - 1][1], 0),
+      });
+    }
+    subsets.sort((a, b) => a.list.length - b.list.length || a.top - b.top);
+    const name = (list) => (list.length ? `{${list.join(', ')}}` : S.none);
+
+    const setsEl = root.querySelector('[data-kc-sets]');
+    setsEl.innerHTML = subsets
+      .map(
+        (s, n) =>
+          `<div class="kc-set" data-kc-set="${n}"><b>${name(s.list)}</b><span>${S.weight} ${s.w}</span><span>${S.value} ${s.v}</span><em data-kc-tag></em></div>`,
+      )
+      .join('');
+    const setEls = [...setsEl.children];
+    const cells = [...root.querySelectorAll('[data-kc-i]')];
+    const note = root.querySelector('[data-kc-note]');
+    cells.forEach((el) => (el.textContent = String(dp[+el.dataset.kcI][+el.dataset.kcK])));
+
+    let curI = nRows - 1;
+    let curK = nCols - 1;
+
+    function draw() {
+      const i = curI;
+      const k = curK;
+      const c = k * unit;
+      const it = i > 0 ? items[i - 1] : null;
+      const rk = it ? k - it[0] / unit : -1;
+      const fits = it && rk >= 0;
+      const y = fits ? dp[i - 1][rk] + it[1] : null;
+      const x = i > 0 ? dp[i - 1][k] : 0;
+      const took = fits && y > x;
+      cells.forEach((el) => {
+        const a = +el.dataset.kcI;
+        const b = +el.dataset.kcK;
+        el.classList.toggle('is-cur', a === i && b === k);
+        el.classList.toggle('is-ref', i > 0 && a === i - 1 && (b === k || (fits && b === rk)));
+        el.classList.toggle('is-best', i > 0 && a === i - 1 && (took ? b === rk : b === k));
+      });
+      root.querySelectorAll('[data-dr-key]').forEach((el) => el.classList.toggle('is-now', +el.dataset.drKey === i));
+      root.querySelectorAll('[data-dr-term]').forEach((el) => {
+        const on = i > 0 && (el.dataset.drTerm === 'take' ? took : !took);
+        el.classList.toggle('is-now', on);
+      });
+
+      const got = restore(i, k);
+      const candidates = subsets.filter((s) => s.top <= i && s.w <= c);
+      const bestV = Math.max(...candidates.map((s) => s.v));
+      subsets.forEach((s, n) => {
+        const el = setEls[n];
+        const isLocked = s.top > i;
+        const isOver = !isLocked && s.w > c;
+        const isBest = !isLocked && !isOver && s.v === bestV && s.list.join() === got.join();
+        el.classList.toggle('is-locked', isLocked);
+        el.classList.toggle('is-over', isOver);
+        el.classList.toggle('is-best', isBest);
+        el.querySelector('[data-kc-tag]').textContent = isBest
+          ? S.best
+          : isLocked
+            ? fill(S.locked, { i })
+            : isOver
+              ? S.over
+              : '';
+      });
+      root.dataset.kcCheck = bestV === dp[i][k] ? 'ok' : 'mismatch';
+
+      const holds = fill(S.holds, { list: name(got), n: candidates.length });
+      if (i === 0) {
+        setLines(note, join(fill(S.zero, { c }), holds));
+      } else if (!fits) {
+        setLines(note, join(fill(S.noFit, { i, w: it[0], c, p: i - 1, x }), holds));
+      } else {
+        setLines(
+          note,
+          join(
+            fill(S.fit, { i, c, p: i - 1, x, r: rk * unit, v: it[1], y, z: dp[i][k] }),
+            y === x ? S.tie : fill(took ? S.take : S.skip, { i }),
+            holds,
+          ),
+        );
+      }
+    }
+
+    cells.forEach((el) =>
+      el.addEventListener('click', () => {
+        curI = +el.dataset.kcI;
+        curK = +el.dataset.kcK;
+        draw();
+      }),
+    );
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-knap-cell-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-knap-cell-demo .kc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-knap-cell-demo .kc-head {
+    font-size: 0.95em;
+  }
+  .aas-knap-cell-demo .kc-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5em 1.4em;
+    margin-top: 0.5em;
+  }
+  .aas-knap-cell-demo h4 {
+    margin: 0 0 0.35em;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-knap-cell-demo .kc-table {
+    display: grid;
+    grid-template-columns: 2.6em repeat(var(--kc-cols), 3.1em);
+    gap: 0.18em;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-knap-cell-demo .kc-corner,
+  .aas-knap-cell-demo .kc-colhead,
+  .aas-knap-cell-demo .kc-rowhead {
+    font-size: 0.75em;
+    text-align: center;
+    color: var(--aas-muted);
+  }
+  .aas-knap-cell-demo .kc-cell {
+    height: 2.1em;
+    padding: 0;
+    font-family: inherit;
+    font-size: 0.9em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-knap-cell-demo .kc-cell:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-knap-cell-demo .kc-cell.is-ref {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-knap-cell-demo .kc-cell.is-best {
+    background: color-mix(in srgb, var(--aas-role-model) 32%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-knap-cell-demo .kc-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-knap-cell-demo .kc-sets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.2em 0.5em;
+  }
+  .aas-knap-cell-demo .kc-set {
+    display: grid;
+    grid-template-columns: 5.6em 4.4em 5.2em minmax(0, 1fr);
+    gap: 0.3em;
+    align-items: center;
+    padding: 0.15em 0.45em;
+    font-size: 0.78em;
+    line-height: 1.3;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    white-space: nowrap;
+  }
+  .aas-knap-cell-demo .kc-set em {
+    font-family: var(--aas-sans, inherit);
+    font-style: normal;
+    font-size: 0.9em;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .aas-knap-cell-demo .kc-set.is-locked {
+    opacity: 0.45;
+    border-style: dashed;
+  }
+  .aas-knap-cell-demo .kc-set.is-over em {
+    color: var(--aas-role-guard);
+  }
+  .aas-knap-cell-demo .kc-set.is-best {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-knap-cell-demo .kc-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 4.2em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-knap-cell-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (max-width: 720px) {
+    .aas-knap-cell-demo .kc-body {
+      grid-template-columns: 1fr;
+    }
+    .aas-knap-cell-demo .kc-sets {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-knap-cell-demo .kc-cell {
+      transition: none;
+    }
+  }
+</style>
