@@ -23,6 +23,10 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-08-hashing)의 실행 결과와 같습니다. */}
@@ -930,9 +934,16 @@ $$
 
 </Slide>
 
+<Slide class="center">
+
+## 참고: 해시 테이블 밖의 해시 함수
+::sub[Hash Functions Beyond Hash Tables]
+
+</Slide>
+
 <Slide>
 
-#### 참고: 해시 테이블 밖의 해시 함수
+#### 세 갈래의 해시 함수
 ::sub[입력을 정해진 범위의 값으로 바꾸는 것은 같고, 요구 조건이 다릅니다]
 
 | | 해시 테이블용 | 비암호 범용 | 암호학적 |
@@ -944,36 +955,27 @@ $$
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 참고: 한 글자만 달라도
-::sub[Python `hashlib`로 계산. 가운데가 글자 코드 합 mod 97, 오른쪽이 SHA-256의 앞 16자리]
+### 네 해시 겨루기
+::sub[같은 키 3,200개를 M칸에 넣습니다. 점선은 평균, 시간은 호너 방식에 대한 배율입니다]
 
-- 실행
-
-```python
-import hashlib
-
-for w in ["stop", "pots", "stoq"]:
-    print(w, sum(map(ord, w)) % 97, hashlib.sha256(w.encode()).hexdigest()[:16])
-```
-
-- 결과
-
-```console
-stop 66 6c45cb72a36e63d5
-pots 66 d4714f5c6b2efd1a
-stoq 67 63bc07d74b91d2ee
-```
-
-글자 코드를 더하면 `stop`과 `pots`가 같고, `stoq`는 바로 옆 칸입니다.  
-SHA-256은 한 글자만 바꿔도 256비트 중 135비트가 달라집니다.
+<HashKindsDemo slide />
 
 </Slide>
 
 <Slide>
 
-#### 참고: 충돌을 대하는 태도
+### 한 글자만 달라도
+::sub[두 입력의 해시값을 비트로 견줍니다. 붉은 칸이 달라진 비트입니다]
+
+<AvalancheDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 충돌을 대하는 태도
 ::sub[암호학적 해시에도 비둘기집 원리는 그대로입니다]
 
 - **해시 테이블: 충돌은 일상입니다.**
@@ -984,6 +986,24 @@ SHA-256은 한 글자만 바꿔도 256비트 중 135비트가 달라집니다.
 - **해시 테이블도 공격받습니다.**
   - hash flooding: 한 칸에 몰리는 키만 보내 $$O(N)$$으로 떨어뜨립니다.
   - 그래서 Python 문자열과 Rust `HashMap`은 비밀 키를 섞습니다.
+
+</Slide>
+
+<Slide>
+
+### 충돌을 직접 찾으면
+::sub[SHA-256의 앞 몇 비트만 남겨 실제로 찾습니다. 표는 같은 계산을 256비트까지 늘린 값입니다]
+
+<CollisionHuntDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 해시 테이블을 공격하면
+::sub[Aa와 BB는 호너 값이 같습니다. 탭을 바꿔 공격 키와 비밀 키를 견줍니다]
+
+<HashFloodDemo slide />
 
 </Slide>
 
