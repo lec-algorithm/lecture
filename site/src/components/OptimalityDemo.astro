@@ -227,10 +227,12 @@ const pickers = [
       for (let i = 0; i + 1 < p.length; i++) {
         const [x0, y0] = POS[p[i]];
         const [x1, y1] = POS[p[i + 1]];
-        const dx = x1 - x0;
-        const dy = y1 - y0;
+        /* 비키는 방향은 간선마다 하나로 정한다(번호 작은 쪽 기준). 진행 방향으로 잡으면
+           두 조각이 같은 간선을 반대로 지날 때 같은 쪽으로 비켜 하나가 가려진다. */
+        const flip = p[i] < p[i + 1] ? 1 : -1;
+        const dx = (x1 - x0) * flip;
+        const dy = (y1 - y0) * flip;
         const len = Math.hypot(dx, dy) || 1;
-        /* 진행 방향의 오른쪽으로 비키면 왕복이 서로 다른 쪽으로 간다. */
         const ox = (-dy / len) * off;
         const oy = (dx / len) * off;
         const line = document.createElementNS(NS, 'line');
