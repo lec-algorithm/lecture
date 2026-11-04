@@ -19,6 +19,7 @@
 // 절차와 숫자는 algorithm-code의 hashTableLP.c · hash_table_lp.py와 같다.
 // 해시 코드 표(CODES)도 같다. 해시값은 이 코드 mod 16이다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import HashKeyTable from './HashKeyTable.astro';
 
 interface Props {
   /** build · search · naive · delete · tombstone */
@@ -67,7 +68,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     tombSeen: '{i}번 칸은 지워짐 표시입니다. 넣을 자리로 기억해 두고 계속 갑니다.',
     tombTrap: '{t}번 표시 칸에 바로 넣었다면 {k} 키가 두 칸에 생겼을 것입니다.',
     tombPut: '{i}번 칸이 비어 있으니 {k} 키는 없습니다. 기억해 둔 {t}번 표시 칸에 넣습니다. {p}칸을 봤습니다.',
-    done: '끝.',
   },
   en: {
     title: 'Linear probing',
@@ -103,7 +103,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     tombSeen: 'Slot {i} holds a tombstone. Remember it as a place to insert, and keep going.',
     tombTrap: 'Putting {k} straight into the tombstone in slot {t} would have left {k} in two slots.',
     tombPut: 'Slot {i} is empty, so {k} is not in the table. Put it into the remembered tombstone in slot {t}. {p} probes.',
-    done: 'Done.',
   },
   zh: {
     title: '线性探测',
@@ -139,7 +138,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     tombSeen: '{i} 号格是删除标记。把它记作插入位置，继续往后看。',
     tombTrap: '如果直接放进 {t} 号标记格，{k} 就会出现在两个格里。',
     tombPut: '{i} 号格为空，所以 {k} 不存在。放进记住的 {t} 号标记格。共探测 {p} 格。',
-    done: '结束。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -174,6 +172,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       <span>{t.load} <b data-pd-load></b></span>
       <span>{t.cluster} <b data-pd-cluster></b>{t.cells}</span>
     </span>
+    <HashKeyTable moduli={[m]} />
   </div>
 
   <div class="pd-scroll">
@@ -433,8 +432,13 @@ const slots = Array.from({ length: m }, (_, i) => i);
       return { len, startOf, endOf, longest };
     }
 
+    /* 예제 키 표에서 지금 다루는 키의 열을 칠한다. */
+    const keyCells = [...root.querySelectorAll('[data-kt-key]')];
+    const markKey = (k) => keyCells.forEach((c) => c.classList.toggle('is-now', c.dataset.ktKey === k));
+
     function render(s) {
       const st = s >= 0 ? steps[s] : { ...initial, op: '', p: 0, probe: -1, chip: null, mark: null, note: idle };
+      markKey(st.chip?.k ?? st.op.match(/\b[A-Z]\b/)?.[0]);
       const cl = clusters(st.keys);
       cells.forEach((cell, i) => {
         const k = st.keys[i];
@@ -468,7 +472,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       probesEl.classList.toggle('is-good', !!st.good);
       loadEl.textContent = `${st.n}/${m}`;
       clusterEl.textContent = String(cl.longest);
-      setLines(note, s >= steps.length - 1 && s >= 0 ? join(st.note, S.done) : st.note);
+      setLines(note, st.note);
       root.classList.toggle('is-done', s >= steps.length - 1);
     }
 

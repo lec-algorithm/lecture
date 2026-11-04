@@ -16,6 +16,7 @@
 //   example : SEARCHEXAMPLE을 넣은 뒤의 표(ProbingDemo와 같다)에서 시작한다.
 //   empty   : 빈 표에서 시작한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import HashKeyTable from './HashKeyTable.astro';
 
 interface Props {
   /** example · empty */
@@ -139,6 +140,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       <span class="cg-big-label">{t.likely} <b data-cg-slot></b></span>
       <strong data-cg-pct></strong>
     </span>
+    <HashKeyTable keys="ACEHLMPRSX" moduli={[m]} />
   </div>
 
   <div class="cg-scroll">
@@ -282,7 +284,13 @@ const slots = Array.from({ length: m }, (_, i) => i);
     let timer = null;
     const count = () => tk.filter((k) => k !== null).length;
 
+    /* 예제 키 표에서 지금 다루는 키의 열을 칠한다. */
+    const keyCells = [...root.querySelectorAll('[data-kt-key]')];
+    const markKey = (k) => keyCells.forEach((c) => c.classList.toggle('is-now', c.dataset.ktKey === k));
+
     function render() {
+      /* 칸에 올린 키의 열을 칠한다. 표는 예제 키만 있으니 빈 표에서는 숨긴다. */
+      markKey(hover >= 0 ? tk[hover] : null);
       const cl = clusters(tk);
       const cs = chances(tk);
       const best = bestOf(tk);
@@ -322,6 +330,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
       busy = false;
       tk = new Array(m).fill(null);
       if (from === 'example') for (const [i, k] of Object.entries(example)) tk[Number(i)] = k;
+      root.querySelector('[data-kt]').style.visibility = from === 'example' ? '' : 'hidden';
       tabs.forEach((b) => {
         const on = b.dataset.cgTab === from;
         b.classList.toggle('is-on', on);
@@ -712,7 +721,7 @@ const slots = Array.from({ length: m }, (_, i) => i);
 
   /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
   .aas-cluster-grow-demo.is-slide {
-    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    font-size: clamp(1rem, 2.45vh, 1.7rem);
     margin: 0.5rem 0;
   }
 

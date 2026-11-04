@@ -14,6 +14,7 @@
 // 절차와 숫자는 algorithm-code의 hashTableSC.c · hash_table_sc.py와 같다.
 // 해시 코드 표(CODES)도 같다. 해시값은 이 코드 mod 5다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import HashKeyTable from './HashKeyTable.astro';
 
 interface Props {
   /** build · search · delete */
@@ -51,7 +52,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     found: '비교 {c}번 만에 {k} 키를 찾았습니다. 앞 노드가 이 노드를 건너뛰도록 연결을 바꿉니다.',
     foundHead: '비교 {c}번 만에 {k} 키를 찾았습니다. 맨 앞 노드이므로 칸이 다음 노드를 가리키게 합니다.',
     removed: '{k} 키를 지웠습니다.',
-    done: '끝.',
   },
   en: {
     title: 'Separate chaining',
@@ -76,7 +76,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     found: 'Found {k} after {c} compares. Relink the previous node past it.',
     foundHead: 'Found {k} after {c} compares. It is the first node, so the slot now points to the next one.',
     removed: '{k} is gone.',
-    done: 'Done.',
   },
   zh: {
     title: '拉链法',
@@ -101,7 +100,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     found: '比较 {c} 次找到 {k}。让前一个节点跳过它。',
     foundHead: '比较 {c} 次找到 {k}。它是第一个节点，所以让格子指向下一个节点。',
     removed: '{k} 已删除。',
-    done: '结束。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -136,6 +134,7 @@ const rows = Array.from({ length: m }, (_, i) => i);
       <span>{t.load} <b data-ch-load></b></span>
       <span>{t.longest} <b data-ch-longest></b></span>
     </span>
+    <HashKeyTable moduli={[m]} />
   </div>
 
   <div class="ch-board">
@@ -168,9 +167,6 @@ const rows = Array.from({ length: m }, (_, i) => i);
       const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
-    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
-    const join = (...parts) =>
-      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const S = JSON.parse(root.dataset.chStrings);
     const mode = root.dataset.chMode;
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
@@ -274,8 +270,13 @@ const rows = Array.from({ length: m }, (_, i) => i);
     const longestEl = root.querySelector('[data-ch-longest]');
     const note = root.querySelector('[data-ch-note]');
 
+    /* 예제 키 표에서 지금 다루는 키의 열을 칠한다. */
+    const keyCells = [...root.querySelectorAll('[data-kt-key]')];
+    const markKey = (k) => keyCells.forEach((c) => c.classList.toggle('is-now', c.dataset.ktKey === k));
+
     function render(s) {
       const st = s >= 0 ? steps[s] : { ...initial, op: '', c: 0, row: -1, chip: null, note: idle };
+      markKey(st.chip?.k ?? st.op.match(/\b[A-Z]\b/)?.[0]);
       listEls.forEach((el, r) => {
         const list = st.lists[r];
         const mk = st.mark && st.mark.row === r ? st.mark : null;
@@ -303,7 +304,7 @@ const rows = Array.from({ length: m }, (_, i) => i);
       countEl.classList.toggle('is-bad', !!st.bad);
       loadEl.textContent = `${st.n}/${m}`;
       longestEl.textContent = String(Math.max(...st.lists.map((l) => l.length)));
-      setLines(note, s >= 0 && s >= steps.length - 1 ? join(st.note, S.done) : st.note);
+      setLines(note, st.note);
       root.classList.toggle('is-done', s >= steps.length - 1);
     }
 
@@ -617,8 +618,8 @@ const rows = Array.from({ length: m }, (_, i) => i);
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
   .aas-chaining-demo.is-slide {
-    --ch-row: 2.2em;
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    --ch-row: 2em;
+    font-size: clamp(1rem, 3vh, 2rem);
     margin: 0.5rem 0;
   }
   .aas-chaining-demo.is-slide .ch-note {

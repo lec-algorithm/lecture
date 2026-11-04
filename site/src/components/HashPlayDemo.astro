@@ -13,6 +13,7 @@
 // 의사코드와 같다. 크기 조정은 하지 않는다). 선형 탐지에 빈칸이 하나는 남도록
 // 키는 M - 1개까지만 받는다. M을 바꾸면 지금 키들을 넣은 순서대로 다시 넣는다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import HashKeyTable from './HashKeyTable.astro';
 
 interface Props {
   /** 배열 크기 M (5~13) */
@@ -178,7 +179,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     <button type="button" class="hp-btn hp-btn-primary" data-act="put">{t.put}</button>
     <button type="button" class="hp-btn" data-act="get">{t.get}</button>
     <button type="button" class="hp-btn" data-act="del">{t.del}</button>
-    <span class="hp-formula" data-hp-formula></span>
+    <HashKeyTable keys="" />
   </div>
 
   <div class="hp-panel">
@@ -354,19 +355,25 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const barsEl = root.querySelector('[data-hp-bars]');
     const idxEl = root.querySelector('[data-hp-idx]');
     const chainsEl = root.querySelector('[data-hp-chains]');
-    const formula = root.querySelector('[data-hp-formula]');
+    const keyTable = root.querySelector('[data-kt]');
     const note = root.querySelector('[data-hp-note]');
     const pills = [...root.querySelectorAll('[data-hp-size]')];
     const $ = (sel) => root.querySelector(sel);
 
+    /* 지금 있는 키에 지금 다루는 키를 더해 코드와 해시값을 보인다. */
     function showFormula() {
-      const k = input.value || (last && last.key) || '';
-      if (!k) {
-        formula.textContent = ' ';
-        return;
-      }
-      const c = k.charCodeAt(0);
-      formula.textContent = `${k} (${c}) mod ${M} = ${c % M}`;
+      const now = input.value || (last && last.key) || '';
+      const ks = [...new Set([...order, ...(now ? [now] : [])])].sort();
+      keyTable.style.setProperty('--kt-cols', String(Math.max(ks.length, 1)));
+      const row = (label, f, tag) =>
+        `<span class="kt-label">${label}</span>` +
+        ks.map((k) => `<${tag} class="kt-cell${tag === 'b' && label.startsWith('mod') ? ' kt-hash' : ''}${k === now ? ' is-now' : ''}">${f(k)}</${tag}>`).join('');
+      keyTable.innerHTML = ks.length
+        ? row(keyTable.dataset.ktKeyLabel, (k) => k, 'b') +
+          row(keyTable.dataset.ktCodeLabel, (k) => k.charCodeAt(0), 'span') +
+          row(`mod ${M}`, (k) => k.charCodeAt(0) % M, 'b')
+        : '';
+      keyTable.classList.toggle('is-blank', !ks.length);
     }
 
     function render(text) {
@@ -675,11 +682,13 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     border-color: var(--aas-accent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--aas-accent) 35%, transparent);
   }
-  .aas-hash-play-demo .hp-formula {
-    margin-left: auto;
-    font-family: var(--aas-mono, monospace);
-    font-size: 1.1em;
-    font-weight: 700;
+  .aas-hash-play-demo .aas-key-table {
+    flex: 1 1 18em;
+    max-width: 30em;
+    margin: 0 0 0 auto;
+  }
+  .aas-hash-play-demo .aas-key-table.is-blank {
+    visibility: hidden;
   }
 
   /* 두 판: 왼쪽에 이름과 숫자, 오른쪽에 격자. 두 격자는 같은 열에 맞는다. */

@@ -1,0 +1,424 @@
+---
+// 대칭키와 공개키에서 도청자가 무엇을 손에 넣는지 한 걸음씩 보는 데모.
+//
+// 앨리스가 밥에게 HI를 보낸다. 통신로의 모든 것을 이브가 복사한다. 대칭키는 키
+// 자체를 통신로로 건네야 해서 이브도 키를 갖고 평문을 읽는다. 공개키는 밥이 공개키만
+// 내보내므로 이브는 공개키와 암호문만 갖는다. 숫자는 실제 계산이다. 대칭키는
+// 코드 XOR 42, 공개키는 n = 3233, e = 17, d = 2753인 교재판 RSA다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './hashAlgos.js?raw';
+
+interface Props {
+  /** symmetric · public */
+  mode?: 'symmetric' | 'public';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { mode = 'symmetric', slide = false } = Astro.props;
+const id = `kp-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '키를 건네는 길',
+    symmetric: '대칭키',
+    public: '공개키',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    alice: '앨리스',
+    bob: '밥',
+    eve: '통신로의 이브',
+    idleSym: '앨리스가 밥에게 HI를 보냅니다. 통신로의 모든 것을 이브가 복사합니다.',
+    idlePub: '앨리스가 밥에게 HI를 보냅니다. 이번에는 키가 둘입니다.',
+    s1: '앨리스가 비밀 키 k를 정했습니다. 밥도 같은 키가 있어야 풀 수 있습니다.',
+    s2: '키를 건넬 길은 이 통신로뿐입니다. 이브도 키를 복사합니다.',
+    s3: '앨리스가 코드마다 k를 XOR해 보냅니다. 이브는 암호문도 복사합니다.',
+    s4: '밥이 같은 키로 풉니다. 키와 암호문을 다 가진 이브도 그대로 읽습니다.',
+    p1: '밥이 열쇠쌍을 만들었습니다. 개인키는 어디로도 보내지 않습니다.',
+    p2: '밥이 공개키를 보냅니다. 이브도 복사하지만 괜찮습니다. 공개키로는 잠글 수만 있습니다.',
+    p3: '앨리스가 공개키로 잠가 보냅니다. 이브는 암호문도 복사합니다.',
+    p4: '밥이 개인키로 풉니다. 이브가 풀려면 n을 p와 q로 쪼개야 합니다. 이 n은 작아서 금방이지만, 실제 크기의 n은 아무도 쪼개지 못합니다.',
+    read: '이브가 읽음',
+    unread: '이브는 못 읽음',
+  },
+  en: {
+    title: 'How the key travels',
+    symmetric: 'Symmetric key',
+    public: 'Public key',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    alice: 'Alice',
+    bob: 'Bob',
+    eve: 'Eve on the channel',
+    idleSym: 'Alice sends HI to Bob. Eve copies everything on the channel.',
+    idlePub: 'Alice sends HI to Bob. This time there are two keys.',
+    s1: 'Alice picks a secret key k. Bob needs the same key to decrypt.',
+    s2: 'This channel is the only way to hand over the key. Eve copies the key too.',
+    s3: 'Alice XORs each code with k and sends it. Eve copies the ciphertext too.',
+    s4: 'Bob decrypts with the same key. Eve has the key and the ciphertext, so Eve reads it as well.',
+    p1: 'Bob makes a key pair. The private key never goes anywhere.',
+    p2: 'Bob sends the public key. Eve copies it, and that is fine. A public key can only lock.',
+    p3: 'Alice locks with the public key and sends it. Eve copies the ciphertext too.',
+    p4: 'Bob decrypts with the private key. To decrypt, Eve must split n into p and q. This n is small and easy, but nobody can split an n of real size.',
+    read: 'Eve reads it',
+    unread: 'Eve cannot read it',
+  },
+  zh: {
+    title: '密钥怎么传',
+    symmetric: '对称密钥',
+    public: '公钥',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    alice: '爱丽丝',
+    bob: '鲍勃',
+    eve: '信道上的伊芙',
+    idleSym: '爱丽丝把 HI 发给鲍勃。信道上的一切伊芙都会复制。',
+    idlePub: '爱丽丝把 HI 发给鲍勃。这次有两把密钥。',
+    s1: '爱丽丝选定秘密密钥 k。鲍勃也要有同一把密钥才能解开。',
+    s2: '传递密钥只有这条信道。伊芙也复制了密钥。',
+    s3: '爱丽丝把每个编码与 k 做 XOR 后发送。伊芙也复制了密文。',
+    s4: '鲍勃用同一把密钥解开。伊芙既有密钥又有密文，同样能读。',
+    p1: '鲍勃生成了密钥对。私钥不发给任何人。',
+    p2: '鲍勃发送公钥。伊芙也复制了，但没关系。公钥只能上锁。',
+    p3: '爱丽丝用公钥上锁后发送。伊芙也复制了密文。',
+    p4: '鲍勃用私钥解开。伊芙要解开，就得把 n 拆成 p 和 q。这个 n 很小，一下就能拆，但实际大小的 n 谁也拆不开。',
+    read: '伊芙读到了',
+    unread: '伊芙读不了',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-key-path-demo', slide && 'is-slide']} id={id} data-kp-mode={mode} data-kp-strings={JSON.stringify(t)}>
+  <div class="kp-bar">
+    <div class="kp-tabs">
+      <span class="kp-head"><strong>{t.title}</strong></span>
+      <button type="button" class="kp-tab" data-kp-tab="symmetric">{t.symmetric}</button>
+      <button type="button" class="kp-tab" data-kp-tab="public">{t.public}</button>
+    </div>
+    <div class="kp-controls">
+      <button type="button" data-act="back" class="kp-btn">{t.back}</button>
+      <button type="button" data-act="step" class="kp-btn">{t.step}</button>
+      <button type="button" data-act="play" class="kp-btn kp-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="kp-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <p class="kp-formula" data-kp-formula>&nbsp;</p>
+
+  <div class="kp-stage">
+    <div class="kp-card"><strong>{t.alice}</strong><div class="kp-chips" data-kp-who="alice"></div></div>
+    <div class="kp-card kp-eve" data-kp-evecard><strong>{t.eve}</strong><div class="kp-chips" data-kp-who="eve"></div></div>
+    <div class="kp-card"><strong>{t.bob}</strong><div class="kp-chips" data-kp-who="bob"></div></div>
+  </div>
+
+  <p class="kp-note" data-kp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.kpStrings);
+    const { modPow } = globalThis.aasHashAlgos;
+
+    const codes = [...'HI'].map((c) => c.charCodeAt(0));
+    const K = 42;
+    const n = 3233n;
+    const e = 17n;
+    const d = 2753n;
+    const xorC = codes.map((c) => c ^ K);
+    const rsaC = codes.map((c) => modPow(BigInt(c), e, n));
+
+    /* 칩 종류: plain 평문, secret 비밀, pub 공개, cipher 암호문 */
+    const M = { kind: 'plain', text: 'm = HI (72 73)' };
+    const KEY = { kind: 'secret', text: `k = ${K}` };
+    const XC = { kind: 'cipher', text: `c = ${xorC.join(' ')}` };
+    const PUB = { kind: 'pub', text: `(e, n) = (${e}, ${n})` };
+    const PRI = { kind: 'secret', text: `(d, n) = (${d}, ${n})` };
+    const RC = { kind: 'cipher', text: `c = ${rsaC.join(' ')}` };
+
+    const SCRIPTS = {
+      symmetric: {
+        idle: S.idleSym,
+        steps: [
+          { alice: [M, KEY], bob: [], eve: [], note: S.s1, formula: `k = ${K}` },
+          { alice: [M, KEY], bob: [KEY], eve: [KEY], note: S.s2, formula: `k = ${K} →` },
+          { alice: [M, KEY, XC], bob: [KEY, XC], eve: [KEY, XC], note: S.s3, formula: `72 ⊕ ${K} = ${xorC[0]},  73 ⊕ ${K} = ${xorC[1]}` },
+          { alice: [M, KEY, XC], bob: [KEY, XC, M], eve: [KEY, XC, M], note: S.s4, formula: `${xorC[0]} ⊕ ${K} = 72,  ${xorC[1]} ⊕ ${K} = 73`, verdict: 'read' },
+        ],
+      },
+      public: {
+        idle: S.idlePub,
+        steps: [
+          { alice: [M], bob: [PUB, PRI], eve: [], note: S.p1, formula: 'n = 61 × 53 = 3233' },
+          { alice: [M, PUB], bob: [PUB, PRI], eve: [PUB], note: S.p2, formula: '← (e, n)' },
+          { alice: [M, PUB, RC], bob: [PUB, PRI, RC], eve: [PUB, RC], note: S.p3, formula: `72^${e} mod ${n} = ${rsaC[0]},  73^${e} mod ${n} = ${rsaC[1]}` },
+          { alice: [M, PUB, RC], bob: [PUB, PRI, RC, M], eve: [PUB, RC], note: S.p4, formula: `${rsaC[0]}^${d} mod ${n} = 72,  ${rsaC[1]}^${d} mod ${n} = 73`, verdict: 'unread' },
+        ],
+      },
+    };
+
+    let mode = root.dataset.kpMode === 'public' ? 'public' : 'symmetric';
+    let at = -1;
+    let timer = null;
+    const formula = root.querySelector('[data-kp-formula]');
+    const note = root.querySelector('[data-kp-note]');
+    const eveCard = root.querySelector('[data-kp-evecard]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    function render() {
+      const sc = SCRIPTS[mode];
+      const st = at >= 0 ? sc.steps[at] : null;
+      const prev = at > 0 ? sc.steps[at - 1] : null;
+      for (const who of ['alice', 'eve', 'bob']) {
+        const el = root.querySelector(`[data-kp-who="${who}"]`);
+        const chips = st ? st[who] : [];
+        const old = prev ? prev[who] : [];
+        el.innerHTML = chips
+          .map((c) => `<span class="kp-chip is-${c.kind}${old.includes(c) ? '' : ' is-new'}">${c.text}</span>`)
+          .join('');
+        if (who === 'eve' && st && st.verdict) {
+          el.innerHTML += `<span class="kp-verdict is-${st.verdict}">${st.verdict === 'read' ? S.read : S.unread}</span>`;
+        }
+      }
+      eveCard.classList.toggle('is-read', !!st && st.verdict === 'read');
+      eveCard.classList.toggle('is-unread', !!st && st.verdict === 'unread');
+      formula.textContent = st ? st.formula : ' ';
+      setLines(note, st ? st.note : sc.idle);
+      root.querySelectorAll('[data-kp-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.kpTab === mode));
+    }
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      const last = SCRIPTS[mode].steps.length - 1;
+      if (at >= last) return stop();
+      at += 1;
+      render();
+      if (at >= last) stop();
+    }
+    root.querySelectorAll('[data-kp-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        stop();
+        mode = b.dataset.kpTab;
+        at = -1;
+        render();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= SCRIPTS[mode].steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1600);
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-key-path-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-key-path-demo .kp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-key-path-demo .kp-head {
+    margin-right: 0.4em;
+    font-size: 0.95em;
+  }
+  .aas-key-path-demo .kp-tabs,
+  .aas-key-path-demo .kp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-key-path-demo .kp-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-key-path-demo .kp-tab:hover,
+  .aas-key-path-demo .kp-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-key-path-demo .kp-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-key-path-demo .kp-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-key-path-demo .kp-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-key-path-demo .kp-formula {
+    margin: 0.7em 0 0.5em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.05em;
+    font-weight: 700;
+  }
+  .aas-key-path-demo .kp-stage {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6em;
+  }
+  .aas-key-path-demo .kp-card {
+    min-width: 0;
+    min-height: 10.5em;
+    padding: 0.5em 0.7em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+    transition:
+      border-color 0.3s,
+      background-color 0.3s;
+  }
+  .aas-key-path-demo .kp-card > strong {
+    font-size: 0.9em;
+  }
+  .aas-key-path-demo .kp-eve {
+    border-style: dashed;
+  }
+  .aas-key-path-demo .kp-eve.is-read {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+  }
+  .aas-key-path-demo .kp-eve.is-unread {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 10%, var(--aas-bg));
+  }
+  .aas-key-path-demo .kp-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    align-items: flex-start;
+    margin-top: 0.4em;
+  }
+  .aas-key-path-demo .kp-chip {
+    padding: 0.12em 0.5em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+  }
+  .aas-key-path-demo .kp-chip.is-plain {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, var(--aas-bg));
+  }
+  .aas-key-path-demo .kp-chip.is-secret {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 15%, var(--aas-bg));
+  }
+  .aas-key-path-demo .kp-chip.is-pub {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 15%, var(--aas-bg));
+  }
+  .aas-key-path-demo .kp-chip.is-cipher {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 18%, var(--aas-bg));
+  }
+  .aas-key-path-demo .kp-chip.is-new {
+    animation: kp-pop 0.45s ease-out;
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-key-path-demo .kp-verdict {
+    margin-top: 0.2em;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-key-path-demo .kp-verdict.is-read {
+    color: var(--aas-role-guard);
+  }
+  .aas-key-path-demo .kp-verdict.is-unread {
+    color: var(--aas-role-eval);
+  }
+  .aas-key-path-demo .kp-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 3.6em;
+  }
+  @keyframes kp-pop {
+    from {
+      transform: scale(0.8);
+      opacity: 0.3;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-key-path-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-key-path-demo .kp-card {
+      transition: none;
+    }
+    .aas-key-path-demo .kp-chip.is-new {
+      animation: none;
+    }
+  }
+</style>

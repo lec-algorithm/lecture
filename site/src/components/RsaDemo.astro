@@ -1,0 +1,388 @@
+---
+// 작은 소수로 RSA 열쇠쌍을 만들고 글자를 잠갔다 푸는 데모.
+//
+// p, q, e를 고르면 n, φ(n), d가 나온다. 입력한 글자마다 c = m^e mod n으로 잠그고
+// m = c^d mod n으로 푼다. 탭을 공개키로 바꾸면 풀리지 않는 것을 보고, 같은 글자가
+// 같은 암호문이 되는 교재판 RSA의 약점도 본다. 기본값 p = 61, q = 53, e = 17은
+// 교재의 예다(d = 2753, 65 → 2790 → 65). 실제 키는 이보다 비교할 수 없이 크다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './hashAlgos.js?raw';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `rs-${Math.random().toString(36).slice(2, 9)}`;
+const primes = [53, 61, 71, 83, 97, 101, 103, 107];
+const exps = [3, 5, 7, 11, 13, 17, 257];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'RSA 직접 돌리기',
+    message: '메시지',
+    pub: '공개키',
+    pubHint: '누구나',
+    pri: '개인키',
+    priHint: '밥만',
+    useRight: '개인키로 풀기',
+    useWrong: '공개키로 풀기',
+    rowChar: '글자',
+    rowM: '코드 m',
+    rowC: '암호문 c',
+    rowD: '푼 값',
+    rowOut: '결과',
+    ok: '개인키로 모두 풀렸습니다.',
+    wrong: '공개키로는 풀리지 않습니다. 잠그는 키와 푸는 키는 서로 다릅니다.',
+    dup: '같은 글자가 같은 암호문이 되었습니다. 이 약점 때문에 실제로는 무작위 패딩을 섞습니다.',
+    big: '코드가 n보다 큰 글자는 이 작은 n으로 잠글 수 없어 건너뜁니다.',
+  },
+  en: {
+    title: 'Running RSA by hand',
+    message: 'message',
+    pub: 'Public key',
+    pubHint: 'anyone',
+    pri: 'Private key',
+    priHint: 'Bob only',
+    useRight: 'Decrypt with private key',
+    useWrong: 'Decrypt with public key',
+    rowChar: 'letter',
+    rowM: 'code m',
+    rowC: 'cipher c',
+    rowD: 'decrypted',
+    rowOut: 'result',
+    ok: 'The private key decrypts all of it.',
+    wrong: 'The public key does not decrypt it. The key that locks and the key that unlocks are different.',
+    dup: 'The same letter gave the same ciphertext. Because of this weakness, real systems mix in random padding.',
+    big: 'Letters whose code is larger than n cannot be locked with this small n, so they are skipped.',
+  },
+  zh: {
+    title: '亲手运行 RSA',
+    message: '消息',
+    pub: '公钥',
+    pubHint: '任何人',
+    pri: '私钥',
+    priHint: '仅鲍勃',
+    useRight: '用私钥解',
+    useWrong: '用公钥解',
+    rowChar: '字母',
+    rowM: '编码 m',
+    rowC: '密文 c',
+    rowD: '解出的值',
+    rowOut: '结果',
+    ok: '用私钥全部解开了。',
+    wrong: '公钥解不开。上锁的密钥和开锁的密钥不同。',
+    dup: '同样的字母变成了同样的密文。因为这个弱点，实际中要混入随机填充。',
+    big: '编码大于 n 的字符，这个小 n 锁不了，所以跳过。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-rsa-demo', slide && 'is-slide']} id={id} data-rs-strings={JSON.stringify(t)}>
+  <div class="rs-bar">
+    <span class="rs-head"><strong>{t.title}</strong></span>
+    <div class="rs-picks">
+      <label>p <select data-rs-p>{primes.map((x) => <option value={x} selected={x === 61}>{x}</option>)}</select></label>
+      <label>q <select data-rs-q>{primes.map((x) => <option value={x} selected={x === 53}>{x}</option>)}</select></label>
+      <label>e <select data-rs-e>{exps.map((x) => <option value={x} selected={x === 17}>{x}</option>)}</select></label>
+      <label>{t.message} <input type="text" data-rs-msg value="HELLO" maxlength="9" spellcheck="false" autocomplete="off" /></label>
+    </div>
+  </div>
+
+  <p class="rs-derive" data-rs-derive></p>
+
+  <div class="rs-keys">
+    <div class="rs-key is-pub"><span>{t.pub} <small>{t.pubHint}</small></span><code data-rs-pub></code></div>
+    <div class="rs-key is-pri"><span>{t.pri} <small>{t.priHint}</small></span><code data-rs-pri></code></div>
+    <div class="rs-tabs">
+      <button type="button" class="rs-tab" data-rs-use="right">{t.useRight}</button>
+      <button type="button" class="rs-tab" data-rs-use="wrong">{t.useWrong}</button>
+    </div>
+  </div>
+
+  <div class="rs-table" data-rs-table></div>
+
+  <p class="rs-formula" data-rs-formula></p>
+  <p class="rs-note" data-rs-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.rsStrings);
+    const { modPow, gcd, modInv } = globalThis.aasHashAlgos;
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+    const pSel = root.querySelector('[data-rs-p]');
+    const qSel = root.querySelector('[data-rs-q]');
+    const eSel = root.querySelector('[data-rs-e]');
+    const msg = root.querySelector('[data-rs-msg]');
+    const table = root.querySelector('[data-rs-table]');
+    const formula = root.querySelector('[data-rs-formula]');
+    const note = root.querySelector('[data-rs-note]');
+    let use = 'right';
+    let picked = 0;
+
+    /* p와 q는 달라야 한다. e는 φ(n)과 서로소여야 d가 있다. */
+    function fixPicks(changed) {
+      if (pSel.value === qSel.value) {
+        const other = changed === pSel ? qSel : pSel;
+        const i = other.selectedIndex;
+        other.selectedIndex = i + 1 < other.options.length ? i + 1 : i - 1;
+      }
+      const phi = (BigInt(pSel.value) - 1n) * (BigInt(qSel.value) - 1n);
+      [...eSel.options].forEach((o) => {
+        o.disabled = gcd(BigInt(o.value), phi) !== 1n;
+      });
+      if (eSel.selectedOptions[0].disabled) eSel.value = [...eSel.options].find((o) => !o.disabled).value;
+    }
+
+    function render() {
+      const p = BigInt(pSel.value);
+      const q = BigInt(qSel.value);
+      const e = BigInt(eSel.value);
+      const n = p * q;
+      const phi = (p - 1n) * (q - 1n);
+      const d = modInv(e, phi);
+      const key = use === 'right' ? d : e;
+      root.querySelector('[data-rs-derive]').textContent =
+        `n = ${p} × ${q} = ${n}    φ(n) = ${p - 1n} × ${q - 1n} = ${phi}    d: ${e} × ${d} mod ${phi} = 1`;
+      root.querySelector('[data-rs-pub]').textContent = `(e, n) = (${e}, ${n})`;
+      root.querySelector('[data-rs-pri]').textContent = `(d, n) = (${d}, ${n})`;
+      root.querySelectorAll('[data-rs-use]').forEach((b) => b.classList.toggle('is-on', b.dataset.rsUse === use));
+
+      const chars = [...msg.value];
+      const usable = chars.filter((c) => BigInt(c.codePointAt(0)) < n);
+      const skipped = usable.length < chars.length;
+      if (picked >= usable.length) picked = 0;
+      const rows = usable.map((c) => {
+        const m = BigInt(c.codePointAt(0));
+        const enc = modPow(m, e, n);
+        const dec = modPow(enc, key, n);
+        return { c, m, enc, dec, ok: dec === m, out: dec < 0x110000n && dec >= 32n ? String.fromCodePoint(Number(dec)) : '?' };
+      });
+      const cell = (i, v, cls = '') => `<button type="button" class="rs-cell${i === picked ? ' is-picked' : ''}${cls}" data-rs-col="${i}">${esc(v)}</button>`;
+      const row = (label, f) => `<span class="rs-label">${label}</span>${rows.map((r, i) => f(r, i)).join('')}`;
+      table.style.setProperty('--rs-cols', String(Math.max(rows.length, 1)));
+      table.innerHTML =
+        row(S.rowChar, (r, i) => cell(i, r.c)) +
+        row(S.rowM, (r, i) => cell(i, r.m)) +
+        row(S.rowC, (r, i) => cell(i, r.enc, ' is-cipher')) +
+        row(S.rowD, (r, i) => cell(i, r.dec, r.ok ? ' is-ok' : ' is-bad')) +
+        row(S.rowOut, (r, i) => cell(i, r.out, r.ok ? ' is-ok' : ' is-bad'));
+      table.querySelectorAll('[data-rs-col]').forEach((b) =>
+        b.addEventListener('click', () => {
+          picked = Number(b.dataset.rsCol);
+          render();
+        }),
+      );
+      const r = rows[picked];
+      formula.textContent = r
+        ? `${r.m}^${e} mod ${n} = ${r.enc}    ${r.enc}^${key} mod ${n} = ${r.dec}`
+        : ' ';
+      const dup = new Set(usable).size < usable.length;
+      setLines(note, join(use === 'right' ? S.ok : S.wrong, dup ? S.dup : '', skipped ? S.big : ''));
+    }
+
+    [pSel, qSel, eSel].forEach((s) =>
+      s.addEventListener('change', () => {
+        fixPicks(s);
+        render();
+      }),
+    );
+    msg.addEventListener('input', render);
+    root.querySelectorAll('[data-rs-use]').forEach((b) =>
+      b.addEventListener('click', () => {
+        use = b.dataset.rsUse;
+        render();
+      }),
+    );
+    fixPicks(pSel);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-rsa-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-rsa-demo .rs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-rsa-demo .rs-head {
+    font-size: 0.95em;
+  }
+  .aas-rsa-demo .rs-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.8em;
+    align-items: center;
+  }
+  .aas-rsa-demo .rs-picks label {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-rsa-demo .rs-picks select,
+  .aas-rsa-demo .rs-picks input {
+    padding: 0.2em 0.35em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-rsa-demo .rs-picks input {
+    width: 7em;
+  }
+  .aas-rsa-demo .rs-derive {
+    margin: 0.5em 0 0.4em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    color: var(--aas-muted);
+  }
+  .aas-rsa-demo .rs-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.6em;
+    align-items: stretch;
+  }
+  .aas-rsa-demo .rs-key {
+    display: flex;
+    flex-direction: column;
+    padding: 0.2em 0.7em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.5em;
+    font-size: 0.85em;
+    line-height: 1.35;
+  }
+  .aas-rsa-demo .rs-key small {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-rsa-demo .rs-key code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    font-weight: 700;
+  }
+  .aas-rsa-demo .rs-key.is-pub {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 12%, var(--aas-bg));
+  }
+  .aas-rsa-demo .rs-key.is-pri {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, var(--aas-bg));
+  }
+  .aas-rsa-demo .rs-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+    margin-left: auto;
+  }
+  .aas-rsa-demo .rs-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-rsa-demo .rs-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-rsa-demo .rs-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-rsa-demo .rs-table {
+    display: grid;
+    grid-template-columns: auto repeat(var(--rs-cols), minmax(0, 1fr));
+    gap: 0.15em 0.25em;
+    align-items: center;
+    min-height: 8.2em;
+    margin-top: 0.5em;
+  }
+  .aas-rsa-demo .rs-label {
+    padding-right: 0.4em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-rsa-demo .rs-cell {
+    min-width: 0;
+    padding: 0.1em 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    line-height: 1.35;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-rsa-demo .rs-cell.is-picked {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 1.5px var(--aas-role-focus);
+  }
+  .aas-rsa-demo .rs-cell.is-cipher {
+    background: color-mix(in srgb, var(--aas-role-trace) 16%, var(--aas-bg));
+  }
+  .aas-rsa-demo .rs-cell.is-ok {
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, var(--aas-bg));
+  }
+  .aas-rsa-demo .rs-cell.is-bad {
+    background: color-mix(in srgb, var(--aas-role-guard) 18%, var(--aas-bg));
+  }
+  .aas-rsa-demo .rs-formula {
+    min-height: 1.5em;
+    margin: 0.5em 0 0;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    font-weight: 700;
+    white-space: pre-wrap;
+  }
+  .aas-rsa-demo .rs-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-rsa-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+</style>
