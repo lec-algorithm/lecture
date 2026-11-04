@@ -1,0 +1,339 @@
+---
+// 입력을 조금 바꾸면 해시값이 얼마나 바뀌는지 비트로 보는 데모(눈사태 효과).
+//
+// 두 입력을 글자 코드 합(mod 97), MurmurHash3, SHA-256으로 계산해 값을 나란히
+// 놓고, 달라진 비트를 칸마다 붉게 칠한다. 글자 코드 합은 같은 글자면 그대로이고
+// 한 글자를 바꿔도 조금만 움직이지만, 뒤의 둘은 비트의 절반쯤이 뒤집힌다.
+// 기본값은 교안의 stop과 stoq다. 값은 Python hashlib의 결과와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './hashAlgos.js?raw';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `av-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '한 글자만 달라도',
+    change: 'B의 글자 하나 바꾸기',
+    sum: '글자 코드 합 mod 97',
+    murmur: 'MurmurHash3',
+    sha: 'SHA-256 (앞 16자리)',
+    flipped: '달라진 비트',
+    same: '두 입력이 같으면 해시값도 언제나 같습니다. 그래야 같은 키를 다시 찾을 수 있습니다.',
+    sumSame: '글자 코드 합은 입력이 달라도 값이 같습니다. 충돌입니다.',
+    sumNear: '글자 코드 합의 차이는 {d}뿐입니다.',
+    sumFar: '글자 코드 합의 차이는 {d}입니다.',
+    shaLine: 'SHA-256은 256비트 중 {n}비트({p}%)가 달라졌습니다. 입력이 조금만 바뀌어도 절반쯤 뒤집히는 이 성질이 눈사태 효과입니다.',
+  },
+  en: {
+    title: 'One letter apart',
+    change: 'Change a letter of B',
+    sum: 'Sum of codes mod 97',
+    murmur: 'MurmurHash3',
+    sha: 'SHA-256 (first 16 digits)',
+    flipped: 'bits flipped',
+    same: 'Equal inputs always give equal hash values. That is what lets you find the same key again.',
+    sumSame: 'The sum of codes is the same even though the inputs differ. That is a collision.',
+    sumNear: 'The sum of codes moves by only {d}.',
+    sumFar: 'The sum of codes differs by {d}.',
+    shaLine: 'SHA-256 flips {n} of 256 bits ({p}%). This property, where a small change in the input flips about half of the output, is the avalanche effect.',
+  },
+  zh: {
+    title: '只差一个字母',
+    change: '改 B 的一个字母',
+    sum: '字母编码之和 mod 97',
+    murmur: 'MurmurHash3',
+    sha: 'SHA-256（前 16 位）',
+    flipped: '不同的位',
+    same: '输入相同，哈希值就一定相同。这样才能再次找到同一个键。',
+    sumSame: '输入不同，字母编码之和却相同。这就是冲突。',
+    sumNear: '字母编码之和只差 {d}。',
+    sumFar: '字母编码之和差 {d}。',
+    shaLine: 'SHA-256 的 256 位中有 {n} 位（{p}%）不同。输入稍有变化，输出就有大约一半翻转，这种性质就是雪崩效应。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = [
+  ['stop', 'stoq'],
+  ['stop', 'pots'],
+  ['hash', 'Hash'],
+  ['abc', 'abc'],
+];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-avalanche-demo', slide && 'is-slide']} id={id} data-av-strings={JSON.stringify(t)}>
+  <div class="av-bar">
+    <span class="av-head"><strong>{t.title}</strong></span>
+    <div class="av-tabs">
+      {
+        presets.map(([a, b]) => (
+          <button type="button" class="av-tab" data-av-a={a} data-av-b={b}>
+            {a} · {b}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="av-inputs">
+    <label>A <input type="text" data-av-in="a" value="stop" maxlength="32" spellcheck="false" autocomplete="off" /></label>
+    <label>B <input type="text" data-av-in="b" value="stoq" maxlength="32" spellcheck="false" autocomplete="off" /></label>
+    <button type="button" class="av-btn" data-av-change>{t.change}</button>
+    <span class="av-big">
+      <span>{t.flipped}</span>
+      <strong data-av-count>0</strong><span>/ 256</span>
+    </span>
+  </div>
+
+  <div class="av-row">
+    <div class="av-line"><span>{t.sum}</span><code data-av-val="sum"></code><b data-av-diff="sum"></b></div>
+    <div class="av-bits" data-av-bits="sum"></div>
+  </div>
+  <div class="av-row">
+    <div class="av-line"><span>{t.murmur}</span><code data-av-val="murmur"></code><b data-av-diff="murmur"></b></div>
+    <div class="av-bits" data-av-bits="murmur"></div>
+  </div>
+  <div class="av-row">
+    <div class="av-line"><span>{t.sha}</span><code data-av-val="sha"></code><b data-av-diff="sha"></b></div>
+    <div class="av-bits" data-av-bits="sha"></div>
+  </div>
+
+  <p class="av-note" data-av-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.avStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const { bytesOf, sha256, murmur3, sumCodes, hex } = globalThis.aasHashAlgos;
+
+    const inA = root.querySelector('[data-av-in="a"]');
+    const inB = root.querySelector('[data-av-in="b"]');
+    const note = root.querySelector('[data-av-note]');
+    const count = root.querySelector('[data-av-count]');
+
+    /* 정수를 앞자리부터 w비트 배열로 */
+    const bitsOfInt = (x, w) => Array.from({ length: w }, (_, i) => (x >>> (w - 1 - i)) & 1);
+    const bitsOfBytes = (d) => Array.from({ length: d.length * 8 }, (_, i) => (d[i >> 3] >> (7 - (i & 7))) & 1);
+
+    function show(which, valA, valB, a, b) {
+      const n = a.reduce((c, bit, i) => c + (bit !== b[i] ? 1 : 0), 0);
+      root.querySelector(`[data-av-val="${which}"]`).textContent = `${valA}  ${valB}`;
+      root.querySelector(`[data-av-diff="${which}"]`).textContent = `${n} / ${a.length}`;
+      root.querySelector(`[data-av-bits="${which}"]`).innerHTML = a
+        .map((bit, i) => `<i${bit !== b[i] ? ' class="is-diff"' : ''}></i>`)
+        .join('');
+      return n;
+    }
+
+    function render() {
+      const a = inA.value;
+      const b = inB.value;
+      const ba = bytesOf(a);
+      const bb = bytesOf(b);
+      const sa = sumCodes(a, 97);
+      const sb = sumCodes(b, 97);
+      show('sum', String(sa).padStart(2, ' '), String(sb).padStart(2, ' '), bitsOfInt(sa, 7), bitsOfInt(sb, 7));
+      const ma = murmur3(ba);
+      const mb = murmur3(bb);
+      show('murmur', ma.toString(16).padStart(8, '0'), mb.toString(16).padStart(8, '0'), bitsOfInt(ma, 32), bitsOfInt(mb, 32));
+      const da = sha256(ba);
+      const db = sha256(bb);
+      const n = show('sha', hex(da).slice(0, 16), hex(db).slice(0, 16), bitsOfBytes(da), bitsOfBytes(db));
+      count.textContent = String(n);
+      count.classList.toggle('is-zero', n === 0);
+      root.querySelectorAll('[data-av-a]').forEach((p) => p.classList.toggle('is-on', p.dataset.avA === a && p.dataset.avB === b));
+      if (a === b) return setLines(note, S.same);
+      const d = Math.abs(sa - sb);
+      const sumLine = d === 0 ? S.sumSame : fill(d <= 3 ? S.sumNear : S.sumFar, { d });
+      setLines(note, join(sumLine, fill(S.shaLine, { n, p: ((n / 256) * 100).toFixed(1) })));
+    }
+
+    root.querySelectorAll('[data-av-a]').forEach((p) =>
+      p.addEventListener('click', () => {
+        inA.value = p.dataset.avA;
+        inB.value = p.dataset.avB;
+        render();
+      }),
+    );
+    inA.addEventListener('input', render);
+    inB.addEventListener('input', render);
+    /* B에서 아무 글자 하나를 다음 글자로 바꾼다. z 다음은 a다. */
+    root.querySelector('[data-av-change]').addEventListener('click', () => {
+      const chars = [...inB.value];
+      if (!chars.length) chars.push('a');
+      const i = Math.floor(Math.random() * chars.length);
+      const c = chars[i].codePointAt(0);
+      chars[i] = chars[i] === 'z' ? 'a' : chars[i] === 'Z' ? 'A' : String.fromCodePoint(c + 1);
+      inB.value = chars.join('');
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-avalanche-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-avalanche-demo .av-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-avalanche-demo .av-head {
+    font-size: 0.95em;
+  }
+  .aas-avalanche-demo .av-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-avalanche-demo .av-tab {
+    padding: 0.25em 0.75em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-avalanche-demo .av-tab:hover,
+  .aas-avalanche-demo .av-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-avalanche-demo .av-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-avalanche-demo .av-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.8em;
+    align-items: center;
+    margin: 0.5em 0;
+  }
+  .aas-avalanche-demo .av-inputs label {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-avalanche-demo .av-inputs input {
+    width: 8em;
+    padding: 0.25em 0.5em;
+    font: inherit;
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-avalanche-demo .av-inputs input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-avalanche-demo .av-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-accent);
+    border-radius: 0.5em;
+    background: var(--aas-accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .aas-avalanche-demo .av-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    margin-left: auto;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-avalanche-demo .av-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2.2em;
+    line-height: 1;
+    color: var(--aas-role-guard);
+  }
+  .aas-avalanche-demo .av-big strong.is-zero {
+    color: var(--aas-role-eval);
+  }
+  .aas-avalanche-demo .av-row {
+    margin-top: 0.35em;
+  }
+  .aas-avalanche-demo .av-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.8em;
+    align-items: baseline;
+    font-size: 0.8em;
+    line-height: 1.5;
+  }
+  .aas-avalanche-demo .av-line span {
+    color: var(--aas-muted);
+  }
+  .aas-avalanche-demo .av-line code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    white-space: pre;
+  }
+  .aas-avalanche-demo .av-line b {
+    margin-left: auto;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-avalanche-demo .av-bits {
+    display: grid;
+    grid-template-columns: repeat(32, minmax(0, 1fr));
+    gap: 1px;
+  }
+  .aas-avalanche-demo .av-bits i {
+    height: 0.72em;
+    background: color-mix(in srgb, var(--aas-muted) 18%, var(--aas-bg));
+  }
+  .aas-avalanche-demo .av-bits i.is-diff {
+    background: var(--aas-role-guard);
+  }
+  .aas-avalanche-demo .av-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 3.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-avalanche-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+</style>
