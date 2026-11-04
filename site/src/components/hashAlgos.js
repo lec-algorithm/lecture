@@ -2,7 +2,8 @@
 //
 // 데모의 숫자가 실제 값이 되도록 알고리즘을 그대로 옮겼다. SHA-256은 FIPS 180-4,
 // MurmurHash3는 x86_32판, SipHash는 c-d 라운드를 고를 수 있는 판이다(Python과
-// Rust가 쓰는 1-3). 컴포넌트가 이 파일을 ?raw로 읽어 is:inline으로 넣는다.
+// Rust가 쓰는 1-3). 공개키 암호 데모의 modPow·modInv도 함께 둔다. 컴포넌트가 이 파일을
+// ?raw로 읽어 is:inline으로 넣는다.
 (() => {
   if (globalThis.aasHashAlgos) return;
   const encoder = new TextEncoder();
@@ -154,5 +155,27 @@
   };
   const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 
-  globalThis.aasHashAlgos = { bytesOf, sha256, murmur3, siphash, sumCodes, horner, hex };
+  /* 공개키 암호 데모의 계산. 모두 BigInt다. */
+  const modPow = (base, exp, mod) => {
+    let r = 1n;
+    let b = base % mod;
+    for (let e = exp; e > 0n; e >>= 1n) {
+      if (e & 1n) r = (r * b) % mod;
+      b = (b * b) % mod;
+    }
+    return r;
+  };
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  /* 확장 유클리드 호제법으로 a의 mod m 역원을 구한다. */
+  const modInv = (a, m) => {
+    let [r0, r1, s0, s1] = [a % m, m, 1n, 0n];
+    while (r1) {
+      const q = r0 / r1;
+      [r0, r1] = [r1, r0 - q * r1];
+      [s0, s1] = [s1, s0 - q * s1];
+    }
+    return ((s0 % m) + m) % m;
+  };
+
+  globalThis.aasHashAlgos = { bytesOf, sha256, murmur3, siphash, sumCodes, horner, hex, modPow, gcd, modInv };
 })();
