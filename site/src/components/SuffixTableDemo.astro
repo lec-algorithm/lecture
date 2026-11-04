@@ -1,0 +1,450 @@
+---
+// 접미사를 시작 위치 순과 사전순으로 나란히 놓고 눌러서 잇는 데모.
+//
+// 왼쪽 표가 시작 위치 순, 오른쪽 표가 사전순이다. 어느 쪽이든 접미사를 누르면 같은 접미사가
+// 양쪽에서 칠해지고 SA[j]와 rank[i]의 관계가 나온다. 문자열을 바꾸면 다시 계산한다.
+// lcp를 켜면 오른쪽 표에 LCP 열이 붙고, 누른 줄과 그 앞 이웃의 공통 접두사가 칠해진다.
+// $ 버튼을 끄면 끝 글자 없이 정렬해, 어떤 접미사가 다른 접미사의 접두사가 되는 쌍을 센다.
+// 값은 03_suffix_array, 04_lcp의 banana$ 출력과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './suffixAlgos.js?raw';
+
+interface Props {
+  /** 처음 문자열. 끝 글자 $는 버튼이 붙인다. */
+  word?: string;
+  /** LCP 열을 보인다. */
+  lcp?: boolean;
+  /** 처음에 $를 붙일지 */
+  sentinel?: boolean;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { word = 'banana', lcp = false, sentinel = true, slide = false } = Astro.props;
+const id = `st-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    titleSa: '모든 접미사를 정렬하면',
+    titleLcp: '이웃한 접미사의 공통 접두사',
+    text: '문자열',
+    end: '끝 글자 $',
+    on: '있음',
+    off: '없음',
+    byPos: '시작 위치 순',
+    bySort: '사전순',
+    pos: '시작',
+    suffix: '접미사',
+    memory: '문자열로 저장 {c}글자, 시작 위치만 {n}칸',
+    picked: '{s}는 위치 {i}에서 시작하고 사전순으로 {j}번째입니다. SA[{j}] = {i}, rank[{i}] = {j}입니다.',
+    pickedLcp: 'LCP[{j}] = {h}: {a}와 {s}는 앞 {h}글자를 공유합니다.',
+    pickedFirst: 'LCP[0]은 앞 이웃이 없어 정의하지 않습니다.',
+    noCommon: 'LCP[{j}] = 0: {a}와 {s}는 첫 글자부터 다릅니다.',
+    prefix: '접두사',
+    withEnd: '$가 있으면 어떤 접미사도 다른 접미사의 접두사가 되지 않습니다.',
+    noEnd: '$가 없으면 접미사 {c}쌍이 접두사 관계입니다. 예를 들면 {list}입니다. "짧은 쪽이 앞"이라는 규칙을 따로 정해야 합니다.',
+    noEndNone: '이 문자열은 $가 없어도 접두사가 되는 쌍이 없습니다.',
+  },
+  en: {
+    titleSa: 'Sort every suffix',
+    titleLcp: 'Common prefixes of neighboring suffixes',
+    text: 'String',
+    end: 'End character $',
+    on: 'on',
+    off: 'off',
+    byPos: 'By start position',
+    bySort: 'In dictionary order',
+    pos: 'start',
+    suffix: 'suffix',
+    memory: 'As strings: {c} characters. Start positions only: {n} cells.',
+    picked: '{s} starts at position {i} and is number {j} in dictionary order. SA[{j}] = {i}, rank[{i}] = {j}.',
+    pickedLcp: 'LCP[{j}] = {h}: {a} and {s} share the first {h} characters.',
+    pickedFirst: 'LCP[0] is undefined: there is no previous neighbor.',
+    noCommon: 'LCP[{j}] = 0: {a} and {s} differ from the first character.',
+    prefix: 'prefix',
+    withEnd: 'With $, no suffix is a prefix of another suffix.',
+    noEnd: 'Without $, {c} pair(s) of suffixes are in a prefix relation, for example {list}. We would need a separate rule that the shorter one goes first.',
+    noEndNone: 'This string has no such pair even without $.',
+  },
+  zh: {
+    titleSa: '把所有后缀排序',
+    titleLcp: '相邻后缀的公共前缀',
+    text: '字符串',
+    end: '结束字符 $',
+    on: '有',
+    off: '无',
+    byPos: '按起始位置',
+    bySort: '按字典序',
+    pos: '起始',
+    suffix: '后缀',
+    memory: '存字符串要 {c} 个字符，只存起始位置要 {n} 格',
+    picked: '{s} 从位置 {i} 开始，字典序第 {j} 个。SA[{j}] = {i}，rank[{i}] = {j}。',
+    pickedLcp: 'LCP[{j}] = {h}：{a} 与 {s} 共享前 {h} 个字符。',
+    pickedFirst: 'LCP[0] 没有前一个邻居，不作定义。',
+    noCommon: 'LCP[{j}] = 0：{a} 与 {s} 从第一个字符就不同。',
+    prefix: '前缀',
+    withEnd: '有 $ 时，任何后缀都不会是另一个后缀的前缀。',
+    noEnd: '没有 $ 时，有 {c} 对后缀是前缀关系，例如 {list}。还得另外规定“短的在前”。',
+    noEndNone: '这个字符串即使没有 $，也没有这样的后缀对。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = ['banana', 'mississippi', 'abracadabra', 'aaaaaa'];
+---
+
+<script is:inline set:html={algos} />
+<div
+  class:list={['aas-suffix-table-demo', slide && 'is-slide', lcp && 'is-lcp']}
+  id={id}
+  data-st-strings={JSON.stringify(t)}
+  data-st-lcp={lcp ? '1' : ''}
+  data-st-end={sentinel ? '1' : ''}
+>
+  <div class="st-bar">
+    <span class="st-head"><strong>{lcp ? t.titleLcp : t.titleSa}</strong></span>
+    <div class="st-chips">
+      {presets.map((p) => <button type="button" class="st-chip" data-st-preset={p}>{p}</button>)}
+    </div>
+  </div>
+  <div class="st-inputs">
+    <label class="st-input">
+      <span>{t.text}</span>
+      <input type="text" data-st-in value={word} maxlength="12" spellcheck="false" autocomplete="off" />
+    </label>
+    <button type="button" class="st-toggle" data-st-endbtn>
+      {t.end}: <b data-st-endv></b>
+    </button>
+    <span class="st-memory" data-st-mem></span>
+  </div>
+
+  <div class="st-tables">
+    <div class="st-col">
+      <span class="st-cap">{t.byPos}</span>
+      <div class="st-rows" data-st-left></div>
+    </div>
+    <div class="st-col">
+      <span class="st-cap">{t.bySort}</span>
+      <div class="st-rows" data-st-right></div>
+    </div>
+  </div>
+
+  <p class="st-line" data-st-array></p>
+  <p class="st-note" data-st-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.stStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const { buildSA, rankOf, kasai, cleanWord } = globalThis.aasSuffixAlgos;
+
+    const showLcp = root.dataset.stLcp === '1';
+    const input = root.querySelector('[data-st-in]');
+    const left = root.querySelector('[data-st-left]');
+    const right = root.querySelector('[data-st-right]');
+    const arr = root.querySelector('[data-st-array]');
+    const note = root.querySelector('[data-st-note]');
+    const mem = root.querySelector('[data-st-mem]');
+    let hasEnd = root.dataset.stEnd === '1';
+    let text = '';
+    let sa = [];
+    let rank = [];
+    let lcp = [];
+    let sel = 0;
+    let badTags = new Set();
+
+    const chars = (s, hi) =>
+      [...s].map((c, k) => `<span class="st-ch${k < hi ? ' is-common' : ''}">${c}</span>`).join('');
+
+    function draw() {
+      const j0 = rank[sel];
+      const h = showLcp && j0 > 0 ? lcp[j0] : 0;
+      left.innerHTML = [...text]
+        .map((_, i) => {
+          const on = i === sel;
+          return `<button type="button" class="st-row${on ? ' is-sel' : ''}" data-st-i="${i}"><b>${i}</b><span class="st-suf">${chars(text.slice(i), 0)}</span></button>`;
+        })
+        .join('');
+      right.innerHTML = sa
+        .map((p, j) => {
+          const on = p === sel;
+          const isPrev = showLcp && j === j0 - 1;
+          const cm = (on || isPrev) && showLcp ? h : 0;
+          const lc = showLcp ? `<em>${j === 0 ? '-' : lcp[j]}</em>` : '';
+          const tag = badTags.has(j) ? `<u>${S.prefix}</u>` : '';
+          return `<button type="button" class="st-row${on ? ' is-sel' : ''}${isPrev ? ' is-prev' : ''}" data-st-i="${p}"><i>${j}</i><b>${p}</b>${lc}<span class="st-suf">${chars(text.slice(p), cm)}</span>${tag}</button>`;
+        })
+        .join('');
+      const saCells = sa.map((p, j) => (j === j0 ? `<b>${p}</b>` : p)).join(', ');
+      let line = `SA = [${saCells}]`;
+      if (showLcp) {
+        const cells = lcp.map((v, j) => (j === j0 ? `<b>${j === 0 ? '-' : v}</b>` : j === 0 ? '-' : v)).join(', ');
+        line += ` &nbsp; LCP = [${cells}]`;
+      }
+      arr.innerHTML = line;
+
+      const s = text.slice(sel);
+      const parts = [];
+      if (showLcp) {
+        if (j0 === 0) parts.push(S.pickedFirst);
+        else {
+          const a = text.slice(sa[j0 - 1]);
+          parts.push(h > 0 ? fill(S.pickedLcp, { j: j0, h, a, s }) : fill(S.noCommon, { j: j0, a, s }));
+        }
+      } else if (hasEnd) {
+        parts.push(fill(S.picked, { s, i: sel, j: j0 }));
+      }
+      if (!hasEnd && !showLcp) {
+        /* 짧은 접미사부터 보여 준다. 위치가 뒤일수록 짧다. */
+        const pairs = [];
+        for (let a = text.length - 1; a >= 0; a--) {
+          for (let b = a - 1; b >= 0; b--) {
+            if (text.slice(b).startsWith(text.slice(a))) pairs.push(`${text.slice(a)} ⊂ ${text.slice(b)}`);
+          }
+        }
+        parts.push(pairs.length ? fill(S.noEnd, { c: pairs.length, list: pairs.slice(0, 2).join(', ') }) : S.noEndNone);
+      } else if (hasEnd && !showLcp) {
+        parts.push(S.withEnd);
+      }
+      setLines(note, join(...parts));
+    }
+
+    function rebuild(keepSel) {
+      const word = cleanWord(input.value, 12) || 'a';
+      text = hasEnd ? `${word}$` : word;
+      sa = buildSA(text);
+      rank = rankOf(sa);
+      lcp = kasai(text, sa).lcp;
+      const n = text.length;
+      if (!keepSel || sel >= n) sel = Math.min(3, n - 1);
+      badTags = new Set();
+      if (!hasEnd) {
+        for (let j = 1; j < n; j++) {
+          if (text.slice(sa[j]).startsWith(text.slice(sa[j - 1]))) badTags.add(j - 1);
+        }
+      }
+      mem.textContent = fill(S.memory, { c: (n * (n + 1)) / 2, n });
+      root.querySelector('[data-st-endv]').textContent = hasEnd ? S.on : S.off;
+      root.querySelector('[data-st-endbtn]').classList.toggle('is-on', hasEnd);
+      root.querySelectorAll('[data-st-preset]').forEach((b) => b.classList.toggle('is-on', b.dataset.stPreset === word));
+      draw();
+    }
+
+    root.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-st-i]');
+      if (!row || !root.contains(row)) return;
+      sel = Number(row.dataset.stI);
+      draw();
+    });
+    input.addEventListener('input', () => rebuild(false));
+    root.querySelector('[data-st-endbtn]').addEventListener('click', () => {
+      hasEnd = !hasEnd;
+      rebuild(false);
+    });
+    root.querySelectorAll('[data-st-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = b.dataset.stPreset;
+        rebuild(false);
+      }),
+    );
+    rebuild(false);
+  })();
+</script>
+
+<style is:global>
+  .aas-suffix-table-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-suffix-table-demo .st-bar,
+  .aas-suffix-table-demo .st-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-suffix-table-demo .st-inputs {
+    margin: 0.4em 0;
+    justify-content: flex-start;
+  }
+  .aas-suffix-table-demo .st-head {
+    font-size: 0.95em;
+  }
+  .aas-suffix-table-demo .st-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-suffix-table-demo .st-chip,
+  .aas-suffix-table-demo .st-toggle {
+    padding: 0.2em 0.65em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-suffix-table-demo .st-chip {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-suffix-table-demo .st-chip:hover,
+  .aas-suffix-table-demo .st-toggle:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-suffix-table-demo .st-chip.is-on,
+  .aas-suffix-table-demo .st-toggle.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+  }
+  .aas-suffix-table-demo .st-chip.is-on {
+    font-weight: 700;
+  }
+  .aas-suffix-table-demo .st-input {
+    display: inline-flex;
+    gap: 0.45em;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-suffix-table-demo .st-input input {
+    width: 9em;
+    padding: 0.18em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-suffix-table-demo .st-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-suffix-table-demo .st-memory {
+    margin-left: auto;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-suffix-table-demo .st-tables {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17em), 1fr));
+    gap: 0.3em 1em;
+  }
+  .aas-suffix-table-demo .st-cap {
+    display: block;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-suffix-table-demo .st-rows {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-suffix-table-demo .st-row {
+    display: flex;
+    gap: 0.45em;
+    align-items: center;
+    width: 100%;
+    height: 1.16em;
+    padding: 0 0.3em;
+    font: inherit;
+    line-height: 1.16;
+    text-align: left;
+    border: none;
+    border-radius: 0.25em;
+    background: none;
+    color: var(--aas-text);
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .aas-suffix-table-demo .st-row:hover {
+    background: color-mix(in srgb, var(--aas-muted) 12%, transparent);
+  }
+  .aas-suffix-table-demo .st-row.is-sel {
+    background: color-mix(in srgb, var(--aas-role-focus) 24%, transparent);
+  }
+  .aas-suffix-table-demo .st-row.is-prev {
+    background: color-mix(in srgb, var(--aas-role-model) 18%, transparent);
+  }
+  .aas-suffix-table-demo .st-row i {
+    width: 1.3em;
+    font-size: 0.8em;
+    font-style: normal;
+    text-align: right;
+    color: var(--aas-muted);
+  }
+  .aas-suffix-table-demo .st-row b {
+    width: 1.5em;
+    text-align: right;
+  }
+  .aas-suffix-table-demo .st-row em {
+    width: 1.2em;
+    font-style: normal;
+    font-weight: 700;
+    text-align: right;
+    color: var(--aas-role-eval);
+  }
+  .aas-suffix-table-demo .st-row u {
+    margin-left: auto;
+    padding: 0 0.4em;
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.68em;
+    text-decoration: none;
+    border-radius: 0.3em;
+    color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 14%, transparent);
+  }
+  .aas-suffix-table-demo .st-suf {
+    margin-left: 0.2em;
+    letter-spacing: 0.04em;
+    white-space: pre;
+  }
+  .aas-suffix-table-demo .st-ch.is-common {
+    border-radius: 0.15em;
+    background: color-mix(in srgb, var(--aas-role-eval) 34%, transparent);
+  }
+  .aas-suffix-table-demo .st-line {
+    margin: 0.35em 0 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-suffix-table-demo .st-line b {
+    color: var(--aas-role-focus);
+  }
+  .aas-suffix-table-demo .st-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-suffix-table-demo.is-slide {
+    font-size: clamp(1rem, 2.35vh, 1.6rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-suffix-table-demo .st-row {
+      transition: none;
+    }
+  }
+</style>

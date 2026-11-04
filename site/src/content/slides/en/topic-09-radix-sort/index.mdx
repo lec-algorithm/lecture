@@ -1,7 +1,7 @@
 ---
 title: "Topic 09. Radix Sort and Suffix Arrays"
 description: "LSD and MSD radix sort, which repeat counting sort digit by digit; the suffix array and LCP array, built by sorting every suffix; and the longest repeated and common substrings solved on top of them"
-date: "Topic 09 · v1"
+date: "Topic 09 · v2"
 order: 9
 transition: none
 toc_level: 4
@@ -18,6 +18,18 @@ import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
+import CountingPassDemo from '@components/CountingPassDemo.astro';
+import RadixCostDemo from '@components/RadixCostDemo.astro';
+import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
+import MsdStringDemo from '@components/MsdStringDemo.astro';
+import MsdCostDemo from '@components/MsdCostDemo.astro';
+import SuffixTableDemo from '@components/SuffixTableDemo.astro';
+import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
+import KasaiCostDemo from '@components/KasaiCostDemo.astro';
+import LrsFindDemo from '@components/LrsFindDemo.astro';
+import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
+import LcsPlayDemo from '@components/LcsPlayDemo.astro';
+import KwicDemo from '@components/KwicDemo.astro';
 
 {/* Slide rules follow "slide rules" section in docs/writing-rules.md.
     Numbers match the practice code (topic-09-radix-sort) exactly. */}
@@ -180,6 +192,15 @@ void countingSortByDigit(int a[], int n, int exp) {
 
 </Slide>
 
+<Slide>
+
+### One step at a time: count, cumulate, place
+::sub[Follow the four stages of the code line by line · the tabs change the direction of step 3]
+
+<CountingPassDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Run
@@ -287,6 +308,15 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 
 <Slide>
 
+### Try it: how to split the key
+::sub[Move n and the value range and the work changes for each radix · green is the cheapest]
+
+<RadixCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Running time
 ::sub[Sorting integer arrays by size · LSD uses one byte per digit (R = 256)]
 
@@ -299,6 +329,15 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 
 - When $$n$$ grows tenfold, insertion sort takes about 100 times longer; LSD, almost exactly 10.
 - At a million elements, LSD is about four times faster than quicksort.
+
+</Slide>
+
+<Slide>
+
+### Try it: measure it yourself
+::sub[The four sorts really run in this browser · the tabs change the input order]
+
+<RuntimeRaceDemo slide />
 
 </Slide>
 
@@ -430,6 +469,15 @@ The ones digit was never read. 14 digit reads; LSD takes 24.
 
 <Slide>
 
+### One step at a time: MSD on strings
+::sub[Colored cells are the characters read · orange is being read, green is a finished word]
+
+<MsdStringDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Analysis
 ::sub[MSD Radix Sort]
 
@@ -442,6 +490,15 @@ The ones digit was never read. 14 digit reads; LSD takes 24.
 
 With many small buckets, scanning empty counting slots outweighs the elements.  
 So real implementations hand small buckets to insertion sort.
+
+</Slide>
+
+<Slide>
+
+### Try it: count the work
+::sub[Counts digit reads and cell scans · try the random input at k = 256]
+
+<MsdCostDemo slide />
 
 </Slide>
 
@@ -510,20 +567,10 @@ So real implementations hand small buckets to insertion sort.
 
 <Slide>
 
-#### Example: banana$
-::sub[Step 1: list every suffix · Step 2: sort in dictionary order]
+### Example: banana$
+::sub[Left: by start position, right: dictionary order · click a row to mark the same suffix on both sides]
 
-| Start | Suffix | | $$j$$ | $$SA[j]$$ | Suffix |
-| --- | --- | --- | --- | --- | --- |
-| 0 | `banana$` | | 0 | 6 | `$` |
-| 1 | `anana$` | | 1 | 5 | `a$` |
-| 2 | `nana$` | | 2 | 3 | `ana$` |
-| 3 | `ana$` | | 3 | 1 | `anana$` |
-| 4 | `na$` | | 4 | 0 | `banana$` |
-| 5 | `a$` | | 5 | 4 | `na$` |
-| 6 | `$` | | 6 | 2 | `nana$` |
-
-$$SA = [6, 5, 3, 1, 0, 4, 2]$$
+<SuffixTableDemo slide />
 
 </Slide>
 
@@ -540,6 +587,15 @@ $$SA = [6, 5, 3, 1, 0, 4, 2]$$
 <br/>
 
 Storing suffixes as strings takes $$O(n^2)$$ space; starting positions alone take $$O(n)$$.
+
+</Slide>
+
+<Slide>
+
+### Try it: without $
+::sub[Here the button has removed $ · rows that are a prefix of another suffix get a red tag]
+
+<SuffixTableDemo sentinel={false} slide />
 
 </Slide>
 
@@ -589,23 +645,9 @@ No characters are reread, only two integers. Past the end, it is $$-1$$.
 <Slide>
 
 ### One step at a time: banana$
-::sub[One pair stands in for the colored first k characters. Rows with equal ranks are grouped in orange]
+::sub[One pair stands in for the colored first k characters; equal ranks are orange · click a row to mark its two cells]
 
 <SuffixArrayDemo slide />
-
-</Slide>
-
-<Slide>
-
-#### Two rounds
-::sub[5 distinct ranks at k = 2, 7 at k = 4]
-
-- **k = 2**: the pair is the codes of (first character, second character)
-  - `anana$` and `ana$` are both (97, 110); `nana$` and `na$` are both (110, 97)
-- **k = 4**: the pair is (rank of first 2 characters, rank of the suffix 2 later)
-  - `ana$`: position 3, `a$` 2 later has rank 1 → (2, 1)
-  - `anana$`: position 1, `ana$` 2 later has rank 2 → (2, 2)
-  - Now they split. Once all ranks are distinct, it stops.
 
 </Slide>
 
@@ -695,6 +737,15 @@ The same suffix array as the simple way.
 
 </Slide>
 
+<Slide>
+
+### One step at a time: radix-sort the pairs
+::sub[Once by the second digit, once by the first · click a row to mark the two cells behind its pair]
+
+<DoublingRadixDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Example 4. The LCP array
@@ -704,20 +755,10 @@ The same suffix array as the simple way.
 
 <Slide>
 
-#### The LCP array
-::sub[How many leading characters neighboring suffixes share]
+### The LCP array
+::sub[LCP[j] = longest common prefix of suffixes SA[j-1] and SA[j] · click a row to compare it with its previous neighbor]
 
-| $$j$$ | $$SA[j]$$ | Suffix | $$LCP[j]$$ | Explanation |
-| --- | --- | --- | --- | --- |
-| 0 | 6 | `$` | - | undefined |
-| 1 | 5 | `a$` | 0 | `$` and `a$` |
-| 2 | 3 | `ana$` | 1 | common prefix `a` |
-| 3 | 1 | `anana$` | 3 | common prefix `ana` |
-| 4 | 0 | `banana$` | 0 | `anana$` and `banana$` |
-| 5 | 4 | `na$` | 0 | `banana$` and `na$` |
-| 6 | 2 | `nana$` | 2 | common prefix `na` |
-
-$$LCP[j]$$ = the longest common prefix length of suffixes $$SA[j-1]$$ and $$SA[j]$$
+<SuffixTableDemo lcp slide />
 
 </Slide>
 
@@ -807,6 +848,15 @@ Given the suffix array, the LCP array comes **almost for free**, in $$O(n)$$.
 
 </Slide>
 
+<Slide>
+
+### Try it: what Kasai costs
+::sub[Increase the number of a · one bar is one position i]
+
+<KasaiCostDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Example 5. Longest repeated substring
@@ -887,6 +937,15 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 </Slide>
 
+<Slide>
+
+### Try it: search 283 characters
+::sub[Click a row to mark both occurrences in the text · brute force also runs to the end and is counted]
+
+<LrsFindDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Run
@@ -958,6 +1017,15 @@ Whose method is likely to produce an answer?
 
 The suffix sort has to be $$O(n \log n)$$ or better.  
 An MSD-style sort for variable-length keys, or doubling with radix sort, is the way.
+
+</Slide>
+
+<Slide>
+
+### Try it: what happens as n grows
+::sub[Use the sliders to estimate the time of four methods · a faster machine does not fix n²]
+
+<GenomeScaleDemo slide />
 
 </Slide>
 
@@ -1034,6 +1102,15 @@ LCS = "iss" (length 3) at j = 5
 
 <Slide>
 
+### Try it: turn the rules off
+::sub[Turn off the separator or the source rule and the answer goes wrong · try your own strings]
+
+<LcsPlayDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Using suffix arrays: KWIC
 ::sub[Keyword in context · every occurrence of a query, with its context]
 
@@ -1061,6 +1138,15 @@ n that bed and search the straw hold
 ```
 
 No matter how long the text, each query is one binary search over the suffix array.
+
+</Slide>
+
+<Slide>
+
+### One step at a time: KWIC by binary search
+::sub[Suffixes starting with the query sit in one range · find its start and its end]
+
+<KwicDemo slide />
 
 </Slide>
 

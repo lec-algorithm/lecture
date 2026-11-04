@@ -11,6 +11,9 @@
 // 01_lsd_radix_sort와 패스마다 같다. buckets="stack"이면 나중에 넣은 것이
 // 먼저 나와 같은 숫자끼리 순서가 뒤집히고, 07_stack_queue의 stack 줄처럼
 // 결과가 틀린다. 원소끼리 비교하는 일은 어느 쪽에도 없다.
+//
+// 오른쪽 패스 기록은 끝난 패스의 결과를 남긴다. 앞 패스의 순서를 보려고 되돌리거나 슬라이드를
+// 오가지 않아도 된다. 스택 버킷에서는 같은 입력의 큐 버킷 결과를 함께 놓는다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -49,6 +52,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     stop: '멈춤',
     reset: '처음으로',
     array: '배열',
+    log: '패스 기록',
+    logInput: '입력',
+    logOther: '큐 버킷이라면',
     bucket: '버킷',
     ruleQueue: '먼저 넣은 것부터 꺼냅니다',
     ruleStack: '나중에 넣은 것부터 꺼냅니다',
@@ -79,6 +85,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     stop: 'Pause',
     reset: 'Reset',
     array: 'array',
+    log: 'Pass log',
+    logInput: 'input',
+    logOther: 'with queue buckets',
     bucket: 'bucket',
     ruleQueue: 'first in, first out',
     ruleStack: 'last in, first out',
@@ -109,6 +118,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     stop: '暂停',
     reset: '重置',
     array: '数组',
+    log: '每趟记录',
+    logInput: '输入',
+    logOther: '如果是队列桶',
     bucket: '桶',
     ruleQueue: '先放入的先取出',
     ruleStack: '后放入的先取出',
@@ -155,6 +167,7 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
     </div>
   </div>
 
+  <div class="lr-main">
   <div class="lr-scroll">
     <div class="lr-stage">
       <span class="lr-label lr-label-array">{t.array}</span>
@@ -178,6 +191,11 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
         </span>
       ))}
     </div>
+  </div>
+  <div class="lr-log">
+    <span class="lr-log-title">{t.log}</span>
+    <div class="lr-log-body" data-lr-log></div>
+  </div>
   </div>
 
   <div class="lr-foot">
@@ -274,6 +292,34 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
     const cells = [...root.querySelectorAll('[data-lr-cell]')];
     const cols = [...root.querySelectorAll('[data-lr-col]')];
     const note = root.querySelector('[data-lr-note]');
+    const logEl = root.querySelector('[data-lr-log]');
+
+    /* 패스 기록: 버킷을 큐 또는 스택으로 쓴 패스별 결과 */
+    function passResults(queue) {
+      const out = [];
+      let cur = vals.slice();
+      for (let p = 0, exp = 1; p < width; p++, exp *= 10) {
+        const buckets = Array.from({ length: 10 }, () => []);
+        for (const v of cur) buckets[Math.floor(v / exp) % 10].push(v);
+        cur = buckets.flatMap((b) => (queue ? b : [...b].reverse()));
+        out.push({ exp, list: cur.slice() });
+      }
+      return out;
+    }
+    const mine = passResults(useQueue);
+    const other = useQueue ? null : passResults(true);
+    const logLine = (label, list, cls = '') => `<span class="lr-log-line ${cls}"><b>${label}</b>${list.map(pad).join(' ')}</span>`;
+    function renderLog(done) {
+      let html = logLine(S.logInput, vals);
+      mine.forEach((r, i) => {
+        if (i < done) html += logLine(`exp ${r.exp}`, r.list, i === done - 1 ? 'is-last' : '');
+      });
+      if (other) {
+        html += `<span class="lr-log-title lr-log-other">${S.logOther}</span>`;
+        other.forEach((r) => (html += logLine(`exp ${r.exp}`, r.list, 'is-other')));
+      }
+      logEl.innerHTML = html;
+    }
     const passEl = root.querySelector('[data-lr-pass]');
 
     /* 칸의 위치는 CSS 변수로만 준다. 실제 좌표 계산과 전환은 CSS가 맡는다. */
@@ -296,6 +342,7 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
       const active = st && st.cur && st.loc[st.cur[0]].b >= 0 ? st.loc[st.cur[0]].b : -1;
       cols.forEach((c, d) => c.classList.toggle('is-now', d === active));
       passEl.textContent = String(st ? st.pass : 0);
+      renderLog(st ? (st.done ?? st.pass - 1) : 0);
       setLines(note, st ? st.note : S.idle);
       root.classList.toggle('is-done', !!(st && st.finished));
     }
@@ -394,8 +441,50 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
     color: #fff;
   }
 
+  .aas-lsd-demo .lr-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.1em;
+    align-items: flex-start;
+    justify-content: center;
+  }
   .aas-lsd-demo .lr-scroll {
+    flex: 0 1 auto;
+    min-width: 0;
     overflow-x: auto;
+  }
+  .aas-lsd-demo .lr-log {
+    flex: 1 1 12em;
+    min-width: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.68em;
+    line-height: 1.45;
+  }
+  .aas-lsd-demo .lr-log-title {
+    display: block;
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+  }
+  .aas-lsd-demo .lr-log-other {
+    margin-top: 0.5em;
+  }
+  .aas-lsd-demo .lr-log-line {
+    display: block;
+    white-space: pre;
+    border-radius: 0.2em;
+  }
+  .aas-lsd-demo .lr-log-line b {
+    display: inline-block;
+    width: 5.4em;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-lsd-demo .lr-log-line.is-last {
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, transparent);
+  }
+  .aas-lsd-demo .lr-log-line.is-other {
+    color: var(--aas-muted);
   }
   /* 무대: 배열 칸 n개가 위에, 버킷 열 개가 아래에 있다. 원소 칸은 무대 위에
      절대 위치로 떠 있고, 배열 자리(--lr-at)나 버킷(--lr-b, --lr-at)으로 옮겨 간다. */
@@ -537,8 +626,11 @@ const rule = buckets === 'stack' ? t.ruleStack : t.ruleQueue;
 
   /* 슬라이드용. 다른 데모와 같은 크기 */
   .aas-lsd-demo.is-slide {
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.85vh, 1.9rem);
     margin: 0.5rem 0;
+  }
+  .aas-lsd-demo.is-slide .lr-main {
+    flex-wrap: nowrap;
   }
   .aas-lsd-demo.is-slide .lr-note {
     min-height: 1.6em;

@@ -1,0 +1,626 @@
+---
+// 자리 하나로 하는 카운팅 정렬(CountingSortByDigit)을 줄 단위로 한 걸음씩 보는 데모.
+//
+// 세기, 누적, 배치, 복사의 네 단계를 의사코드 줄과 함께 칠한다. count 배열과 출력 배열 B가
+// 데모 안에 있으므로 절차 슬라이드를 오갈 필요가 없다. 탭으로 3단계의 방향을 바꾼다.
+// 뒤에서부터 놓으면 같은 숫자끼리 순서가 지켜지고(01_lsd_radix_sort와 패스마다 같다),
+// 앞에서부터 놓으면 뒤집혀 07_stack_queue의 stack 줄과 같은 틀린 결과가 된다.
+// 입력을 바꾸면 처음부터 다시 계산한다. 패스 기록이 앞 패스의 결과를 보여 준다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 고를 3단계의 방향 */
+  placement?: 'back' | 'front';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { placement = 'back', slide = false } = Astro.props;
+const id = `cp-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '카운팅 정렬 한 패스',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    next: '다음 패스',
+    tabBack: '뒤에서부터 배치',
+    tabFront: '앞에서부터 배치',
+    input: '입력',
+    inputHint: '0부터 999까지, 8개까지',
+    log: '패스 기록',
+    logInput: '입력',
+    pass: '패스',
+    place0: '일의 자리',
+    place1: '십의 자리',
+    place2: '백의 자리',
+    c1: '1) 세기',
+    c2: '2) 누적',
+    c3: '3) 배치',
+    c4: '4) 복사',
+    idle: '{place}부터 시작합니다. 한 걸음을 누르면 의사코드의 줄을 따라 count와 B가 바뀝니다.',
+    count: 'A[{i}] = {v}의 {place}는 {d}입니다. count[{d}]가 {c}이 됩니다.',
+    cum: '앞에서부터 더해 누적합으로 바꿉니다. 이제 count[d]는 숫자 d의 칸들이 끝나는 자리입니다.',
+    placeNew: 'A[{i}] = {v}: count[{d}]를 줄여 {c}, B[{c}]에 놓습니다.',
+    placeBack: 'A[{i}] = {v}: count[{d}]를 줄여 {c}, B[{c}]에 놓습니다. A에서 뒤에 있던 {w}의 앞자리이므로 순서가 지켜집니다.',
+    placeFront: 'A[{i}] = {v}: count[{d}]를 줄여 {c}, B[{c}]에 놓습니다. A에서 앞에 있던 {w}가 뒤로 갔으므로 순서가 뒤집혔습니다.',
+    copyOk: 'B를 A로 복사합니다. 아래 {k}자리만 보면 정렬되어 있습니다.',
+    copyBad: 'B를 A로 복사합니다. 아래 {k}자리로 봐도 {a}가 {b}보다 앞에 있어 정렬이 깨졌습니다.',
+    doneOk: '패스 {k}번으로 정렬을 마쳤습니다: {list}',
+    doneBad: '패스 {k}번을 다 돌았지만 틀린 결과입니다: {list}. 스택 버킷과 같은 결과입니다.',
+    bad: '숫자를 하나 이상 입력하세요.',
+  },
+  en: {
+    title: 'One pass of counting sort',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    next: 'Next pass',
+    tabBack: 'Place from the back',
+    tabFront: 'Place from the front',
+    input: 'Input',
+    inputHint: '0 to 999, up to 8 values',
+    log: 'Pass log',
+    logInput: 'input',
+    pass: 'pass',
+    place0: 'ones digit',
+    place1: 'tens digit',
+    place2: 'hundreds digit',
+    c1: '1) count',
+    c2: '2) cumulate',
+    c3: '3) place',
+    c4: '4) copy',
+    idle: 'We start with the {place}. Each step follows the lines of the pseudocode and changes count and B.',
+    count: 'A[{i}] = {v} has {place} {d}. count[{d}] becomes {c}.',
+    cum: 'Add from the front to make a running total. Now count[d] is where the slots of digit d end.',
+    placeNew: 'A[{i}] = {v}: decrease count[{d}] to {c} and place it at B[{c}].',
+    placeBack: 'A[{i}] = {v}: decrease count[{d}] to {c} and place it at B[{c}]. It lands ahead of {w}, which came later in A, so the order is kept.',
+    placeFront: 'A[{i}] = {v}: decrease count[{d}] to {c} and place it at B[{c}]. {w} came earlier in A but now sits behind it, so the order is reversed.',
+    copyOk: 'Copy B back to A. Looking at the lowest {k} digit(s) only, the array is sorted.',
+    copyBad: 'Copy B back to A. Even on the lowest {k} digit(s), {a} is ahead of {b}: the order broke.',
+    doneOk: 'Sorted in {k} passes: {list}',
+    doneBad: 'All {k} passes ran, but the result is wrong: {list}. It matches the stack buckets.',
+    bad: 'Enter at least one number.',
+  },
+  zh: {
+    title: '计数排序的一趟',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    next: '下一趟',
+    tabBack: '从后往前放',
+    tabFront: '从前往后放',
+    input: '输入',
+    inputHint: '0 到 999，最多 8 个',
+    log: '每趟记录',
+    logInput: '输入',
+    pass: '趟',
+    place0: '个位',
+    place1: '十位',
+    place2: '百位',
+    c1: '1) 计数',
+    c2: '2) 累加',
+    c3: '3) 放置',
+    c4: '4) 复制',
+    idle: '从{place}开始。每按一次单步，就沿着伪代码的行改变 count 和 B。',
+    count: 'A[{i}] = {v} 的{place}是 {d}。count[{d}] 变为 {c}。',
+    cum: '从前往后累加。现在 count[d] 是数字 d 的格子结束的位置。',
+    placeNew: 'A[{i}] = {v}：把 count[{d}] 减为 {c}，放到 B[{c}]。',
+    placeBack: 'A[{i}] = {v}：把 count[{d}] 减为 {c}，放到 B[{c}]。它在 A 中靠后的 {w} 前面，所以顺序保持不变。',
+    placeFront: 'A[{i}] = {v}：把 count[{d}] 减为 {c}，放到 B[{c}]。在 A 中靠前的 {w} 跑到了后面，所以顺序颠倒了。',
+    copyOk: '把 B 复制回 A。只看最低 {k} 位，数组已经有序。',
+    copyBad: '把 B 复制回 A。即使只看最低 {k} 位，{a} 也排在 {b} 前面，顺序被破坏了。',
+    doneOk: '共 {k} 趟，排序完成：{list}',
+    doneBad: '{k} 趟都已完成，但结果是错的：{list}。与栈桶的结果相同。',
+    bad: '请至少输入一个数字。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-counting-pass-demo', slide && 'is-slide']} id={id} data-cp-mode={placement} data-cp-strings={JSON.stringify(t)}>
+  <div class="cp-bar">
+    <div class="cp-tabs">
+      <span class="cp-head"><strong>{t.title}</strong></span>
+      <button type="button" class="cp-tab" data-cp-tab="back">{t.tabBack}</button>
+      <button type="button" class="cp-tab" data-cp-tab="front">{t.tabFront}</button>
+    </div>
+    <div class="cp-controls">
+      <button type="button" data-act="back" class="cp-btn">{t.back}</button>
+      <button type="button" data-act="step" class="cp-btn">{t.step}</button>
+      <button type="button" data-act="next" class="cp-btn">{t.next}</button>
+      <button type="button" data-act="play" class="cp-btn cp-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="cp-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="cp-main">
+    <div class="cp-left">
+      <label class="cp-input">
+        <span>{t.input}</span>
+        <input type="text" value="437 42 531 8 74" data-cp-in maxlength="40" spellcheck="false" autocomplete="off" />
+      </label>
+      <div class="cp-code" data-cp-code></div>
+      <div class="cp-log">
+        <span class="cp-sub">{t.log}</span>
+        <div class="cp-log-body" data-cp-log></div>
+      </div>
+    </div>
+    <div class="cp-right">
+      <div class="cp-row"><span class="cp-name">A</span><div class="cp-cells" data-cp-a></div></div>
+      <div class="cp-row">
+        <span class="cp-name">count</span>
+        <div class="cp-counts" data-cp-count></div>
+      </div>
+      <div class="cp-row"><span class="cp-name">B</span><div class="cp-cells" data-cp-b></div></div>
+    </div>
+  </div>
+
+  <div class="cp-foot">
+    <p class="cp-note" data-cp-note></p>
+    <span class="cp-stat">{t.pass} <strong data-cp-pass>1</strong>/<span data-cp-width>3</span></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.cpStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const input = root.querySelector('[data-cp-in]');
+    const aEl = root.querySelector('[data-cp-a]');
+    const bEl = root.querySelector('[data-cp-b]');
+    const cEl = root.querySelector('[data-cp-count]');
+    const logEl = root.querySelector('[data-cp-log]');
+    const codeEl = root.querySelector('[data-cp-code]');
+    const note = root.querySelector('[data-cp-note]');
+    const passEl = root.querySelector('[data-cp-pass]');
+    const widthEl = root.querySelector('[data-cp-width]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let mode = root.dataset.cpMode === 'front' ? 'front' : 'back';
+    let vals = [];
+    let width = 1;
+    let steps = [];
+    let at = -1;
+    let timer = null;
+
+    const pad = (v) => String(v).padStart(width, '0');
+    const placeName = (p) => S[`place${p}`];
+
+    /* 절차는 lsdRadixSort.pseudo의 CountingSortByDigit과 같다. */
+    function plan() {
+      const out = [];
+      let A = vals.slice();
+      const log = [{ label: S.logInput, list: A.slice() }];
+      for (let p = 0, exp = 1; p < width; p++, exp *= 10) {
+        const digit = (v) => Math.floor(v / exp) % 10;
+        const count = new Array(10).fill(0);
+        const B = new Array(A.length).fill(null);
+        const snap = (x) => out.push({ p, A: A.slice(), B: B.slice(), count: count.slice(), log: log.map((l) => ({ ...l })), ...x });
+        A.forEach((v, i) => {
+          const d = digit(v);
+          count[d] += 1;
+          snap({ stage: 1, i, d, note: fill(S.count, { i, v: pad(v), place: placeName(p), d, c: count[d] }) });
+        });
+        for (let d = 1; d < 10; d++) count[d] += count[d - 1];
+        snap({ stage: 2, note: S.cum });
+        const order = A.map((_, i) => i);
+        if (mode === 'back') order.reverse();
+        for (const i of order) {
+          const v = A[i];
+          const d = digit(v);
+          count[d] -= 1;
+          const c = count[d];
+          const w = c + 1 < B.length && B[c + 1] !== null && digit(B[c + 1]) === d ? B[c + 1] : null;
+          B[c] = v;
+          const tpl = w === null ? S.placeNew : mode === 'back' ? S.placeBack : S.placeFront;
+          snap({ stage: 3, i, d, c, note: fill(tpl, { i, v: pad(v), d, c, w: w === null ? '' : pad(w) }) });
+        }
+        A = B.slice();
+        log.push({ label: `exp ${exp}`, list: A.slice() });
+        const mod = exp * 10;
+        const bad = A.findIndex((v, i) => i > 0 && A[i - 1] % mod > v % mod);
+        const k = p + 1;
+        const tpl = bad < 0 ? fill(S.copyOk, { k }) : fill(S.copyBad, { k, a: pad(A[bad - 1]), b: pad(A[bad]) });
+        snap({ stage: 4, note: tpl, done: k, bad: bad < 0 ? null : [bad - 1, bad] });
+      }
+      const sorted = A.every((v, i) => i === 0 || A[i - 1] <= v);
+      out.push({
+        p: width - 1, A: A.slice(), B: A.slice(), count: out[out.length - 1].count, log: log.map((l) => ({ ...l })), stage: 5, done: width,
+        finished: true,
+        note: fill(sorted ? S.doneOk : S.doneBad, { k: width, list: A.map(pad).join(' ') }),
+      });
+      return out;
+    }
+
+    function codeLines() {
+      const loop = mode === 'back' ? 'for i <- n-1 downto 0' : 'for i <- 0 to n-1';
+      return [
+        [1, 'for i <- 0 to n-1', `// ${S.c1}`],
+        [1, '    count[(A[i] / exp) mod 10] += 1', ''],
+        [2, 'for d <- 1 to 9', `// ${S.c2}`],
+        [2, '    count[d] += count[d-1]', ''],
+        [3, loop, `// ${S.c3}`],
+        [3, '    d <- (A[i] / exp) mod 10', ''],
+        [3, '    count[d] -= 1', ''],
+        [3, '    B[count[d]] <- A[i]', ''],
+        [4, 'A <- B', `// ${S.c4}`],
+      ];
+    }
+
+    const cellHtml = (v, p, done, cls) => {
+      if (v === null || v === undefined) return `<span class="cp-cell is-empty ${cls}">&nbsp;</span>`;
+      const digits = pad(v).split('').map((ch, k) => {
+        const pos = width - 1 - k;
+        const c = pos === p ? 'is-cur' : pos < done ? 'is-done' : '';
+        return `<i class="${c}">${ch}</i>`;
+      });
+      return `<span class="cp-cell ${cls}">${digits.join('')}</span>`;
+    };
+
+    function render() {
+      const st = at >= 0 ? steps[at] : null;
+      const p = st ? st.p : 0;
+      const stage = st ? st.stage : 0;
+      const done = st ? (st.done ?? p) : 0;
+      const A = st ? st.A : vals;
+      const B = st ? st.B : vals.map(() => null);
+      const count = st ? st.count : new Array(10).fill(0);
+      const curDigit = st && st.finished ? -1 : p;
+      aEl.innerHTML = A.map((v, i) => {
+        const cls = st && st.i === i ? 'is-now' : st && st.bad && st.stage === 4 && st.bad.includes(i) ? 'is-bad' : '';
+        return cellHtml(v, stage === 4 || stage === 5 ? -1 : curDigit, done, cls);
+      }).join('');
+      bEl.innerHTML = B.map((v, i) => cellHtml(v, stage === 4 || stage === 5 ? -1 : curDigit, done, st && st.c === i ? 'is-new' : '')).join('');
+      cEl.innerHTML = count
+        .map((c, d) => `<span class="cp-cnt${st && st.d === d ? ' is-now' : ''}${stage === 2 ? ' is-sum' : ''}"><b>${c}</b><i>${d}</i></span>`)
+        .join('');
+      codeEl.innerHTML = codeLines()
+        .map(([s, code, cm]) => {
+          const on = s === stage;
+          return `<span class="cp-line${on ? ' is-on' : ''}">${code.padEnd(36, ' ')}${cm ? `<em>${cm}</em>` : ''}</span>`;
+        })
+        .join('');
+      const log = st ? st.log : [{ label: S.logInput, list: vals }];
+      logEl.innerHTML = log
+        .map((l) => `<span class="cp-log-line"><b>${l.label}</b>${l.list.map(pad).join(' ')}</span>`)
+        .join('');
+      passEl.textContent = String(p + 1);
+      widthEl.textContent = String(width);
+      setLines(note, st ? st.note : fill(S.idle, { place: placeName(0) }));
+      root.classList.toggle('is-done', !!(st && st.finished));
+      root.querySelectorAll('[data-cp-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.cpTab === mode));
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function rebuild() {
+      stop();
+      const parsed = (input.value.match(/\d+/g) || []).map(Number).filter((v) => v <= 999).slice(0, 8);
+      if (!parsed.length) {
+        setLines(note, S.bad);
+        return;
+      }
+      vals = parsed;
+      const max = Math.max(...vals);
+      width = Math.max(1, String(max).length);
+      steps = plan();
+      at = -1;
+      render();
+    }
+
+    input.addEventListener('input', rebuild);
+    root.querySelectorAll('[data-cp-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        mode = b.dataset.cpTab;
+        rebuild();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="next"]').addEventListener('click', () => {
+      stop();
+      const cur = at >= 0 ? steps[at].p : -1;
+      const nextAt = steps.findIndex((s, i) => i > at && (s.p > cur || s.finished));
+      at = nextAt < 0 ? steps.length - 1 : nextAt;
+      render();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+    rebuild();
+  })();
+</script>
+
+<style is:global>
+  .aas-counting-pass-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-counting-pass-demo .cp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-counting-pass-demo .cp-head {
+    margin-right: 0.3em;
+    font-size: 0.95em;
+  }
+  .aas-counting-pass-demo .cp-tabs,
+  .aas-counting-pass-demo .cp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-counting-pass-demo .cp-tab {
+    padding: 0.25em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-counting-pass-demo .cp-tab:hover,
+  .aas-counting-pass-demo .cp-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-counting-pass-demo .cp-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-counting-pass-demo .cp-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-counting-pass-demo .cp-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-counting-pass-demo .cp-main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22em), 1fr));
+    gap: 0.6em 1.1em;
+    margin-top: 0.6em;
+  }
+  .aas-counting-pass-demo .cp-input {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-counting-pass-demo .cp-input input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.2em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-counting-pass-demo .cp-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-counting-pass-demo .cp-code {
+    margin: 0.45em 0;
+    padding: 0.35em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.62em;
+    line-height: 1.4;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    overflow-x: auto;
+  }
+  .aas-counting-pass-demo .cp-line {
+    display: block;
+    white-space: pre;
+    border-radius: 0.2em;
+  }
+  .aas-counting-pass-demo .cp-line em {
+    font-style: normal;
+    color: var(--aas-muted);
+  }
+  .aas-counting-pass-demo .cp-line.is-on {
+    background: color-mix(in srgb, var(--aas-role-focus) 26%, transparent);
+  }
+  .aas-counting-pass-demo .cp-sub {
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-counting-pass-demo .cp-log-body {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.35;
+    min-height: 5.4em;
+  }
+  .aas-counting-pass-demo .cp-log-line {
+    display: block;
+    white-space: pre;
+  }
+  .aas-counting-pass-demo .cp-log-line b {
+    display: inline-block;
+    width: 5.5em;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-counting-pass-demo .cp-row {
+    margin-bottom: 0.55em;
+  }
+  .aas-counting-pass-demo .cp-name {
+    display: block;
+    margin-bottom: 0.15em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    font-weight: 700;
+  }
+  .aas-counting-pass-demo .cp-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    min-height: 2em;
+  }
+  .aas-counting-pass-demo .cp-cell {
+    min-width: 2.4em;
+    padding: 0.2em 0.35em;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+  }
+  .aas-counting-pass-demo .cp-cell i {
+    font-style: normal;
+  }
+  .aas-counting-pass-demo .cp-cell i.is-cur {
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-counting-pass-demo .cp-cell i.is-done {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-counting-pass-demo .cp-cell.is-empty {
+    border-style: dashed;
+  }
+  .aas-counting-pass-demo .cp-cell.is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 16%, var(--aas-bg));
+  }
+  .aas-counting-pass-demo .cp-cell.is-new {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 18%, var(--aas-bg));
+  }
+  .aas-counting-pass-demo .cp-cell.is-bad {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 16%, var(--aas-bg));
+  }
+  .aas-counting-pass-demo .cp-counts {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 0.15em;
+  }
+  .aas-counting-pass-demo .cp-cnt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.1em 0;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    transition: background-color 0.2s;
+  }
+  .aas-counting-pass-demo .cp-cnt b {
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .aas-counting-pass-demo .cp-cnt i {
+    font-size: 0.65em;
+    font-style: normal;
+    color: var(--aas-muted);
+  }
+  .aas-counting-pass-demo .cp-cnt.is-sum {
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-counting-pass-demo .cp-cnt.is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 26%, var(--aas-bg));
+  }
+  .aas-counting-pass-demo .cp-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-counting-pass-demo .cp-note {
+    flex: 1 1 20em;
+    margin: 0.25em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+  .aas-counting-pass-demo .cp-stat {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-counting-pass-demo .cp-stat strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-counting-pass-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.75rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-counting-pass-demo .cp-cnt {
+      transition: none;
+    }
+  }
+</style>
