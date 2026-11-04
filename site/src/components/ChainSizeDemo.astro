@@ -13,6 +13,7 @@
 //
 // 해시 코드 표(CODES)는 ChainingDemo와 같다. 해시값은 이 코드 mod M이다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import HashKeyTable from './HashKeyTable.astro';
 
 interface Props {
   /** 처음 보일 배열 크기 M (1부터 20) */
@@ -112,6 +113,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     </div>
   </div>
 
+  <HashKeyTable keys="ACEHLMPRSX" moduli={[start]} />
+
   <div class="cs-body">
     <div class="cs-rows" data-cs-rows></div>
     <dl class="cs-panel">
@@ -198,7 +201,16 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     let M = start;
     let picked = null;
 
+    /* 예제 키 표에서 지금 다루는 키의 열을 칠한다. */
+    const keyCells = [...root.querySelectorAll('[data-kt-key]')];
+    const markKey = (k) => keyCells.forEach((c) => c.classList.toggle('is-now', c.dataset.ktKey === k));
+    const hashCells = [...root.querySelectorAll('[data-kt-code]')];
+    const modLabel = root.querySelector('[data-kt-modlabel]');
+
     function render() {
+      markKey(picked);
+      modLabel.textContent = `mod ${M}`;
+      hashCells.forEach((c) => (c.textContent = String(Number(c.dataset.ktCode) % M)));
       const lists = build(M);
       const empty = lists.filter((l) => l.length === 0).length;
       const longest = Math.max(...lists.map((l) => l.length));
@@ -520,8 +532,8 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 
   /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고. 10줄과 패널이 h3 아래에 들어가도록 줄을 낮춘다. */
   .aas-chain-size-demo.is-slide {
-    --cs-row: 1.6em;
-    font-size: clamp(1rem, 2.65vh, 1.8rem);
+    --cs-row: 1.5em;
+    font-size: clamp(1rem, 2.45vh, 1.7rem);
     margin: 0.5rem 0;
     padding: 0.8em 1em;
   }

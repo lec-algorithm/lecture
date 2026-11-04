@@ -1,0 +1,422 @@
+---
+// SHA-256 충돌을 실제로 찾아 보는 데모.
+//
+// SHA-256의 앞 k비트만 남기면 칸이 2^k개인 해시 함수가 된다. 무작위 접두사를 붙인
+// 키를 차례로 넣어 같은 값이 나올 때까지 실제로 계산하고, 시도 횟수를 생일 문제의
+// 평균 약 1.25 × √(2^k)와 견준다. 아래 표는 같은 계산을 출력 길이 64·128·160·256
+// 비트로 늘린 것이다. 시간은 초당 10억 번이라고 가정한 값이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './hashAlgos.js?raw';
+
+interface Props {
+  /** 처음 비트 수 k (8에서 32 사이의 짝수) */
+  bits?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { bits = 16, slide = false } = Astro.props;
+const id = `ct-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'SHA-256 줄여서 충돌 찾기',
+    bits: '남길 비트',
+    find: '충돌 찾기',
+    ten: '10번 찾기',
+    tries: '이번 시도',
+    avg: '평균',
+    expect: '예상 평균',
+    runs: '{n}회',
+    head1: '출력',
+    head2: '필요한 시도',
+    head3: '초당 10억 번이면',
+    head4: '실제',
+    nowName: '지금 고른 길이',
+    nowTime: '순식간',
+    now: '이 브라우저에서 방금 찾은 길이',
+    t64: '약 4초',
+    r64: '충돌을 찾을 수 있으니 암호로 쓰지 못함',
+    t128: '약 585년',
+    r128: 'MD5 크기. 구조의 약점으로 이미 깨짐',
+    t160: '약 3,800만 년',
+    r160: 'SHA-1 크기. 2017년 실제 충돌 공개',
+    t256: '약 10²²년',
+    r256: 'SHA-256. 알려진 충돌 없음',
+    idle: 'SHA-256의 앞 {k}비트만 남기면 칸이 2^{k}개인 해시가 됩니다. 같은 값이 나올 때까지 키를 넣어 봅니다.',
+    found: '{n}번째 키에서 충돌을 찾았습니다. 칸이 2^{k}개여도 약 {e}번이면 충돌이 나옵니다.',
+    outro: '비트가 2개 늘 때마다 시도는 두 배로 늘 뿐이지만, 256비트까지 가면 우주의 나이로도 모자랍니다.',
+  },
+  en: {
+    title: 'Shorten SHA-256, then hunt a collision',
+    bits: 'bits kept',
+    find: 'Find a collision',
+    ten: 'Find 10',
+    tries: 'this run',
+    avg: 'average',
+    expect: 'expected',
+    runs: '{n} runs',
+    head1: 'Output',
+    head2: 'Tries needed',
+    head3: 'At 1 billion per second',
+    head4: 'In practice',
+    nowName: 'Length chosen now',
+    nowTime: 'instant',
+    now: 'The length this browser just searched',
+    t64: 'about 4 seconds',
+    r64: 'Collisions can be found, so it is unusable for security',
+    t128: 'about 585 years',
+    r128: 'The size of MD5. Already broken through structural flaws',
+    t160: 'about 38 million years',
+    r160: 'The size of SHA-1. A real collision was published in 2017',
+    t256: 'about 10²² years',
+    r256: 'SHA-256. No known collision',
+    idle: 'Keeping only the first {k} bits of SHA-256 makes a hash with 2^{k} slots. Add keys until a value repeats.',
+    found: 'Collision at key {n}. Even with 2^{k} slots, it takes only about {e} tries.',
+    outro: 'Two more bits only double the tries, yet at 256 bits the age of the universe is not nearly enough.',
+  },
+  zh: {
+    title: '截短 SHA-256 找冲突',
+    bits: '保留位数',
+    find: '找冲突',
+    ten: '找 10 次',
+    tries: '这次尝试',
+    avg: '平均',
+    expect: '预期平均',
+    runs: '{n} 次',
+    head1: '输出',
+    head2: '所需尝试',
+    head3: '每秒 10 亿次时',
+    head4: '实际情况',
+    nowName: '当前选择的长度',
+    nowTime: '转眼之间',
+    now: '这个浏览器刚刚搜索的长度',
+    t64: '约 4 秒',
+    r64: '能找到冲突，不能用于安全用途',
+    t128: '约 585 年',
+    r128: 'MD5 的长度。已因结构缺陷被攻破',
+    t160: '约 3800 万年',
+    r160: 'SHA-1 的长度。2017 年公开了实际冲突',
+    t256: '约 10²² 年',
+    r256: 'SHA-256。没有已知冲突',
+    idle: '只保留 SHA-256 的前 {k} 位，就成了有 2^{k} 格的哈希。不断放入键，直到出现相同的值。',
+    found: '第 {n} 个键时找到了冲突。即使有 2^{k} 格，也只要约 {e} 次尝试。',
+    outro: '每多 2 位，尝试次数只翻一倍，但到 256 位时，连宇宙的年龄都远远不够。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const ladder = [
+  { b: 64, tries: 32, time: t.t64, note: t.r64 },
+  { b: 128, tries: 64, time: t.t128, note: t.r128 },
+  { b: 160, tries: 80, time: t.t160, note: t.r160 },
+  { b: 256, tries: 128, time: t.t256, note: t.r256 },
+];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-collision-hunt-demo', slide && 'is-slide']} id={id} data-ct-k={bits} data-ct-strings={JSON.stringify(t)}>
+  <div class="ct-bar">
+    <span class="ct-head"><strong>{t.title}</strong></span>
+    <label class="ct-count">
+      {t.bits} <strong data-ct-kval></strong>
+      <input type="range" min="8" max="32" step="2" data-ct-range />
+    </label>
+    <div class="ct-controls">
+      <button type="button" class="ct-btn ct-btn-primary" data-ct-find>{t.find}</button>
+      <button type="button" class="ct-btn" data-ct-ten>{t.ten}</button>
+    </div>
+  </div>
+
+  <div class="ct-stats">
+    <span class="ct-big"><span>{t.tries}</span><strong data-ct-tries>-</strong></span>
+    <span class="ct-big"><span>{t.avg}</span><strong data-ct-avg>-</strong><small data-ct-runs></small></span>
+    <span class="ct-big"><span>{t.expect}</span><strong data-ct-expect class="is-plain"></strong></span>
+  </div>
+
+  <div class="ct-pair" data-ct-pair></div>
+
+  <div class="ct-table">
+    <div class="ct-tr ct-th"><span>{t.head1}</span><span>{t.head2}</span><span>{t.head3}</span><span>{t.head4}</span></div>
+    <div class="ct-tr is-now">
+      <span data-ct-nowbits></span><span data-ct-nowtries></span><span>{t.nowTime}</span><span>{t.now}</span>
+    </div>
+    {
+      ladder.map((r) => (
+        <div class:list={['ct-tr', r.b === 256 && 'is-last']}>
+          <span>{r.b}</span>
+          <span>2<sup>{r.tries}</sup></span>
+          <span>{r.time}</span>
+          <span>{r.note}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="ct-note" data-ct-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.ctStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const { bytesOf, sha256 } = globalThis.aasHashAlgos;
+    const fmt = (x) => Math.round(x).toLocaleString('en-US');
+
+    const range = root.querySelector('[data-ct-range]');
+    const triesEl = root.querySelector('[data-ct-tries]');
+    const avgEl = root.querySelector('[data-ct-avg]');
+    const runsEl = root.querySelector('[data-ct-runs]');
+    const expectEl = root.querySelector('[data-ct-expect]');
+    const pair = root.querySelector('[data-ct-pair]');
+    const note = root.querySelector('[data-ct-note]');
+    const buttons = [root.querySelector('[data-ct-find]'), root.querySelector('[data-ct-ten]')];
+
+    let k = Math.min(32, Math.max(8, Number(root.dataset.ctK)));
+    let runs = [];
+    let job = 0;
+    /* 평균 시도 횟수는 √(πM/2) ≈ 1.25√M, M = 2^k */
+    const expected = () => Math.sqrt((Math.PI * 2 ** k) / 2);
+    const top32 = (d) => ((d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3]) >>> 0;
+    const bitStr = (d) => {
+      let s = '';
+      for (let i = 0; i < k + 8; i++) s += (d[i >> 3] >> (7 - (i & 7))) & 1;
+      return s;
+    };
+
+    function reset() {
+      job += 1;
+      runs = [];
+      triesEl.textContent = '-';
+      avgEl.textContent = '-';
+      runsEl.textContent = '';
+      expectEl.textContent = fmt(expected());
+      pair.replaceChildren();
+      root.querySelector('[data-ct-kval]').textContent = String(k);
+      root.querySelector('[data-ct-nowbits]').textContent = String(k);
+      root.querySelector('[data-ct-nowtries]').innerHTML = `2<sup>${k / 2}</sup>`;
+      buttons.forEach((b) => (b.disabled = false));
+      setLines(note, fill(S.idle, { k }));
+    }
+
+    /* 키를 하나씩 해시해 앞 k비트가 겹칠 때까지 간다. 화면이 멈추지 않게 나눠서 돈다. */
+    function hunt(left, me) {
+      const prefix = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0');
+      const seen = new Map();
+      let i = 0;
+      const chunk = () => {
+        if (me !== job) return;
+        const until = performance.now() + 12;
+        while (performance.now() < until) {
+          for (let c = 0; c < 200; c++) {
+            const key = `${prefix}-${i}`;
+            const d = sha256(bytesOf(key));
+            const v = k === 32 ? top32(d) : top32(d) >>> (32 - k);
+            i += 1;
+            if (seen.has(v)) return done(seen.get(v), key, d, i);
+            seen.set(v, key);
+          }
+        }
+        triesEl.textContent = fmt(i);
+        setTimeout(chunk, 0);
+      };
+      const done = (firstKey, key, d, n) => {
+        runs.push(n);
+        triesEl.textContent = fmt(n);
+        avgEl.textContent = fmt(runs.reduce((a, b) => a + b, 0) / runs.length);
+        runsEl.textContent = fill(S.runs, { n: runs.length });
+        const row = (name, dd) => {
+          const s = bitStr(dd);
+          return `<div><code>${name}</code><code><b>${s.slice(0, k)}</b>${s.slice(k)}…</code></div>`;
+        };
+        pair.innerHTML = row(firstKey, sha256(bytesOf(firstKey))) + row(key, d);
+        setLines(note, join(fill(S.found, { n: fmt(n), k, e: fmt(expected()) }), S.outro));
+        if (left > 1) setTimeout(() => hunt(left - 1, me), 0);
+        else buttons.forEach((b) => (b.disabled = false));
+      };
+      chunk();
+    }
+    function start(times) {
+      job += 1;
+      buttons.forEach((b) => (b.disabled = true));
+      hunt(times, job);
+    }
+
+    range.value = String(k);
+    range.addEventListener('input', () => {
+      k = Number(range.value);
+      reset();
+    });
+    buttons[0].addEventListener('click', () => start(1));
+    buttons[1].addEventListener('click', () => start(10));
+    reset();
+  })();
+</script>
+
+<style is:global>
+  .aas-collision-hunt-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-collision-hunt-demo .ct-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-collision-hunt-demo .ct-head {
+    font-size: 0.95em;
+  }
+  .aas-collision-hunt-demo .ct-count {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-collision-hunt-demo .ct-count strong {
+    min-width: 1.6em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-collision-hunt-demo .ct-count input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-collision-hunt-demo .ct-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-collision-hunt-demo .ct-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-collision-hunt-demo .ct-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-collision-hunt-demo .ct-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-collision-hunt-demo .ct-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-collision-hunt-demo .ct-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.6em;
+    margin-top: 0.5em;
+  }
+  .aas-collision-hunt-demo .ct-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-collision-hunt-demo .ct-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-collision-hunt-demo .ct-big strong.is-plain {
+    color: var(--aas-text);
+  }
+  .aas-collision-hunt-demo .ct-big small {
+    font-size: 0.85em;
+  }
+  .aas-collision-hunt-demo .ct-pair {
+    min-height: 2.9em;
+    margin: 0.35em 0;
+    font-size: 0.8em;
+    line-height: 1.45;
+    overflow: hidden;
+  }
+  .aas-collision-hunt-demo .ct-pair div {
+    display: flex;
+    gap: 0.8em;
+    white-space: nowrap;
+  }
+  .aas-collision-hunt-demo .ct-pair code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    color: var(--aas-muted);
+  }
+  .aas-collision-hunt-demo .ct-pair code:first-child {
+    min-width: 6.5em;
+    color: var(--aas-text);
+  }
+  .aas-collision-hunt-demo .ct-pair b {
+    color: var(--aas-role-guard);
+  }
+  .aas-collision-hunt-demo .ct-table {
+    font-size: 0.8em;
+    line-height: 1.4;
+  }
+  .aas-collision-hunt-demo .ct-tr {
+    display: grid;
+    grid-template-columns: 3.6em 6.5em 11em minmax(0, 1fr);
+    gap: 0 0.8em;
+    padding: 0.14em 0.4em;
+    border-top: 1px solid var(--aas-border);
+  }
+  .aas-collision-hunt-demo .ct-tr span:nth-child(-n + 2) {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-collision-hunt-demo .ct-tr sup {
+    font-size: 0.72em;
+    line-height: 0;
+  }
+  .aas-collision-hunt-demo .ct-th {
+    border-top: 0;
+    color: var(--aas-muted);
+    font-weight: 700;
+  }
+  .aas-collision-hunt-demo .ct-th span:nth-child(-n + 2) {
+    font-family: inherit;
+  }
+  .aas-collision-hunt-demo .ct-tr.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 12%, var(--aas-bg));
+  }
+  .aas-collision-hunt-demo .ct-tr.is-last {
+    font-weight: 700;
+  }
+  .aas-collision-hunt-demo .ct-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-collision-hunt-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+</style>

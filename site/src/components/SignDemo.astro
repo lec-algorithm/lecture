@@ -1,0 +1,344 @@
+---
+// 해시와 개인키로 전자서명을 만들고 확인하는 데모.
+//
+// 보내는 쪽은 메시지의 SHA-256을 n으로 줄여 h = 해시 mod n을 얻고, 개인키로
+// s = h^d mod n을 만든다. 받는 쪽은 받은 메시지로 h를 다시 계산해 s^e mod n과 견준다.
+// 메시지를 한 글자만 바꾸거나 다른 사람의 키로 서명하면 둘이 어긋난다. 실제 서명은
+// 2048비트 이상의 n에 해시를 통째로 쓴다. 이 데모는 보이려고 약 13자리 n으로 줄였다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './hashAlgos.js?raw';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `sg-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '전자서명',
+    sender: '보내는 앨리스 (개인키로 서명)',
+    receiver: '받는 쪽 (공개키로 확인)',
+    message: '메시지',
+    received: '받은 메시지',
+    sign: '서명하기',
+    tamper: '이브: 메시지 한 글자 바꾸기',
+    forge: '이브: 자기 키로 서명하기',
+    reset: '처음으로',
+    sample: '100만 원을 밥에게',
+    good: '일치',
+    bad: '불일치',
+    noteGood: '받은 메시지의 해시와 서명을 공개키로 푼 값이 같습니다. 이 메시지는 앨리스의 개인키로 서명한 그대로입니다.',
+    noteTamper: '메시지가 바뀌자 해시가 완전히 달라져 서명과 맞지 않습니다. 이브는 앨리스의 개인키가 없어 새 서명을 만들 수 없습니다.',
+    noteForge: '이브가 자기 개인키로 서명했습니다. 앨리스의 공개키로 풀면 해시와 맞지 않으니 앨리스가 쓴 것이 아닙니다.',
+    noteStale: '보내는 쪽 메시지가 바뀌었습니다. 서명하기를 눌러야 새 서명이 나갑니다.',
+  },
+  en: {
+    title: 'Digital signature',
+    sender: 'Alice sends (signs with private key)',
+    receiver: 'Receiver (verifies with public key)',
+    message: 'message',
+    received: 'received',
+    sign: 'Sign',
+    tamper: 'Eve: change one letter',
+    forge: "Eve: sign with Eve's key",
+    reset: 'Reset',
+    sample: 'Pay Bob 1,000 dollars',
+    good: 'match',
+    bad: 'mismatch',
+    noteGood: "The hash of the received message equals the signature decrypted with the public key. This is the message exactly as Alice's private key signed it.",
+    noteTamper: "Once the message changes, the hash is completely different and no longer fits the signature. Without Alice's private key, Eve cannot make a new one.",
+    noteForge: "Eve signed with Eve's private key. Decrypted with Alice's public key it does not fit the hash, so Alice did not write this.",
+    noteStale: "The sender's message changed. Press Sign to send a new signature.",
+  },
+  zh: {
+    title: '数字签名',
+    sender: '发送方爱丽丝（用私钥签名）',
+    receiver: '接收方（用公钥验证）',
+    message: '消息',
+    received: '收到的消息',
+    sign: '签名',
+    tamper: '伊芙：改一个字',
+    forge: '伊芙：用自己的密钥签名',
+    reset: '重置',
+    sample: '付给鲍勃 100 万元',
+    good: '一致',
+    bad: '不一致',
+    noteGood: '收到的消息的哈希，与用公钥解开签名得到的值相同。这正是爱丽丝用私钥签名的那条消息。',
+    noteTamper: '消息一变，哈希就完全不同，与签名对不上。伊芙没有爱丽丝的私钥，造不出新的签名。',
+    noteForge: '伊芙用自己的私钥签了名。用爱丽丝的公钥解开后与哈希对不上，所以不是爱丽丝写的。',
+    noteStale: '发送方的消息变了。按下签名才会发出新的签名。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-sign-demo', slide && 'is-slide']} id={id} data-sg-strings={JSON.stringify(t)}>
+  <div class="sg-bar">
+    <span class="sg-head"><strong>{t.title}</strong></span>
+    <div class="sg-controls">
+      <button type="button" class="sg-btn" data-sg-tamper>{t.tamper}</button>
+      <button type="button" class="sg-btn" data-sg-forge>{t.forge}</button>
+      <button type="button" class="sg-btn" data-sg-reset>{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sg-keys" data-sg-keys></div>
+
+  <div class="sg-stage">
+    <div class="sg-card">
+      <strong>{t.sender}</strong>
+      <label>{t.message}<input type="text" data-sg-msg maxlength="40" spellcheck="false" autocomplete="off" /></label>
+      <dl>
+        <dt>SHA-256</dt><dd data-sg-hash1></dd>
+        <dt>h = hash mod n</dt><dd data-sg-h1></dd>
+        <dt>s = h^d mod n</dt><dd data-sg-s1></dd>
+      </dl>
+      <button type="button" class="sg-btn sg-btn-primary" data-sg-sign>{t.sign}</button>
+    </div>
+    <div class="sg-card">
+      <strong>{t.receiver}</strong>
+      <label>{t.received}<input type="text" data-sg-recv maxlength="40" spellcheck="false" autocomplete="off" /></label>
+      <dl>
+        <dt>SHA-256</dt><dd data-sg-hash2></dd>
+        <dt>h = hash mod n</dt><dd data-sg-h2></dd>
+        <dt>s^e mod n</dt><dd data-sg-v></dd>
+      </dl>
+      <div class="sg-verdict" data-sg-verdict></div>
+    </div>
+  </div>
+
+  <p class="sg-note" data-sg-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.sgStrings);
+    const { bytesOf, sha256, hex, modPow, modInv } = globalThis.aasHashAlgos;
+
+    /* 앨리스와 이브의 열쇠쌍. 소수는 작지만 계산은 실제 RSA와 같다. */
+    const E = 65537n;
+    const keyOf = (p, q) => ({ n: p * q, d: modInv(E, (p - 1n) * (q - 1n)) });
+    const ALICE = keyOf(1000003n, 1000033n);
+    const EVE = keyOf(1000037n, 1000039n);
+
+    const msg = root.querySelector('[data-sg-msg]');
+    const recv = root.querySelector('[data-sg-recv]');
+    const $ = (sel) => root.querySelector(sel);
+    const fmt = (x) => x.toLocaleString('en-US');
+    const digest = (text) => hex(sha256(bytesOf(text)));
+    const reduce = (hx, n) => BigInt(`0x${hx}`) % n;
+
+    let signature = 0n;
+    let signedText = '';
+    let lastAct = 'good';
+
+    $('[data-sg-keys]').textContent = `(e, n) = (${E}, ${fmt(ALICE.n)})`;
+
+    function render() {
+      const h1hex = digest(msg.value);
+      const h1 = reduce(h1hex, ALICE.n);
+      $('[data-sg-hash1]').textContent = `${h1hex.slice(0, 16)}…`;
+      $('[data-sg-h1]').textContent = fmt(h1);
+      $('[data-sg-s1]').textContent = fmt(signature);
+      const h2hex = digest(recv.value);
+      const h2 = reduce(h2hex, ALICE.n);
+      const v = modPow(signature, E, ALICE.n);
+      $('[data-sg-hash2]').textContent = `${h2hex.slice(0, 16)}…`;
+      $('[data-sg-h2]').textContent = fmt(h2);
+      $('[data-sg-v]').textContent = fmt(v);
+      const ok = h2 === v;
+      const verdict = $('[data-sg-verdict]');
+      verdict.textContent = ok ? `✓ ${S.good}` : `✗ ${S.bad}`;
+      verdict.classList.toggle('is-bad', !ok);
+      root.querySelectorAll('.sg-card dd').forEach((d) => d.classList.remove('is-diff'));
+      $('[data-sg-h2]').classList.toggle('is-diff', !ok);
+      $('[data-sg-v]').classList.toggle('is-diff', !ok);
+      const stale = msg.value !== signedText;
+      const text = stale ? S.noteStale : ok ? S.noteGood : lastAct === 'forge' ? S.noteForge : S.noteTamper;
+      setLines($('[data-sg-note]'), text);
+    }
+    function sign() {
+      signedText = msg.value;
+      signature = modPow(reduce(digest(signedText), ALICE.n), ALICE.d, ALICE.n);
+      recv.value = signedText;
+      lastAct = 'good';
+      render();
+    }
+    /* 받은 메시지에서 숫자나 글자 하나를 다음 글자로 바꾼다. */
+    function tamper() {
+      const chars = [...recv.value];
+      if (!chars.length) chars.push('a');
+      const i = chars.findIndex((c) => /\d/.test(c));
+      const at = i >= 0 ? i : 0;
+      chars[at] = /\d/.test(chars[at]) ? String((Number(chars[at]) + 1) % 10) : String.fromCodePoint(chars[at].codePointAt(0) + 1);
+      recv.value = chars.join('');
+      lastAct = 'tamper';
+      render();
+    }
+    /* 이브는 자기 개인키로만 서명할 수 있다. 값이 앨리스의 n보다 작게 맞춘다. */
+    function forge() {
+      const h = reduce(digest(recv.value), EVE.n);
+      signature = modPow(h, EVE.d, EVE.n) % ALICE.n;
+      lastAct = 'forge';
+      render();
+    }
+
+    $('[data-sg-sign]').addEventListener('click', sign);
+    $('[data-sg-tamper]').addEventListener('click', tamper);
+    $('[data-sg-forge]').addEventListener('click', forge);
+    $('[data-sg-reset]').addEventListener('click', () => {
+      msg.value = S.sample;
+      sign();
+    });
+    msg.addEventListener('input', render);
+    recv.addEventListener('input', () => {
+      lastAct = 'tamper';
+      render();
+    });
+    msg.value = S.sample;
+    sign();
+  })();
+</script>
+
+<style is:global>
+  .aas-sign-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-sign-demo .sg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-sign-demo .sg-head {
+    font-size: 0.95em;
+  }
+  .aas-sign-demo .sg-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-sign-demo .sg-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-sign-demo .sg-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-sign-demo .sg-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-sign-demo .sg-keys {
+    margin: 0.4em 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-sign-demo .sg-stage {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19em, 1fr));
+    gap: 0.6em;
+  }
+  .aas-sign-demo .sg-card {
+    min-width: 0;
+    padding: 0.5em 0.7em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-sign-demo .sg-card > strong {
+    font-size: 0.85em;
+  }
+  .aas-sign-demo .sg-card label {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    margin-top: 0.35em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-sign-demo .sg-card input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.25em 0.5em;
+    font: inherit;
+    font-size: 1.05em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-panel);
+    color: var(--aas-text);
+  }
+  .aas-sign-demo .sg-card dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.1em 0.7em;
+    margin: 0.4em 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+  }
+  .aas-sign-demo .sg-card dt {
+    margin: 0;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-sign-demo .sg-card dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 700;
+  }
+  .aas-sign-demo .sg-card dd.is-diff {
+    color: var(--aas-role-guard);
+  }
+  .aas-sign-demo .sg-verdict {
+    height: 1.8em;
+    font-size: 1.1em;
+    font-weight: 700;
+    line-height: 1.8em;
+    text-align: center;
+    border-radius: 0.4em;
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, var(--aas-bg));
+    color: var(--aas-role-eval);
+  }
+  .aas-sign-demo .sg-verdict.is-bad {
+    background: color-mix(in srgb, var(--aas-role-guard) 15%, var(--aas-bg));
+    color: var(--aas-role-guard);
+  }
+  .aas-sign-demo .sg-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-sign-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.85rem);
+    margin: 0.5rem 0;
+  }
+</style>

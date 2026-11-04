@@ -1,7 +1,7 @@
 ---
 title: "주제 08. 해시 테이블"
 description: "키에서 곧바로 자리를 계산하는 해시 함수, 충돌을 푸는 두 방식(개별 체이닝과 선형 탐지), 그리고 적재율이 정하는 성능"
-date: "주제 08 · v2"
+date: "주제 08 · v3"
 order: 8
 transition: none
 toc_level: 4
@@ -23,6 +23,14 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
+import KeyPathDemo from '@components/KeyPathDemo.astro';
+import RsaDemo from '@components/RsaDemo.astro';
+import FactorDemo from '@components/FactorDemo.astro';
+import SignDemo from '@components/SignDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-08-hashing)의 실행 결과와 같습니다. */}
@@ -405,6 +413,7 @@ chance of at least one collision
 - `E`는 세 번, `A`는 두 번 나옵니다. 서로 다른 키는 **10개**입니다.
 - 이 예제에서는 글자마다 정수를 이렇게 정했습니다.
 - `Y`는 넣지 않는 키입니다. 없는 키를 찾을 때 씁니다.
+- 이 표는 뒤의 데모마다 함께 나오고, 지금 다루는 키의 열이 칠해집니다.
 
 </Slide>
 
@@ -927,6 +936,174 @@ $$
 | 7/8 | 4.5 | 32.5 |
 
 1에 가까워질수록 **급격히** 나빠집니다. 그래서 $$\alpha$$를 1/2 근처로 지킵니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 참고: 해시 테이블 밖의 해시 함수
+::sub[Hash Functions Beyond Hash Tables]
+
+</Slide>
+
+<Slide>
+
+#### 세 갈래의 해시 함수
+::sub[입력을 정해진 범위의 값으로 바꾸는 것은 같고, 요구 조건이 다릅니다]
+
+| | 해시 테이블용 | 비암호 범용 | 암호학적 |
+| --- | --- | --- | --- |
+| 예 | `k mod M`, 호너 방식 | MurmurHash, xxHash | SHA-256, SHA-3 |
+| 출력 | 배열 인덱스 | 32\~128비트 정수 | 256비트 등 긴 값 |
+| 중요한 것 | 빠르고 고르게 | 아주 빠르고 고르게 | 공격자가 깨뜨릴 수 없음 |
+| 쓰는 곳 | 딕셔너리, 집합 | 데이터 분산, 체크섬 | 전자서명, 무결성 검증 |
+
+</Slide>
+
+<Slide>
+
+### 네 해시 겨루기
+::sub[같은 키 3,200개를 M칸에 넣습니다. 점선은 평균, 시간은 호너 방식에 대한 배율입니다]
+
+<HashKindsDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 한 글자만 달라도
+::sub[두 입력의 해시값을 비트로 견줍니다. 붉은 칸이 달라진 비트입니다]
+
+<AvalancheDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 충돌을 대하는 태도
+::sub[암호학적 해시에도 비둘기집 원리는 그대로입니다]
+
+- **해시 테이블: 충돌은 일상입니다.**
+  - 칸이 적으니 피할 수 없고, 처리 방법을 함께 둡니다.
+- **암호학적 해시: 충돌을 찾을 수 없어야 합니다.**
+  - 256비트면 생일 문제로 쳐도 약 $$2^{128}$$번을 시도해야 합니다.
+  - MD5와 SHA-1은 실제 충돌이 발견되어 보안 용도로 쓰지 않습니다.
+- **해시 테이블도 공격받습니다.**
+  - hash flooding: 한 칸에 몰리는 키만 보내 $$O(N)$$으로 떨어뜨립니다.
+  - 그래서 Python 문자열과 Rust `HashMap`은 비밀 키를 섞습니다.
+
+</Slide>
+
+<Slide>
+
+### 충돌을 직접 찾으면
+::sub[SHA-256의 앞 몇 비트만 남겨 실제로 찾습니다. 표는 같은 계산을 256비트까지 늘린 값입니다]
+
+<CollisionHuntDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 해시 테이블을 공격하면
+::sub[Aa와 BB는 호너 값이 같습니다. 탭을 바꿔 공격 키와 비밀 키를 견줍니다]
+
+<HashFloodDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 참고: 공개키 암호화
+::sub[Public-Key Encryption]
+
+</Slide>
+
+<Slide>
+
+#### 해시와 암호화
+::sub[해시는 되돌리지 못하고, 암호화는 키가 있으면 되돌립니다]
+
+- **해시는 한 방향입니다.**
+  - 키가 없고, 결과에서 입력을 되찾을 수 없습니다.
+- **대칭키 암호는 같은 키로 잠그고 풉니다.**
+  - AES처럼 빠르지만, 키를 먼저 안전하게 건네야 합니다.
+- **공개키 암호는 키가 둘입니다.**
+  - 공개키로 잠근 것은 개인키로만 풀립니다.
+  - 공개키는 모두에게 알려도 됩니다.
+
+</Slide>
+
+<Slide>
+
+### 키를 건네는 길
+::sub[이브는 통신로의 모든 것을 복사합니다. 탭으로 두 방식을 견줍니다]
+
+<KeyPathDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### RSA의 절차
+::sub[1977년 Rivest, Shamir, Adleman. 여기서도 나머지 연산이 주인공입니다]
+
+```plaintext
+ALGORITHM KeyGen()
+    서로 다른 큰 소수 p, q를 고른다
+    n <- p × q
+    φ <- (p - 1) × (q - 1)
+    e <- φ와 서로소인 수                 // 흔히 65537
+    d <- e × d mod φ = 1 인 수           // 확장 유클리드 호제법
+    공개키는 (e, n), 개인키는 (d, n)
+```
+
+$$
+c = m^e \bmod n \qquad m = c^d \bmod n
+$$
+
+</Slide>
+
+<Slide>
+
+### 직접 잠그고 풀기
+::sub[p, q, e를 고르고 메시지를 바꿔 봅니다. 글자를 누르면 그 글자의 계산이 나옵니다]
+
+<RsaDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 곱하기와 되돌리기
+::sub[n을 공개해도 되는 것은 p와 q로 되돌리기가 어렵기 때문입니다]
+
+<FactorDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 전자서명: 해시와 개인키
+::sub[메시지의 해시를 개인키로 잠그면, 누구나 공개키로 확인합니다]
+
+<SignDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 실제로는
+::sub[이 데모의 RSA를 그대로 쓰면 안 됩니다]
+
+- **키와 패딩**
+  - 키는 2048비트 이상이고, 무작위 패딩(OAEP, PSS)을 섞습니다.
+- **본문은 대칭키로**
+  - 공개키 연산은 느려서 대칭키를 정하는 데만 씁니다. HTTPS가 이 구조입니다.
+- **공개키가 진짜인지**
+  - 이브가 바꿔치기하지 못하게, 인증 기관이 서명한 인증서로 확인합니다.
+- **양자 컴퓨터**
+  - Shor 알고리즘이 RSA를 위협해, 양자내성 암호로 옮겨 가고 있습니다.
 
 </Slide>
 

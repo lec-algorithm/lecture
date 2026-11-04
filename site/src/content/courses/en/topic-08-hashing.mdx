@@ -23,6 +23,14 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
+import KeyPathDemo from '@components/KeyPathDemo.astro';
+import RsaDemo from '@components/RsaDemo.astro';
+import FactorDemo from '@components/FactorDemo.astro';
+import SignDemo from '@components/SignDemo.astro';
 
 > The binary search tree of Topic 07 found keys by **comparing** them. Even
 > when it is well balanced, it needs $$O(\log n)$$ comparisons.  
@@ -311,7 +319,7 @@ do this job.
 | mod 5 (chaining) | 0 | 4 | 0 | 4 | 3 | 4 | 3 | 4 | 2 | 2 | 2 |
 | mod 16 (linear probing) | 4 | 5 | 10 | 4 | 6 | 1 | 14 | 14 | 6 | 15 | 4 |
 
-`Y` is a key that is never inserted. It is used to search for a missing key.
+`Y` is a key that is never inserted. It is used to search for a missing key. This table also appears inside the demos that follow, with the current key's column highlighted.
 
 ## Separate chaining \{#separate-chaining}
 
@@ -930,6 +938,224 @@ Chaining is a different story. The lists just get longer and there is nowhere
 to overflow, so it works even with $$\alpha$$ above 1 (the example had 2),
 and the cost grows gently, in proportion to $$\alpha$$.
 
+## Aside: hash functions outside hash tables \{#other-hash-functions}
+
+The hash algorithms you hear about elsewhere, such as MD5 and SHA-256, are hash
+functions too. Like `k mod M` and Horner's method, they turn an input of any
+length into a value in a fixed range. What they must guarantee depends on the
+use, so they are usually split into three groups.
+
+| | For hash tables | Non-cryptographic | Cryptographic |
+| --- | --- | --- | --- |
+| Examples | `k mod M`, Horner's method | MurmurHash, xxHash | SHA-256, SHA-3 |
+| Output | An array index | 32- to 128-bit integer | Long value, such as 256 bits |
+| What matters | Fast and even | Very fast and even | Attackers cannot break it |
+| Used for | Dictionaries, sets | Partitioning data, checksums | Digital signatures, integrity checks |
+
+- **Non-cryptographic hashes** ignore security and aim for speed and an even
+  spread. Taking `mod M` of the result makes them usable in a hash table too.
+  Cassandra uses MurmurHash3 to split data across nodes, and Zstandard uses
+  xxHash for the checksum of compressed data.
+- **Cryptographic hashes** must hold up against an attacker. Nobody should be
+  able to find an input from its result (preimage resistance), find another
+  input with the same result as a given one (second-preimage resistance), or
+  find any two inputs with the same result (collision resistance).
+
+Put the same 3,200 keys into $$M$$ slots with four hashes and compare. The dashed
+line is the average per slot, and bars above twice the average turn red. Times
+are really measured on JavaScript code in this browser, so they vary between runs,
+languages and implementations; read only the order of magnitude. Use the tabs to change the keys and $$M$$.
+
+<HashKindsDemo />
+
+The sum of codes has a narrow range, so a large $$M$$ leaves many slots empty, and
+with reordered letters all 3,200 keys land in one slot. Horner's method is excellent at $$M = 97$$ but collapses at
+$$M = 31$$, where it sees only the last letter. That is why $$M$$ has to be chosen
+so that it does not line up with $$R$$. MurmurHash3 and SHA-256 are even for any
+$$M$$, and Murmur is much faster. That is why non-cryptographic hashes exist.
+
+### One letter apart \{#avalanche}
+
+Compute the sum of letter codes and SHA-256 side by side for the words from
+earlier. Only the first 16 digits of SHA-256 are printed.
+
+- Run
+
+```python
+import hashlib
+
+for w in ["stop", "pots", "stoq"]:
+    print(w, sum(map(ord, w)) % 97, hashlib.sha256(w.encode()).hexdigest()[:16])
+```
+
+- Output
+
+```console
+stop 66 6c45cb72a36e63d5
+pots 66 d4714f5c6b2efd1a
+stoq 67 63bc07d74b91d2ee
+```
+
+Adding letter codes gives `stop` and `pots` the same 66, and `stoq`, one letter
+different, lands next door at 67. The three SHA-256 results look nothing alike:
+`stop` and `stoq` differ in 135 of the 256 bits. This property, where a small
+change in the input flips about half of the output, is called the avalanche
+effect.
+
+Change the inputs yourself. Red cells are the bits that differ.
+
+<AvalancheDemo />
+
+When the inputs are equal, as with `abc` and `abc`, no cell is red. A hash is
+deterministic: the same input always gives the same value.
+
+### How each treats collisions \{#collision-attitude}
+
+The pigeonhole principle applies to cryptographic hashes too. Inputs are
+unlimited and outputs are not, so collisions must exist. The difference is
+**whether anyone can find one**. By the birthday problem, with $$M$$ slots
+collisions show up at around $$\sqrt{M}$$ keys. A 256-bit output means
+$$M = 2^{256}$$, so it takes about $$2^{128}$$ tries, which is out of reach in
+practice. A hash table has a small $$M$$, so collisions are routine and a way to
+handle them comes built in. For a cryptographic hash, being able to find a
+collision means the function is broken. MD5 and SHA-1 have known real collisions
+and are no longer used for security.
+
+Hunt one yourself. Keeping only the first $$k$$ bits of SHA-256 makes a hash
+function with $$2^k$$ slots. Keys really go in until a value repeats, and the
+tries are counted.
+
+<CollisionHuntDemo />
+
+Even at $$k = 32$$, with about 4.3 billion slots, a collision takes only about
+82,000 tries on average. The table scales up the same math, with times assuming
+1 billion tries per second. At 256 bits that is about $$10^{22}$$ years, hundreds of
+billions of times the age of the universe. MD5 and SHA-1 fell not because this math
+is wrong but because structural flaws allowed collisions with far fewer tries.
+
+The two worlds are connected.
+
+- SHA-256 could serve a hash table by taking `mod M`, but it is usually slower
+  than the job needs.
+- Hash tables get attacked too. If an attacker sends only keys that pile into
+  one slot, the average $$O(1)$$ falls to the worst case $$O(N)$$. This is called
+  hash flooding. So Python's string hash and the default hash of Rust's `HashMap`
+  use the SipHash family, which mixes in a randomly chosen secret key.
+- A cryptographic hash is not right for everything. For storing passwords, speed
+  is a weakness, so deliberately slow functions like bcrypt and Argon2 are used.
+
+Try the attack yourself. `Aa` and `BB` have the same Horner value
+($$65 \times 31 + 97 = 66 \times 31 + 66$$). However they are joined the value stays
+equal, so keys like `AaAa`, `AaBB`, `BBAa` and `BBBB` can be made in any number.
+
+<HashFloodDemo />
+
+Inserting 1,024 attack keys under Horner takes 523,776 compares, 105 times what
+normal keys take. Switch the tab to SipHash and the same keys spread evenly: without
+the secret key, nobody can prepare keys that pile into one slot.
+
+## Aside: public-key encryption \{#public-key}
+
+The cryptographic hashes of the previous section cannot be reversed. To hide a
+message and let the other side read it again, it must be reversible, and that is
+**encryption**. The value needed to reverse it is the **key**.
+
+- **Symmetric encryption** locks and unlocks with the same key. It is fast, like
+  AES, but the key must first be handed over safely. Yet if there were a safe way
+  to hand over a key, the message could just go that way.
+- **Public-key encryption** (asymmetric encryption) has two keys. What the public
+  key locks, only the private key unlocks. It is like handing out padlocks (public
+  key) while keeping the only key (private key).
+
+Say Alice sends Bob a message while Eve copies everything on the channel. Switch
+tabs and watch what ends up in Eve's hands.
+
+<KeyPathDemo />
+
+With a symmetric key, Eve has both the key and the ciphertext and simply reads it.
+With a public key, Eve has only the public key and the ciphertext. A public key can
+only lock, so it does no harm in Eve's hands.
+
+### RSA \{#rsa}
+
+RSA (Rivest, Shamir, Adleman, 1977) is the best-known public-key cipher. The
+remainder operation from hashing takes center stage here too.
+
+```plaintext
+ALGORITHM KeyGen()
+    pick two different large primes p, q
+    n <- p × q
+    φ <- (p - 1) × (q - 1)
+    e <- a number coprime to φ           // often 65537
+    d <- the number with e × d mod φ = 1 // extended Euclidean algorithm
+    public key (e, n), private key (d, n)
+```
+
+$$
+c = m^e \bmod n \qquad m = c^d \bmod n
+$$
+
+When $$e \times d \bmod \varphi(n) = 1$$, Euler's theorem brings the locked and
+unlocked value back to the original $$m$$. In the small textbook example,
+$$p = 61$$ and $$q = 53$$ give $$n = 3233$$ and $$\varphi(n) = 3120$$, and $$e = 17$$
+gives $$d = 2753$$. Locking $$m = 65$$ gives 2790, and unlocking 2790 returns 65.
+Change the primes and the message and run it yourself.
+
+<RsaDemo />
+
+The **Decrypt with public key** tab shows that it does not unlock. You can also see
+the two `L`s of `HELLO` become the same ciphertext. That is a weakness of textbook
+RSA, so real systems mix in random padding to make the same message encrypt
+differently each time.
+
+### Why it is safe \{#why-safe}
+
+$$n$$ and $$e$$ are public. Finding $$d$$ takes $$\varphi(n)$$, and finding
+$$\varphi(n)$$ takes splitting $$n$$ into $$p$$ and $$q$$. Multiplying takes one step;
+undoing it does not. Measure it yourself.
+
+<FactorDemo />
+
+Trial division takes about ten times longer for each extra digit of the primes.
+Real attacks use the far faster general number field sieve, and in 2020 a 250-digit
+number (RSA-250) was split at a cost of about 2,700 core-years. Still, the 2048 bits
+(617 digits) in use today have never been publicly split. Note that breaking RSA has
+not been proven as hard as factoring; decades of work have simply found no easier way.
+
+### Digital signatures \{#signature}
+
+Hashing and public-key encryption meet in digital signatures. A value locked with
+the private key can be unlocked by anyone with the public key, so it hides nothing,
+but it proves that **only the holder of the private key could have made it**. Instead
+of locking a long message whole, you lock its fixed-length hash. Second-preimage
+resistance keeps attackers from finding another message with the same hash. Change
+the received message, or sign with Eve's key.
+
+<SignDemo />
+
+Change a single letter and the avalanche effect replaces the whole hash, so it no
+longer fits the signature. To stay readable, this demo shrinks $$n$$ to 13 digits and
+the hash to that size, which would be easy to forge in reality. Real signatures use
+an $$n$$ of 2048 bits or more and the whole hash.
+
+### In practice \{#in-practice}
+
+Do not use this section's RSA as is. Real systems differ in these ways.
+
+- **Keys and padding**: Keys are 2048 bits or more, with random padding such as OAEP
+  for encryption and PSS for signatures. Use a vetted library rather than your own code.
+- **The body uses a symmetric key**: Public-key operations are far slower. HTTPS uses
+  public-key techniques to identify the other side and settle a symmetric key, then
+  encrypts the body with a symmetric cipher such as AES.
+- **Is the public key genuine?**: If Eve swaps Bob's public key for Eve's own, the demo
+  above falls apart. So certificates signed by certificate authorities vouch for who
+  owns a public key. Digital signatures are at work here too.
+- **Other public-key ciphers**: Elliptic-curve cryptography (ECC) reaches similar
+  security with shorter keys and is widely used in HTTPS and SSH today.
+- **Quantum computers**: A large enough quantum computer running Shor's algorithm would
+  factor quickly and break RSA and ECC. So the US NIST published post-quantum standards
+  in 2024, and systems are moving over.
+
 ## Comparing the two methods \{#comparison}
 
 | | Separate chaining | Linear probing |
@@ -1058,9 +1284,10 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v2**, shown at the bottom left of the slides.
+**v3**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-10-30 | Six new demos: the café card rack, slot count against compares, M and the key step, chaining array size, where the next key lands after a cluster, a playground for both methods |
+| v3 | 2026-11-04 | New aside section: hash functions outside hash tables (non-cryptographic and cryptographic) and public-key encryption, with eight demos |
