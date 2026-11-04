@@ -17,7 +17,13 @@
 // 절차와 숫자는 algorithm-code의 topic-10-trie/01_trie와 같다. 기본 키는
 // by=4 sea=2 sells=1 she=0 shells=3 the=5이고, prefix·delete는 실습 코드처럼
 // shore=7을 더한 트라이에서 시작한다.
+//
+// search·prefix는 데모 안에 지금 키의 글자 띠와 트라이에 든 키 표를, search는 지금
+// 노드의 링크 배열까지 함께 보인다. 다른 슬라이드를 찾아가지 않아도 된다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import TrieKeyTable from './TrieKeyTable.astro';
+import TrieKeyTape from './TrieKeyTape.astro';
+import TrieLinkStrip from './TrieLinkStrip.astro';
 
 type Mode = 'insert' | 'search' | 'prefix' | 'delete';
 interface Props {
@@ -230,12 +236,17 @@ const chip =
 
   <div class="tr-body">
     <svg class="tr-svg" data-tr-svg role="img" aria-label={t[`title.${mode}`]}></svg>
-    <table class="tr-table">
-      <thead>
-        <tr data-tr-head></tr>
-      </thead>
-      <tbody data-tr-rows></tbody>
-    </table>
+    <div class:list={['tr-side', mode === 'search' && 'has-strip']}>
+      <table class="tr-table">
+        <thead>
+          <tr data-tr-head></tr>
+        </thead>
+        <tbody data-tr-rows></tbody>
+      </table>
+      {(mode === 'search' || mode === 'prefix') && <TrieKeyTape label={mode === 'search' ? 'word' : 'prefix'} />}
+      {mode === 'search' && <TrieLinkStrip rows={2} />}
+      {(mode === 'search' || mode === 'prefix') && <TrieKeyTable words={mode === 'prefix' ? words.concat(extra) : words} />}
+    </div>
   </div>
 
   <div class="tr-foot">
@@ -356,6 +367,7 @@ const chip =
           steps.push({
             present: all, mark: mk(), values: vals, note: fill(S['search.start'], { w: q }),
             rows: rowState(i), results: results.slice(), counters: [[S.visited, path.length]],
+            keyNow: q, tape: { w: q, i: 0 }, link: { node: '', look: q[0] },
           });
           let miss = null;
           for (const ch of q) {
@@ -364,33 +376,41 @@ const chip =
               miss = ch;
               break;
             }
+            const from = cur;
             cur = next;
             path.push(cur);
             steps.push({
               present: all, mark: mk(), values: vals, note: fill(S['search.move'], { c: ch }),
               rows: rowState(i), results: results.slice(), counters: [[S.visited, path.length]],
+              keyNow: q, tape: { w: q, i: cur.length - 1 }, link: { node: from, look: ch },
             });
           }
           const m = mk();
           let note;
+          let tape;
+          let link = { node: cur };
           if (miss !== null) {
             m[cur] = 'miss';
             note = fill(S['search.noLink'], { c: miss });
             results[i] = S.none;
+            tape = { w: q, i: cur.length, st: 'miss' };
+            link = { node: cur, look: miss, miss: true };
           } else if (trie.get(cur).value !== null) {
             m[cur] = 'hit';
             const v = trie.get(cur).value;
             note = fill(S['search.hit'], { c: q[q.length - 1], v });
             results[i] = String(v);
+            tape = { w: q, i: q.length - 1, st: 'hit' };
           } else {
             m[cur] = 'miss';
             note = fill(S['search.noValue'], { c: q[q.length - 1] });
             results[i] = S.none;
+            tape = { w: q, i: q.length - 1, st: 'miss' };
           }
           steps.push({
             present: all, mark: m, values: vals, note,
             rows: rowState(i), results: results.slice(), counters: [[S.visited, path.length]],
-            finished: i,
+            finished: i, keyNow: q, tape, link,
           });
         });
         steps.push({
@@ -406,6 +426,7 @@ const chip =
         const found = [];
         const path = [''];
         let cur = '';
+        let tapeSt;
         const snap = (extraMark, note, done) => {
           const m = {};
           path.forEach((n) => (m[n] = 'path'));
@@ -413,13 +434,14 @@ const chip =
           found.forEach(([n]) => (m[n] = 'take'));
           return {
             present: all, mark: m, values: vals, note, found: found.map(([n]) => n),
-            counters: [[S.keys, found.length]], done,
+            counters: [[S.keys, found.length]], done, tape: { w: p, i: cur.length, st: tapeSt },
           };
         };
         steps.push(snap({ '': 'cur' }, fill(S['prefix.idle'], { p })));
         for (const ch of p) {
           const next = cur + ch;
           if (!trie.has(next)) {
+            tapeSt = 'miss';
             steps.push(snap({ [cur]: 'miss' }, fill(S['prefix.noLink'], { c: ch })));
             steps.push(snap({}, fill(S['prefix.done'], { p, n: 0 }), true));
             return { steps, head, rows, layoutTrie: trie };
@@ -576,6 +598,36 @@ const chip =
       return tr;
     });
 
+    /* 데모 안의 참고 자료: 지금 키의 글자 띠, 지금 노드의 링크 배열, 든 키 표 */
+    const tapeBox = root.querySelector('[data-tape]');
+    const setTape = (tp) => {
+      if (!tapeBox) return;
+      tapeBox.replaceChildren(
+        ...(tp
+          ? [...tp.w].map((c, i) => {
+              const b = document.createElement('b');
+              b.textContent = c;
+              b.className = i < tp.i ? 'is-past' : i === tp.i ? `is-${tp.st || 'now'}` : '';
+              return b;
+            })
+          : []),
+      );
+    };
+    const keyCells = [...root.querySelectorAll('[data-tk-key]')];
+    const linkCells = [...root.querySelectorAll('[data-ls]')];
+    const linkName = root.querySelector('[data-ls-name]');
+    const setLink = (l) => {
+      if (!linkName) return;
+      const kids = l ? layoutTrie.get(l.node).kids.map((k) => layoutTrie.get(k).ch) : [];
+      linkCells.forEach((c) => {
+        const ch = c.dataset.ls;
+        c.classList.toggle('is-on', kids.includes(ch));
+        c.classList.toggle('is-now', !!l && l.look === ch && !l.miss);
+        c.classList.toggle('is-miss', !!l && l.look === ch && !!l.miss);
+      });
+      linkName.textContent = !l ? '' : l.node === '' ? S.root : `"${l.node}"`;
+    };
+
     const MARKS = ['path', 'cur', 'new', 'hit', 'miss', 'take', 'seen', 'del', 'keep'];
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -609,6 +661,12 @@ const chip =
         const st = step.rows[j];
         tr.className = `is-${st}`;
         if (step.results) tr.querySelector('.tr-v').textContent = step.results[j];
+      });
+      setTape(step.tape);
+      setLink(step.link);
+      keyCells.forEach((c) => {
+        c.classList.toggle('is-now', c.dataset.tkKey === step.keyNow);
+        c.classList.toggle('is-take', !!step.found && step.found.includes(c.dataset.tkKey));
       });
       setLines(root.querySelector('[data-tr-note]'), step.note);
       const count = root.querySelector('[data-tr-count]');
@@ -836,6 +894,24 @@ const chip =
     fill: var(--aas-role-eval);
   }
 
+  /* 옆 칸: 표, 글자 띠, 링크 배열, 든 키 */
+  .aas-trie-demo .tr-side {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 0.6em;
+    align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .aas-trie-demo .tr-side.has-strip {
+    flex: 0 1 22em;
+  }
+  .aas-trie-demo .tr-side .aas-link-strip,
+  .aas-trie-demo .tr-side .aas-trie-keys {
+    width: 100%;
+  }
+
   /* 키 표 */
   .aas-trie-demo .tr-table {
     flex: 0 0 auto;
@@ -904,7 +980,7 @@ const chip =
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
   .aas-trie-demo.is-slide {
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
     margin: 0.5rem 0;
   }
   .aas-trie-demo.is-slide .tr-body {
@@ -912,7 +988,8 @@ const chip =
   }
   .aas-trie-demo.is-slide .tr-svg {
     flex: 1 1 auto;
-    max-height: 50vh;
+    width: auto;
+    max-height: 44vh;
   }
   .aas-trie-demo.is-slide .tr-table {
     font-size: 0.75em;

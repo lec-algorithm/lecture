@@ -1,7 +1,7 @@
 ---
 title: "Topic 15. Recommender Systems (bonus)"
 description: "Collaborative filtering (user-based and item-based) that fills the blanks of a rating matrix, content-based filtering that picks by item features, where each falls short, and hybrids. Bonus material, outside the exam scope"
-date: "Topic 15 · v1"
+date: "Topic 15 · v2"
 order: 15
 transition: none
 toc_level: 4
@@ -15,6 +15,14 @@ import CollabFilterDemo from '@components/CollabFilterDemo.astro';
 import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
 import HybridDemo from '@components/HybridDemo.astro';
+import OverlapDemo from '@components/OverlapDemo.astro';
+import CosineTableDemo from '@components/CosineTableDemo.astro';
+import OriginShiftDemo from '@components/OriginShiftDemo.astro';
+import WeightedAvgDemo from '@components/WeightedAvgDemo.astro';
+import MeanCenterDemo from '@components/MeanCenterDemo.astro';
+import ItemTableDemo from '@components/ItemTableDemo.astro';
+import SparsityDemo from '@components/SparsityDemo.astro';
+import ProfileLabDemo from '@components/ProfileLabDemo.astro';
 
 {/* Slide-writing rules follow the "slide rules" in docs/writing-rules.md.
     Numbers match the practice code (topic-15-recommendation) exactly. */}
@@ -72,14 +80,7 @@ Recommending means **predicting the blanks and showing the highest first**.
 #### What if we recommend *12.12: The Day* to user A?
 ::sub[Movies liked by others who liked the movies I liked]
 
-| User A | User B | User C | User D |
-| --- | --- | --- | --- |
-| The Roundup: No Way Out | Elemental | **12.12: The Day** | Exit |
-| Top Gun: Maverick | Aladdin | Hansan: Rising Dragon | Parasite |
-| *Avatar: The Way of Water* | Avatar: The Way of Water | *Avatar: The Way of Water* | The Roundup |
-| *Spider-Man: No Way Home* | | *Spider-Man: No Way Home* | Avengers: Endgame |
-
-A and C share two movies. Wouldn't A like C's favorite, *12.12: The Day*, too?
+<OverlapDemo slide />
 
 </Slide>
 
@@ -118,35 +119,10 @@ $$
 
 <Slide class="compact">
 
-#### A small rating matrix
-::sub[`01_collaborative_filtering/` · 0 means not rated yet]
+### Try it: a small rating matrix
+::sub[`01_collaborative_filtering/` · click a rating and the cosine table is recomputed]
 
-<div class="aas-split">
-<div>
-
-| | item 1 | item 2 | item 3 | item 4 |
-| --- | --- | --- | --- | --- |
-| A | 5 | 3 | 0 | 0 |
-| B | 4 | 0 | 0 | 0 |
-| C | 0 | 0 | 5 | 4 |
-| D | 0 | 0 | 4 | 0 |
-
-</div>
-<div>
-
-```console
-cosine        A      B      C      D
-  A       1.000  0.857  0.000  0.000
-  B       0.857  1.000  0.000  0.000
-  C       0.000  0.000  1.000  0.781
-  D       0.000  0.000  0.781  1.000
-```
-
-</div>
-</div>
-
-**A and B are alike, and C and D are alike.** Recommend each other's favorites.  
-But unrated cells went in **as 0**. "Not seen" and "disliked" look the same.
+<CosineTableDemo slide />
 
 </Slide>
 
@@ -232,6 +208,15 @@ Ratings are **all positive**, so the cosine can never go below 0.
 
 <Slide>
 
+### Try it: subtract the same value
+::sub[Raise c to 3 and, in the M1·M5 plane, A and D point exactly opposite ways]
+
+<OriginShiftDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Pearson correlation coefficient
 ::sub[Pearson Correlation · over movies both rated, after subtracting each one's mean]
 
@@ -307,6 +292,15 @@ For A, who rates dramas low, Pearson's **1.536** is the plausible one.
 
 <Slide>
 
+### Try it: a weighted mean is a center of mass
+::sub[Similarity is the weight · with cosine k = 3, set E to 0 and M6 drops to 1.495]
+
+<WeightedAvgDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### Try it: ratings and neighbor count
 ::sub[Click a cell to change its rating · with cosine, k = 2 drops M6 to 1.495]
 
@@ -328,6 +322,15 @@ $$
 <br/>
 
 The practice code uses the plain weighted average. This formula is left as an exercise.
+
+</Slide>
+
+<Slide>
+
+### Try it: two prediction formulas
+::sub[Raise C's scale · the simple weighted mean follows, the mean-centered one stays]
+
+<MeanCenterDemo slide />
 
 </Slide>
 
@@ -359,6 +362,15 @@ item-based: movies A rated, by cosine to the blank (k = 2)
 
 </Slide>
 
+<Slide>
+
+### Try it: the item similarity table
+::sub[Change A's rating, then add other users · only the table's wobble shrinks]
+
+<ItemTableDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Where collaborative filtering falls short
@@ -381,18 +393,19 @@ item-based: movies A rated, by cosine to the blank (k = 2)
 
 <Slide>
 
+### Try it: erase the cells
+::sub[Past 80% blank, predictable cells fall fast and the error grows]
+
+<SparsityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Weakness 2. Cold start
 ::sub[Cold Start · with no history, nothing can be done]
 
-| User A | User B | User C | User E (new) |
-| --- | --- | --- | --- |
-| The Roundup: No Way Out | Elemental | 12.12: The Day | Exit |
-| Top Gun: Maverick | Aladdin | Hansan: Rising Dragon | |
-| Avatar: The Way of Water | Avatar: The Way of Water | Avatar: The Way of Water | |
-| Spider-Man: No Way Home | | Spider-Man: No Way Home | |
-
-- **New user**: nobody overlaps with E, so no neighbors and no recommendations.
-- **New item**: nobody has seen the new Avengers, so it cannot be recommended to anyone.
+<OverlapDemo cold slide />
 
 </Slide>
 
@@ -482,6 +495,15 @@ score = cosine(profile, genres), movies A has not rated
 - With no one else's ratings, it reaches **the same conclusion** as Example 1.
 - **The new movie M7** came second on genre alone.
   - Something collaborative filtering could not do.
+
+</Slide>
+
+<Slide>
+
+### Try it: the profile lab
+::sub[Change genres and ratings and the ranking moves · at baseline 0, M7 passes M3]
+
+<ProfileLabDemo slide />
 
 </Slide>
 

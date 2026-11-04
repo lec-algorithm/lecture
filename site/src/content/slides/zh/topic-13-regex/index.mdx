@@ -1,7 +1,7 @@
 ---
 title: "主题 13. 正则表达式与自动机"
 description: "把要找的字符串写成集合（语言）的正则表达式，用递归去匹配它的回溯法的局限，以及用状态与转移、绝不回头地匹配的有限状态自动机与 NFA"
-date: "主题 13 · v1"
+date: "主题 13 · v2"
 order: 13
 transition: none
 toc_level: 4
@@ -16,6 +16,15 @@ import LanguageDemo from '@components/LanguageDemo.astro';
 import RegexPlayDemo from '@components/RegexPlayDemo.astro';
 import BlowupDemo from '@components/BlowupDemo.astro';
 import ParenDemo from '@components/ParenDemo.astro';
+import ShorthandDemo from '@components/ShorthandDemo.astro';
+import ValidateDemo from '@components/ValidateDemo.astro';
+import Mod3Demo from '@components/Mod3Demo.astro';
+import CallGridDemo from '@components/CallGridDemo.astro';
+import FsaTableDemo from '@components/FsaTableDemo.astro';
+import SubsetDemo from '@components/SubsetDemo.astro';
+import NfaLabDemo from '@components/NfaLabDemo.astro';
+import ClosureDemo from '@components/ClosureDemo.astro';
+import MnWorkDemo from '@components/MnWorkDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md。
     数字与实践代码（topic-13-regex）的运行结果一致。 */}
@@ -112,6 +121,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 
 <Slide>
 
+### 动手试试：连接与或
+::sub[切换标签看看 · 连接是一个字符串，或是每个分支一个字符串]
+
+<LanguageDemo regexes={['AB', 'A|B', 'A|E|I|O|U']} tests={{ 'AB': ['A', 'BA'], 'A|B': ['AB'], 'A|E|I|O|U': ['B', 'AE'] }} slide />
+
+</Slide>
+
+<Slide>
+
 #### 闭包
 ::sub[Closure · 模式的一部分重复任意次]
 
@@ -201,6 +219,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 
 <Slide>
 
+### 动手试试：字符集
+::sub[点击一段，它接受的字符就会亮起 · 点击字符盘，字符会加到字符串后面]
+
+<ShorthandDemo kind="class" slide />
+
+</Slide>
+
+<Slide>
+
 #### 闭包缩写
 ::sub[规定不同的重复次数]
 
@@ -210,6 +237,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 | `?` | 至多一次（含 0 次） | `AB?` | `A\|AB` |
 | `{n}` | 恰好 n 次 | `[0-9]{3}` | `[0-9][0-9][0-9]` |
 | `{m,n}` | m 次以上 n 次以下 | `A{2,3}` | `AA\|AAA` |
+
+</Slide>
+
+<Slide>
+
+### 动手试试：次数缩写
+::sub[选一个例子，看它用三种运算展开的样子 · 蓝色格子是复制次数]
+
+<ShorthandDemo kind="quant" slide />
 
 </Slide>
 
@@ -226,6 +262,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 | `\n` | 换行符 |
 | `\s` | 空白字符（空格、制表符、换行等） |
 | `\d` | 一个数字，等同于 `[0-9]` |
+
+</Slide>
+
+<Slide>
+
+### 动手试试：特殊字符
+::sub[把同样的字符串放进 `A.B` 和 `A\.B` 试试]
+
+<ShorthandDemo kind="escape" slide />
 
 </Slide>
 
@@ -263,51 +308,28 @@ import ParenDemo from '@components/ParenDemo.astro';
 
 <Slide>
 
-#### 有效性校验：电话号码
-::sub[`\([0-9]{3}\)\ [0-9]{3}-[0-9]{4}`]
+### 有效性校验：电话号码
+::sub[换个例子，看卡在哪一段 · 字符的颜色就是吃掉它的那一段]
 
-| 片段 | 含义 |
-| --- | --- |
-| `\(` `\)` | 括号字符本身（转义序列） |
-| `[0-9]` | 数字 0\~9 之一 |
-| `{3}` | 允许重复 3 次 |
-
-<br/>
-
-`(800) 867-5309` 属于它。  
-韩国的手机号是 `\d{3}-\d{3,4}-\d{4}`，例如 `010-1234-5678`
+<ValidateDemo tabs={['phone', 'mobile']} slide />
 
 </Slide>
 
 <Slide>
 
-#### 有效性校验：电子邮件地址
-::sub[`[a-z]+@([a-z]+\.)+(edu|com)`]
+### 有效性校验：电子邮件地址
+::sub[`([a-z]+\.)+` 把 `cs.` 和 `princeton.` 各吃一次 · 实际校验会放宽]
 
-| 片段 | 含义 |
-| --- | --- |
-| `+` | 重复一次以上 |
-| `\.` | 不是任意字符，而是真正的点 |
-| `(edu\|com)` | 限定为 edu 或 com |
-
-<br/>
-
-`rs@cs.princeton.edu` 属于它。  
-实际会放宽成 `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}` 这样。
+<ValidateDemo tabs={['email', 'wide']} slide />
 
 </Slide>
 
 <Slide>
 
-#### 有效性校验：URL
-::sub[`https?://[^\s/$.?#].[^\s]*`]
+### 有效性校验：URL
+::sub[`https?` 有没有 s 都行 · 地址的第一个字符不是空白或 `/ $ . ? #`]
 
-- `https?`
-  - `s` 可有可无。http 和 https 都行
-- `[^\s/$.?#]`
-  - 地址的第一个字符不是空白，也不是 `/ $ . ? #`。
-- `[^\s]*`
-  - 之后一直到出现空白为止
+<ValidateDemo tabs={['url']} slide />
 
 </Slide>
 
@@ -348,6 +370,15 @@ import ParenDemo from '@components/ParenDemo.astro';
 <br/>
 
 这个正则表达式会在示例 3 中用 NFA 实际运行。
+
+</Slide>
+
+<Slide>
+
+### 为什么是 3 的倍数
+::sub[值翻倍再加上这一位 · 要记住的只有三种余数]
+
+<Mod3Demo slide />
 
 </Slide>
 
@@ -458,45 +489,12 @@ static bool matchStar(char c, const char *pattern, const char *text) {
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 运行
-::sub[`search("ab*c", "aabbc")` · 在位置 1 找到，调用 match 9 次]
+### 动手试试：运行
+::sub[点一组后单步查看 · 位置和比较次数与实践代码的输出相同]
 
-<div class="aas-split">
-<div>
-
-```console
-search("ab*c", "aabbc")
-  start 0
-    match("ab*c", "aabbc")
-      match("b*c", "abbc")
-          match("c", "abbc")
-  start 1
-    match("ab*c", "abbc")
-      match("b*c", "bbc")
-          match("c", "bbc")
-          match("c", "bc")
-          match("c", "c")
-            match("", "")
-  -> found at 1, comparisons = 9
-```
-
-</div>
-<div>
-
-```console
-tests
-  pattern  text        at  comparisons
-  ab*c     ac           0            4
-  ab*c     abbbbc       0            8
-  ab*c     abd         -1            7
-  a.c      xxabcxx      2            6
-  .*ab*c   zzabbbcz     0           10
-```
-
-</div>
-</div>
+<RegexMatchDemo cases={[['ab*c', 'aabbc'], ['ab*c', 'ac'], ['ab*c', 'abbbbc'], ['ab*c', 'abd'], ['a.c', 'xxabcxx'], ['.*ab*c', 'zzabbbcz']]} slide />
 
 </Slide>
 
@@ -526,6 +524,15 @@ tests
 
 把 a 分给哪个 `a*`、各分几个，**所有情况**都要试一遍。  
 $$\binom{2n+1}{n}$$，几乎按 $$4^n$$ 增长的**指数时间**。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：同一格调用几次
+::sub[match(剩余模式, 剩余文本) 是一格 · 数字是调用它的次数]
+
+<CallGridDemo slide />
 
 </Slide>
 
@@ -623,6 +630,15 @@ $$\binom{2n+1}{n}$$，几乎按 $$4^n$$ 增长的**指数时间**。
 
 </Slide>
 
+<Slide>
+
+### 动手试试：修改转移表
+::sub[改一改格子和接受状态 · 最后一列是实际运行转移表的结果]
+
+<FsaTableDemo start="back" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 步骤
@@ -666,38 +682,12 @@ bool accept(const char *input) {
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 运行
+### 动手试试：运行
 ::sub[被拒绝的情形有两种：无处可去时，结束却不在接受状态时]
 
-<div class="aas-split">
-<div>
-
-```console
-input "abd"
-  start S0
-  'a' -> S1
-  eps -> S2
-  'b' -> S3
-  'd' -> no move from S3: reject
-```
-
-</div>
-<div>
-
-```console
-summary
-  abc      accept
-  abbbbc   accept
-  ac       accept
-  ab       reject
-  abd      reject
-  abcc     reject
-```
-
-</div>
-</div>
+<FsaDemo input="abc" cases={['abc', 'abbbbc', 'ac', 'ab', 'abd', 'abcc']} slide />
 
 </Slide>
 
@@ -741,6 +731,15 @@ summary
 
 <Slide>
 
+### 动手试试：状态数爆炸
+::sub[倒数第 k 个字符是 a 的语言 · 增大 k，实际构造 DFA 看看]
+
+<SubsetDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 构造方法
 ::sub[整个正则表达式包上括号，一个字符一个状态 · 状态 0…M，M 是接受状态]
 
@@ -754,6 +753,15 @@ summary
 <br/>
 
 括号的配对用栈来找。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：从规则到图
+::sub[修改正则，图会重新构造 · 点击规则或转移看看]
+
+<NfaLabDemo slide />
 
 </Slide>
 
@@ -807,6 +815,15 @@ ALGORITHM BuildNFA(re)
 
 <Slide>
 
+### 动手试试：ε 闭包
+::sub[点击图中的状态选择开始集合 · 蓝色边框是开始集合]
+
+<ClosureDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 单步：1001 是 3 的倍数吗
 ::sub[黑色实线是匹配转移，蓝色虚线是 ε 转移 · 橙色是当前集合]
 
@@ -836,48 +853,12 @@ ALGORITHM Recognizes(re, text)
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 运行
-::sub[`nfaRegex.c` · 演示中的八个集合与原资料的七个例子]
+### 动手试试：运行
+::sub[右侧是 `nfaRegex.c` 输出的行 · 开始集合里有 16，是因为空字符串也是 0，即 3 的倍数]
 
-<div class="aas-split">
-<div>
-
-```console
-text = 1001
-  start      {0 1 2 4 14 15 16}
-  read '1'   {5}
-  closure    {5 6 11 12}
-  read '0'   {7}
-  closure    {7 8 9}
-  read '0'   {10}
-  closure    {5 6 10 11 12}
-  read '1'   {13}
-  closure    {1 2 4 13 14 15 16}
-  -> accept
-```
-
-</div>
-<div>
-
-```console
-  text   value  result
-  11         3  accept
-  110        6  accept
-  1001       9  accept
-  1100      12  accept
-  10         2  reject
-  1011      11  reject
-  10000     16  reject
-```
-
-</div>
-</div>
-
-<br/>
-
-开始集合里就已经有 16，是因为空字符串也代表 0，而 0 是 3 的倍数。
+<NfaDemo texts={['11', '110', '1001', '1100', '10', '1011', '10000']} binary trace slide />
 
 </Slide>
 
@@ -891,6 +872,15 @@ text = 1001
   - 集合里的状态至多 $$M+1$$ 个。
   - 用邻接表时，ε 闭包的 DFS 对每个状态和转移只看一次。
   - 每个字符 $$O(M)$$，整体最坏 $$O(MN)$$
+
+</Slide>
+
+<Slide>
+
+### 动手试试：测量 O(MN)
+::sub[增大 M 或 N 看看 · 一根柱子是读一个字符时的工作量]
+
+<MnWorkDemo slide />
 
 </Slide>
 
@@ -920,6 +910,15 @@ text = 1001
 
 回溯**一个接一个地**追踪可能性，NFA **同时全部**追踪。  
 即使两条路到达同一个状态，集合里也只算一次。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：每格只算一次
+::sub[同一格的答案也相同 · 切换标签比较比较次数]
+
+<CallGridDemo n={10} dedupe slide />
 
 </Slide>
 

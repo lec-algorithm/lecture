@@ -1,0 +1,653 @@
+---
+// 최소 힙에 직접 값을 넣고 꺼내 보는 데모.
+//
+// 값을 입력해 넣거나 최솟값을 꺼내면 sift up, sift down이 한 걸음씩 돌아간다.
+// 위는 트리, 아래는 같은 힙을 담은 배열이다. 트리나 배열의 칸을 누르면 그 인덱스의
+// 부모 (i-1)/2와 자식 2i+1, 2i+2를 칠해 보인다.
+//
+// 절차는 04_min_heap의 minHeap.pseudo와 같다. 비교 횟수는 pseudo의 비교를 그대로
+// 센다. 삽입은 한 층에 한 번(부모와), 꺼내기는 한 층에 자식 수만큼이다. 그래서
+// 높이가 h이면 삽입은 h번, 꺼내기는 2h번을 넘지 않는다. 처음 힙은 1에서 9까지다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 힙(배열). 힙 성질을 만족해야 한다. */
+  heap?: number[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { heap = [1, 2, 3, 4, 5, 6, 7, 8, 9], slide = false } = Astro.props;
+const id = `hy-${Math.random().toString(36).slice(2, 9)}`;
+const CAP = 15;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '최소 힙에 직접 넣고 꺼내기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    value: '값',
+    insert: '넣기',
+    extract: '최솟값 꺼내기',
+    index: '인덱스',
+    array: '배열',
+    size: '크기',
+    height: '높이',
+    cmps: '이번 연산의 비교',
+    out: '꺼낸 값',
+    idle: '값을 넣거나 최솟값을 꺼내 보세요. 칸을 누르면 부모와 자식의 인덱스가 보입니다.',
+    ins: 'insert {x}: 맨 끝 빈자리인 인덱스 {i}에 놓습니다.',
+    upSwap: '값 {x}, 인덱스 {i}: 부모 {p}보다 작아서 인덱스 {j}로 올라갑니다.',
+    upStay: '값 {x}, 인덱스 {i}: 부모 {p}보다 작지 않아서 제자리입니다.',
+    root: '값 {x}: 루트에 닿았습니다.',
+    take: 'extract min: 최솟값은 루트의 {x}입니다. 루트에서 꺼냅니다.',
+    takeLast: 'extract min: 하나 남은 값 {x}. 꺼내면 힙이 빕니다.',
+    move: '마지막 값 {x}: 루트로 옮겨 내려 보냅니다.',
+    downSwap: '값 {x}, 인덱스 {i}: 자식 {kids} 중 더 작은 {c} 쪽으로 내려갑니다.',
+    downStay: '값 {x}, 인덱스 {i}: 자식 {kids}보다 크지 않아서 제자리입니다.',
+    leaf: '값 {x}, 인덱스 {i}: 자식이 없어 제자리입니다.',
+    doneIns: '끝: 비교 {c}번. 높이가 {h}이니 삽입은 {w}번을 넘지 않습니다.',
+    doneExt: '끝: 비교 {c}번. 높이가 {h}이니 꺼내기는 {w}번을 넘지 않습니다.',
+    empty: '힙이 비었습니다. 꺼낼 값이 없습니다.',
+    full: '이 데모는 15개까지만 넣습니다. 먼저 꺼내 보세요.',
+    bad: '-99에서 99 사이의 정수를 입력하세요.',
+    rel: '인덱스 {i}: 부모는 ({i}-1)/2 = {p}, 자식은 2i+1 = {l}, 2i+2 = {r}',
+    noParent: '없음',
+    noKid: '없음',
+  },
+  en: {
+    title: 'Insert into and extract from a min heap',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    value: 'value',
+    insert: 'Insert',
+    extract: 'Extract min',
+    index: 'index',
+    array: 'array',
+    size: 'size',
+    height: 'height',
+    cmps: 'comparisons in this operation',
+    out: 'extracted',
+    idle: 'Insert a value or extract the minimum. Click a cell to see the indices of its parent and children.',
+    ins: 'insert {x}: place it in the empty slot at the end, index {i}.',
+    upSwap: 'Value {x}, index {i}: smaller than its parent {p}, so it moves up to index {j}.',
+    upStay: 'Value {x}, index {i}: not smaller than its parent {p}, so it stays.',
+    root: 'Value {x}: reached the root.',
+    take: 'extract min: take {x} from the root.',
+    takeLast: 'extract min: take the last element, {x}.',
+    move: 'Last value {x}: move it to the root and sift it down.',
+    downSwap: 'Value {x}, index {i}: of its children {kids}, go down towards the smaller, {c}.',
+    downStay: 'Value {x}, index {i}: not larger than its children {kids}, so it stays.',
+    leaf: 'Value {x}, index {i}: no children, so it stays.',
+    doneIns: 'Done: {c} comparisons. With height {h}, an insert takes at most {w}.',
+    doneExt: 'Done: {c} comparisons. With height {h}, an extract takes at most {w}.',
+    empty: 'The heap is empty. There is nothing to extract.',
+    full: 'This demo holds at most 15 values. Extract one first.',
+    bad: 'Enter an integer from -99 to 99.',
+    rel: 'Index {i}: parent ({i}-1)/2 = {p}, children 2i+1 = {l}, 2i+2 = {r}',
+    noParent: 'none',
+    noKid: 'none',
+  },
+  zh: {
+    title: '亲手向最小堆插入和取出',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    value: '值',
+    insert: '插入',
+    extract: '取出最小值',
+    index: '下标',
+    array: '数组',
+    size: '大小',
+    height: '高度',
+    cmps: '本次操作的比较',
+    out: '取出的值',
+    idle: '插入一个值或取出最小值。点击格子可以看到父节点和子节点的下标。',
+    ins: 'insert {x}：放到末尾的空位，下标 {i}。',
+    upSwap: '值 {x}，下标 {i}：比父节点 {p} 小，上移到下标 {j}。',
+    upStay: '值 {x}，下标 {i}：不比父节点 {p} 小，留在原位。',
+    root: '值 {x}：到达根。',
+    take: 'extract min：从根取出 {x}。',
+    takeLast: 'extract min：取出最后一个元素 {x}。',
+    move: '最后的值 {x}：移到根，然后向下调整。',
+    downSwap: '值 {x}，下标 {i}：子节点 {kids} 中往较小的 {c} 一侧下移。',
+    downStay: '值 {x}，下标 {i}：不大于子节点 {kids}，留在原位。',
+    leaf: '值 {x}，下标 {i}：没有子节点，留在原位。',
+    doneIns: '结束，比较 {c} 次。高度是 {h}，所以插入不超过 {w} 次。',
+    doneExt: '结束，比较 {c} 次。高度是 {h}，所以取出不超过 {w} 次。',
+    empty: '堆是空的，没有可取出的值。',
+    full: '这个演示最多放 15 个值。请先取出一个。',
+    bad: '请输入 -99 到 99 之间的整数。',
+    rel: '下标 {i}：父节点 ({i}-1)/2 = {p}，子节点 2i+1 = {l}，2i+2 = {r}',
+    noParent: '无',
+    noKid: '无',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-heap-play-demo', slide && 'is-slide']}
+  id={id}
+  data-hy-heap={JSON.stringify(heap)}
+  data-hy-cap={CAP}
+  data-hy-strings={JSON.stringify(t)}
+>
+  <div class="hy-bar">
+    <span class="hy-head"><strong>{t.title}</strong></span>
+    <div class="hy-inputs">
+      <label class="hy-input">{t.value} <input type="number" min="-99" max="99" step="1" value="0" data-hy-in /></label>
+      <button type="button" class="hy-btn hy-btn-primary" data-hy-act="insert">{t.insert}</button>
+      <button type="button" class="hy-btn hy-btn-primary" data-hy-act="extract">{t.extract}</button>
+    </div>
+    <div class="hy-controls">
+      <button type="button" data-act="back" class="hy-btn">{t.back}</button>
+      <button type="button" data-act="step" class="hy-btn">{t.step}</button>
+      <button type="button" data-act="play" class="hy-btn">{t.play}</button>
+      <button type="button" data-act="reset" class="hy-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <svg class="hy-tree" viewBox="0 0 640 214" role="img" aria-label={t.title} data-hy-svg></svg>
+
+  <div class="hy-array" style={`--hy-cap: ${CAP}`}>
+    <span class="hy-rowlabel">{t.index}<br />{t.array}</span>
+    {
+      Array.from({ length: CAP }, (_, i) => (
+        <button type="button" class="hy-slot" data-hy-slot={i}>
+          <i>{i}</i>
+          <b data-hy-cell={i} />
+        </button>
+      ))
+    }
+  </div>
+
+  <div class="hy-stats">
+    <span class="hy-big"><span>{t.cmps}</span><strong data-hy-cmp></strong></span>
+    <span class="hy-big"><span>{t.size}</span><strong data-hy-size class="is-plain"></strong></span>
+    <span class="hy-big"><span>{t.height}</span><strong data-hy-h class="is-plain"></strong></span>
+    <span class="hy-big"><span>{t.out}</span><strong data-hy-out class="is-plain"></strong></span>
+  </div>
+  <p class="hy-note" data-hy-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.hyStrings);
+    const start = JSON.parse(root.dataset.hyHeap);
+    const CAP = Number(root.dataset.hyCap);
+    const heightOf = (n) => (n <= 1 ? 0 : Math.floor(Math.log2(n)));
+
+    /* 자리: 층마다 폭을 똑같이 나눈다(완전 이진 트리, 4층까지). */
+    const POS = Array.from({ length: CAP }, (_, i) => {
+      const lv = Math.floor(Math.log2(i + 1));
+      const k = i + 1 - 2 ** lv;
+      return [((k + 0.5) * 640) / 2 ** lv, 26 + lv * 54];
+    });
+
+    const first = { a: start.slice(), move: null, cmp: [], out: null, count: 0, note: S.idle };
+    let steps = [first];
+    let at = 0;
+    let sel = null;
+    let flash = null;
+
+    /* 절차는 minHeap.pseudo와 같다. 비교를 하나씩 센다. */
+    function planInsert(x) {
+      const a = steps[steps.length - 1].a.slice();
+      const out = null;
+      let count = 0;
+      const push = (note, move, cmp) => steps.push({ a: a.slice(), move: move ?? null, cmp: cmp ?? [], out, count, note });
+      a.push(x);
+      let i = a.length - 1;
+      push(fill(S.ins, { x, i }), i);
+      while (i > 0) {
+        const p = Math.floor((i - 1) / 2);
+        count += 1;
+        if (a[i] >= a[p]) {
+          push(fill(S.upStay, { x: a[i], i, p: a[p] }), i, [p]);
+          break;
+        }
+        const note = fill(S.upSwap, { x: a[i], i, p: a[p], j: p });
+        [a[i], a[p]] = [a[p], a[i]];
+        push(note, p, [i]);
+        i = p;
+        if (i === 0) push(fill(S.root, { x: a[0] }), 0);
+      }
+      const h = heightOf(a.length);
+      push(fill(S.doneIns, { c: count, h, w: h }));
+    }
+    function planExtract() {
+      const a = steps[steps.length - 1].a.slice();
+      const out = a[0];
+      let count = 0;
+      const push = (note, move, cmp) => steps.push({ a: a.slice(), move: move ?? null, cmp: cmp ?? [], out, count, note });
+      if (a.length === 1) {
+        a.pop();
+        push(fill(S.takeLast, { x: out }));
+        push(fill(S.doneExt, { c: 0, h: 0, w: 0 }));
+        return;
+      }
+      push(fill(S.take, { x: out }), 0);
+      a[0] = a.pop();
+      push(fill(S.move, { x: a[0] }), 0);
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = 2 * i + 2;
+        const kids = [l, r].filter((c) => c < a.length);
+        if (!kids.length) {
+          push(fill(S.leaf, { x: a[i], i }), i);
+          break;
+        }
+        let m = i;
+        kids.forEach((c) => {
+          count += 1;
+          if (a[c] < a[m]) m = c;
+        });
+        const text = kids.map((c) => a[c]).join(', ');
+        if (m === i) {
+          push(fill(S.downStay, { x: a[i], i, kids: text }), i, kids);
+          break;
+        }
+        const note = fill(S.downSwap, { x: a[i], i, kids: text, c: a[m] });
+        [a[i], a[m]] = [a[m], a[i]];
+        push(note, m, [i]);
+        i = m;
+      }
+      const h = heightOf(a.length);
+      push(fill(S.doneExt, { c: count, h, w: 2 * h }));
+    }
+
+    const svg = root.querySelector('[data-hy-svg]');
+    const NS = 'http://www.w3.org/2000/svg';
+    const cells = [...root.querySelectorAll('[data-hy-cell]')];
+    const slots = [...root.querySelectorAll('[data-hy-slot]')];
+    const noteEl = root.querySelector('[data-hy-note]');
+    const input = root.querySelector('[data-hy-in]');
+
+    const relOf = (i, n) => {
+      const out = [];
+      if (i > 0) out.push(Math.floor((i - 1) / 2));
+      [2 * i + 1, 2 * i + 2].forEach((c) => c < n && out.push(c));
+      return out;
+    };
+
+    function render() {
+      const st = steps[at];
+      const n = st.a.length;
+      if (sel !== null && sel >= n) sel = null;
+      const rel = sel === null ? [] : relOf(sel, n);
+      const parts = [];
+      for (let i = 1; i < n; i++) {
+        const p = Math.floor((i - 1) / 2);
+        const l = document.createElementNS(NS, 'line');
+        l.setAttribute('x1', POS[p][0]);
+        l.setAttribute('y1', POS[p][1]);
+        l.setAttribute('x2', POS[i][0]);
+        l.setAttribute('y2', POS[i][1]);
+        parts.push(l);
+      }
+      st.a.forEach((v, i) => {
+        const g = document.createElementNS(NS, 'g');
+        g.setAttribute('class', 'hy-node');
+        g.classList.toggle('is-move', st.move === i);
+        g.classList.toggle('is-cmp', st.cmp.includes(i));
+        g.classList.toggle('is-sel', sel === i);
+        g.classList.toggle('is-rel', rel.includes(i));
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', POS[i][0]);
+        c.setAttribute('cy', POS[i][1]);
+        c.setAttribute('r', 20);
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('x', POS[i][0]);
+        tx.setAttribute('y', POS[i][1]);
+        tx.textContent = String(v);
+        g.append(c, tx);
+        g.addEventListener('click', () => choose(i));
+        parts.push(g);
+      });
+      svg.replaceChildren(...parts);
+      cells.forEach((c, i) => {
+        c.textContent = i < n ? String(st.a[i]) : '';
+        const s = slots[i];
+        s.disabled = i >= n;
+        s.classList.toggle('is-move', st.move === i);
+        s.classList.toggle('is-cmp', st.cmp.includes(i));
+        s.classList.toggle('is-sel', sel === i);
+        s.classList.toggle('is-rel', rel.includes(i));
+      });
+      root.querySelector('[data-hy-cmp]').textContent = String(st.count);
+      root.querySelector('[data-hy-size]').textContent = String(n);
+      root.querySelector('[data-hy-h]').textContent = String(heightOf(n));
+      root.querySelector('[data-hy-out]').textContent = st.out === null ? '-' : String(st.out);
+      let text = flash ?? st.note;
+      if (sel !== null) {
+        const p = sel > 0 ? Math.floor((sel - 1) / 2) : S.noParent;
+        const l = 2 * sel + 1 < n ? 2 * sel + 1 : S.noKid;
+        const r = 2 * sel + 2 < n ? 2 * sel + 2 : S.noKid;
+        text = fill(S.rel, { i: sel, p, l, r });
+      }
+      setLines(noteEl, text);
+    }
+    function choose(i) {
+      sel = sel === i ? null : i;
+      flash = null;
+      render();
+    }
+    slots.forEach((s, i) => s.addEventListener('click', () => choose(i)));
+
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      sel = null;
+      flash = null;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function runFrom(k) {
+      stop();
+      at = k;
+      sel = null;
+      flash = null;
+      render();
+      if (at < steps.length - 1) {
+        playBtn.textContent = S.stop;
+        timer = setInterval(step, 800);
+      }
+    }
+    root.querySelector('[data-hy-act="insert"]').addEventListener('click', () => {
+      stop();
+      at = steps.length - 1;
+      const x = Number(input.value);
+      flash = null;
+      if (!Number.isInteger(x) || x < -99 || x > 99 || input.value === '') {
+        flash = S.bad;
+        return render();
+      }
+      if (steps[at].a.length >= CAP) {
+        flash = S.full;
+        return render();
+      }
+      const k = steps.length;
+      planInsert(x);
+      runFrom(k);
+    });
+    root.querySelector('[data-hy-act="extract"]').addEventListener('click', () => {
+      stop();
+      at = steps.length - 1;
+      flash = null;
+      if (!steps[at].a.length) {
+        flash = S.empty;
+        return render();
+      }
+      const k = steps.length;
+      planExtract();
+      runFrom(k);
+    });
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      sel = null;
+      flash = null;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      steps = [first];
+      at = 0;
+      sel = null;
+      flash = null;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) return;
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 800);
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-heap-play-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-heap-play-demo .hy-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-heap-play-demo .hy-head {
+    font-size: 0.95em;
+  }
+  .aas-heap-play-demo .hy-inputs,
+  .aas-heap-play-demo .hy-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-heap-play-demo .hy-input {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-heap-play-demo .hy-input input {
+    width: 3.6em;
+    padding: 0.25em 0.4em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-heap-play-demo .hy-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-heap-play-demo .hy-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-heap-play-demo .hy-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-heap-play-demo .hy-tree {
+    display: block;
+    width: 100%;
+    max-width: 44em;
+    height: auto;
+    margin-inline: auto;
+    overflow: visible;
+  }
+  .aas-heap-play-demo .hy-tree line {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+  }
+  .aas-heap-play-demo .hy-node {
+    cursor: pointer;
+  }
+  .aas-heap-play-demo .hy-node circle {
+    fill: var(--aas-text);
+    transition: fill 0.2s;
+  }
+  .aas-heap-play-demo .hy-node text {
+    fill: var(--aas-bg);
+    font-size: 18px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-heap-play-demo .hy-node.is-move circle {
+    fill: var(--aas-role-focus);
+  }
+  .aas-heap-play-demo .hy-node.is-cmp circle,
+  .aas-heap-play-demo .hy-node.is-rel circle {
+    fill: var(--aas-role-model);
+  }
+  .aas-heap-play-demo .hy-node.is-sel circle {
+    fill: var(--aas-role-eval);
+  }
+  .aas-heap-play-demo .hy-node.is-move text,
+  .aas-heap-play-demo .hy-node.is-cmp text,
+  .aas-heap-play-demo .hy-node.is-rel text,
+  .aas-heap-play-demo .hy-node.is-sel text {
+    fill: #fff;
+  }
+  .aas-heap-play-demo .hy-array {
+    display: grid;
+    grid-template-columns: max-content repeat(var(--hy-cap), minmax(0, 1fr));
+    gap: 0.15em;
+    align-items: stretch;
+    margin-top: 0.4em;
+  }
+  .aas-heap-play-demo .hy-rowlabel {
+    padding-right: 0.4em;
+    font-size: 0.72em;
+    line-height: 1.5;
+    color: var(--aas-muted);
+    text-align: right;
+    align-self: center;
+  }
+  .aas-heap-play-demo .hy-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--aas-text);
+    cursor: pointer;
+    font: inherit;
+  }
+  .aas-heap-play-demo .hy-slot:disabled {
+    cursor: default;
+  }
+  .aas-heap-play-demo .hy-slot i {
+    font-style: normal;
+    font-size: 0.68em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-heap-play-demo .hy-slot b {
+    width: 100%;
+    min-height: 1.5em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    line-height: 1.5;
+    text-align: center;
+    transition: background-color 0.2s;
+  }
+  .aas-heap-play-demo .hy-slot.is-move b {
+    background: var(--aas-role-focus);
+    color: #fff;
+  }
+  .aas-heap-play-demo .hy-slot.is-cmp b,
+  .aas-heap-play-demo .hy-slot.is-rel b {
+    background: var(--aas-role-model);
+    color: #fff;
+  }
+  .aas-heap-play-demo .hy-slot.is-sel b {
+    background: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-heap-play-demo .hy-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.4em;
+    margin-top: 0.35em;
+  }
+  .aas-heap-play-demo .hy-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-heap-play-demo .hy-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.7em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-heap-play-demo .hy-big strong.is-plain {
+    color: var(--aas-text);
+  }
+  .aas-heap-play-demo .hy-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    min-height: 1.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-heap-play-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-heap-play-demo.is-slide .hy-tree {
+    max-width: none;
+    width: auto;
+    height: 27vh;
+    max-height: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-heap-play-demo .hy-node circle,
+    .aas-heap-play-demo .hy-slot b {
+      transition: none;
+    }
+  }
+</style>

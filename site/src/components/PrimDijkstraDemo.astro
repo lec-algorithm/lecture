@@ -1,0 +1,543 @@
+---
+// 같은 그래프, 같은 틀에서 Prim과 Dijkstra를 나란히 돌려 보는 데모.
+//
+// 둘 다 힙에서 가장 작은 정점을 꺼내 확정하고 이웃의 값을 고친다. 다른 것은 고칠
+// 때 쓰는 값 한 줄이다. Prim은 w(u, v), Dijkstra는 dist[u] + w(u, v)다. 그래프는
+// 무방향 mst이고 가중치는 100을 곱한 정수로 다룬다. 한 걸음은 정점 하나의 확정이고,
+// 낡은 힙 항목은 그 사이에 버린다. 시작 정점은 정점을 눌러 바꾼다.
+//
+// 시작이 0일 때 Prim이 붙이는 순서는 0 7 1 2 3 5 4 6(05_mst_prim과 같음)이고 합은
+// 1.81이다. 시작 정점을 바꿔도 합은 1.81 그대로다. Dijkstra 트리의 합은 시작마다
+// 달라서 0에서는 2.02다. 대신 dist는 언제나 MST를 따라간 길이보다 짧거나 같다.
+// 0에서 4까지 MST로 가면 0.79, dist는 0.38이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const g = getGraph('mst');
+const n = g.nodes.length;
+const id = `pj-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'Prim과 Dijkstra 나란히',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    heap: '힙',
+    order: '확정 순서',
+    sum: '트리의 합',
+    empty: '비었음',
+    vertex: '정점',
+    rowKey: 'Prim의 key',
+    rowDist: 'Dijkstra의 dist',
+    rowTree: 'MST로 가는 길이',
+    idle: '{s}에서 시작합니다. 정점을 누르면 시작 정점이 바뀝니다.',
+    going: '{k}번째 확정: Prim은 {p}, Dijkstra는 {d}입니다.',
+    done: 'Prim의 합은 {p}, Dijkstra 트리의 합은 {d}입니다. 표에서 칠한 곳은 MST로 가면 dist보다 먼 정점입니다.',
+    same: '이 시작에서는 두 트리가 같습니다.',
+  },
+  en: {
+    title: 'Prim and Dijkstra side by side',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    heap: 'Heap',
+    order: 'Finalised',
+    sum: 'Tree total',
+    empty: 'empty',
+    vertex: 'Vertex',
+    rowKey: "Prim's key",
+    rowDist: "Dijkstra's dist",
+    rowTree: 'Length along the MST',
+    idle: 'Start from {s}. Click a vertex to change the start.',
+    going: 'Finalised number {k}: Prim takes {p}, Dijkstra takes {d}.',
+    done: "Prim's total is {p}, the Dijkstra tree's is {d}. The shaded cells are vertices that are farther along the MST than their dist.",
+    same: 'From this start the two trees are the same.',
+  },
+  zh: {
+    title: 'Prim 与 Dijkstra 并排',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    heap: '堆',
+    order: '确定顺序',
+    sum: '树的总和',
+    empty: '空',
+    vertex: '顶点',
+    rowKey: 'Prim 的 key',
+    rowDist: 'Dijkstra 的 dist',
+    rowTree: '沿 MST 走的长度',
+    idle: '从 {s} 开始。点击顶点可更换起点。',
+    going: '第 {k} 次确定：Prim 取 {p}，Dijkstra 取 {d}。',
+    done: 'Prim 的总和是 {p}，Dijkstra 树的总和是 {d}。表中着色的是沿 MST 走比 dist 更远的顶点。',
+    same: '从这个起点出发，两棵树相同。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const COLS = [
+  { key: 'prim', name: 'Prim', code: 'key[v] ← w(u, v)' },
+  { key: 'dij', name: 'Dijkstra', code: 'dist[v] ← dist[u] + w(u, v)' },
+];
+---
+
+<div
+  class:list={['aas-prim-dij-demo', slide && 'is-slide']}
+  id={id}
+  data-pj-n={n}
+  data-pj-edges={JSON.stringify(g.edges)}
+  data-pj-strings={JSON.stringify(t)}
+>
+  <div class="pj-bar">
+    <span class="pj-head"><strong>{t.title}</strong></span>
+    <div class="pj-controls">
+      <button type="button" data-act="back" class="pj-btn">{t.back}</button>
+      <button type="button" data-act="step" class="pj-btn">{t.step}</button>
+      <button type="button" data-act="play" class="pj-btn pj-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="pj-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="pj-cols">
+    {
+      COLS.map((c) => (
+        <div class="pj-col" data-pj-col={c.key}>
+          <div class="pj-name">
+            <strong>{c.name}</strong>
+            <code>{c.code}</code>
+          </div>
+          <div class="pj-graph">
+            <GraphFigure graph="mst" bare slide={slide} />
+          </div>
+          <div class="pj-line">
+            {t.heap}: <span class="pj-heap" data-pj-heap />
+          </div>
+          <div class="pj-line">
+            {t.order}: <strong data-pj-order />
+            <span class="pj-sum">
+              {t.sum} <strong data-pj-sum />
+            </span>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="pj-table" role="table" style={`--pj-n: ${n}`}>
+    <span class="pj-rh">{t.vertex}</span>
+    {Array.from({ length: n }, (_, v) => <b>{v}</b>)}
+    <span class="pj-rh">{t.rowKey}</span>
+    {Array.from({ length: n }, (_, v) => <span data-pj-k={v} />)}
+    <span class="pj-rh">{t.rowDist}</span>
+    {Array.from({ length: n }, (_, v) => <span data-pj-d={v} />)}
+    <span class="pj-rh">{t.rowTree}</span>
+    {Array.from({ length: n }, (_, v) => <span data-pj-t={v} />)}
+  </div>
+
+  <p class="pj-note" data-pj-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.pjStrings);
+    const n = Number(root.dataset.pjN);
+    const edges = JSON.parse(root.dataset.pjEdges);
+    const fmt = (w) => (w / 100).toFixed(2);
+
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v, w]) => {
+      adj[u].push([v, w]);
+      adj[v].push([u, w]);
+    });
+    adj.forEach((a) => a.sort((x, y) => x[0] - y[0]));
+
+    /* 절차는 prim.pseudo, dijkstra.pseudo와 같다. 같은 값이면 먼저 넣은 항목이 먼저다. */
+    function run(s, useSum) {
+      const key = new Array(n).fill(Infinity);
+      const via = new Array(n).fill(-1);
+      const done = new Array(n).fill(false);
+      const pq = [];
+      let seq = 0;
+      const order = [];
+      const steps = [];
+      let total = 0;
+      key[s] = 0;
+      pq.push({ k: 0, q: seq++, v: s });
+      const sorted = () => pq.slice().sort((a, b) => a.k - b.k || a.q - b.q);
+      while (pq.length) {
+        const it = sorted()[0];
+        pq.splice(pq.indexOf(it), 1);
+        if (done[it.v]) continue;
+        done[it.v] = true;
+        order.push(it.v);
+        if (via[it.v] >= 0) total += adj[it.v].find((e) => e[0] === via[it.v])[1];
+        adj[it.v].forEach(([v, w]) => {
+          if (done[v]) return;
+          const nk = useSum ? key[it.v] + w : w;
+          if (nk < key[v]) {
+            key[v] = nk;
+            via[v] = it.v;
+            pq.push({ k: nk, q: seq++, v });
+          }
+        });
+        steps.push({
+          cur: it.v,
+          order: order.slice(),
+          via: via.slice(),
+          key: key.slice(),
+          done: done.slice(),
+          heap: sorted()
+            .filter((x) => !done[x.v] && x.k === key[x.v])
+            .map((x) => `${fmt(x.k)}:${x.v}`),
+          total,
+        });
+      }
+      return steps;
+    }
+    /* 트리의 간선만 따라 s에서 각 정점까지 간 길이 */
+    function treeDist(s, via) {
+      const d = new Array(n).fill(null);
+      d[s] = 0;
+      const out = Array.from({ length: n }, () => []);
+      via.forEach((u, v) => u >= 0 && out[u].push(v));
+      const st = [s];
+      while (st.length) {
+        const u = st.pop();
+        out[u].forEach((v) => {
+          d[v] = d[u] + adj[u].find((e) => e[0] === v)[1];
+          st.push(v);
+        });
+      }
+      return d;
+    }
+
+    let s = 0;
+    let prim;
+    let dij;
+    let at = -1;
+    const plan = () => {
+      prim = run(s, false);
+      dij = run(s, true);
+      at = -1;
+    };
+    const cols = {
+      prim: root.querySelector('[data-pj-col="prim"]'),
+      dij: root.querySelector('[data-pj-col="dij"]'),
+    };
+    const kCells = [...root.querySelectorAll('[data-pj-k]')];
+    const dCells = [...root.querySelectorAll('[data-pj-d]')];
+    const tCells = [...root.querySelectorAll('[data-pj-t]')];
+    const noteEl = root.querySelector('[data-pj-note]');
+
+    function paint(col, st) {
+      col.querySelectorAll('[data-gf-node]').forEach((el) => {
+        const v = Number(el.dataset.gfNode);
+        const known = !!st && st.key[v] !== Infinity;
+        el.classList.toggle('is-focus', !!st && st.cur === v);
+        el.classList.toggle('is-done', !!st && st.done[v] && st.cur !== v);
+        el.classList.toggle('is-open', known && !st.done[v]);
+        el.classList.toggle('is-ring', v === s);
+      });
+      col.querySelectorAll('[data-gf-edge]').forEach((el) => {
+        const [a, b] = el.dataset.gfEdge.split('-').map(Number);
+        const pick = st && (st.via[b] === a ? b : st.via[a] === b ? a : -1);
+        const on = st && pick >= 0;
+        el.classList.toggle('is-tree', !!on && st.done[pick]);
+        el.classList.toggle('is-cand', !!on && !st.done[pick]);
+      });
+      col.querySelector('[data-pj-order]').textContent = st ? st.order.join(' ') : '';
+      col.querySelector('[data-pj-sum]').textContent = fmt(st ? st.total : 0);
+      const heapEl = col.querySelector('[data-pj-heap]');
+      const items = st ? st.heap : [`${fmt(0)}:${s}`];
+      heapEl.replaceChildren(
+        ...(items.length
+          ? items.map((x, i) => {
+              const c = document.createElement('span');
+              c.className = i === 0 ? 'pj-item is-next' : 'pj-item';
+              c.textContent = x;
+              return c;
+            })
+          : [Object.assign(document.createElement('span'), { className: 'pj-empty', textContent: S.empty })]),
+      );
+    }
+
+    function render() {
+      const sp = at >= 0 ? prim[at] : null;
+      const sd = at >= 0 ? dij[at] : null;
+      paint(cols.prim, sp);
+      paint(cols.dij, sd);
+      const show = (x) => (x === Infinity ? '∞' : fmt(x));
+      kCells.forEach((c, v) => {
+        c.textContent = sp ? show(sp.key[v]) : v === s ? fmt(0) : '∞';
+        c.classList.toggle('is-now', !!sp && sp.cur === v);
+      });
+      dCells.forEach((c, v) => {
+        c.textContent = sd ? show(sd.key[v]) : v === s ? fmt(0) : '∞';
+        c.classList.toggle('is-now', !!sd && sd.cur === v);
+      });
+      const end = at >= prim.length - 1;
+      root.classList.toggle('is-done', end);
+      if (end) {
+        const dp = treeDist(s, sp.via);
+        const dd = treeDist(s, sd.via);
+        tCells.forEach((c, v) => {
+          c.textContent = fmt(dp[v]);
+          c.classList.toggle('is-far', dd[v] < dp[v]);
+        });
+        const sameTree = sp.via.every((u, v) => u === sd.via[v]);
+        setLines(noteEl, join(fill(S.done, { p: fmt(sp.total), d: fmt(sd.total) }), sameTree ? S.same : ''));
+      } else {
+        tCells.forEach((c) => {
+          c.textContent = '';
+          c.classList.remove('is-far');
+        });
+        setLines(noteEl, sp ? fill(S.going, { k: at + 1, p: sp.cur, d: sd.cur }) : fill(S.idle, { s }));
+      }
+    }
+
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= prim.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= prim.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= prim.length - 1) {
+        at = -1;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1300);
+    });
+    root.querySelectorAll('[data-gf-node]').forEach((el) => {
+      const v = Number(el.dataset.gfNode);
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      const go = () => {
+        stop();
+        s = v;
+        plan();
+        render();
+      };
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    });
+    plan();
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-prim-dij-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-prim-dij-demo .pj-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-prim-dij-demo .pj-head {
+    font-size: 0.95em;
+  }
+  .aas-prim-dij-demo .pj-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-prim-dij-demo .pj-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-prim-dij-demo .pj-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-prim-dij-demo .pj-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-prim-dij-demo .pj-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.4em;
+  }
+  .aas-prim-dij-demo .pj-col {
+    flex: 1 1 18em;
+    min-width: 0;
+  }
+  .aas-prim-dij-demo .pj-name {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 0.7em;
+    align-items: baseline;
+    font-size: 0.85em;
+  }
+  .aas-prim-dij-demo .pj-name code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-prim-dij-demo .pj-graph .gf-node {
+    cursor: pointer;
+  }
+  .aas-prim-dij-demo .pj-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15em 0.4em;
+    align-items: center;
+    margin-top: 0.2em;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+    min-height: 1.5em;
+  }
+  .aas-prim-dij-demo .pj-line strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-prim-dij-demo .pj-sum {
+    margin-left: auto;
+  }
+  .aas-prim-dij-demo .pj-sum strong {
+    color: var(--aas-role-focus);
+    font-size: 1.25em;
+  }
+  .aas-prim-dij-demo .pj-heap {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.2em;
+  }
+  .aas-prim-dij-demo .pj-item {
+    padding: 0 0.35em;
+    border-radius: 0.3em;
+    background: var(--aas-role-model);
+    color: #fff;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    white-space: nowrap;
+  }
+  .aas-prim-dij-demo .pj-item.is-next {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
+  .aas-prim-dij-demo .pj-table {
+    display: grid;
+    grid-template-columns: max-content repeat(var(--pj-n), minmax(2.6em, 1fr));
+    margin-top: 0.4em;
+    font-size: 0.78em;
+    font-family: var(--aas-mono, monospace);
+    line-height: 1.3;
+  }
+  .aas-prim-dij-demo .pj-table > * {
+    min-height: 1.3em;
+    padding-inline: 0.4em;
+    border-bottom: 1px solid var(--aas-border);
+    text-align: center;
+  }
+  .aas-prim-dij-demo .pj-rh {
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+    white-space: nowrap;
+    text-align: left;
+  }
+  .aas-prim-dij-demo .pj-table .is-far {
+    background: color-mix(in srgb, var(--aas-role-guard) 18%, transparent);
+  }
+  .aas-prim-dij-demo .pj-table .is-far {
+    font-weight: 700;
+  }
+  .aas-prim-dij-demo .pj-table .is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 24%, transparent);
+  }
+  .aas-prim-dij-demo .pj-note {
+    margin: 0.35em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-prim-dij-demo.is-done .pj-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-prim-dij-demo.is-slide {
+    font-size: clamp(1rem, 2.4vh, 1.7rem);
+    margin: 0.5rem 0;
+  }
+  .aas-prim-dij-demo.is-slide .pj-cols {
+    flex-wrap: nowrap;
+  }
+  .aas-prim-dij-demo.is-slide .pj-graph {
+    --gf-slide-h: 25vh;
+  }
+  .aas-prim-dij-demo.is-slide .pj-note {
+    font-size: 0.8em;
+  }
+</style>

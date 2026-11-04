@@ -1,0 +1,589 @@
+---
+// 평점에서 같은 값을 빼면 코사인이 어떻게 바뀌는지 보는 데모. 코사인의 함정이 왜 생기는지를 그림으로 본다.
+//
+// 평점이 전부 양수면 벡터가 오른쪽 위 칸에 갇혀 90도 넘게 벌어질 수 없다. 슬라이더로 모든 평점에서
+// c를 빼면 벡터가 원점 쪽으로 옮겨 가고, 정반대 취향이 정말 반대 방향을 가리킨다. 왼쪽 평면은
+// A가 본 영화 중 두 편의 좌표이고, 오른쪽 막대는 안 본 칸을 그대로 0에 둔 여섯 칸 전체의 코사인이다.
+// "각자의 평균"을 누르면 사람마다 자기 평균(둘 다 본 영화에서)을 빼고 둘 다 본 칸만 남긴다.
+// 이때 오른쪽 값은 피어슨 상관이다.
+//
+// c = 0이면 algorithm-code의 코사인(B 0.835, C 0.820, D 0.466, E 0.705)과 같고, 각자의 평균이면
+// 피어슨(B 0.866, C 1.000, D -0.833, E -0.866)과 같다. M1·M5 평면에서 c = 3이면 A와 D는 180도다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RecMovieKey from './RecMovieKey.astro';
+import { RATINGS, USERS } from './recData';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `og-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '평점에서 같은 값을 빼면',
+    plane: '평면',
+    with: '견줄 사용자',
+    shift: '빼는 값 c',
+    own: '각자의 평균',
+    bars: '여섯 칸 코사인',
+    barsOwn: '피어슨',
+    angle: '이 평면의 각도',
+    rawNote: '평점이 전부 양수라 화살표가 모두 오른쪽 위 칸에 갇힙니다. 90도를 넘을 수 없으니 코사인은 0보다 작아지지 않습니다.',
+    shiftNote: '본 칸의 평점마다 c = {c}만큼 뺐습니다. 화살표가 오른쪽 위를 벗어나 더 벌어질 수 있습니다.',
+    ownNote: '사람마다 자기 평균을 뺐습니다. A는 {ma}, {v}는 {mb}입니다. 둘 다 본 칸만 남긴 이 코사인이 피어슨입니다.',
+    pair: 'A와 {v}: 이 평면에서 {deg}°, 오른쪽 값은 {s}입니다.',
+    opposite: 'A와 {v}: 이 평면에서 정반대(180°)입니다. 오른쪽 값은 {s}입니다.',
+    zero: 'A나 {v}의 화살표가 0이 되어 이 평면에서는 방향이 없습니다. 오른쪽 값은 {s}입니다.',
+  },
+  en: {
+    title: 'Subtract the same value from every rating',
+    plane: 'plane',
+    with: 'compare with',
+    shift: 'subtract c',
+    own: 'Each one’s mean',
+    bars: 'cosine over six cells',
+    barsOwn: 'Pearson',
+    angle: 'angle in this plane',
+    rawNote: 'All ratings are positive, so every arrow is stuck in the upper-right quadrant. They cannot spread past 90°, so the cosine never drops below 0.',
+    shiftNote: 'Every rated cell is lowered by c = {c}. The arrows can now leave the upper-right quadrant and spread further apart.',
+    ownNote: 'Each person’s own mean is subtracted: {ma} for A and {mb} for {v}. This cosine, over only the cells both rated, is Pearson.',
+    pair: 'A and {v}: {deg}° in this plane; the value on the right is {s}.',
+    opposite: 'A and {v}: exactly opposite (180°) in this plane; the value on the right is {s}.',
+    zero: 'An arrow of A or {v} has shrunk to zero, so it has no direction in this plane. The value on the right is {s}.',
+  },
+  zh: {
+    title: '从评分中减去同一个值',
+    plane: '平面',
+    with: '比较对象',
+    shift: '减去的值 c',
+    own: '各自的均值',
+    bars: '六格余弦',
+    barsOwn: '皮尔逊',
+    angle: '这个平面上的夹角',
+    rawNote: '评分全是正数，所以箭头都被困在右上象限。夹角超不过 90°，余弦也就不会小于 0。',
+    shiftNote: '每个评过的格子都减去 c = {c}。箭头可以离开右上象限，张得更开。',
+    ownNote: '每个人减去自己的均值：A 是 {ma}，{v} 是 {mb}。只留下两人都看过的格子，这个余弦就是皮尔逊。',
+    pair: 'A 与 {v}：在这个平面上是 {deg}°，右边的值是 {s}。',
+    opposite: 'A 与 {v}：在这个平面上正好相反（180°），右边的值是 {s}。',
+    zero: 'A 或 {v} 的箭头缩成了 0，在这个平面上没有方向。右边的值是 {s}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* A가 본 영화끼리의 평면. 번호는 0부터 */
+const PLANES = [
+  [0, 4],
+  [1, 4],
+  [3, 4],
+  [0, 1],
+];
+const others = [1, 2, 3, 4];
+/* 좌표계: -4부터 5까지 */
+const U = 32;
+const LO = -4;
+const HI = 5;
+const PAD = 30;
+const SIZE = PAD * 2 + (HI - LO) * U;
+const X = (v: number) => PAD + (v - LO) * U;
+const Y = (v: number) => PAD + (HI - v) * U;
+const ticks = Array.from({ length: HI - LO + 1 }, (_, i) => LO + i);
+const geo = { U, LO, HI, PAD };
+---
+
+<div
+  class:list={['aas-origin-demo', slide && 'is-slide']}
+  id={id}
+  data-og-ratings={JSON.stringify(RATINGS)}
+  data-og-users={JSON.stringify(USERS)}
+  data-og-planes={JSON.stringify(PLANES)}
+  data-og-geo={JSON.stringify(geo)}
+  data-og-strings={JSON.stringify(t)}
+>
+  <div class="og-bar">
+    <span class="og-head"><strong>{t.title}</strong></span>
+    <label class="og-range">
+      {t.shift} <strong data-og-cval></strong>
+      <input type="range" min="0" max="4" step="0.25" value="0" data-og-range />
+    </label>
+    <button type="button" class="og-btn" data-og-own>{t.own}</button>
+  </div>
+  <div class="og-bar og-bar2">
+    <span class="og-group">
+      <span class="og-label">{t.plane}</span>
+      {PLANES.map((p, i) => <button type="button" class="og-btn" data-og-plane={i}>M{p[0] + 1}·M{p[1] + 1}</button>)}
+    </span>
+    <span class="og-group">
+      <span class="og-label">{t.with}</span>
+      {others.map((v) => <button type="button" class="og-btn" data-og-user={v}>{USERS[v]}</button>)}
+    </span>
+  </div>
+
+  <div class="og-body">
+    <svg class="og-svg" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label={t.title} data-og-svg>
+      <defs>
+        <marker id={`${id}-m`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="context-stroke" />
+        </marker>
+      </defs>
+      <rect class="og-quad" x={X(0)} y={Y(HI)} width={HI * U} height={HI * U} />
+      {
+        ticks.map((v) => (
+          <>
+            <line class="og-grid" x1={X(v)} y1={Y(LO)} x2={X(v)} y2={Y(HI)} />
+            <line class="og-grid" x1={X(LO)} y1={Y(v)} x2={X(HI)} y2={Y(v)} />
+            {v !== 0 && v % 2 === 0 && (
+              <>
+                <text class="og-tick" x={X(v)} y={Y(0) + 18}>{v}</text>
+                <text class="og-tick" x={X(0) - 12} y={Y(v) + 5}>{v}</text>
+              </>
+            )}
+          </>
+        ))
+      }
+      <line class="og-axis" x1={X(LO)} y1={Y(0)} x2={X(HI)} y2={Y(0)} />
+      <line class="og-axis" x1={X(0)} y1={Y(LO)} x2={X(0)} y2={Y(HI)} />
+      <text class="og-axname" data-og-xname x={X(HI) + 2} y={Y(0) - 8}></text>
+      <text class="og-axname" data-og-yname x={X(0) + 8} y={Y(HI) + 2}></text>
+      <path class="og-arc" data-og-arc></path>
+      {
+        USERS.map((name, u) => (
+          <g class:list={['og-vec', u === 0 && 'is-a']} data-og-vec={u}>
+            <line x1={X(0)} y1={Y(0)} marker-end={`url(#${id}-m)`} />
+            <circle r="4" />
+            <text class="og-name">{name}</text>
+          </g>
+        ))
+      }
+    </svg>
+
+    <div class="og-side">
+      <div class="og-cap" data-og-cap></div>
+      {
+        others.map((v) => (
+          <div class="og-row" data-og-row={v}>
+            <span class="og-rname">{USERS[v]}</span>
+            <span class="og-track">
+              <span class="og-mid" />
+              <span class="og-fill" data-og-fill />
+            </span>
+            <strong class="og-val" data-og-val />
+          </div>
+        ))
+      }
+      <div class="og-angle">{t.angle} <strong data-og-deg></strong></div>
+      <RecMovieKey />
+    </div>
+  </div>
+
+  <p class="og-note" data-og-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const R = JSON.parse(root.dataset.ogRatings);
+    const users = JSON.parse(root.dataset.ogUsers);
+    const planes = JSON.parse(root.dataset.ogPlanes);
+    const G = JSON.parse(root.dataset.ogGeo);
+    const S = JSON.parse(root.dataset.ogStrings);
+    const X = (v) => G.PAD + (v - G.LO) * G.U;
+    const Y = (v) => G.PAD + (G.HI - v) * G.U;
+    const num = (x) => String(+x.toFixed(2));
+
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
+    }
+    /* 둘 다 본 칸의 평균. A가 본 네 편을 다른 네 사람도 모두 봤다. */
+    function commonMean(u, v) {
+      const common = R[u].map((_, i) => i).filter((i) => R[u][i] > 0 && R[v][i] > 0);
+      return common.reduce((sum, i) => sum + R[u][i], 0) / common.length;
+    }
+    /* 슬라이더: 본 칸에서 c를 뺀다. 안 본 칸은 코사인 때처럼 0에 그대로 둔다. */
+    const shifted = (u, c) => R[u].map((x) => (x > 0 ? x - c : 0));
+    /* 각자의 평균: 둘 다 본 칸만 남기고 자기 평균을 뺀다. 이 코사인이 피어슨이다. */
+    const centered = (u, v) => {
+      const m = commonMean(u, v);
+      return R[u].map((x, i) => (R[u][i] > 0 && R[v][i] > 0 ? x - m : 0));
+    };
+
+    let c = 0;
+    let own = false;
+    let plane = 0;
+    let pick = 3;
+
+    const range = root.querySelector('[data-og-range]');
+    const cval = root.querySelector('[data-og-cval]');
+    const ownBtn = root.querySelector('[data-og-own]');
+    const vecs = [...root.querySelectorAll('[data-og-vec]')];
+    const rows = [...root.querySelectorAll('[data-og-row]')];
+    const arc = root.querySelector('[data-og-arc]');
+    const cap = root.querySelector('[data-og-cap]');
+    const deg = root.querySelector('[data-og-deg]');
+    const note = root.querySelector('[data-og-note]');
+    const keyCells = [...root.querySelectorAll('[data-rk-item]')];
+
+    function render() {
+      const [ix, iy] = planes[plane];
+      /* 평면의 좌표. 각자의 평균이면 A의 평균은 네 사람 모두와 4로 같다. */
+      const point = (u) => {
+        const mate = u === 0 ? pick : 0;
+        const vec = own ? centered(u, mate) : shifted(u, c);
+        return [vec[ix], vec[iy]];
+      };
+      vecs.forEach((g) => {
+        const u = Number(g.dataset.ogVec);
+        const [x, y] = point(u);
+        const line = g.querySelector('line');
+        const len = Math.hypot(x, y) * G.U;
+        const cut = len > 8 ? (len - 8) / len : 0;
+        line.setAttribute('x2', String(X(0) + (X(x) - X(0)) * cut));
+        line.setAttribute('y2', String(Y(0) + (Y(y) - Y(0)) * cut));
+        line.style.visibility = len > 8 ? 'visible' : 'hidden';
+        const dot = g.querySelector('circle');
+        dot.setAttribute('cx', String(X(x)));
+        dot.setAttribute('cy', String(Y(y)));
+        const label = g.querySelector('text');
+        label.setAttribute('x', String(X(x) + 8));
+        label.setAttribute('y', String(Y(y) - 7));
+        g.classList.toggle('is-pick', u === pick);
+      });
+
+      const a = point(0);
+      const b = point(pick);
+      const zero = Math.hypot(...a) < 1e-9 || Math.hypot(...b) < 1e-9;
+      const planeCos = cosine(a, b);
+      const angle = (Math.acos(Math.max(-1, Math.min(1, planeCos))) * 180) / Math.PI;
+      if (zero || angle < 0.5) {
+        arc.setAttribute('d', '');
+      } else {
+        const R0 = 38;
+        const angA = Math.atan2(a[1], a[0]);
+        const angB = Math.atan2(b[1], b[0]);
+        let d = angB - angA;
+        while (d > Math.PI) d -= 2 * Math.PI;
+        while (d <= -Math.PI) d += 2 * Math.PI;
+        const p = (t) => `${X(0) + R0 * Math.cos(t)} ${Y(0) - R0 * Math.sin(t)}`;
+        arc.setAttribute('d', `M ${p(angA)} A ${R0} ${R0} 0 0 ${d > 0 ? 0 : 1} ${p(angA + d)}`);
+      }
+
+      const values = {};
+      rows.forEach((row) => {
+        const v = Number(row.dataset.ogRow);
+        const s = own ? cosine(centered(0, v), centered(v, 0)) : cosine(shifted(0, c), shifted(v, c));
+        values[v] = s;
+        row.querySelector('[data-og-val]').textContent = s.toFixed(3);
+        row.querySelector('[data-og-val]').classList.toggle('is-neg', s < -1e-9);
+        const fillEl = row.querySelector('[data-og-fill]');
+        const w = Math.min(1, Math.abs(s)) * 50;
+        fillEl.style.width = `${w}%`;
+        fillEl.style.left = s >= 0 ? '50%' : `${50 - w}%`;
+        fillEl.classList.toggle('is-neg', s < 0);
+        row.classList.toggle('is-pick', v === pick);
+      });
+
+      cap.textContent = own ? S.barsOwn : S.bars;
+      cval.textContent = own ? '-' : num(c);
+      deg.textContent = zero ? '-' : `${angle.toFixed(1)}°`;
+      range.value = String(c);
+      ownBtn.classList.toggle('is-on', own);
+      root.classList.toggle('is-own', own);
+      root.querySelector('[data-og-xname]').textContent = `M${ix + 1}`;
+      root.querySelector('[data-og-yname]').textContent = `M${iy + 1}`;
+      root.querySelectorAll('[data-og-plane]').forEach((x) => x.classList.toggle('is-on', Number(x.dataset.ogPlane) === plane));
+      root.querySelectorAll('[data-og-user]').forEach((x) => x.classList.toggle('is-on', Number(x.dataset.ogUser) === pick));
+      keyCells.forEach((cell) => {
+        const i = Number(cell.dataset.rkItem);
+        cell.classList.toggle('is-now', i === ix || i === iy);
+      });
+
+      const vars = { v: users[pick], s: values[pick].toFixed(3), deg: angle.toFixed(1) };
+      const pairText = zero ? fill(S.zero, vars) : angle > 179.95 ? fill(S.opposite, vars) : fill(S.pair, vars);
+      const lead = own
+        ? fill(S.ownNote, { v: users[pick], ma: num(commonMean(0, pick)), mb: num(commonMean(pick, 0)) })
+        : c === 0
+          ? S.rawNote
+          : fill(S.shiftNote, { c: num(c) });
+      setLines(note, join(lead, pairText));
+    }
+
+    range.addEventListener('input', () => {
+      c = Number(range.value);
+      own = false;
+      render();
+    });
+    ownBtn.addEventListener('click', () => {
+      own = !own;
+      render();
+    });
+    root.querySelectorAll('[data-og-plane]').forEach((x) =>
+      x.addEventListener('click', () => {
+        plane = Number(x.dataset.ogPlane);
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-og-user]').forEach((x) =>
+      x.addEventListener('click', () => {
+        pick = Number(x.dataset.ogUser);
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-origin-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-origin-demo .og-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.4em;
+  }
+  .aas-origin-demo .og-bar2 {
+    justify-content: flex-start;
+  }
+  .aas-origin-demo .og-head {
+    font-size: 0.95em;
+  }
+  .aas-origin-demo .og-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-origin-demo .og-label {
+    margin-right: 0.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-origin-demo .og-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-origin-demo .og-range strong {
+    min-width: 2.2em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-role-focus);
+  }
+  .aas-origin-demo .og-range input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-origin-demo .og-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-origin-demo .og-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-origin-demo .og-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-origin-demo .og-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 2em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-origin-demo .og-svg {
+    flex: 0 1 24em;
+    min-width: 0;
+  }
+  .aas-origin-demo .og-quad {
+    fill: color-mix(in srgb, var(--aas-role-focus) 9%, transparent);
+  }
+  .aas-origin-demo .og-grid {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .aas-origin-demo .og-axis {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+  }
+  .aas-origin-demo .og-tick {
+    font-size: 14px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-origin-demo .og-axname {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-origin-demo .og-axname[data-og-xname] {
+    text-anchor: end;
+  }
+  .aas-origin-demo .og-arc {
+    fill: none;
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-origin-demo .og-vec line {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+    opacity: 0.35;
+  }
+  .aas-origin-demo .og-vec circle {
+    fill: var(--aas-muted);
+    opacity: 0.45;
+  }
+  .aas-origin-demo .og-vec .og-name {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-origin-demo .og-vec.is-a line,
+  .aas-origin-demo .og-vec.is-a circle {
+    stroke: var(--aas-role-model);
+    opacity: 1;
+    stroke-width: 3;
+  }
+  .aas-origin-demo .og-vec.is-a circle {
+    fill: var(--aas-role-model);
+    stroke-width: 0;
+  }
+  .aas-origin-demo .og-vec.is-a .og-name {
+    fill: var(--aas-role-model);
+  }
+  .aas-origin-demo .og-vec.is-pick line {
+    stroke: var(--aas-role-source);
+    opacity: 1;
+    stroke-width: 3;
+  }
+  .aas-origin-demo .og-vec.is-pick circle {
+    fill: var(--aas-role-source);
+    opacity: 1;
+  }
+  .aas-origin-demo .og-vec.is-pick .og-name {
+    fill: var(--aas-role-source);
+  }
+  .aas-origin-demo.is-own .og-quad {
+    fill: transparent;
+  }
+  .aas-origin-demo .og-side {
+    flex: 1 1 15em;
+    max-width: 24em;
+    min-width: 0;
+  }
+  .aas-origin-demo .og-cap {
+    margin-bottom: 0.25em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-origin-demo .og-row {
+    display: grid;
+    grid-template-columns: 1.2em 1fr 3.8em;
+    gap: 0.4em;
+    align-items: center;
+    height: 1.55em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-origin-demo .og-rname {
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-origin-demo .og-row.is-pick .og-rname {
+    color: var(--aas-role-source);
+  }
+  .aas-origin-demo .og-track {
+    position: relative;
+    height: 0.95em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-origin-demo .og-mid {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--aas-muted);
+  }
+  .aas-origin-demo .og-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--aas-role-eval);
+  }
+  .aas-origin-demo .og-fill.is-neg {
+    background: var(--aas-role-guard);
+  }
+  .aas-origin-demo .og-val {
+    text-align: right;
+  }
+  .aas-origin-demo .og-val.is-neg {
+    color: var(--aas-role-guard);
+  }
+  .aas-origin-demo .og-angle {
+    margin: 0.35em 0 0.45em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-origin-demo .og-angle strong {
+    margin-left: 0.2em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-role-focus);
+  }
+  .aas-origin-demo .og-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.6em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-origin-demo.is-slide {
+    font-size: clamp(1rem, 2.3vh, 1.7rem);
+    margin: 0.5rem 0;
+  }
+  .aas-origin-demo.is-slide .og-svg {
+    max-height: 33vh;
+  }
+</style>

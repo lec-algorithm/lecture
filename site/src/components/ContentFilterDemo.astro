@@ -10,7 +10,10 @@
 // 절차와 수치는 algorithm-code의 contentBasedFiltering.c ·
 // content_based_filtering.py와 같다. 프로필 (5 1 1 1), 순위 M3 0.802,
 // M7 0.764, M6 0.189이다.
+//
+// 줄 머리에 영화 제목을 함께 적어, 번호가 무슨 영화인지 다른 슬라이드를 보지 않아도 된다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import { MOVIE_TITLES } from './recData';
 
 interface Props {
   /** 영화마다 장르 벡터 (1이면 그 장르) */
@@ -58,7 +61,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     weight: '가중치',
     score: '점수',
     profile: '프로필',
-    newMark: '새 영화',
     idle: '{u}가 본 영화마다 (평점 - 3)만큼 그 영화의 장르를 프로필에 더합니다.',
     add: '{m}: 평점 {r} → 가중치 {w}. 장르 {genres}에 {w}씩 더해 프로필 ({profile})',
     score1: '{m}: 장르 ({f})와 프로필 ({profile})의 코사인 = {dot} / ({np} × {nf}) = {s}',
@@ -81,7 +83,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     weight: 'weight',
     score: 'score',
     profile: 'profile',
-    newMark: 'new',
     idle: 'For each movie {u} rated, add its genres to the profile, scaled by (rating - 3).',
     add: '{m}: rating {r} → weight {w}. Add {w} to {genres}; profile ({profile})',
     score1: '{m}: cosine of genres ({f}) and profile ({profile}) = {dot} / ({np} × {nf}) = {s}',
@@ -104,7 +105,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     weight: '权重',
     score: '分数',
     profile: '画像',
-    newMark: '新片',
     idle: '{u} 看过的每部电影，按 (评分 - 3) 把它的类型加到画像上。',
     add: '{m}：评分 {r} → 权重 {w}。给 {genres} 各加 {w}，画像 ({profile})',
     score1: '{m}：类型 ({f}) 与画像 ({profile}) 的余弦 = {dot} / ({np} × {nf}) = {s}',
@@ -117,6 +117,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const g = features[0].length;
 const genreNames = Array.from({ length: g }, (_, i) => t[`g${i}`] ?? `g${i + 1}`);
 const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
+const titles = MOVIE_TITLES[lang] ?? MOVIE_TITLES.ko;
 ---
 
 <div
@@ -151,7 +152,7 @@ const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
       <>
         <span class="cbd-name" data-cbd-name={i}>
           M{i + 1}
-          {newItems.includes(i) && <em class="cbd-new">{t.newMark}</em>}
+          <span class="cbd-title">{titles[i]}</span>
         </span>
         {row.map((f, j) => (
           <span class:list={['cbd-genre', f ? 'is-yes' : 'is-no']} data-cbd-genre={`${i}-${j}`}>
@@ -402,7 +403,7 @@ const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
 
   .aas-cb-demo .cbd-grid {
     display: grid;
-    grid-template-columns: 5.2em repeat(var(--cbd-g), minmax(3.2em, 4.6em)) 4.4em 4.2em 6.2em;
+    grid-template-columns: auto repeat(var(--cbd-g), minmax(2.6em, 4em)) 4em 3.6em 5.8em;
     gap: 0.25em 0.3em;
     justify-content: center;
     align-items: center;
@@ -427,14 +428,11 @@ const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
       background-color 0.3s,
       box-shadow 0.3s;
   }
-  .aas-cb-demo .cbd-new {
-    font-style: normal;
-    font-family: inherit;
-    font-size: 0.7em;
-    padding: 0.05em 0.35em;
-    border-radius: 0.4em;
-    background: var(--aas-role-tool);
-    color: #fff;
+  .aas-cb-demo .cbd-title {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.78em;
+    font-weight: 400;
+    white-space: nowrap;
   }
   .aas-cb-demo .cbd-name.is-cur {
     box-shadow: 0 0 0 3px var(--aas-role-focus);
@@ -562,7 +560,7 @@ const signed = (w: number) => (w > 0 ? `+${w}` : String(w));
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
   .aas-cb-demo.is-slide {
-    font-size: clamp(1rem, 2.9vh, 2rem);
+    font-size: clamp(1rem, 2.35vh, 1.7rem);
     margin: 0.5rem 0;
   }
   .aas-cb-demo.is-slide .cbd-genre,

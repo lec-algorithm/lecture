@@ -1,0 +1,552 @@
+---
+// (0|1(01*0)*1)*가 왜 3의 배수인지 나머지 기계로 보는 데모.
+//
+// 이진수를 왼쪽부터 읽으면 값은 두 배가 되고 읽은 비트가 더해진다. 그래서 3으로 나눈
+// 나머지 r은 (2r + b) mod 3으로 바뀌고, 기억할 것은 나머지 셋뿐이다. 전이 여섯 개가
+// 정규식의 글자와 하나씩 짝이 된다.
+//   r0의 고리 0 = 앞의 0, r0→r1 = 첫 1, r1→r2 = (의 0, r2의 고리 1 = 1*, r2→r1 = )의 0, r1→r0 = 끝의 1
+// 비트를 하나씩 눌러 붙이거나 예를 고르면 지금 전이와 정규식의 글자를 함께 칠한다.
+// 판정은 regexCore의 NFA로도 돌려 나머지 계산과 같은지 보여 준다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexCore from './RegexCore.astro';
+
+interface Props {
+  /** 처음 비트열 */
+  input?: string;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { input = '1001', slide = false } = Astro.props;
+const id = `m3-${Math.random().toString(36).slice(2, 9)}`;
+const REGEX = '(0|1(01*0)*1)*';
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '나머지를 세는 기계',
+    add: '붙이기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    value: '값',
+    rem: '나머지',
+    read: '읽은 비트',
+    rowR: '나머지',
+    yes: '✓ 3의 배수',
+    no: '✕ 3의 배수 아님',
+    agree: '정규식 NFA도 같은 답',
+    differ: '정규식 NFA와 다름',
+    idle: '아직 아무것도 읽지 않았습니다. 빈 문자열은 값 0이므로 3의 배수입니다.',
+    move: '{b}을 읽으면 값은 2 × {v0} + {b} = {v1}, 나머지는 r{r0}에서 r{r1}로 갑니다.',
+    done: '값이 아무리 커져도 기억할 것은 나머지 셋뿐이라 상태 3개로 충분합니다.',
+  },
+  en: {
+    title: 'A machine that counts remainders',
+    add: 'append',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    value: 'value',
+    rem: 'remainder',
+    read: 'bits read',
+    rowR: 'remainder',
+    yes: '✓ multiple of 3',
+    no: '✕ not a multiple of 3',
+    agree: 'the regex NFA agrees',
+    differ: 'the regex NFA differs',
+    idle: 'Nothing read yet. The empty string has value 0, so it is a multiple of 3.',
+    move: 'Reading {b}: the value becomes 2 × {v0} + {b} = {v1}, and the remainder goes from r{r0} to r{r1}.',
+    done: 'However large the value gets, only three remainders matter, so three states are enough.',
+  },
+  zh: {
+    title: '数余数的机器',
+    add: '追加',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    value: '值',
+    rem: '余数',
+    read: '已读位',
+    rowR: '余数',
+    yes: '✓ 是 3 的倍数',
+    no: '✕ 不是 3 的倍数',
+    agree: '正则的 NFA 答案相同',
+    differ: '正则的 NFA 答案不同',
+    idle: '还没有读入任何内容。空字符串的值为 0，所以是 3 的倍数。',
+    move: '读入 {b}：值变为 2 × {v0} + {b} = {v1}，余数从 r{r0} 变为 r{r1}。',
+    done: '不管值变得多大，要记住的只有三种余数，所以 3 个状态就够了。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+
+/* 그림 좌표: 나머지 셋을 한 줄로 */
+const R = 26;
+const Y = 86;
+const X = (i: number) => 90 + i * 200;
+const W = X(2) + 90;
+const H = 176;
+const loop = (i: number) =>
+  `M ${X(i) - 12} ${Y - R + 2} C ${X(i) - 42} ${Y - 80}, ${X(i) + 42} ${Y - 80}, ${X(i) + 13} ${Y - R}`;
+const fwd = (a: number) => `M ${X(a) + R - 2} ${Y - 11} C ${X(a) + 70} ${Y - 38}, ${X(a + 1) - 70} ${Y - 38}, ${X(a + 1) - R} ${Y - 12}`;
+const bwd = (a: number) => `M ${X(a) - R + 2} ${Y + 11} C ${X(a) - 70} ${Y + 38}, ${X(a - 1) + 70} ${Y + 38}, ${X(a - 1) + R} ${Y + 12}`;
+const edges = [
+  { key: '0-0', d: loop(0), label: '0', lx: X(0), ly: Y - 72 },
+  { key: '0-1', d: fwd(0), label: '1', lx: X(0) + 100, ly: Y - 38 },
+  { key: '1-2', d: fwd(1), label: '0', lx: X(1) + 100, ly: Y - 38 },
+  { key: '2-2', d: loop(2), label: '1', lx: X(2), ly: Y - 72 },
+  { key: '2-1', d: bwd(2), label: '0', lx: X(1) + 100, ly: Y + 50 },
+  { key: '1-0', d: bwd(1), label: '1', lx: X(0) + 100, ly: Y + 50 },
+];
+---
+
+<RegexCore />
+<div class:list={['aas-mod3-demo', slide && 'is-slide']} id={id} data-m3-input={input} data-m3-regex={REGEX} data-m3-strings={JSON.stringify(t)}>
+  <div class="m3-bar">
+    <span class="m3-head"><strong>{t.title}</strong></span>
+    <span class="m3-group">
+      <button type="button" class="m3-btn m3-bit" data-m3-bit="0">0 {t.add}</button>
+      <button type="button" class="m3-btn m3-bit" data-m3-bit="1">1 {t.add}</button>
+    </span>
+    <span class="m3-chips" data-m3-chips>
+      {['1001', '1100', '1011', '10000'].map((w) => <button type="button" class="m3-chip" data-m3-word={w}>{w}</button>)}
+    </span>
+    <div class="m3-controls">
+      <button type="button" data-act="back" class="m3-btn">{t.back}</button>
+      <button type="button" data-act="step" class="m3-btn">{t.step}</button>
+      <button type="button" data-act="play" class="m3-btn m3-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="m3-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="m3-regex">
+    {[...REGEX].map((c, i) => <code data-m3-re={i}>{c}</code>)}
+  </div>
+
+  <svg class="m3-graph" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.title}>
+    <defs>
+      <marker id={`${id}-a`} class="m3-tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker>
+      <marker id={`${id}-b`} class="m3-tip-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker>
+    </defs>
+    {edges.map((e) => (
+      <g class="m3-edge" data-m3-edge={e.key}>
+        <path d={e.d} marker-end={`url(#${id}-a)`} data-off={`url(#${id}-a)`} data-on={`url(#${id}-b)`} />
+        <text x={e.lx} y={e.ly}>{e.label}</text>
+      </g>
+    ))}
+    {[0, 1, 2].map((i) => (
+      <g class="m3-state" data-m3-state={i}>
+        {i === 0 && <circle class="m3-ring" cx={X(i)} cy={Y} r={R + 5} />}
+        <circle cx={X(i)} cy={Y} r={R} />
+        <text x={X(i)} y={Y}>r{i}</text>
+      </g>
+    ))}
+  </svg>
+
+  <div class="m3-stats">
+    <div class="m3-tape" data-m3-tape></div>
+    <span class="m3-stat">{t.value} <strong data-m3-value>0</strong></span>
+    <span class="m3-stat">{t.rem} <strong data-m3-rem>0</strong></span>
+    <span class="m3-verdict" data-m3-verdict></span>
+    <span class="m3-agree" data-m3-agree></span>
+    <div class="m3-table">
+      <span class="m3-th">{t.rowR}</span>
+      {[0, 1, 2].map((i) => <b class="m3-th" data-m3-col={i}>r{i}</b>)}
+      {[0, 1].map((b) => (
+        <>
+          <b class="m3-td">{b}</b>
+          {[0, 1, 2].map((r) => <span class="m3-td" data-m3-col={r} data-m3-at={`${r}${b}`}>r{(2 * r + b) % 3}</span>)}
+        </>
+      ))}
+    </div>
+  </div>
+
+  <p class="m3-note" data-m3-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])\s*(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.m3Strings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const core = globalThis.aasRegexCore;
+    const g = core.build(root.dataset.m3Regex);
+    const MAX = 16;
+
+    /* 전이 하나가 정규식의 어느 글자인지. 위치는 (0|1(01*0)*1)* 안의 번호다. */
+    const RE_AT = { '0-0': [1], '0-1': [3], '1-2': [5], '2-2': [6, 7], '2-1': [8], '1-0': [11] };
+
+    let word = root.dataset.m3Input;
+    let pos = 0;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    const tape = root.querySelector('[data-m3-tape]');
+    const note = root.querySelector('[data-m3-note]');
+    const verdict = root.querySelector('[data-m3-verdict]');
+    const agreeEl = root.querySelector('[data-m3-agree]');
+    const valueEl = root.querySelector('[data-m3-value]');
+    const remEl = root.querySelector('[data-m3-rem]');
+
+    /* 앞에서 pos개를 읽은 값과 나머지, 그리고 마지막 전이 */
+    function walk() {
+      let v = 0;
+      let r = 0;
+      let last = null;
+      for (let i = 0; i < pos; i++) {
+        const b = Number(word[i]);
+        const r0 = r;
+        const v0 = v;
+        v = 2 * v + b;
+        r = (2 * r + b) % 3;
+        last = { b, r0, r, v0, v };
+      }
+      return { v, r, last };
+    }
+
+    function render() {
+      const { v, r, last } = walk();
+      root.querySelectorAll('[data-m3-state]').forEach((s) => s.classList.toggle('is-now', Number(s.dataset.m3State) === r));
+      root.querySelectorAll('[data-m3-edge]').forEach((e) => {
+        const on = !!last && e.dataset.m3Edge === `${last.r0}-${last.r}` ;
+        e.classList.toggle('is-on', on);
+        const p = e.querySelector('path');
+        p.setAttribute('marker-end', on ? p.dataset.on : p.dataset.off);
+      });
+      const lit = last ? RE_AT[`${last.r0}-${last.r}`] : [];
+      root.querySelectorAll('[data-m3-re]').forEach((c) => c.classList.toggle('is-on', lit.includes(Number(c.dataset.m3Re))));
+      root.querySelectorAll('[data-m3-col]').forEach((c) => c.classList.toggle('is-now', !!last && Number(c.dataset.m3Col) === last.r0));
+      root.querySelectorAll('[data-m3-at]').forEach((c) => c.classList.toggle('is-on', !!last && c.dataset.m3At === `${last.r0}${last.b}`));
+      tape.replaceChildren(...[...word].map((c, i) => {
+        const cell = document.createElement('span');
+        cell.className = `m3-cell${i < pos ? ' is-read' : ''}${i === pos - 1 ? ' is-last' : ''}`;
+        cell.textContent = c;
+        return cell;
+      }));
+      valueEl.textContent = v.toLocaleString('en-US');
+      remEl.textContent = String(r);
+      const ok = r === 0;
+      verdict.textContent = ok ? S.yes : S.no;
+      verdict.className = `m3-verdict ${ok ? 'is-yes' : 'is-no'}`;
+      const nfa = core.run(g, word.slice(0, pos)).ok;
+      agreeEl.textContent = nfa === ok ? S.agree : S.differ;
+      agreeEl.className = `m3-agree${nfa === ok ? '' : ' is-differ'}`;
+      if (!last) setLines(note, S.idle);
+      else if (pos === word.length) setLines(note, `${fill(S.move, last_vars(last))} ${S.done}`);
+      else setLines(note, fill(S.move, last_vars(last)));
+      root.querySelectorAll('[data-m3-word]').forEach((b) => b.classList.toggle('is-on', b.dataset.m3Word === word));
+    }
+    const last_vars = (l) => ({ b: l.b, v0: l.v0.toLocaleString('en-US'), v1: l.v.toLocaleString('en-US'), r0: l.r0, r1: l.r });
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (pos >= word.length) return stop();
+      pos += 1;
+      render();
+      if (pos >= word.length) stop();
+    }
+    root.querySelectorAll('[data-m3-bit]').forEach((b) => b.addEventListener('click', () => {
+      stop();
+      if (pos >= MAX) return;
+      word = word.slice(0, pos) + b.dataset.m3Bit;
+      pos = word.length;
+      render();
+    }));
+    root.querySelectorAll('[data-m3-word]').forEach((b) => b.addEventListener('click', () => {
+      stop();
+      word = b.dataset.m3Word;
+      pos = 0;
+      render();
+    }));
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (pos > 0) pos -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      pos = 0;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (pos >= word.length) pos = 0;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-mod3-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-mod3-demo .m3-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.7em;
+    align-items: center;
+    margin-bottom: 0.4em;
+  }
+  .aas-mod3-demo .m3-head {
+    font-size: 0.95em;
+  }
+  .aas-mod3-demo .m3-group,
+  .aas-mod3-demo .m3-chips {
+    display: flex;
+    gap: 0.3em;
+  }
+  .aas-mod3-demo .m3-chips {
+    margin-right: auto;
+  }
+  .aas-mod3-demo .m3-controls {
+    display: flex;
+    gap: 0.35em;
+  }
+  .aas-mod3-demo .m3-btn,
+  .aas-mod3-demo .m3-chip {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-mod3-demo .m3-chip {
+    font-family: var(--aas-mono, monospace);
+    border-radius: 999px;
+  }
+  .aas-mod3-demo .m3-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-mod3-demo .m3-btn:hover,
+  .aas-mod3-demo .m3-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-mod3-demo .m3-bit {
+    font-weight: 700;
+  }
+  .aas-mod3-demo .m3-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-mod3-demo .m3-regex {
+    display: flex;
+    justify-content: center;
+    gap: 0.05em;
+    margin-bottom: 0.1em;
+  }
+  .aas-mod3-demo .m3-regex code {
+    padding: 0.02em 0.16em;
+    font-size: 1.05em;
+    font-weight: 700;
+    border-radius: 0.2em;
+    background: none;
+    color: var(--aas-text);
+    transition: background-color 0.2s, color 0.2s;
+  }
+  .aas-mod3-demo .m3-regex code.is-on {
+    background: var(--aas-role-focus);
+    color: #fff;
+  }
+  .aas-mod3-demo .m3-graph {
+    display: block;
+    width: 100%;
+    max-width: 40em;
+    height: auto;
+    margin: 0 auto;
+  }
+  .aas-mod3-demo .m3-tip path {
+    fill: var(--aas-muted);
+  }
+  .aas-mod3-demo .m3-tip-on path {
+    fill: var(--aas-role-focus);
+  }
+  .aas-mod3-demo .m3-edge path {
+    fill: none;
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+    transition: stroke 0.3s, stroke-width 0.3s;
+  }
+  .aas-mod3-demo .m3-edge text {
+    font-size: 17px;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-mod3-demo .m3-edge.is-on path {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3.2;
+  }
+  .aas-mod3-demo .m3-edge.is-on text {
+    fill: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-mod3-demo .m3-state circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .aas-mod3-demo .m3-state .m3-ring {
+    fill: none;
+  }
+  .aas-mod3-demo .m3-state text {
+    font-size: 17px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-mod3-demo .m3-state.is-now circle:not(.m3-ring) {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-mod3-demo .m3-state.is-now text {
+    fill: #fff;
+  }
+  .aas-mod3-demo .m3-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.9em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-mod3-demo .m3-stat strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.15em;
+    color: var(--aas-text);
+  }
+  .aas-mod3-demo .m3-tape {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15em;
+    min-height: 1.7em;
+  }
+  .aas-mod3-demo .m3-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5em;
+    height: 1.6em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+  }
+  .aas-mod3-demo .m3-cell.is-read {
+    color: var(--aas-muted);
+    background: color-mix(in srgb, var(--aas-muted) 15%, var(--aas-bg));
+  }
+  .aas-mod3-demo .m3-cell.is-last {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-mod3-demo .m3-verdict {
+    font-weight: 700;
+  }
+  .aas-mod3-demo .m3-verdict.is-yes {
+    color: var(--aas-role-eval);
+  }
+  .aas-mod3-demo .m3-verdict.is-no {
+    color: var(--aas-role-guard);
+  }
+  .aas-mod3-demo .m3-agree {
+    padding: 0.05em 0.6em;
+    font-size: 0.9em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+  }
+  .aas-mod3-demo .m3-agree.is-differ {
+    color: #fff;
+    background: var(--aas-role-guard);
+  }
+  .aas-mod3-demo .m3-table {
+    display: grid;
+    grid-template-columns: auto repeat(3, minmax(2.2em, 1fr));
+    margin-left: auto;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    line-height: 1.3;
+    color: var(--aas-text);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-mod3-demo .m3-th,
+  .aas-mod3-demo .m3-td {
+    padding: 0 0.5em;
+    text-align: center;
+    transition: background-color 0.2s;
+  }
+  .aas-mod3-demo span.m3-th {
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+  }
+  .aas-mod3-demo .m3-th.is-now,
+  .aas-mod3-demo .m3-td.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, var(--aas-bg));
+  }
+  .aas-mod3-demo .m3-td.is-on {
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-mod3-demo .m3-note {
+    margin: 0.4em 0 0;
+    font-size: 0.82em;
+    color: var(--aas-text);
+    min-height: 2.8em;
+  }
+  .aas-mod3-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.95rem);
+    margin: 0.5rem 0;
+  }
+  .aas-mod3-demo.is-slide .m3-graph {
+    max-width: none;
+    width: auto;
+    height: 24vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-mod3-demo * {
+      transition: none !important;
+    }
+  }
+</style>

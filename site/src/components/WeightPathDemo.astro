@@ -1,0 +1,447 @@
+---
+// BFS의 "가장 짧은 길"이 가중치가 있으면 왜 틀리는지 슬라이더로 보는 데모.
+//
+// 작은 예는 슬라이드의 3 + 3 + 3 = 9짜리 길과 간선 하나 20짜리 길이다. 간선 셋의
+// 가중치 a와 간선 하나의 가중치 d를 바꾸면 BFS(간선 수가 가장 적은 길)와
+// Dijkstra(가중치 합이 가장 작은 길)를 실제로 돌려 비교한다. 3a ≥ d이면 둘이
+// 같고, 3a < d이면 갈린다.
+//
+// 예제 그래프 탭은 sp의 0에서 6까지다. BFS는 0 4 6(29), Dijkstra는 0 4 5 2 6(25)이다.
+// "모두 1로"를 켜면 간선 수와 가중치 합이 같아져 BFS도 최단이 된다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `bw-${Math.random().toString(36).slice(2, 9)}`;
+const SAMPLES = ['detour', 'sp'];
+const data = Object.fromEntries(SAMPLES.map((k) => [k, { n: getGraph(k).nodes.length, edges: getGraph(k).edges }]));
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'BFS와 Dijkstra의 길',
+    detour: '작은 예',
+    sp: '예제 그래프',
+    unit: '모두 1로',
+    unitOff: '가중치 되돌리기',
+    a: '위쪽 간선 a',
+    d: '아래 간선 d',
+    bfs: 'BFS의 길',
+    dij: 'Dijkstra의 길',
+    edges: '간선',
+    cost: '비용',
+    same: '두 길이 같습니다. 이 가중치에서는 간선이 적은 길이 합도 가장 작습니다.',
+    sameCost: '길은 달라도 비용은 같습니다.',
+    diff: 'BFS는 간선 {k}개 길을 먼저 찾고 멈춥니다. 비용은 {b}이고, 최단인 {c}보다 {g} 더 듭니다.',
+    tip: '굵은 초록이 Dijkstra의 길, 파란 점선이 BFS의 길입니다.',
+  },
+  en: {
+    title: 'The paths of BFS and Dijkstra',
+    detour: 'Small example',
+    sp: 'Example graph',
+    unit: 'Set all to 1',
+    unitOff: 'Restore weights',
+    a: 'upper edges a',
+    d: 'lower edge d',
+    bfs: 'BFS path',
+    dij: 'Dijkstra path',
+    edges: 'edges',
+    cost: 'cost',
+    same: 'The paths are the same. With these weights the path with fewest edges also has the smallest total.',
+    sameCost: 'The paths differ but the costs are equal.',
+    diff: 'BFS finds the {k}-edge path first and stops. Its cost is {b}, which is {g} more than the shortest {c}.',
+    tip: 'Thick green is the Dijkstra path, dashed blue is the BFS path.',
+  },
+  zh: {
+    title: 'BFS 与 Dijkstra 的路径',
+    detour: '小例子',
+    sp: '示例图',
+    unit: '全部设为 1',
+    unitOff: '恢复权重',
+    a: '上方的边 a',
+    d: '下方的边 d',
+    bfs: 'BFS 的路径',
+    dij: 'Dijkstra 的路径',
+    edges: '边',
+    cost: '代价',
+    same: '两条路径相同。在这组权重下，边最少的路径总和也最小。',
+    sameCost: '路径不同，但代价相同。',
+    diff: 'BFS 先找到 {k} 条边的路径就停下。代价 {b}，比最短的 {c} 多 {g}。',
+    tip: '粗绿线是 Dijkstra 的路径，蓝色虚线是 BFS 的路径。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-weight-path-demo', slide && 'is-slide']}
+  id={id}
+  data-bw-data={JSON.stringify(data)}
+  data-bw-strings={JSON.stringify(t)}
+>
+  <div class="bw-bar">
+    <span class="bw-head"><strong>{t.title}</strong></span>
+    <div class="bw-tabs">
+      {SAMPLES.map((k) => <button type="button" class="bw-chip" data-bw-tab={k}>{t[k]}</button>)}
+      <button type="button" class="bw-btn" data-bw-unit>{t.unit}</button>
+    </div>
+  </div>
+
+  <div class="bw-sliders" data-bw-sliders>
+    <label class="bw-range">
+      {t.a} <strong data-bw-aval></strong>
+      <input type="range" min="1" max="9" step="1" value="3" data-bw-a />
+    </label>
+    <label class="bw-range">
+      {t.d} <strong data-bw-dval></strong>
+      <input type="range" min="1" max="30" step="1" value="20" data-bw-d />
+    </label>
+  </div>
+
+  <div class="bw-body">
+    <div class="bw-graph">
+      {SAMPLES.map((k) => (
+        <div class="bw-fig" data-bw-fig={k}>
+          <GraphFigure graph={k} bare slide={slide} />
+        </div>
+      ))}
+    </div>
+    <div class="bw-panel">
+      <div class="bw-res is-bfs">
+        <div class="bw-name">{t.bfs}</div>
+        <code data-bw-bpath></code>
+        <div class="bw-nums">{t.edges} <b data-bw-bedges></b> · {t.cost} <strong data-bw-bcost></strong></div>
+      </div>
+      <div class="bw-res is-dij">
+        <div class="bw-name">{t.dij}</div>
+        <code data-bw-dpath></code>
+        <div class="bw-nums">{t.edges} <b data-bw-dedges></b> · {t.cost} <strong data-bw-dcost></strong></div>
+      </div>
+      <p class="bw-note" data-bw-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.bwStrings);
+    const DATA = JSON.parse(root.dataset.bwData);
+    const ENDS = { detour: [0, 3], sp: [0, 6] };
+
+    let tab = 'detour';
+    let unit = false;
+    const aRange = root.querySelector('[data-bw-a]');
+    const dRange = root.querySelector('[data-bw-d]');
+    const tabs = [...root.querySelectorAll('[data-bw-tab]')];
+    const unitBtn = root.querySelector('[data-bw-unit]');
+    const q = (s) => root.querySelector(s);
+
+    /* 지금 화면의 간선 가중치 */
+    function edgesNow() {
+      const a = Number(aRange.value);
+      const d = Number(dRange.value);
+      return DATA[tab].edges.map(([u, v, w]) => {
+        if (unit) return [u, v, 1];
+        if (tab !== 'detour') return [u, v, w];
+        return [u, v, u === 0 && v === 3 ? d : a];
+      });
+    }
+    const adjOf = (edges, n) => {
+      const adj = Array.from({ length: n }, () => []);
+      edges.forEach(([u, v, w]) => adj[u].push([v, w]));
+      adj.forEach((x) => x.sort((p, r) => p[0] - r[0]));
+      return adj;
+    };
+    const back = (from, t) => {
+      const p = [];
+      for (let x = t; x !== -1; x = from[x]) p.unshift(x);
+      return p;
+    };
+    function bfs(adj, s, t) {
+      const from = new Array(adj.length).fill(-1);
+      const seen = new Array(adj.length).fill(false);
+      const q0 = [s];
+      seen[s] = true;
+      while (q0.length) {
+        const u = q0.shift();
+        if (u === t) break;
+        adj[u].forEach(([v]) => {
+          if (!seen[v]) {
+            seen[v] = true;
+            from[v] = u;
+            q0.push(v);
+          }
+        });
+      }
+      return back(from, t);
+    }
+    function dijkstra(adj, s, t) {
+      const n = adj.length;
+      const dist = new Array(n).fill(Infinity);
+      const from = new Array(n).fill(-1);
+      const done = new Array(n).fill(false);
+      dist[s] = 0;
+      for (let k = 0; k < n; k++) {
+        let u = -1;
+        for (let v = 0; v < n; v++) if (!done[v] && dist[v] < Infinity && (u < 0 || dist[v] < dist[u])) u = v;
+        if (u < 0) break;
+        done[u] = true;
+        adj[u].forEach(([v, w]) => {
+          if (dist[u] + w < dist[v]) {
+            dist[v] = dist[u] + w;
+            from[v] = u;
+          }
+        });
+      }
+      return back(from, t);
+    }
+    const costOf = (adj, p) => p.reduce((c, v, i) => (i ? c + adj[p[i - 1]].find((e) => e[0] === v)[1] : 0), 0);
+
+    function render() {
+      tabs.forEach((c) => c.classList.toggle('is-on', c.dataset.bwTab === tab));
+      q('[data-bw-sliders]').classList.toggle('is-off', tab !== 'detour' || unit);
+      unitBtn.textContent = unit ? S.unitOff : S.unit;
+      q('[data-bw-aval]').textContent = aRange.value;
+      q('[data-bw-dval]').textContent = dRange.value;
+      const edges = edgesNow();
+      const { n } = DATA[tab];
+      const adj = adjOf(edges, n);
+      const [s, t] = ENDS[tab];
+      const pb = bfs(adj, s, t);
+      const pd = dijkstra(adj, s, t);
+      const cb = costOf(adj, pb);
+      const cd = costOf(adj, pd);
+      q('[data-bw-bpath]').textContent = pb.join(' → ');
+      q('[data-bw-dpath]').textContent = pd.join(' → ');
+      q('[data-bw-bedges]').textContent = String(pb.length - 1);
+      q('[data-bw-dedges]').textContent = String(pd.length - 1);
+      q('[data-bw-bcost]').textContent = String(cb);
+      q('[data-bw-dcost]').textContent = String(cd);
+
+      root.querySelectorAll('[data-bw-fig]').forEach((fig) => {
+        const on = fig.dataset.bwFig === tab;
+        fig.classList.toggle('is-off', !on);
+        if (!on) return;
+        const onPath = (p, key) => p.some((v, i) => i > 0 && `${p[i - 1]}-${v}` === key);
+        fig.querySelectorAll('[data-gf-edge]').forEach((el) => {
+          const key = el.dataset.gfEdge;
+          const [u, v] = key.split('-').map(Number);
+          el.querySelector('.gf-weight').textContent = String(edges.find((e) => e[0] === u && e[1] === v)[2]);
+          el.classList.toggle('is-tree', onPath(pd, key));
+          el.classList.toggle('is-cand', onPath(pb, key) && !onPath(pd, key));
+        });
+        fig.querySelectorAll('[data-gf-node]').forEach((el) => {
+          const v = Number(el.dataset.gfNode);
+          el.classList.toggle('is-ring', v === s || v === t);
+        });
+      });
+      const samePath = pb.join() === pd.join();
+      const first = samePath
+        ? S.same
+        : cb === cd
+          ? S.sameCost
+          : fill(S.diff, { k: pb.length - 1, b: cb, c: cd, g: cb - cd });
+      setLines(q('[data-bw-note]'), join(first, S.tip));
+    }
+
+    tabs.forEach((c) =>
+      c.addEventListener('click', () => {
+        tab = c.dataset.bwTab;
+        render();
+      }),
+    );
+    unitBtn.addEventListener('click', () => {
+      unit = !unit;
+      render();
+    });
+    aRange.addEventListener('input', render);
+    dRange.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-weight-path-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-weight-path-demo .bw-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-weight-path-demo .bw-head {
+    font-size: 0.95em;
+  }
+  .aas-weight-path-demo .bw-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-weight-path-demo .bw-chip {
+    padding: 0.2em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-weight-path-demo .bw-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-weight-path-demo .bw-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-weight-path-demo .bw-btn {
+    margin-left: 0.4em;
+    padding: 0.3em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-weight-path-demo .bw-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-weight-path-demo .bw-sliders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 2em;
+    margin-bottom: 0.5em;
+  }
+  /* 숨겨도 자리는 그대로 둔다. 탭을 바꿀 때 아래 칸이 위아래로 흔들리지 않게 */
+  .aas-weight-path-demo .bw-sliders.is-off {
+    visibility: hidden;
+  }
+  .aas-weight-path-demo .bw-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-weight-path-demo .bw-range strong {
+    min-width: 1.6em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-weight-path-demo .bw-range input {
+    width: 11em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-weight-path-demo .bw-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-weight-path-demo .bw-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-weight-path-demo .bw-fig.is-off {
+    display: none;
+  }
+  .aas-weight-path-demo .bw-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 0;
+  }
+  .aas-weight-path-demo .bw-res {
+    padding: 0.35em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-left-width: 0.3em;
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+  }
+  .aas-weight-path-demo .bw-res.is-bfs {
+    border-left-color: var(--aas-role-model);
+  }
+  .aas-weight-path-demo .bw-res.is-dij {
+    border-left-color: var(--aas-role-eval);
+  }
+  .aas-weight-path-demo .bw-name {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-weight-path-demo .bw-res code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    font-weight: 700;
+  }
+  .aas-weight-path-demo .bw-nums {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-weight-path-demo .bw-nums b {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-weight-path-demo .bw-nums strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.35em;
+    color: var(--aas-role-focus);
+  }
+  .aas-weight-path-demo .bw-note {
+    margin: 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-weight-path-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-weight-path-demo.is-slide .bw-body {
+    flex-wrap: nowrap;
+  }
+  .aas-weight-path-demo.is-slide .bw-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 38vh;
+  }
+  .aas-weight-path-demo.is-slide [data-bw-fig='detour'] {
+    --gf-slide-h: 24vh;
+  }
+</style>

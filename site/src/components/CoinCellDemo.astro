@@ -1,0 +1,416 @@
+---
+// 거스름돈 표에서 아무 칸이나 눌러, 그 칸을 채우는 순간을 다시 보는 데모.
+//
+// 칸을 누르면 동전마다 어느 칸을 참조했고 후보가 몇이었는지 표로 나오고, 그 금액에서
+// choice를 거꾸로 따라간 경로가 분홍으로 이어진다. 동전 묶음을 바꾸면 표 전체가 다시
+// 채워진다. DpTableDemo가 정해진 순서로 한 칸씩 채운다면, 여기서는 궁금한 칸으로 바로
+// 간다. 6원 칸의 후보표(3, 2, 불가)는 이 데모의 첫 화면이다.
+//
+// 절차와 동점 처리(먼저 찾은 동전을 유지)는 algorithm-code topic-14 02_coin_change의
+// coin_change_tab과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `cc-${Math.random().toString(36).slice(2, 9)}`;
+/* unit은 표시 간격이다. 동전이 모두 그 배수이면 다른 금액은 만들 수 없고 참조되지도 않는다. */
+const PRESETS = [
+  { coins: [2, 3, 5], top: 12, unit: 1, pick: 6 },
+  { coins: [50, 40, 10], top: 120, unit: 10, pick: 80 },
+  { coins: [1, 3, 4], top: 12, unit: 1, pick: 6 },
+  { coins: [5, 7], top: 12, unit: 1, pick: 12 },
+];
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '칸을 채우는 순간',
+    amount: '금액',
+    coin: '동전',
+    last: '마지막 동전',
+    ref: '참조하는 칸',
+    cand: '후보',
+    no: '불가',
+    big: '금액보다 큼',
+    tie: '동점, 앞의 동전 유지',
+    least: '최소',
+    filled: '{a}원: 가장 작은 후보는 {v}, choice[{a}] = {c}입니다.',
+    chain: '거꾸로 따라가면 {path}, 낸 동전은 {list}입니다.',
+    zero: '0원은 동전 0개입니다. 여기서 복원이 끝납니다.',
+    inf: '{a}원: 어느 동전을 내도 만들 수 없는 금액만 남습니다. dp[{a}]는 INF입니다.',
+  },
+  en: {
+    title: 'The moment a cell is filled',
+    amount: 'amount',
+    coin: 'coin',
+    last: 'last coin',
+    ref: 'cell it reads',
+    cand: 'candidate',
+    no: 'no',
+    big: 'above the amount',
+    tie: 'tie, earlier coin stays',
+    least: 'least',
+    filled: 'Amount {a}: the smallest candidate is {v}, so choice[{a}] = {c}.',
+    chain: 'Walking back gives {path}, and the coins paid are {list}.',
+    zero: 'Amount 0 takes 0 coins. Restoration stops here.',
+    inf: 'Amount {a}: every coin leaves an amount that cannot be made. dp[{a}] is INF.',
+  },
+  zh: {
+    title: '填这一格的瞬间',
+    amount: '金额',
+    coin: '硬币',
+    last: '最后的硬币',
+    ref: '参照的格',
+    cand: '候选',
+    no: '不行',
+    big: '大于金额',
+    tie: '相同，保留前面的硬币',
+    least: '最小',
+    filled: '{a} 韩元：最小的候选是 {v}，choice[{a}] = {c}。',
+    chain: '倒着走是 {path}，付出的硬币是 {list}。',
+    zero: '0 韩元需要 0 枚硬币。还原到此结束。',
+    inf: '{a} 韩元：无论付哪种硬币，剩下的金额都凑不出。dp[{a}] 是 INF。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-coin-cell-demo', slide && 'is-slide']}
+  id={id}
+  data-cc-strings={JSON.stringify(t)}
+  data-cc-presets={JSON.stringify(PRESETS)}
+>
+  <div class="cc-bar">
+    <span class="cc-head"><strong>{t.title}</strong></span>
+    <DpRef kind="coin" />
+    <div class="cc-tabs">
+      <span class="cc-label">{t.coin}</span>
+      {
+        PRESETS.map((p, i) => (
+          <button type="button" class="cc-tab" data-cc-preset={i}>
+            {p.coins.join(', ')}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="cc-scroll"><div class="cc-table" data-cc-table></div></div>
+
+  <table class="cc-cands">
+    <thead>
+      <tr>
+        <th>{t.last}</th>
+        <th>{t.ref}</th>
+        <th>{t.cand}</th>
+      </tr>
+    </thead>
+    <tbody data-cc-rows></tbody>
+  </table>
+
+  <p class="cc-note" data-cc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.ccStrings);
+    const PRESETS = JSON.parse(root.dataset.ccPresets);
+    const INF = Infinity;
+    const show = (v) => (v === INF ? 'INF' : String(v));
+
+    const tableEl = root.querySelector('[data-cc-table]');
+    const rowsEl = root.querySelector('[data-cc-rows]');
+    const note = root.querySelector('[data-cc-note]');
+    const tabs = [...root.querySelectorAll('[data-cc-preset]')];
+
+    let P = PRESETS[0];
+    let dp = [];
+    let choice = [];
+    let cur = 0;
+    let cols = [];
+
+    /* coin_change_tab. 칸 번호 k는 금액 k × unit이다. */
+    function solve() {
+      const size = P.top / P.unit + 1;
+      dp = new Array(size).fill(INF);
+      choice = new Array(size).fill(0);
+      dp[0] = 0;
+      for (let k = 1; k < size; k++) {
+        for (const c of P.coins) {
+          const r = k - c / P.unit;
+          if (r >= 0 && dp[r] !== INF && dp[r] + 1 < dp[k]) {
+            dp[k] = dp[r] + 1;
+            choice[k] = c;
+          }
+        }
+      }
+    }
+
+    function load(i) {
+      P = PRESETS[i];
+      solve();
+      cur = P.pick / P.unit;
+      tabs.forEach((b) => b.classList.toggle('is-on', +b.dataset.ccPreset === i));
+      const size = dp.length;
+      tableEl.style.setProperty('--cc-cols', String(size));
+      const amounts = dp.map((_, k) => `<span class="cc-idx">${k * P.unit}</span>`).join('');
+      const vals = dp.map((_, k) => `<button type="button" class="cc-cell" data-cc-k="${k}"></button>`).join('');
+      const picks = dp.map((_, k) => `<span class="cc-pick" data-cc-pick="${k}"></span>`).join('');
+      tableEl.innerHTML =
+        `<span class="cc-lab">${S.amount}</span>${amounts}` +
+        `<span class="cc-lab">dp</span>${vals}` +
+        `<span class="cc-lab">choice</span>${picks}`;
+      cols = [...tableEl.querySelectorAll('[data-cc-k]')];
+      cols.forEach((el) =>
+        el.addEventListener('click', () => {
+          cur = +el.dataset.ccK;
+          draw();
+        }),
+      );
+      tableEl.querySelectorAll('[data-cc-pick]').forEach((el, k) => {
+        el.textContent = choice[k] ? String(choice[k]) : '';
+      });
+      draw();
+    }
+
+    function draw() {
+      const k = cur;
+      const a = k * P.unit;
+      /* 복원 */
+      const path = [k];
+      const used = [];
+      if (dp[k] !== INF) {
+        for (let q = k; q > 0; q -= choice[q] / P.unit) {
+          used.push(choice[q]);
+          path.push(q - choice[q] / P.unit);
+        }
+      }
+      /* 동전마다 후보: 코드와 같은 순서로 최솟값을 고쳐 간다. */
+      let best = INF;
+      const rows = P.coins.map((c) => {
+        const r = k - c / P.unit;
+        if (r < 0) return { c, cell: '', cand: S.no, why: S.big };
+        const val = dp[r];
+        if (val === INF) return { c, r, cell: `dp[${r * P.unit}] = INF`, cand: S.no };
+        const cand = val + 1;
+        let why = '';
+        let win = false;
+        if (cand < best) {
+          best = cand;
+          win = true;
+        } else if (cand === best) {
+          why = S.tie;
+        }
+        return { c, r, cell: `dp[${r * P.unit}] = ${val}`, cand: String(cand), why, win };
+      });
+      const winner = rows.filter((x) => x.win).pop();
+      rowsEl.innerHTML = rows
+        .map((x) => {
+          const on = x === winner ? ' class="is-win"' : '';
+          const tag = x === winner ? S.least : x.why || '';
+          return `<tr${on}><td>${x.c}</td><td>${x.cell}</td><td><b>${x.cand}</b>${tag ? ` <small>${tag}</small>` : ''}</td></tr>`;
+        })
+        .join('');
+      const refs = rows.map((x) => x.r).filter((r) => r !== undefined);
+      cols.forEach((el) => {
+        const q = +el.dataset.ccK;
+        el.textContent = show(dp[q]);
+        el.classList.toggle('is-inf', dp[q] === INF);
+        el.classList.toggle('is-cur', q === k);
+        el.classList.toggle('is-ref', q !== k && refs.includes(q));
+        el.classList.toggle('is-path', q !== k && dp[k] !== INF && path.includes(q));
+      });
+      if (k === 0) {
+        setLines(note, S.zero);
+      } else if (dp[k] === INF) {
+        setLines(note, fill(S.inf, { a }));
+      } else {
+        setLines(
+          note,
+          join(
+            fill(S.filled, { a, v: dp[k], c: choice[k] }),
+            fill(S.chain, { path: path.map((q) => q * P.unit).join(' → '), list: used.join(' + ') }),
+          ),
+        );
+      }
+    }
+
+    tabs.forEach((b) => b.addEventListener('click', () => load(+b.dataset.ccPreset)));
+    load(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-coin-cell-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-coin-cell-demo .cc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-coin-cell-demo .cc-head {
+    font-size: 0.95em;
+  }
+  .aas-coin-cell-demo .cc-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-coin-cell-demo .cc-label {
+    margin-right: 0.2em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-cell-demo .cc-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-coin-cell-demo .cc-tab:hover,
+  .aas-coin-cell-demo .cc-cell:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-coin-cell-demo .cc-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-coin-cell-demo .cc-scroll {
+    overflow-x: auto;
+    margin-top: 0.6em;
+  }
+  .aas-coin-cell-demo .cc-table {
+    display: grid;
+    grid-template-columns: 4em repeat(var(--cc-cols), minmax(2.4em, 3.2em));
+    justify-content: center;
+    gap: 0.18em;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-coin-cell-demo .cc-lab,
+  .aas-coin-cell-demo .cc-idx,
+  .aas-coin-cell-demo .cc-pick {
+    font-size: 0.78em;
+    text-align: center;
+    color: var(--aas-muted);
+  }
+  .aas-coin-cell-demo .cc-cell {
+    height: 2.1em;
+    padding: 0;
+    font-family: inherit;
+    font-size: 0.9em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-coin-cell-demo .cc-cell.is-inf {
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+  }
+  .aas-coin-cell-demo .cc-cell.is-path {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-coin-cell-demo .cc-cell.is-ref {
+    border-color: var(--aas-role-model);
+    box-shadow: inset 0 0 0 1.5px var(--aas-role-model);
+  }
+  .aas-coin-cell-demo .cc-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-coin-cell-demo .cc-cands {
+    width: auto;
+    min-width: 62%;
+    margin: 0.7em auto 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+    line-height: 1.3;
+  }
+  .aas-coin-cell-demo .cc-cands th,
+  .aas-coin-cell-demo .cc-cands td {
+    padding: 0.2em 0.8em;
+    text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--aas-border);
+    background: transparent;
+  }
+  .aas-coin-cell-demo .cc-cands th {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-coin-cell-demo .cc-cands td {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-coin-cell-demo .cc-cands td b {
+    font-weight: 400;
+  }
+  .aas-coin-cell-demo .cc-cands small {
+    margin-left: 0.4em;
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-coin-cell-demo .cc-cands tr.is-win td {
+    background: color-mix(in srgb, var(--aas-role-focus) 16%, var(--aas-bg));
+  }
+  .aas-coin-cell-demo .cc-cands tr.is-win td b {
+    font-weight: 700;
+  }
+  .aas-coin-cell-demo .cc-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 2.8em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-coin-cell-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-coin-cell-demo .cc-cell {
+      transition: none;
+    }
+  }
+</style>

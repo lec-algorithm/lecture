@@ -18,6 +18,7 @@
 // 배낭의 unit은 표시용이다. 무게가 모두 unit의 배수이면 dp[i][c]는 c를 unit의
 // 배수로 내림한 칸과 같으므로, 그 칸들만 보여도 값과 복원이 같다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
 
 interface Props {
   problem?: 'grid' | 'knapsack';
@@ -198,6 +199,7 @@ const VY = 75;
       <strong>{title}</strong>
       {editable && problem === 'grid' && <span class="dg-extra" data-dg-extra />}
     </span>
+    <DpRef kind={problem === 'grid' ? 'grid' : 'knap'} />
     <span class="dg-controls">
       <button type="button" class="dg-btn" data-dg-back>{t.back}</button>
       <button type="button" class="dg-btn" data-dg-step>{t.step}</button>
@@ -558,6 +560,22 @@ const VY = 75;
         if (s) {
           for (let k = 0; k + 1 < s.path.length; k++) arrow(svg, s.path[k], s.path[k + 1], 'is-path');
         }
+        /* 참고 띠: 값을 준 항, 그리고 배낭이면 지금 줄의 물건을 칠한다. */
+        const cur = s && s.path.length === 0 ? s.cur : null;
+        const term = (name: string) => {
+          if (!cur) return false;
+          if (cfg.problem === 'grid') {
+            return s!.refs.some(([i, j]) => (name === 'up' ? i === cur[0] - 1 : j === cur[1] - 1));
+          }
+          if (!s!.best) return false;
+          return name === 'skip' ? s!.best[1] === cur[1] : s!.best[1] !== cur[1];
+        };
+        root.querySelectorAll<HTMLElement>('[data-dr-term]').forEach((c) => {
+          c.classList.toggle('is-now', term(c.dataset.drTerm!));
+        });
+        root.querySelectorAll<HTMLElement>('.dg-rowhead > span').forEach((c, i) => {
+          c.classList.toggle('is-now', cfg.problem === 'knapsack' && !!s && !!s.cur && s.cur[0] === i);
+        });
         count.textContent = String(filled);
         setLines(note, s ? s.note : S.idle);
         showExtra();
@@ -761,6 +779,12 @@ const VY = 75;
     line-height: 1.15;
     color: var(--aas-muted);
   }
+  .aas-dp-grid-demo .dg-rowhead span.is-now {
+    color: var(--aas-text);
+    font-weight: 700;
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
   .aas-dp-grid-demo .dg-rowhead small {
     font-size: 0.85em;
   }
@@ -948,11 +972,15 @@ const VY = 75;
 
   /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
   .aas-dp-grid-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.6vh, 1.75rem);
     margin: 0.5rem 0;
   }
   .aas-dp-grid-demo.is-slide .dg-note {
     min-height: 1.6em;
+  }
+  /* 입력 줄이 더 있으니 영어처럼 두 줄로 넘어가도 슬라이드를 넘지 않게 조금 더 줄인다. */
+  .aas-dp-grid-demo.is-slide.is-knapsack.is-editable {
+    font-size: clamp(1rem, 2.5vh, 1.7rem);
   }
 
   @media (prefers-reduced-motion: reduce) {

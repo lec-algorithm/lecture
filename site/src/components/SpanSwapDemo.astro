@@ -1,0 +1,502 @@
+---
+// 스패닝 트리의 간선을 바꿔 가며 MST까지 내려가 보는 데모.
+//
+// 그래프는 Kruskal·Prim 예제(mst)이고, 처음 트리는 가장 무거운 스패닝 트리(3.51)다.
+// 트리 밖 간선 e를 누르면 트리에 사이클이 생기고(파란 점선), 그 사이클의 간선 f를
+// 누르면 f가 빠지고 e가 들어온다. cut 속성 증명의 교환을 그대로 손으로 하는 셈이다.
+// 합이 얼마나 줄었는지와 함께, 이 그래프의 스패닝 트리 3108개를 실제로 다 만들어
+// 센 순위를 보인다. 더 줄일 교환이 없을 때가 MST이고 합은 1.81이다.
+//
+// "가중치 겹치기"는 2-7을 0.34에서 0.26으로 바꿔 0-2와 같게 만든다. 그러면 합이
+// 1.81인 트리가 둘이 된다. 가중치가 모두 다르면 MST가 하나뿐이라는 가정의 뜻이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const g = getGraph('mst');
+const id = `ss-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '스패닝 트리 바꿔 보기',
+    best: '가장 좋은 교환',
+    tie: '가중치 겹치기',
+    untie: '겹치기 풀기',
+    reset: '처음으로',
+    total: '합',
+    rank: '순위',
+    mst: 'MST',
+    unit: '개',
+    outside: '트리 밖 간선 (눌러서 넣기)',
+    cycle: '사이클의 간선 (눌러서 빼기)',
+    idle: '가장 무거운 스패닝 트리입니다. 트리 밖 간선을 눌러 넣어 보세요.',
+    added: '{e} 넣기: 사이클이 생겼습니다. 사이클의 간선 하나를 빼면 다시 스패닝 트리입니다.',
+    swapped: '{e} 넣고 {f} 빼기: 합이 {d} 바뀌어 {t}입니다.',
+    heavier: '더 무거운 간선을 빼야 합이 줄어듭니다.',
+    cancel: '{e} 넣기를 취소했습니다.',
+    atMst: '더 줄일 교환이 없습니다. 합이 {t}인 이 트리가 MST입니다.',
+    atMst2: '합이 {t}인 트리가 {k}개입니다. 가중치가 겹치면 MST가 하나로 정해지지 않습니다.',
+    tieOn: '2-7을 0.26으로 바꿔 0-2와 같게 했습니다.',
+    tieOff: '2-7을 0.34로 되돌렸습니다.',
+  },
+  en: {
+    title: 'Swap edges in a spanning tree',
+    best: 'Best swap',
+    tie: 'Make a tie',
+    untie: 'Undo the tie',
+    reset: 'Reset',
+    total: 'total',
+    rank: 'rank',
+    mst: 'MSTs',
+    unit: '',
+    outside: 'Edges outside the tree (click to add)',
+    cycle: 'Edges on the cycle (click to remove)',
+    idle: 'This is the heaviest spanning tree. Click an edge outside it to add it.',
+    added: 'Added {e}: that made a cycle. Remove one edge of the cycle to get a spanning tree again.',
+    swapped: 'Added {e}, removed {f}: the total changed by {d} to {t}.',
+    heavier: 'The total only drops when the edge you remove is heavier.',
+    cancel: 'Cancelled adding {e}.',
+    atMst: 'No swap makes it lighter. The total {t} is the MST.',
+    atMst2: '{k} trees have the total {t}. With tied weights the MST is not unique.',
+    tieOn: 'Changed 2-7 to 0.26, equal to 0-2.',
+    tieOff: 'Changed 2-7 back to 0.34.',
+  },
+  zh: {
+    title: '替换生成树的边',
+    best: '最好的交换',
+    tie: '让权重相同',
+    untie: '恢复权重',
+    reset: '重置',
+    total: '总和',
+    rank: '名次',
+    mst: 'MST',
+    unit: '棵',
+    outside: '树外的边（点击加入）',
+    cycle: '环上的边（点击去掉）',
+    idle: '这是最重的生成树。点击树外的边把它加入。',
+    added: '加入 {e}：出现了环。去掉环上的一条边，又是生成树。',
+    swapped: '加入 {e}，去掉 {f}：总和变化 {d}，现在是 {t}。',
+    heavier: '去掉的边更重，总和才会变小。',
+    cancel: '取消了加入 {e}。',
+    atMst: '没有能再减小的交换。总和 {t} 就是 MST。',
+    atMst2: '总和为 {t} 的树有 {k} 棵。权重相同时 MST 不唯一。',
+    tieOn: '把 2-7 改成 0.26，与 0-2 相同。',
+    tieOff: '把 2-7 改回 0.34。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-span-swap-demo', slide && 'is-slide']}
+  id={id}
+  data-ss-n={g.nodes.length}
+  data-ss-edges={JSON.stringify(g.edges)}
+  data-ss-strings={JSON.stringify(t)}
+>
+  <div class="ss-bar">
+    <span class="ss-head"><strong>{t.title}</strong></span>
+    <div class="ss-controls">
+      <button type="button" class="ss-btn ss-btn-primary" data-ss-act="best">{t.best}</button>
+      <button type="button" class="ss-btn" data-ss-act="tie">{t.tie}</button>
+      <button type="button" class="ss-btn" data-ss-act="reset">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ss-body">
+    <div class="ss-graph">
+      <GraphFigure graph="mst" bare slide={slide} />
+    </div>
+    <div class="ss-panel">
+      <div class="ss-stats">
+        <span class="ss-big"><span>{t.total}</span><strong data-ss-total></strong></span>
+        <span class="ss-big"><span>{t.rank}</span><strong data-ss-rank class="is-plain"></strong><small data-ss-of></small></span>
+        <span class="ss-big"><span>{t.mst}</span><strong data-ss-mst class="is-plain"></strong><small>{t.unit}</small></span>
+      </div>
+      <div class="ss-label" data-ss-label></div>
+      <div class="ss-list" data-ss-list></div>
+      <p class="ss-note" data-ss-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.ssStrings);
+    const n = Number(root.dataset.ssN);
+    const base = JSON.parse(root.dataset.ssEdges);
+    const TIE_EDGE = base.findIndex(([u, v]) => u === 2 && v === 7);
+    const TIE_W = 26;
+
+    let edges = base.map((e) => e.slice());
+    const name = (i) => `${edges[i][0]}-${edges[i][1]}`;
+    const fmt = (w) => (w / 100).toFixed(2);
+    const signed = (w) => `${w > 0 ? '+' : w < 0 ? '−' : ''}${(Math.abs(w) / 100).toFixed(2)}`;
+
+    /* 간선 7개를 고르는 모든 조합 중 사이클 없는 것을 union-find로 센다. */
+    let totals = [];
+    let heaviest = [];
+    function enumerate() {
+      totals = [];
+      let maxW = -1;
+      const m = edges.length;
+      const rec = (i, chosen, par, sum) => {
+        if (chosen.length === n - 1) {
+          totals.push(sum);
+          if (sum > maxW) {
+            maxW = sum;
+            heaviest = chosen.slice();
+          }
+          return;
+        }
+        if (i >= m || m - i < n - 1 - chosen.length) return;
+        const find = (x) => {
+          while (par[x] !== x) x = par[x];
+          return x;
+        };
+        const a = find(edges[i][0]);
+        const b = find(edges[i][1]);
+        if (a !== b) {
+          const p = par.slice();
+          p[a] = b;
+          chosen.push(i);
+          rec(i + 1, chosen, p, sum + edges[i][2]);
+          chosen.pop();
+        }
+        rec(i + 1, chosen, par, sum);
+      };
+      rec(0, [], Array.from({ length: n }, (_, i) => i), 0);
+      totals.sort((a, b) => a - b);
+    }
+
+    let tree = new Set();
+    let pending = null;
+    let note = '';
+    let tied = false;
+    const sum = () => [...tree].reduce((s, i) => s + edges[i][2], 0);
+    /* 트리에서 u와 v를 잇는 경로의 간선들 = 새 간선이 만드는 사이클 */
+    function cycleOf(i) {
+      const [u, v] = edges[i];
+      const adj = Array.from({ length: n }, () => []);
+      tree.forEach((k) => {
+        adj[edges[k][0]].push([edges[k][1], k]);
+        adj[edges[k][1]].push([edges[k][0], k]);
+      });
+      const from = new Array(n).fill(null);
+      const seen = new Array(n).fill(false);
+      const st = [u];
+      seen[u] = true;
+      while (st.length) {
+        const x = st.pop();
+        adj[x].forEach(([y, k]) => {
+          if (!seen[y]) {
+            seen[y] = true;
+            from[y] = [x, k];
+            st.push(y);
+          }
+        });
+      }
+      const out = [];
+      for (let x = v; x !== u; x = from[x][0]) out.push(from[x][1]);
+      return out;
+    }
+    function bestSwap() {
+      let best = null;
+      edges.forEach((e, i) => {
+        if (tree.has(i)) return;
+        cycleOf(i).forEach((k) => {
+          const d = e[2] - edges[k][2];
+          if (d < 0 && (!best || d < best.d)) best = { e: i, f: k, d };
+        });
+      });
+      return best;
+    }
+    const minCount = () => totals.filter((x) => x === totals[0]).length;
+
+    const edgeEls = [...root.querySelectorAll('[data-gf-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const listEl = root.querySelector('[data-ss-list]');
+    const labelEl = root.querySelector('[data-ss-label]');
+    const noteEl = root.querySelector('[data-ss-note]');
+    const tieBtn = root.querySelector('[data-ss-act="tie"]');
+    const bestBtn = root.querySelector('[data-ss-act="best"]');
+    /* 선이 가늘어서 누르기 쉽도록 투명한 굵은 선을 겹친다. */
+    edgeEls.forEach((el, i) => {
+      const hit = el.querySelector('line').cloneNode();
+      hit.classList.add('ss-hit');
+      el.appendChild(hit);
+      el.addEventListener('click', () => clickEdge(i));
+    });
+
+    function render() {
+      const cyc = pending === null ? [] : cycleOf(pending);
+      edgeEls.forEach((el, i) => {
+        const inTree = tree.has(i);
+        const onCycle = cyc.includes(i);
+        el.classList.toggle('is-tree', inTree && !onCycle);
+        el.classList.toggle('is-cand', onCycle);
+        el.classList.toggle('is-focus', i === pending);
+        el.classList.toggle('is-dim', pending !== null && !inTree && i !== pending);
+        el.querySelector('.gf-weight').textContent = fmt(edges[i][2]);
+      });
+      nodeEls.forEach((el) => el.classList.add('is-done'));
+      const s = sum();
+      root.querySelector('[data-ss-total]').textContent = fmt(s);
+      root.querySelector('[data-ss-rank]').textContent = String(totals.filter((x) => x < s).length + 1);
+      root.querySelector('[data-ss-of]').textContent = `/ ${totals.length}`;
+      root.querySelector('[data-ss-mst]').textContent = String(minCount());
+      const items =
+        pending === null
+          ? edges.map((_, i) => i).filter((i) => !tree.has(i)).sort((a, b) => edges[a][2] - edges[b][2])
+          : cyc.slice().sort((a, b) => edges[b][2] - edges[a][2]);
+      labelEl.textContent = pending === null ? S.outside : S.cycle;
+      listEl.replaceChildren(
+        ...items.map((i) => {
+          const c = document.createElement('button');
+          c.type = 'button';
+          c.className = 'ss-chip';
+          c.textContent = `${name(i)} ${fmt(edges[i][2])}`;
+          if (pending !== null) {
+            const d = edges[pending][2] - edges[i][2];
+            const b = document.createElement('b');
+            b.textContent = ` ${signed(d)}`;
+            b.classList.toggle('is-down', d < 0);
+            c.appendChild(b);
+          }
+          c.addEventListener('click', () => clickEdge(i));
+          return c;
+        }),
+      );
+      bestBtn.disabled = pending === null && !bestSwap();
+      tieBtn.textContent = tied ? S.untie : S.tie;
+      const atMin = s === totals[0];
+      root.classList.toggle('is-done', atMin);
+      let text = note || S.idle;
+      if (atMin && pending === null) {
+        text = join(note, minCount() > 1 ? fill(S.atMst2, { t: fmt(s), k: minCount() }) : fill(S.atMst, { t: fmt(s) }));
+      }
+      setLines(noteEl, text);
+    }
+
+    function clickEdge(i) {
+      if (pending === null) {
+        if (tree.has(i)) return;
+        pending = i;
+        note = fill(S.added, { e: name(i) });
+      } else if (i === pending) {
+        note = fill(S.cancel, { e: name(i) });
+        pending = null;
+      } else if (cycleOf(pending).includes(i)) {
+        doSwap(pending, i);
+      }
+      render();
+    }
+    function doSwap(e, f) {
+      const d = edges[e][2] - edges[f][2];
+      tree.delete(f);
+      tree.add(e);
+      pending = null;
+      const t = fmt(sum());
+      note = d < 0 ? fill(S.swapped, { e: name(e), f: name(f), d: signed(d), t }) : join(fill(S.swapped, { e: name(e), f: name(f), d: signed(d), t }), S.heavier);
+    }
+    function start() {
+      enumerate();
+      tree = new Set(heaviest);
+      pending = null;
+    }
+
+    bestBtn.addEventListener('click', () => {
+      pending = null;
+      const b = bestSwap();
+      if (b) doSwap(b.e, b.f);
+      render();
+    });
+    tieBtn.addEventListener('click', () => {
+      tied = !tied;
+      edges = base.map((e) => e.slice());
+      if (tied) edges[TIE_EDGE][2] = TIE_W;
+      start();
+      note = tied ? S.tieOn : S.tieOff;
+      render();
+    });
+    root.querySelector('[data-ss-act="reset"]').addEventListener('click', () => {
+      tied = false;
+      edges = base.map((e) => e.slice());
+      start();
+      note = '';
+      render();
+    });
+    start();
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-span-swap-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-span-swap-demo .ss-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-span-swap-demo .ss-head {
+    font-size: 0.95em;
+  }
+  .aas-span-swap-demo .ss-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-span-swap-demo .ss-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-span-swap-demo .ss-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-span-swap-demo .ss-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-span-swap-demo .ss-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-span-swap-demo .ss-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-span-swap-demo .ss-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-span-swap-demo .aas-graph-figure .gf-edge line.ss-hit {
+    stroke: transparent;
+    stroke-width: 22;
+    stroke-dasharray: none;
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+  .aas-span-swap-demo .ss-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-span-swap-demo .ss-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.4em;
+  }
+  .aas-span-swap-demo .ss-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-span-swap-demo .ss-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-span-swap-demo .ss-big strong.is-plain {
+    color: var(--aas-text);
+  }
+  .aas-span-swap-demo .ss-big small {
+    font-size: 0.85em;
+  }
+  .aas-span-swap-demo .ss-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-span-swap-demo .ss-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    min-height: 4.2em;
+    align-content: flex-start;
+  }
+  .aas-span-swap-demo .ss-chip {
+    padding: 0.05em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-span-swap-demo .ss-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-span-swap-demo .ss-chip b {
+    color: var(--aas-role-guard);
+  }
+  .aas-span-swap-demo .ss-chip b.is-down {
+    color: var(--aas-role-eval);
+  }
+  .aas-span-swap-demo .ss-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-span-swap-demo.is-done .ss-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-span-swap-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-span-swap-demo.is-slide .ss-body {
+    flex-wrap: nowrap;
+  }
+  .aas-span-swap-demo.is-slide .ss-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+</style>

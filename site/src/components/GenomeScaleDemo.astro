@@ -1,0 +1,310 @@
+---
+// 문자열이 길어질 때 네 방법이 얼마나 걸릴지 어림하는 데모.
+//
+// n, 가장 긴 일치 길이 D, 1초의 연산 수를 슬라이더로 바꾸면 연산 수를 공식으로 계산해 시간으로
+// 옮긴다. 무차별 대입은 D n(n-1)/2, 삽입 정렬은 비교 n²/4, LSD는 길이를 n으로 맞춰 n(n + 256),
+// 더블링과 기수 정렬은 라운드 ⌈log2 n⌉ × 패스 2 × (n + n)이다. 측정이 아니라 어림이다.
+// 기계가 천 배 빨라져도 n²인 방법은 답을 내지 못한다는 것을 보는 것이 목적이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `gs-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'n을 키워 보면',
+    n: '글자 수 n',
+    d: '가장 긴 일치 D',
+    speed: '1초의 연산 수',
+    colWay: '방법',
+    colFormula: '연산 수',
+    colOps: '값',
+    colTime: '걸리는 시간',
+    brute: '무차별 대입',
+    insertion: '삽입 정렬',
+    lsd: 'LSD 문자열 정렬',
+    doubling: '더블링 + 기수 정렬',
+    time: '{v}{u}',
+    second: '초',
+    minute: '분',
+    hour: '시간',
+    day: '일',
+    year: '년',
+    under: '1초 미만',
+    assume: '공식으로 어림한 값이고 측정이 아닙니다.',
+    tooLong: 'n = {n}에서 {way}은 {t}이 걸립니다.',
+    fine: 'n = {n}에서는 네 방법 모두 하루 안에 끝납니다. n을 더 키워 보세요.',
+    doublingAt: '더블링과 기수 정렬은 {t}입니다.',
+  },
+  en: {
+    title: 'What happens as n grows',
+    n: 'Characters n',
+    d: 'Longest match D',
+    speed: 'Operations per second',
+    colWay: 'Method',
+    colFormula: 'Operations',
+    colOps: 'value',
+    colTime: 'Time',
+    brute: 'Brute force',
+    insertion: 'Insertion sort',
+    lsd: 'LSD string sort',
+    doubling: 'Doubling + radix sort',
+    time: '{v} {u}',
+    second: 's',
+    minute: 'min',
+    hour: 'h',
+    day: 'days',
+    year: 'years',
+    under: 'under 1 s',
+    assume: 'These are estimates from the formulas, not measurements.',
+    tooLong: 'At n = {n}, {way} takes {t}.',
+    fine: 'At n = {n}, all four finish within a day. Try a larger n.',
+    doublingAt: 'Doubling with radix sort takes {t}.',
+  },
+  zh: {
+    title: '把 n 增大看看',
+    n: '字符数 n',
+    d: '最长匹配 D',
+    speed: '每秒运算数',
+    colWay: '方法',
+    colFormula: '运算数',
+    colOps: '值',
+    colTime: '所需时间',
+    brute: '暴力法',
+    insertion: '插入排序',
+    lsd: 'LSD 字符串排序',
+    doubling: '倍增 + 基数排序',
+    time: '{v} {u}',
+    second: '秒',
+    minute: '分',
+    hour: '小时',
+    day: '天',
+    year: '年',
+    under: '不到 1 秒',
+    assume: '这是由公式估算的值，不是测量值。',
+    tooLong: 'n = {n} 时，{way}需要 {t}。',
+    fine: 'n = {n} 时，四种方法都能在一天内结束。把 n 再增大看看。',
+    doublingAt: '倍增与基数排序需要 {t}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-genome-scale-demo', slide && 'is-slide']} id={id} data-gs-strings={JSON.stringify(t)}>
+  <div class="gs-bar"><span class="gs-head"><strong>{t.title}</strong></span></div>
+  <div class="gs-sliders">
+    <label class="gs-slider">
+      <span>{t.n} = <b data-gs-nv></b></span>
+      <input type="range" min="3" max="10" value="9" data-gs-n aria-label={t.n} />
+    </label>
+    <label class="gs-slider">
+      <span>{t.d} = <b data-gs-dv></b></span>
+      <input type="range" min="1" max="100" value="20" data-gs-d aria-label={t.d} />
+    </label>
+    <label class="gs-slider">
+      <span>{t.speed} = <b data-gs-sv></b></span>
+      <input type="range" min="9" max="15" value="9" data-gs-s aria-label={t.speed} />
+    </label>
+  </div>
+
+  <table class="gs-table">
+    <thead>
+      <tr><th class="gs-way">{t.colWay}</th><th class="gs-way">{t.colFormula}</th><th>{t.colOps}</th><th>{t.colTime}</th><th class="gs-barcol"></th></tr>
+    </thead>
+    <tbody data-gs-body></tbody>
+  </table>
+
+  <p class="gs-note" data-gs-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.gsStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const nIn = root.querySelector('[data-gs-n]');
+    const dIn = root.querySelector('[data-gs-d]');
+    const sIn = root.querySelector('[data-gs-s]');
+    const body = root.querySelector('[data-gs-body]');
+    const note = root.querySelector('[data-gs-note]');
+
+    const sci = (x) => (x < 1e6 ? Math.round(x).toLocaleString('en-US') : x.toExponential(1).replace('e+', 'e'));
+    /* 슬라이더 값은 10의 거듭제곱이라 지수로 적는다. */
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    const pow = (e) => `10${[...String(e)].map((d) => SUP[Number(d)]).join('')}`;
+    const DAY = 86400;
+    const YEAR = 365.25 * DAY;
+    const human = (sec) => {
+      if (sec < 1) return S.under;
+      const num = (v) => (v >= 1e6 ? sci(v) : v >= 100 ? Math.round(v).toLocaleString('en-US') : v.toFixed(1));
+      const out = (v, u) => fill(S.time, { v: num(v), u });
+      if (sec < 60) return out(sec, S.second);
+      if (sec < 3600) return out(sec / 60, S.minute);
+      if (sec < DAY) return out(sec / 3600, S.hour);
+      if (sec < YEAR) return out(sec / DAY, S.day);
+      return out(sec / YEAR, S.year);
+    };
+
+    function render() {
+      const n = 10 ** Number(nIn.value);
+      const D = Number(dIn.value);
+      const speed = 10 ** Number(sIn.value);
+      root.querySelector('[data-gs-nv]').textContent = pow(Number(nIn.value));
+      root.querySelector('[data-gs-dv]').textContent = String(D);
+      root.querySelector('[data-gs-sv]').textContent = pow(Number(sIn.value));
+      const rounds = Math.ceil(Math.log2(n));
+      const rows = [
+        { key: 'B', way: S.brute, formula: 'D · n(n-1)/2', ops: (D * n * (n - 1)) / 2 },
+        { key: 'C', way: S.insertion, formula: 'n²/4', ops: (n * n) / 4 },
+        { key: 'D', way: S.lsd, formula: 'n(n + 256)', ops: n * (n + 256) },
+        { key: '', way: S.doubling, formula: '⌈log₂ n⌉ · 2 · 2n', ops: rounds * 2 * (2 * n) },
+      ];
+      const lo = Math.log10(Math.min(...rows.map((r) => r.ops))) - 0.5;
+      const hi = Math.log10(Math.max(...rows.map((r) => r.ops)));
+      body.innerHTML = rows
+        .map((r) => {
+          const sec = r.ops / speed;
+          const cls = sec > YEAR ? 'is-bad' : sec > DAY ? 'is-warn' : 'is-ok';
+          const w = ((Math.log10(r.ops) - lo) / Math.max(hi - lo, 0.5)) * 100;
+          return `<tr class="${cls}"><td class="gs-way">${r.key ? `${r.key}. ` : ''}${r.way}</td><td class="gs-way gs-formula">${r.formula}</td><td>${sci(r.ops)}</td><td><b>${human(sec)}</b></td><td class="gs-barcol"><i style="width:${w.toFixed(1)}%"></i></td></tr>`;
+        })
+        .join('');
+      const worst = rows.slice(0, 3).reduce((a, b) => (b.ops > a.ops ? b : a));
+      const secW = worst.ops / speed;
+      const main = secW > DAY ? fill(S.tooLong, { n: pow(Number(nIn.value)), way: worst.way, t: human(secW) }) : fill(S.fine, { n: pow(Number(nIn.value)) });
+      setLines(note, join(main, fill(S.doublingAt, { t: human(rows[3].ops / speed) }), S.assume));
+    }
+    nIn.addEventListener('input', render);
+    dIn.addEventListener('input', render);
+    sIn.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-genome-scale-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-genome-scale-demo .gs-head {
+    font-size: 0.95em;
+  }
+  .aas-genome-scale-demo .gs-sliders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12em), 1fr));
+    gap: 0.3em 1.2em;
+    margin: 0.5em 0;
+  }
+  .aas-genome-scale-demo .gs-slider {
+    display: block;
+    font-size: 0.85em;
+  }
+  .aas-genome-scale-demo .gs-slider b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-genome-scale-demo .gs-slider input {
+    display: block;
+    width: 100%;
+    margin-top: 0.15em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo table {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.85em;
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo :is(th, td) {
+    padding: 0.28em 0.5em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo .gs-way {
+    text-align: left;
+    font-family: var(--aas-sans, inherit);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo .gs-formula {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo tr.is-bad b {
+    color: var(--aas-role-guard);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo tr.is-warn b {
+    color: var(--aas-role-focus);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo tr.is-ok b {
+    color: var(--aas-role-eval);
+  }
+  .aas-genome-scale-demo.aas-genome-scale-demo .gs-barcol {
+    width: 26%;
+    text-align: left;
+  }
+  .aas-genome-scale-demo .gs-barcol i {
+    display: block;
+    height: 0.85em;
+    border-radius: 0.2em;
+    background: var(--aas-role-model);
+    transition: width 0.25s;
+  }
+  .aas-genome-scale-demo tr.is-bad .gs-barcol i {
+    background: var(--aas-role-guard);
+  }
+  .aas-genome-scale-demo tr.is-warn .gs-barcol i {
+    background: var(--aas-role-focus);
+  }
+  .aas-genome-scale-demo tr.is-ok .gs-barcol i {
+    background: var(--aas-role-eval);
+  }
+  .aas-genome-scale-demo .gs-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 4.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-genome-scale-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.95rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-genome-scale-demo .gs-barcol i {
+      transition: none;
+    }
+  }
+</style>

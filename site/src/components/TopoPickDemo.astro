@@ -1,0 +1,475 @@
+---
+// 위상 순서를 손으로 만들어 보는 데모.
+//
+// 과목 이름과 선수 관계가 데모 안에 함께 있다. 과목(또는 정점)을 누르면 선수
+// 과목을 다 들었을 때만 순서에 들어가고, 아니면 빠진 선수 과목의 간선이 빨갛게
+// 표시된다. 위쪽 숫자는 "지금까지 고른 순서로 시작해서 완성할 수 있는 위상
+// 순서의 수"이고, 부분집합 DP로 실제로 센다. 처음에는 6가지다. DFS(02_dfs)가
+// 고른 3 6 0 5 2 1 4는 그중 하나다.
+//
+// "사이클 간선 넣기"는 4 → 0을 더한다. 그러면 0 → 1 → 4 → 0이 사이클이 되어
+// 3과 6을 들은 뒤 더는 들을 수 있는 과목이 없고, 위상 순서의 수는 0이 된다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 정점 이름(과목명) */
+  names?: string[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const {
+  names = [
+    'Algorithms',
+    'Complexity Theory',
+    'Artificial Intelligence',
+    'Intro to CS',
+    'Cryptography',
+    'Scientific Computing',
+    'Advanced Programming',
+  ],
+  slide = false,
+} = Astro.props;
+const g = getGraph('dagCycle');
+const id = `tp-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '수강 순서 직접 정하기',
+    undo: '되돌리기',
+    reset: '처음으로',
+    dfs: 'DFS가 고른 순서',
+    addCycle: '사이클 간선 넣기',
+    delCycle: '사이클 간선 빼기',
+    ways: '완성할 수 있는 순서',
+    waysUnit: '가지',
+    order: '내 순서',
+    ready: '들을 수 있음',
+    blocked: '막힘',
+    idle: '선수 과목을 다 들은 과목만 고를 수 있습니다. 파란 과목을 눌러 보세요.',
+    picked: '{v} {name}. 다음에 들을 수 있는 과목은 {next}입니다.',
+    no: '{v} {name}: 아직 들을 수 없습니다. 먼저 들을 과목: {need}',
+    done: '완성입니다: {order}. 모든 간선이 앞에서 뒤로 갑니다. DFS가 고른 순서는 3 6 0 5 2 1 4입니다.',
+    stuck: '남은 과목 {rest}: 모두 막혔습니다. 사이클 {cycle} 때문입니다. 방향 사이클이 있으면 위상 순서가 없습니다.',
+    cycleOn: '4 → 0을 넣었습니다. 이제 0 → 1 → 4 → 0이 사이클입니다.',
+    cycleOff: '4 → 0을 뺐습니다. 처음의 DAG로 돌아왔습니다.',
+    showDfs: 'DFS의 f 순서를 그대로 넣었습니다: 3 6 0 5 2 1 4',
+  },
+  en: {
+    title: 'Plan the course order yourself',
+    undo: 'Undo',
+    reset: 'Reset',
+    dfs: 'Order DFS chose',
+    addCycle: 'Add a cycle edge',
+    delCycle: 'Remove the cycle edge',
+    ways: 'Orders still possible',
+    waysUnit: '',
+    order: 'My order',
+    ready: 'can take',
+    blocked: 'blocked',
+    idle: 'Only a course whose prerequisites are done can be picked. Click a blue one.',
+    picked: '{v} {name}. Next you can take {next}.',
+    no: '{v} {name} is not available yet. Take these first: {need}',
+    done: 'Complete: {order}. Every edge goes forward. DFS chose 3 6 0 5 2 1 4.',
+    stuck: 'The remaining courses {rest} are all blocked, because of the cycle {cycle}. With a directed cycle there is no topological order.',
+    cycleOn: 'Added 4 → 0. Now 0 → 1 → 4 → 0 is a cycle.',
+    cycleOff: 'Removed 4 → 0. Back to the original DAG.',
+    showDfs: 'Filled in the f order from DFS: 3 6 0 5 2 1 4',
+  },
+  zh: {
+    title: '亲手安排选课顺序',
+    undo: '撤销',
+    reset: '重置',
+    dfs: 'DFS 选的顺序',
+    addCycle: '加入环边',
+    delCycle: '去掉环边',
+    ways: '还能完成的顺序',
+    waysUnit: '种',
+    order: '我的顺序',
+    ready: '可选',
+    blocked: '受阻',
+    idle: '只有先修课都修完的课程才能选。点击蓝色的课程试试。',
+    picked: '{v} {name}。接下来可选 {next}。',
+    no: '{v} {name} 还不能选。需要先修：{need}',
+    done: '完成：{order}。所有边都从前指向后。DFS 选的是 3 6 0 5 2 1 4。',
+    stuck: '剩下的课程 {rest} 都受阻，原因是环 {cycle}。有向环存在时没有拓扑顺序。',
+    cycleOn: '加入了 4 → 0。现在 0 → 1 → 4 → 0 是一个环。',
+    cycleOff: '去掉了 4 → 0。回到原来的 DAG。',
+    showDfs: '填入了 DFS 的 f 顺序：3 6 0 5 2 1 4',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-topo-pick-demo', slide && 'is-slide']}
+  id={id}
+  data-tp-n={g.nodes.length}
+  data-tp-edges={JSON.stringify(g.edges)}
+  data-tp-names={JSON.stringify(names)}
+  data-tp-strings={JSON.stringify(t)}
+>
+  <div class="tp-bar">
+    <span class="tp-head"><strong>{t.title}</strong></span>
+    <div class="tp-controls">
+      <button type="button" class="tp-btn" data-tp-act="undo">{t.undo}</button>
+      <button type="button" class="tp-btn" data-tp-act="dfs">{t.dfs}</button>
+      <button type="button" class="tp-btn" data-tp-act="cycle">{t.addCycle}</button>
+      <button type="button" class="tp-btn" data-tp-act="reset">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="tp-body">
+    <div class="tp-graph">
+      <GraphFigure graph="dagCycle" bare slide={slide} />
+    </div>
+    <div class="tp-panel">
+      <div class="tp-stats">
+        <span class="tp-big"><span>{t.ways}</span><strong data-tp-ways></strong><small>{t.waysUnit}</small></span>
+        <span class="tp-order">{t.order}: <strong data-tp-order></strong></span>
+      </div>
+      <div class="tp-list">
+        {
+          names.map((name, v) => (
+            <button type="button" class="tp-row" data-tp-row={v}>
+              <b>{v}</b>
+              <span class="tp-name">{name}</span>
+              <span class="tp-tag" data-tp-tag />
+            </button>
+          ))
+        }
+      </div>
+      <p class="tp-note" data-tp-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.tpStrings);
+    const n = Number(root.dataset.tpN);
+    const allEdges = JSON.parse(root.dataset.tpEdges);
+    const names = JSON.parse(root.dataset.tpNames);
+    const CYCLE_KEY = '4-0';
+
+    let cycleOn = false;
+    let order = [];
+    let note = S.idle;
+    let warn = [];
+
+    const edges = () => allEdges.filter(([u, v]) => cycleOn || `${u}-${v}` !== CYCLE_KEY);
+    const prereq = (v) => edges().filter((e) => e[1] === v).map((e) => e[0]);
+    const canTake = (v) => !order.includes(v) && prereq(v).every((p) => order.includes(p));
+    const readyList = () => Array.from({ length: n }, (_, v) => v).filter(canTake);
+
+    /* 지금까지 고른 과목(비트마스크)에서 완성할 수 있는 순서의 수 */
+    function countOrders() {
+      const pre = new Array(n).fill(0);
+      edges().forEach(([u, v]) => (pre[v] |= 1 << u));
+      const memo = new Map();
+      const full = (1 << n) - 1;
+      const go = (mask) => {
+        if (mask === full) return 1;
+        if (memo.has(mask)) return memo.get(mask);
+        let c = 0;
+        for (let v = 0; v < n; v++) if (!(mask >> v & 1) && (pre[v] & mask) === pre[v]) c += go(mask | (1 << v));
+        memo.set(mask, c);
+        return c;
+      };
+      return go(order.reduce((m, v) => m | (1 << v), 0));
+    }
+    /* 남은 정점 안에서 사이클 하나를 찾는다. */
+    function findCycle(rest) {
+      const out = new Map(rest.map((v) => [v, edges().filter((e) => e[0] === v && rest.includes(e[1])).map((e) => e[1])]));
+      const color = new Map();
+      const stack = [];
+      let found = null;
+      const visit = (v) => {
+        color.set(v, 1);
+        stack.push(v);
+        for (const w of out.get(v)) {
+          if (found) return;
+          if (color.get(w) === 1) {
+            found = [...stack.slice(stack.indexOf(w)), w];
+            return;
+          }
+          if (!color.has(w)) visit(w);
+        }
+        stack.pop();
+        color.set(v, 2);
+      };
+      rest.forEach((v) => !found && !color.has(v) && visit(v));
+      return found;
+    }
+
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const rowEls = [...root.querySelectorAll('[data-tp-row]')];
+    const noteEl = root.querySelector('[data-tp-note]');
+    const cycleBtn = root.querySelector('[data-tp-act="cycle"]');
+    const undoBtn = root.querySelector('[data-tp-act="undo"]');
+    const dfsBtn = root.querySelector('[data-tp-act="dfs"]');
+
+    function render() {
+      const ready = readyList();
+      const rest = Array.from({ length: n }, (_, v) => v).filter((v) => !order.includes(v));
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', order.includes(v) && v !== order[order.length - 1]);
+        el.classList.toggle('is-focus', v === order[order.length - 1]);
+        el.classList.toggle('is-open', ready.includes(v));
+      });
+      edgeEls.forEach((el, key) => {
+        const [u, v] = key.split('-').map(Number);
+        el.classList.toggle('tp-off', key === CYCLE_KEY && !cycleOn);
+        el.classList.toggle('is-tree', order.includes(u) && order.includes(v));
+        el.classList.toggle('is-reject', warn.includes(key));
+      });
+      rowEls.forEach((row, v) => {
+        const k = order.indexOf(v);
+        row.classList.toggle('is-taken', k >= 0);
+        row.classList.toggle('is-ready', ready.includes(v));
+        row.classList.toggle('is-blocked', k < 0 && !ready.includes(v));
+        row.querySelector('[data-tp-tag]').textContent = k >= 0 ? `#${k + 1}` : ready.includes(v) ? S.ready : S.blocked;
+      });
+      root.querySelector('[data-tp-ways]').textContent = String(countOrders());
+      root.querySelector('[data-tp-order]').textContent = order.join(' ');
+      undoBtn.disabled = !order.length;
+      dfsBtn.disabled = cycleOn;
+      cycleBtn.textContent = cycleOn ? S.delCycle : S.addCycle;
+      let text = note;
+      if (rest.length && !ready.length && !warn.length) {
+        const cyc = findCycle(rest);
+        text = fill(S.stuck, { rest: rest.join(' '), cycle: cyc ? cyc.join(' → ') : '' });
+      }
+      setLines(noteEl, text);
+      root.classList.toggle('is-done', !rest.length);
+    }
+
+    function take(v) {
+      if (order.includes(v)) return;
+      if (!canTake(v)) {
+        const need = prereq(v).filter((p) => !order.includes(p));
+        warn = need.map((p) => `${p}-${v}`);
+        note = fill(S.no, { v, name: names[v], need: need.map((p) => `${p} ${names[p]}`).join(', ') });
+        render();
+        return;
+      }
+      warn = [];
+      order.push(v);
+      const ready = readyList();
+      note =
+        order.length === n
+          ? fill(S.done, { order: order.join(' ') })
+          : fill(S.picked, { v, name: names[v], next: ready.join(' ') });
+      render();
+    }
+
+    rowEls.forEach((row, v) => row.addEventListener('click', () => take(v)));
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', names[v]);
+      el.addEventListener('click', () => take(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          take(v);
+        }
+      });
+    });
+    undoBtn.addEventListener('click', () => {
+      order.pop();
+      warn = [];
+      note = S.idle;
+      render();
+    });
+    dfsBtn.addEventListener('click', () => {
+      order = [3, 6, 0, 5, 2, 1, 4];
+      warn = [];
+      note = S.showDfs;
+      render();
+    });
+    cycleBtn.addEventListener('click', () => {
+      cycleOn = !cycleOn;
+      order = [];
+      warn = [];
+      note = cycleOn ? S.cycleOn : S.cycleOff;
+      render();
+    });
+    root.querySelector('[data-tp-act="reset"]').addEventListener('click', () => {
+      cycleOn = false;
+      order = [];
+      warn = [];
+      note = S.idle;
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-topo-pick-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-topo-pick-demo .tp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-topo-pick-demo .tp-head {
+    font-size: 0.95em;
+  }
+  .aas-topo-pick-demo .tp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-topo-pick-demo .tp-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-topo-pick-demo .tp-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-topo-pick-demo .tp-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-topo-pick-demo .tp-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-topo-pick-demo .tp-graph {
+    flex: 0 1 17em;
+    min-width: 12em;
+  }
+  .aas-topo-pick-demo .gf-node {
+    cursor: pointer;
+  }
+  .aas-topo-pick-demo .aas-graph-figure .gf-edge.tp-off {
+    display: none;
+  }
+  .aas-topo-pick-demo .tp-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-topo-pick-demo .tp-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.6em;
+    align-items: baseline;
+  }
+  .aas-topo-pick-demo .tp-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-topo-pick-demo .tp-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-topo-pick-demo .tp-order {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-topo-pick-demo .tp-order strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-topo-pick-demo .tp-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12em;
+  }
+  .aas-topo-pick-demo .tp-row {
+    display: grid;
+    grid-template-columns: 1.4em minmax(0, 1fr) auto;
+    gap: 0.5em;
+    align-items: baseline;
+    padding: 0.05em 0.5em;
+    font-size: 0.8em;
+    text-align: left;
+    border: 1px solid transparent;
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-topo-pick-demo .tp-row b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-topo-pick-demo .tp-tag {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-topo-pick-demo .tp-row.is-ready {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-topo-pick-demo .tp-row.is-taken {
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-topo-pick-demo .tp-row.is-blocked .tp-name {
+    color: var(--aas-muted);
+  }
+  .aas-topo-pick-demo .tp-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-topo-pick-demo.is-done .tp-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-topo-pick-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-topo-pick-demo.is-slide .tp-body {
+    flex-wrap: nowrap;
+  }
+  .aas-topo-pick-demo.is-slide .tp-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 42vh;
+  }
+</style>

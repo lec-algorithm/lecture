@@ -1,0 +1,830 @@
+---
+// 오토마타의 전이표를 직접 고쳐 보는 데모.
+//
+// 표의 칸을 바꾸거나 수락 상태를 켜고 끄면 그림, 문자열 판정, "여기 오는 문자열"이
+// 바로 바뀐다. 표 하나로 슬라이드의 두 주장을 만져 본다.
+//   - S3의 b를 S2로 돌려도 받아들이는 문자열은 같지만, S3에 오는 문자열이 b 홀수 개로
+//     바뀌어 상태의 뜻이 달라진다. "여기 오는 문자열" 칸이 실제로 표를 돌린 결과다.
+//   - 칸마다 갈 곳이 하나뿐이므로 표가 곧 DFA다. 표를 고쳐 ab*c*도 만들 수 있다.
+// 목표 언어와 같은지는 {a, b, c} 위의 길이 7 이하 문자열 3,280개를 모두 돌려 본다.
+// 원래 표는 algorithm-code의 fsaSimple.c · fsa_simple.py와 같다(S1은 ε로 S2로 넘어간다).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 표. orig 원래 표, back S3의 b를 S2로 돌린 표 */
+  start?: 'orig' | 'back';
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { start = 'orig', slide = false } = Astro.props;
+const id = `ft-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '전이표 고치기',
+    orig: '원래 표',
+    back: 'S3의 b를 S2로',
+    target: '목표',
+    state: '상태',
+    accept: '수락',
+    arrive: '여기 오는 문자열 (짧은 것부터)',
+    none: '없음',
+    input: '입력',
+    backBtn: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    yes: '✓ 수락',
+    no: '✕ 거부',
+    same: '길이 7까지 {n}개 문자열에서 {t}와 답이 모두 같습니다.',
+    diff: '길이 7까지 {n}개 문자열 중 {d}개가 {t}와 다릅니다. 예를 들어 {w}: 이 표에서 {a}, {t}에서 {b}입니다.',
+    empty: '빈 문자열',
+    acc: '수락',
+    rej: '거부',
+    noteOrig: '칸마다 갈 곳이 하나뿐입니다. 그래서 결정적(DFA)이고, S3에는 b를 1개 이상 읽은 문자열이 옵니다.',
+    noteBack: '받아들이는 문자열은 그대로입니다. 그런데 S3에 오는 것은 b가 홀수 개일 때뿐이라, 표의 설명 "b를 1개 이상 읽은 상태"와 맞지 않습니다.',
+    noteEdit: '칸을 고쳤습니다. 위의 그림과 "여기 오는 문자열"이 함께 바뀝니다.',
+  },
+  en: {
+    title: 'Edit the transition table',
+    orig: 'Original',
+    back: 'S3 b goes to S2',
+    target: 'target',
+    state: 'state',
+    accept: 'accept',
+    arrive: 'Strings that land here (shortest first)',
+    none: 'none',
+    input: 'input',
+    backBtn: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    yes: '✓ accept',
+    no: '✕ reject',
+    same: 'All {n} strings up to length 7 get the same answer as {t}.',
+    diff: '{d} of the {n} strings up to length 7 differ from {t}. For example, {w} is {a} here and {b} in {t}.',
+    empty: 'the empty string',
+    acc: 'accepted',
+    rej: 'rejected',
+    noteOrig: 'Every cell has one destination, so the machine is deterministic (a DFA). S3 receives the strings with one or more b.',
+    noteBack: 'The accepted strings stay the same. But now S3 receives only an odd number of b, which no longer fits its description "has read one or more b".',
+    noteEdit: 'You edited a cell. The drawing and the "strings that land here" column change with it.',
+  },
+  zh: {
+    title: '修改转移表',
+    orig: '原始表',
+    back: 'S3 读 b 转到 S2',
+    target: '目标',
+    state: '状态',
+    accept: '接受',
+    arrive: '到达这里的字符串（从短到长）',
+    none: '无',
+    input: '输入',
+    backBtn: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    yes: '✓ 接受',
+    no: '✕ 拒绝',
+    same: '长度 7 以内的 {n} 个字符串，答案都与 {t} 相同。',
+    diff: '长度 7 以内的 {n} 个字符串中有 {d} 个与 {t} 不同。例如 {w}，在此表中{a}，在 {t} 中{b}。',
+    empty: '空字符串',
+    acc: '接受',
+    rej: '拒绝',
+    noteOrig: '每一格只有一个去处，所以是确定性的（DFA）。到达 S3 的是读了 1 个以上 b 的字符串。',
+    noteBack: '接受的字符串没有变。但现在只有 b 为奇数个时才到达 S3，与"已读 1 个以上的 b"这一说明不符。',
+    noteEdit: '你修改了格子。上方的图和"到达这里的字符串"会一起变化。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const STATES = ['S0', 'S1', 'S2', 'S3', 'S4'];
+const CHARS = ['a', 'b', 'c'];
+---
+
+<div class:list={['aas-fsa-table-demo', slide && 'is-slide']} id={id} data-ft-start={start} data-ft-strings={JSON.stringify(t)}>
+  <div class="ft-bar">
+    <span class="ft-head"><strong>{t.title}</strong></span>
+    <button type="button" class="ft-tab" data-ft-preset="orig">{t.orig}</button>
+    <button type="button" class="ft-tab" data-ft-preset="back">{t.back}</button>
+    <span class="ft-gap"></span>
+    <span class="ft-muted">{t.target}</span>
+    <button type="button" class="ft-tab" data-ft-target="ab*c"><code>ab*c</code></button>
+    <button type="button" class="ft-tab" data-ft-target="ab*c*"><code>ab*c*</code></button>
+  </div>
+
+  <div class="ft-main">
+    <div class="ft-fig" data-ft-fig></div>
+    <div class="ft-table">
+      <span class="ft-th">{t.state}</span>
+      {CHARS.map((c) => <span class="ft-th ft-mono">{c}</span>)}
+      <span class="ft-th">{t.accept}</span>
+      <span class="ft-th ft-wide">{t.arrive}</span>
+      {STATES.map((st) => (
+        <>
+          <b class="ft-td ft-mono" data-ft-row={st}>{st}</b>
+          {st === 'S1' ? (
+            <span class="ft-td ft-mono ft-eps" data-ft-row={st} data-ft-cell="S1:ε">ε → S2</span>
+          ) : (
+            CHARS.map((c) => (
+              <span class="ft-td" data-ft-row={st} data-ft-cell={`${st}:${c}`}>
+                <select data-ft-select={`${st}:${c}`} aria-label={`${st} ${c}`}>
+                  <option value="">·</option>
+                  {STATES.map((to) => <option value={to}>{to}</option>)}
+                </select>
+              </span>
+            ))
+          )}
+          <span class="ft-td" data-ft-row={st}>
+            <button type="button" class="ft-acc" data-ft-acc={st} aria-label={`${st} ${t.accept}`}></button>
+          </span>
+          <code class="ft-td ft-wide ft-arrive" data-ft-row={st} data-ft-arrive={st}></code>
+        </>
+      ))}
+    </div>
+  </div>
+
+  <div class="ft-run">
+    <label class="ft-input">
+      {t.input}
+      <input type="text" maxlength="12" spellcheck="false" autocomplete="off" value="abbbbc" data-ft-text />
+    </label>
+    <span class="ft-chips" data-ft-chips></span>
+    <div class="ft-controls">
+      <button type="button" data-act="back" class="ft-btn">{t.backBtn}</button>
+      <button type="button" data-act="step" class="ft-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ft-btn ft-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ft-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ft-path" data-ft-path></div>
+  <p class="ft-note" data-ft-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])\s*(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.ftStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    const STATES = ['S0', 'S1', 'S2', 'S3', 'S4'];
+    const CHARS = ['a', 'b', 'c'];
+    const CASES = ['abc', 'abbbbc', 'ac', 'ab', 'abd', 'abcc'];
+    const PRESETS = {
+      orig: { 'S0:a': 'S1', 'S2:b': 'S3', 'S2:c': 'S4', 'S3:b': 'S3', 'S3:c': 'S4' },
+      back: { 'S0:a': 'S1', 'S2:b': 'S3', 'S2:c': 'S4', 'S3:b': 'S2', 'S3:c': 'S4' },
+    };
+    let table = { ...PRESETS[root.dataset.ftStart] };
+    let accept = new Set(['S4']);
+    let target = 'ab*c';
+
+    /* S1은 ε로 바로 S2로 넘어간다. */
+    const settle = (st) => (st === 'S1' ? 'S2' : st);
+    function runWord(word) {
+      let st = 'S0';
+      for (const c of word) {
+        const to = table[`${st}:${c}`];
+        if (!to) return null;
+        st = settle(to);
+      }
+      return st;
+    }
+    const accepted = (word) => {
+      const st = runWord(word);
+      return st !== null && accept.has(st);
+    };
+
+    /* 표를 실제로 돌려 상태마다 짧은 문자열 셋을 모은다. ε 뒤의 S2와 그 앞의 S1은 같은
+       문자열이 함께 온다. */
+    function arrivals() {
+      const out = Object.fromEntries(STATES.map((s) => [s, []]));
+      let layer = [['', 'S0']];
+      out.S0.push('');
+      for (let len = 1; len <= 7; len++) {
+        const next = [];
+        for (const [w, st] of layer) {
+          for (const c of CHARS) {
+            const to = table[`${st}:${c}`];
+            if (!to) continue;
+            const word = w + c;
+            if (out[to].length < 3) out[to].push(word);
+            const end = settle(to);
+            if (end !== to && out[end].length < 3) out[end].push(word);
+            next.push([word, end]);
+          }
+        }
+        layer = next.length > 400 ? next.slice(0, 400) : next;
+      }
+      return out;
+    }
+
+    /* 목표 언어와 같은지 길이 7까지 모두 돌려 본다. */
+    function compare() {
+      const reg = new RegExp(`^(?:${target})$`);
+      let n = 0;
+      let d = 0;
+      let first = null;
+      let layer = [''];
+      for (let len = 0; len <= 7; len++) {
+        for (const w of layer) {
+          n += 1;
+          const mine = accepted(w);
+          if (mine !== reg.test(w)) {
+            d += 1;
+            if (first === null) first = { w, mine };
+          }
+        }
+        layer = layer.flatMap((w) => CHARS.map((c) => w + c));
+      }
+      return { n, d, first };
+    }
+
+    /* 걸음 계획: 글자 하나마다 칸 하나, S1에 닿으면 ε 한 걸음이 더 있다. */
+    function plan(word) {
+      const steps = [{ st: 'S0', pos: 0 }];
+      let st = 'S0';
+      for (let k = 0; k < word.length; k++) {
+        const c = word[k];
+        const to = table[`${st}:${c}`];
+        if (!to) {
+          steps.push({ st, pos: k, stuck: true, done: 'no', bad: c });
+          return steps;
+        }
+        steps.push({ st: to, pos: k + 1, cell: `${st}:${c}`, edge: `${st}-${to}`, c });
+        if (to === 'S1') steps.push({ st: 'S2', pos: k + 1, cell: 'S1:ε', edge: 'S1-S2', c: 'ε' });
+        st = settle(to);
+      }
+      steps.push({ st, pos: word.length, done: accept.has(st) ? 'yes' : 'no' });
+      return steps;
+    }
+
+    /* 그림. 이웃으로 가는 전이는 직선, 고리는 위, 건너뛰는 앞 전이는 아래, 뒤 전이는 위로 돈다. */
+    const fig = root.querySelector('[data-ft-fig]');
+    const R = 22;
+    const X = (i) => 40 + i * 104;
+    const Y = 92;
+    function drawFig() {
+      const pairs = new Map();
+      for (const [k, to] of Object.entries(table)) {
+        if (!to) continue;
+        const [from, c] = k.split(':');
+        const key = `${from}-${to}`;
+        pairs.set(key, [...(pairs.get(key) ?? []), c]);
+      }
+      pairs.set('S1-S2', ['ε', ...(pairs.get('S1-S2') ?? [])]);
+      let body = '';
+      for (const [key, cs] of pairs) {
+        const [a, b] = key.split('-').map((s) => Number(s[1]));
+        let d;
+        let lx;
+        let ly;
+        if (a === b) {
+          d = `M ${X(a) - 11} ${Y - R + 2} C ${X(a) - 32} ${Y - 74}, ${X(a) + 32} ${Y - 74}, ${X(a) + 12} ${Y - R}`;
+          lx = X(a);
+          ly = Y - 68;
+        } else if (b === a + 1) {
+          d = `M ${X(a) + R} ${Y} L ${X(b) - R - 2} ${Y}`;
+          lx = (X(a) + X(b)) / 2;
+          ly = Y - 8;
+        } else if (b > a) {
+          const h = 40 + (b - a) * 22;
+          d = `M ${X(a) + 8} ${Y + R} C ${X(a) + 30} ${Y + h}, ${X(b) - 30} ${Y + h}, ${X(b) - 8} ${Y + R + 1}`;
+          lx = (X(a) + X(b)) / 2;
+          ly = Y + 0.75 * h + 14;
+        } else {
+          const h = 30 + (a - b) * 22;
+          d = `M ${X(a) - 8} ${Y - R} C ${X(a) - 30} ${Y - h - 12}, ${X(b) + 30} ${Y - h - 12}, ${X(b) + 8} ${Y - R - 1}`;
+          lx = (X(a) + X(b)) / 2;
+          ly = Y - 0.75 * h - 12;
+        }
+        const eps = key === 'S1-S2' && cs.length === 1;
+        body += `<g class="ft-edge${eps ? ' is-eps' : ''}" data-ft-edge="${key}"><path d="${d}" marker-end="url(#${id}-a)" data-off="url(#${id}-a)" data-on="url(#${id}-b)"/><text x="${lx}" y="${ly}">${cs.join(',')}</text></g>`;
+      }
+      STATES.forEach((st, i) => {
+        const ring = accept.has(st) ? `<circle class="ft-ring" cx="${X(i)}" cy="${Y}" r="${R + 4}"/>` : '';
+        body += `<g class="ft-state" data-ft-state="${st}">${ring}<circle cx="${X(i)}" cy="${Y}" r="${R}"/><text x="${X(i)}" y="${Y}">${st}</text></g>`;
+      });
+      const mk = (name, cls) => `<marker id="${id}-${name}" class="${cls}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker>`;
+      fig.innerHTML = `<svg viewBox="0 0 ${X(4) + 40} 216" role="img" aria-label="${S.title}"><defs>${mk('a', 'ft-tip')}${mk('b', 'ft-tip-on')}</defs>${body}</svg>`;
+    }
+
+    const selects = [...root.querySelectorAll('[data-ft-select]')];
+    const accBtns = [...root.querySelectorAll('[data-ft-acc]')];
+    const rows = [...root.querySelectorAll('[data-ft-row]')];
+    const cellEls = [...root.querySelectorAll('[data-ft-cell]')];
+    const textIn = root.querySelector('[data-ft-text]');
+    const chipBox = root.querySelector('[data-ft-chips]');
+    const pathEl = root.querySelector('[data-ft-path]');
+    const note = root.querySelector('[data-ft-note]');
+    const playBtn = root.querySelector('[data-act="play"]');
+    let steps = [];
+    let at = -1;
+    let timer = null;
+
+    function renderStep() {
+      const step = at >= 0 ? steps[at] : null;
+      root.querySelectorAll('[data-ft-state]').forEach((g) => {
+        const here = !!step && step.st === g.dataset.ftState;
+        g.classList.toggle('is-now', here && !step.done);
+        g.classList.toggle('is-yes', here && step.done === 'yes');
+        g.classList.toggle('is-no', here && step.done === 'no');
+      });
+      root.querySelectorAll('[data-ft-edge]').forEach((g) => {
+        const on = !!step && step.edge === g.dataset.ftEdge;
+        g.classList.toggle('is-on', on);
+        const path = g.querySelector('path');
+        path.setAttribute('marker-end', on ? path.dataset.on : path.dataset.off);
+      });
+      rows.forEach((c) => c.classList.toggle('is-now', !!step && step.st === c.dataset.ftRow));
+      cellEls.forEach((c) => c.classList.toggle('is-on', !!step && step.cell === c.dataset.ftCell));
+
+      /* 지나온 길을 한 줄로 */
+      const line = document.createElement('span');
+      line.className = 'ft-line';
+      const upto = at < 0 ? 0 : at + 1;
+      steps.slice(0, upto).forEach((st, i) => {
+        if (st.done && !st.stuck) return;
+        if (st.stuck) {
+          const bad = document.createElement('b');
+          bad.className = 'ft-bad';
+          bad.textContent = ` -${st.bad}→ ·`;
+          line.append(bad);
+          return;
+        }
+        const piece = document.createElement('span');
+        piece.textContent = i === 0 ? st.st : ` -${st.c}→ ${st.st}`;
+        if (i === upto - 1) piece.className = 'is-last';
+        line.append(piece);
+      });
+      const verdict = document.createElement('b');
+      if (step && step.done) {
+        verdict.className = step.done === 'yes' ? 'ft-yes' : 'ft-no';
+        verdict.textContent = `  ${step.done === 'yes' ? S.yes : S.no}`;
+        line.append(verdict);
+      }
+      pathEl.replaceChildren(line);
+      if (at < 0) pathEl.textContent = ' ';
+    }
+
+    function renderAll() {
+      selects.forEach((sel) => {
+        sel.value = table[sel.dataset.ftSelect] ?? '';
+      });
+      accBtns.forEach((b) => {
+        const on = accept.has(b.dataset.ftAcc);
+        b.classList.toggle('is-on', on);
+        b.textContent = on ? '●' : '○';
+      });
+      root.querySelectorAll('[data-ft-target]').forEach((b) => b.classList.toggle('is-on', b.dataset.ftTarget === target));
+      const same = (p) => accept.size === 1 && accept.has('S4')
+        && Object.keys({ ...p, ...table }).every((k) => (p[k] ?? '') === (table[k] ?? ''));
+      const isOrig = same(PRESETS.orig);
+      const isBack = same(PRESETS.back);
+      root.querySelector('[data-ft-preset="orig"]').classList.toggle('is-on', isOrig);
+      root.querySelector('[data-ft-preset="back"]').classList.toggle('is-on', isBack);
+
+      const arr = arrivals();
+      root.querySelectorAll('[data-ft-arrive]').forEach((c) => {
+        const list = arr[c.dataset.ftArrive];
+        c.textContent = list.length ? list.map((w) => w || 'ε').join(', ') : S.none;
+        c.classList.toggle('is-none', !list.length);
+      });
+
+      drawFig();
+
+      chipBox.replaceChildren(...CASES.map((word) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `ft-chip ${accepted(word) ? 'is-yes' : 'is-no'}${word === textIn.value ? ' is-picked' : ''}`;
+        b.textContent = word;
+        b.addEventListener('click', () => {
+          stop();
+          textIn.value = word;
+          restart();
+          renderAll();
+        });
+        return b;
+      }));
+
+      const cmp = compare();
+      const lines = [];
+      if (cmp.d === 0) lines.push(fill(S.same, { n: fmt(cmp.n), t: target }));
+      else {
+        const w = cmp.first.w ? cmp.first.w : S.empty;
+        lines.push(fill(S.diff, { n: fmt(cmp.n), d: fmt(cmp.d), t: target, w, a: cmp.first.mine ? S.acc : S.rej, b: cmp.first.mine ? S.rej : S.acc }));
+      }
+      lines.push(isOrig ? S.noteOrig : isBack ? S.noteBack : S.noteEdit);
+      setLines(note, lines.join(' '));
+      renderStep();
+    }
+
+    function restart() {
+      steps = plan(textIn.value);
+      at = -1;
+    }
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      renderStep();
+      if (at >= steps.length - 1) stop();
+    }
+    function edited() {
+      stop();
+      restart();
+      renderAll();
+    }
+
+    selects.forEach((sel) => sel.addEventListener('change', () => {
+      table[sel.dataset.ftSelect] = sel.value || undefined;
+      if (!sel.value) delete table[sel.dataset.ftSelect];
+      edited();
+    }));
+    accBtns.forEach((b) => b.addEventListener('click', () => {
+      const st = b.dataset.ftAcc;
+      if (accept.has(st)) accept.delete(st);
+      else accept.add(st);
+      edited();
+    }));
+    root.querySelectorAll('[data-ft-preset]').forEach((b) => b.addEventListener('click', () => {
+      table = { ...PRESETS[b.dataset.ftPreset] };
+      accept = new Set(['S4']);
+      edited();
+    }));
+    root.querySelectorAll('[data-ft-target]').forEach((b) => b.addEventListener('click', () => {
+      target = b.dataset.ftTarget;
+      renderAll();
+    }));
+    textIn.addEventListener('input', edited);
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      renderStep();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      renderStep();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      renderStep();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+
+    restart();
+    renderAll();
+  })();
+</script>
+
+<style is:global>
+  .aas-fsa-table-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-fsa-table-demo .ft-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.45em;
+    align-items: center;
+    margin-bottom: 0.4em;
+  }
+  .aas-fsa-table-demo .ft-head {
+    margin-right: 0.5em;
+    font-size: 0.95em;
+  }
+  .aas-fsa-table-demo .ft-gap {
+    flex: 1 1 0;
+  }
+  .aas-fsa-table-demo .ft-muted {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-fsa-table-demo .ft-tab {
+    padding: 0.2em 0.7em;
+    font-size: 0.82em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-fsa-table-demo .ft-tab code {
+    padding: 0;
+    background: none;
+    color: inherit;
+  }
+  .aas-fsa-table-demo .ft-tab:hover,
+  .aas-fsa-table-demo .ft-btn:hover,
+  .aas-fsa-table-demo .ft-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-fsa-table-demo .ft-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-fsa-table-demo .ft-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+  }
+  .aas-fsa-table-demo .ft-fig {
+    flex: 1 1 16em;
+    min-width: 0;
+  }
+  .aas-fsa-table-demo .ft-fig svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 9.5em;
+  }
+  .aas-fsa-table-demo .ft-tip path {
+    fill: var(--aas-muted);
+  }
+  .aas-fsa-table-demo .ft-tip-on path {
+    fill: var(--aas-role-focus);
+  }
+  .aas-fsa-table-demo .ft-edge path {
+    fill: none;
+    stroke: var(--aas-muted);
+    stroke-width: 1.8;
+    transition: stroke 0.3s, stroke-width 0.3s;
+  }
+  .aas-fsa-table-demo .ft-edge.is-eps path {
+    stroke-dasharray: 5 4;
+  }
+  .aas-fsa-table-demo .ft-edge text {
+    font-size: 15px;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-fsa-table-demo .ft-edge.is-on path {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3.2;
+  }
+  .aas-fsa-table-demo .ft-edge.is-on text {
+    fill: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-fsa-table-demo .ft-state circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .aas-fsa-table-demo .ft-state .ft-ring {
+    fill: none;
+  }
+  .aas-fsa-table-demo .ft-state text {
+    font-size: 15px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-fsa-table-demo .ft-state.is-now circle:not(.ft-ring) {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-fsa-table-demo .ft-state.is-yes circle:not(.ft-ring) {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-fsa-table-demo .ft-state.is-no circle:not(.ft-ring) {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-fsa-table-demo .ft-state.is-now text,
+  .aas-fsa-table-demo .ft-state.is-yes text,
+  .aas-fsa-table-demo .ft-state.is-no text {
+    fill: #fff;
+  }
+  .aas-fsa-table-demo .ft-table {
+    flex: 1 1 24em;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto repeat(3, 2.9em) auto minmax(0, 1fr);
+    align-items: center;
+    font-size: 0.74em;
+    line-height: 1.5;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-fsa-table-demo .ft-th {
+    padding: 0.1em 0.5em;
+    color: var(--aas-muted);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .aas-fsa-table-demo .ft-wide {
+    text-align: left;
+    white-space: normal;
+  }
+  .aas-fsa-table-demo .ft-mono {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-fsa-table-demo .ft-td {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    padding: 0.1em 0.3em;
+    border-top: 1px solid var(--aas-border);
+    transition: background-color 0.2s;
+  }
+  .aas-fsa-table-demo .ft-td.ft-wide {
+    justify-content: flex-start;
+  }
+  .aas-fsa-table-demo .ft-td.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, var(--aas-bg));
+  }
+  .aas-fsa-table-demo .ft-td.is-on {
+    background: var(--aas-role-focus);
+    color: #fff;
+  }
+  .aas-fsa-table-demo .ft-eps {
+    grid-column: span 3;
+    color: var(--aas-role-model);
+  }
+  .aas-fsa-table-demo .ft-td select {
+    width: 100%;
+    padding: 0 0.1em;
+    appearance: none;
+    text-align: center;
+    text-align-last: center;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    color: inherit;
+    background: transparent;
+    border: 1px dashed color-mix(in srgb, var(--aas-muted) 60%, transparent);
+    border-radius: 0.3em;
+    cursor: pointer;
+  }
+  .aas-fsa-table-demo .ft-td select:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-fsa-table-demo .ft-td select option {
+    color: var(--aas-text);
+    background: var(--aas-bg);
+  }
+  .aas-fsa-table-demo .ft-acc {
+    padding: 0 0.3em;
+    font-size: 1em;
+    line-height: 1.2;
+    border: none;
+    background: none;
+    color: var(--aas-muted);
+    cursor: pointer;
+  }
+  .aas-fsa-table-demo .ft-acc.is-on {
+    color: var(--aas-role-eval);
+  }
+  .aas-fsa-table-demo code.ft-arrive {
+    font-size: 0.92em;
+    padding: 0.1em 0.5em;
+    background: none;
+    color: var(--aas-text);
+    border-radius: 0;
+  }
+  .aas-fsa-table-demo code.ft-arrive.is-none {
+    color: var(--aas-muted);
+  }
+  .aas-fsa-table-demo code.ft-arrive.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, var(--aas-bg));
+  }
+  .aas-fsa-table-demo .ft-run {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.6em;
+    align-items: center;
+    margin-top: 0.45em;
+  }
+  .aas-fsa-table-demo .ft-input {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-fsa-table-demo .ft-input input {
+    width: 7em;
+    padding: 0.12em 0.4em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-fsa-table-demo .ft-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    margin-right: auto;
+  }
+  .aas-fsa-table-demo .ft-chip {
+    padding: 0.08em 0.45em;
+    font-size: 0.78em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-fsa-table-demo .ft-chip.is-yes {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, var(--aas-bg));
+  }
+  .aas-fsa-table-demo .ft-chip.is-no {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, var(--aas-bg));
+  }
+  .aas-fsa-table-demo .ft-chip.is-picked {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-fsa-table-demo .ft-controls {
+    display: flex;
+    gap: 0.35em;
+  }
+  .aas-fsa-table-demo .ft-btn {
+    padding: 0.25em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-fsa-table-demo .ft-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-fsa-table-demo .ft-path {
+    margin-top: 0.4em;
+    min-height: 1.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+  }
+  .aas-fsa-table-demo .ft-path .is-last {
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-fsa-table-demo .ft-bad,
+  .aas-fsa-table-demo .ft-no {
+    color: var(--aas-role-guard);
+  }
+  .aas-fsa-table-demo .ft-yes {
+    color: var(--aas-role-eval);
+  }
+  .aas-fsa-table-demo .ft-note {
+    margin: 0.3em 0 0;
+    font-size: 0.8em;
+    color: var(--aas-text);
+    min-height: 2.8em;
+  }
+  .aas-fsa-table-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.95rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-fsa-table-demo * {
+      transition: none !important;
+    }
+  }
+</style>

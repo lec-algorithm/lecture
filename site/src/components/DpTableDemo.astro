@@ -14,6 +14,7 @@
 // 아닌 금액은 만들 수 없고 참조되지도 않으므로, 그 칸을 빼고 보여 줘도
 // 값이 같다. {50, 40, 10}과 80원을 9칸으로 보이는 데 쓴다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
 
 interface Props {
   problem?: 'fib' | 'coin' | 'lis';
@@ -185,6 +186,7 @@ const config = { problem, n, coins, amount, unit, arr, cols };
 >
   <div class="dt-bar">
     <span class="dt-head"><strong>{title}</strong></span>
+    <DpRef kind={problem} coins={problem === 'coin' ? coins : []} />
     <span class="dt-controls">
       <button type="button" class="dt-btn" data-dt-back>{t.back}</button>
       <button type="button" class="dt-btn" data-dt-step>{t.step}</button>
@@ -457,6 +459,11 @@ const config = { problem, n, coins, amount, unit, arr, cols };
         if (s) {
           for (let i = 0; i + 1 < s.path.length; i++) arc(bottom, s.path[i], s.path[i + 1], 'is-path', true);
         }
+        /* 참고 띠: 이 금액에서 고른 동전을 칠한다. */
+        const coin = s && s.cur !== null && cfg.problem === 'coin' ? s.aux[s.cur] : null;
+        root.querySelectorAll<HTMLElement>('[data-dr-key]').forEach((c) => {
+          c.classList.toggle('is-now', c.dataset.drKey === String(coin));
+        });
         count.textContent = String(filled);
         setLines(note, s ? s.note : S.idle);
         const last = at === steps.length - 1;
@@ -699,7 +706,7 @@ const config = { problem, n, coins, amount, unit, arr, cols };
 
   /* 슬라이드용. 다른 데모와 같은 방식: 슬라이드 폭은 뷰포트 높이가 정하므로 vh로 */
   .aas-dp-table-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
     margin: 0.5rem 0;
   }
   .aas-dp-table-demo.is-slide .dt-note {

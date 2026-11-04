@@ -11,7 +11,11 @@
 // α = 0.5에서 algorithm-code의 contentBasedFiltering.c 출력과 같다.
 // toy 0.700 0.800 0.350, A: M3 0.847, M7 0.764, M6 0.248.
 // 작은 예는 α가 0.75보다 커지면 아이템 1이 아이템 2를 앞선다.
+//
+// 패널 위의 작은 표에 섞을 두 점수를 적어, 예측과 콘텐츠 점수를 보러 앞 슬라이드로
+// 돌아가지 않아도 된다. M3 같은 번호에는 영화 제목을 함께 적는다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import { MOVIE_TITLES } from './recData';
 
 interface Props {
   /** 처음 α */
@@ -56,6 +60,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     cf: '협업 필터링',
     content: '콘텐츠',
     noCf: 'cf 없음',
+    srcCf: '협업 점수',
+    srcCfUser: '예측 ÷ 5',
+    srcCt: '콘텐츠 점수',
+    none: '없음',
     weights: 'α = {a}: 협업 필터링 점수를 {p}%, 콘텐츠 점수를 {q}% 반영합니다.',
     toyOrder: '작은 예의 순위는 {list}입니다.',
     tie: '{x}, {y}: 점수가 같습니다.',
@@ -72,6 +80,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     cf: 'collaborative',
     content: 'content',
     noCf: 'no cf',
+    srcCf: 'collaborative',
+    srcCfUser: 'predicted ÷ 5',
+    srcCt: 'content',
+    none: 'none',
     weights: 'α = {a}: the collaborative score counts {p}% and the content score {q}%.',
     toyOrder: 'The toy ranking is {list}.',
     tie: '{x} and {y} have the same score.',
@@ -88,6 +100,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     cf: '协同过滤',
     content: '内容',
     noCf: '无 cf',
+    srcCf: '协同分数',
+    srcCfUser: '预测 ÷ 5',
+    srcCt: '内容分数',
+    none: '无',
     weights: 'α = {a}：协同过滤分数占 {p}%，内容分数占 {q}%。',
     toyOrder: '小例子的排名是 {list}。',
     tie: '{x} 与 {y} 分数相同。',
@@ -98,6 +114,7 @@ const STRINGS: Record<string, Record<string, string>> = {
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const a0 = Math.min(1, Math.max(0, alpha));
+const titles = MOVIE_TITLES[lang] ?? MOVIE_TITLES.ko;
 ---
 
 <div
@@ -105,6 +122,7 @@ const a0 = Math.min(1, Math.max(0, alpha));
   id={id}
   data-hd-data={JSON.stringify(data)}
   data-hd-alpha={a0}
+  data-hd-titles={JSON.stringify(titles)}
   data-hd-strings={JSON.stringify(t)}
 >
   <div class="hd-bar">
@@ -124,10 +142,12 @@ const a0 = Math.min(1, Math.max(0, alpha));
   <div class="hd-panels">
     <section class="hd-panel" data-hd-panel="toy">
       <h4 class="hd-ptitle">{t.toy}</h4>
+      <div class="hd-src" data-hd-src></div>
       <div class="hd-list" data-hd-list></div>
     </section>
     <section class="hd-panel" data-hd-panel="user">
       <h4 class="hd-ptitle">{t.user}</h4>
+      <div class="hd-src" data-hd-src></div>
       <div class="hd-list" data-hd-list></div>
     </section>
   </div>
@@ -149,6 +169,7 @@ const a0 = Math.min(1, Math.max(0, alpha));
     const cat = (...xs) => xs.reduce((a, b) => (!a ? b : /[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
     const D = JSON.parse(root.dataset.hdData);
     const S = JSON.parse(root.dataset.hdStrings);
+    const titles = JSON.parse(root.dataset.hdTitles);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const f3 = (x) => x.toFixed(3);
     let alpha = Number(root.dataset.hdAlpha);
@@ -216,13 +237,30 @@ const a0 = Math.min(1, Math.max(0, alpha));
       .filter((i) => rA[i] === 0)
       .map((i) => {
         const p = predict(i);
-        return { name: `M${i + 1}`, cf: p === null ? null : p / 5, content: cosine(profile, D.features[i]) };
+        return { name: `M${i + 1}`, head: `M${i + 1} ${titles[i]}`, cf: p === null ? null : p / 5, content: cosine(profile, D.features[i]) };
       });
-    const toyItems = D.toyCf.map((cf, i) => ({ name: fill(S.item, { n: i + 1 }), cf, content: D.toyContent[i] }));
+    const toyItems = D.toyCf.map((cf, i) => {
+      const name = fill(S.item, { n: i + 1 });
+      return { name, head: name, cf, content: D.toyContent[i] };
+    });
 
     /* 줄 만들기. 줄은 absolute로 두고 순위에 따라 위아래로 옮긴다. */
     const panels = [...root.querySelectorAll('[data-hd-panel]')].map((sec, p) => {
       const items = p === 0 ? toyItems : userItems;
+      /* 섞을 재료: 아이템마다 협업 점수와 콘텐츠 점수 */
+      const src = sec.querySelector('[data-hd-src]');
+      const cell = (text, cls) => {
+        const c = document.createElement('span');
+        c.className = cls;
+        c.textContent = text;
+        src.appendChild(c);
+      };
+      cell('', 'hd-sl');
+      items.forEach((it) => cell(it.head, 'hd-sh'));
+      cell(p === 0 ? S.srcCf : S.srcCfUser, 'hd-sl');
+      items.forEach((it) => cell(it.cf === null ? S.none : (p === 0 ? it.cf.toFixed(1) : f3(it.cf)), it.cf === null ? 'hd-sv is-none' : 'hd-sv'));
+      cell(S.srcCt, 'hd-sl');
+      items.forEach((it) => cell(p === 0 ? it.content.toFixed(1) : f3(it.content), 'hd-sv'));
       const list = sec.querySelector('[data-hd-list]');
       list.style.height = `${items.length * 2.3}em`;
       const rows = items.map((it) => {
@@ -370,6 +408,37 @@ const a0 = Math.min(1, Math.max(0, alpha));
     font-size: 0.85em;
     color: var(--aas-muted);
   }
+  .aas-hybrid-demo .hd-src {
+    display: grid;
+    grid-template-columns: auto repeat(3, minmax(0, 1fr));
+    margin-bottom: 0.45em;
+    font-size: 0.72em;
+    line-height: 1.25;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-hybrid-demo .hd-sl {
+    padding: 0.05em 0.6em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-hybrid-demo .hd-sh,
+  .aas-hybrid-demo .hd-sv {
+    padding: 0.05em 0.2em;
+    text-align: center;
+  }
+  .aas-hybrid-demo .hd-sh {
+    font-size: 0.92em;
+    font-weight: 700;
+  }
+  .aas-hybrid-demo .hd-sv {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-hybrid-demo .hd-sv.is-none {
+    color: var(--aas-role-guard);
+  }
   .aas-hybrid-demo .hd-list {
     position: relative;
   }
@@ -440,7 +509,7 @@ const a0 = Math.min(1, Math.max(0, alpha));
 
   /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
   .aas-hybrid-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.5vh, 1.8rem);
     margin: 0.5rem 0;
   }
   @media (prefers-reduced-motion: reduce) {

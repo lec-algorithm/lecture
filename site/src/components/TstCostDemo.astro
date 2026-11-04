@@ -1,0 +1,471 @@
+---
+// TST 검색이 옆으로 비켜 가는 몫이 어느 글자에서 드는지 세어 보는 데모.
+//
+// 알파벳 크기 R인 길이 20의 무작위 키 N개로 TST를 실제로 만들고 1000번 찾는다. 글자 자리마다
+// 옆으로 비켜 간 횟수의 평균을 막대로 보이고, 전체 비교 횟수를 가운데와 옆으로 나누어 m + ln N,
+// 트라이의 거친 노드 수와 나란히 놓는다. 비켜 가는 몫은 앞쪽 몇 자리에만 들고, 뒤쪽 글자에서는
+// 거의 0이다. 키들이 앞에서 갈라지고 나면 같은 자리에 남는 문자가 몇 개 안 되기 때문이다.
+//
+// 난수는 algorithm-code의 topic-10-trie/01_trie의 next_random과 같은 수열이고, 삽입과 검색은
+// 02_tst의 insert·get_node와 같다. 실제로 세므로 ln N에 딱 맞지는 않는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+
+interface Props {
+  /** 처음 고른 키 개수 */
+  n?: number;
+  /** 처음 고른 알파벳 크기 */
+  radix?: number;
+  /** hit · miss */
+  mode?: 'hit' | 'miss';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { n = 1000, radix = 26, mode = 'hit', slide = false } = Astro.props;
+const id = `tv-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '옆으로 비켜 가는 몫',
+    hit: '찾기 성공',
+    miss: '찾기 실패',
+    keys: '키 N',
+    radix: '알파벳 R',
+    axis: '글자 자리별 옆으로 간 횟수의 평균',
+    tail: '이후',
+    total: 'TST 비교',
+    middle: '가운데',
+    side: '옆으로',
+    formula: 'm + ln N',
+    logN: 'ln N',
+    trie: '트라이 거친 노드',
+    hitNote: '길이 {m}의 키를 찾는 데 가운데 {m}번, 옆으로 {s}번입니다. ln N은 {l}입니다.',
+    missNote: '실패는 비교 {t}번에 끝납니다. 키 길이 {m}과 상관없습니다. N을 열 배로 늘려도 조금씩만 늘지만, 실제로 세면 ln N = {l}보다 큽니다.',
+    first: '옆으로 간 몫의 {p}%가 앞의 세 자리에서 듭니다.',
+  },
+  en: {
+    title: 'The sideways share',
+    hit: 'Search hit',
+    miss: 'Search miss',
+    keys: 'keys N',
+    radix: 'alphabet R',
+    axis: 'Average sideways moves at each character position',
+    tail: 'later',
+    total: 'TST compares',
+    middle: 'middle',
+    side: 'sideways',
+    formula: 'm + ln N',
+    logN: 'ln N',
+    trie: 'trie nodes visited',
+    hitNote: 'Finding a key of length {m} takes {m} on the middle and {s} sideways. ln N is {l}.',
+    missNote: 'A miss ends after {t} compares, whatever the key length {m}. Ten times the keys adds only a little, but a real count comes out above ln N = {l}.',
+    first: 'The first three positions account for {p}% of the sideways moves.',
+  },
+  zh: {
+    title: '向旁边走的部分',
+    hit: '查找成功',
+    miss: '查找失败',
+    keys: '键 N',
+    radix: '字母表 R',
+    axis: '每个字符位置向旁边走的平均次数',
+    tail: '之后',
+    total: 'TST 比较',
+    middle: '中间',
+    side: '向旁边',
+    formula: 'm + ln N',
+    logN: 'ln N',
+    trie: '字典树经过的节点',
+    hitNote: '查找长度 {m} 的键，中间 {m} 次，向旁边 {s} 次。ln N 是 {l}。',
+    missNote: '失败在比较 {t} 次后结束，与键长 {m} 无关。N 增加十倍也只多一点，但实际计数比 ln N = {l} 大。',
+    first: '向旁边走的次数有 {p}% 发生在前三个位置。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const sizes = [10, 100, 1000, 10000];
+const radixes = [26, 4, 2];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-tst-cost-demo', slide && 'is-slide']} id={id} data-tv-config={JSON.stringify({ n, radix, mode })} data-tv-strings={JSON.stringify(t)}>
+  <div class="tv-bar">
+    <span class="tv-head"><strong>{t.title}</strong></span>
+    <div class="tv-tabs">
+      <button type="button" class="tv-tab" data-tv-mode="hit">{t.hit}</button>
+      <button type="button" class="tv-tab" data-tv-mode="miss">{t.miss}</button>
+    </div>
+    <div class="tv-tabs">
+      <span class="tv-label">{t.keys}</span>
+      {sizes.map((s) => <button type="button" class="tv-tab tv-mono" data-tv-n={s}>{s.toLocaleString('en-US')}</button>)}
+    </div>
+    <div class="tv-tabs">
+      <span class="tv-label">{t.radix}</span>
+      {radixes.map((r) => <button type="button" class="tv-tab tv-mono" data-tv-r={r}>{r}</button>)}
+    </div>
+  </div>
+  <div class="tv-body">
+    <figure class="tv-chart">
+      <svg class="tv-svg" data-tv-svg role="img" aria-label={t.axis}></svg>
+      <figcaption>{t.axis}</figcaption>
+    </figure>
+    <div class="tv-side">
+      <div class="tv-big"><span>{t.total}</span><strong data-tv-total></strong></div>
+      <div class="tv-row"><span>{t.middle}</span><b data-tv-mid></b></div>
+      <div class="tv-row"><span>{t.side}</span><b data-tv-sides></b></div>
+      <div class="tv-row is-rule"><span data-tv-formula-label></span><b data-tv-formula></b></div>
+      <div class="tv-row"><span>{t.trie}</span><b data-tv-trie></b></div>
+    </div>
+  </div>
+  <p class="tv-note" data-tv-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const cfg = JSON.parse(root.dataset.tvConfig);
+    const S = JSON.parse(root.dataset.tvStrings);
+    const { makeRandom } = globalThis.aasTrieAlgos;
+    const LEN = 20;
+    const QUERIES = 1000;
+    const BARS = 8;
+
+    /* plan:start (무작위 키로 TST를 만들고 비교를 센다. 노드는 배열 하나로 둔다) */
+    function experiment(N, R, mode) {
+      const next = makeRandom(2026);
+      const key = () => {
+        const a = new Uint8Array(LEN);
+        for (let i = 0; i < LEN; i++) a[i] = next() % R;
+        return a;
+      };
+      const ch = [];
+      const left = [];
+      const mid = [];
+      const right = [];
+      const val = [];
+      const make = (c) => {
+        ch.push(c);
+        left.push(-1);
+        mid.push(-1);
+        right.push(-1);
+        val.push(0);
+        return ch.length - 1;
+      };
+      const keys = [];
+      let rootNode = -1;
+      for (let k = 0; k < N; k++) {
+        const w = key();
+        keys.push(w);
+        if (rootNode === -1) rootNode = make(w[0]);
+        let at = rootNode;
+        let i = 0;
+        for (;;) {
+          const c = w[i];
+          if (c < ch[at]) {
+            if (left[at] === -1) left[at] = make(c);
+            at = left[at];
+          } else if (c > ch[at]) {
+            if (right[at] === -1) right[at] = make(c);
+            at = right[at];
+          } else if (i < LEN - 1) {
+            if (mid[at] === -1) mid[at] = make(w[i + 1]);
+            at = mid[at];
+            i += 1;
+          } else {
+            val[at] = 1;
+            break;
+          }
+        }
+      }
+      const bySpot = new Array(LEN).fill(0);
+      let total = 0;
+      let middles = 0;
+      let sideways = 0;
+      let trieVisited = 0;
+      let done = 0;
+      let guard = 0;
+      while (done < QUERIES && guard < QUERIES * 3) {
+        guard += 1;
+        const w = mode === 'hit' ? keys[next() % keys.length] : key();
+        let at = rootNode;
+        let i = 0;
+        let sides = 0;
+        let compares = 0;
+        let mids = 0;
+        let found = false;
+        const spots = [];
+        while (at !== -1) {
+          compares += 1;
+          const c = w[i];
+          if (c < ch[at]) {
+            sides += 1;
+            spots.push(i);
+            at = left[at];
+          } else if (c > ch[at]) {
+            sides += 1;
+            spots.push(i);
+            at = right[at];
+          } else if (i === LEN - 1) {
+            mids += 1;
+            found = val[at] === 1;
+            break;
+          } else {
+            mids += 1;
+            at = mid[at];
+            i += 1;
+          }
+        }
+        if (mode === 'miss' && found) continue;
+        done += 1;
+        total += compares;
+        middles += mids;
+        sideways += sides;
+        spots.forEach((s) => (bySpot[s] += 1));
+        trieVisited += found ? LEN + 1 : i + 1;
+      }
+      return {
+        total: total / done,
+        middles: middles / done,
+        sideways: sideways / done,
+        trie: trieVisited / done,
+        bySpot: bySpot.map((x) => x / done),
+      };
+    }
+    /* plan:end */
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const svg = root.querySelector('[data-tv-svg]');
+    const cache = new Map();
+    let mode = cfg.mode;
+    let N = cfg.n;
+    let R = cfg.radix;
+
+    function render() {
+      const k = `${N}:${R}:${mode}`;
+      if (!cache.has(k)) cache.set(k, experiment(N, R, mode));
+      const d = cache.get(k);
+      const ln = Math.log(N);
+      /* 막대: 앞의 BARS 자리, 나머지는 한 칸에 모은다. */
+      const shown = d.bySpot.slice(0, BARS);
+      const tail = d.bySpot.slice(BARS).reduce((a, b) => a + b, 0);
+      const vals = [...shown, tail];
+      const max = Math.max(...vals, 0.5);
+      const BW = 52;
+      const GAP = 12;
+      const H = 130;
+      const W = vals.length * (BW + GAP) - GAP;
+      svg.setAttribute('viewBox', `-6 -20 ${W + 12} ${H + 44}`);
+      svg.replaceChildren();
+      vals.forEach((v, i) => {
+        const h = (v / max) * H;
+        const x = i * (BW + GAP);
+        svg.appendChild(el('rect', { class: 'tv-col', x, y: H - h, width: BW, height: Math.max(h, 0.5), rx: 3 }));
+        svg.appendChild(el('text', { class: 'tv-num', x: x + BW / 2, y: H - h - 6 }, v.toFixed(2)));
+        svg.appendChild(el('text', { class: 'tv-x', x: x + BW / 2, y: H + 18 }, i < BARS ? String(i) : S.tail));
+      });
+      svg.appendChild(el('line', { class: 'tv-base', x1: -4, y1: H, x2: W + 4, y2: H }));
+
+      root.querySelector('[data-tv-total]').textContent = d.total.toFixed(2);
+      root.querySelector('[data-tv-mid]').textContent = d.middles.toFixed(2);
+      root.querySelector('[data-tv-sides]').textContent = d.sideways.toFixed(2);
+      root.querySelector('[data-tv-trie]').textContent = d.trie.toFixed(2);
+      root.querySelector('[data-tv-formula-label]').textContent = mode === 'hit' ? S.formula : S.logN;
+      root.querySelector('[data-tv-formula]').textContent = (mode === 'hit' ? LEN + ln : ln).toFixed(2);
+      const firstThree = d.bySpot.slice(0, 3).reduce((a, b) => a + b, 0);
+      const pct = d.sideways > 0 ? Math.round((firstThree / d.sideways) * 100) : 0;
+      const line = mode === 'hit'
+        ? fill(S.hitNote, { m: LEN, s: d.sideways.toFixed(2), l: ln.toFixed(2) })
+        : fill(S.missNote, { t: d.total.toFixed(2), m: LEN, l: ln.toFixed(2) });
+      setLines(root.querySelector('[data-tv-note]'), join(line, fill(S.first, { p: pct })));
+      root.querySelectorAll('[data-tv-mode]').forEach((b) => b.classList.toggle('is-on', b.dataset.tvMode === mode));
+      root.querySelectorAll('[data-tv-n]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.tvN) === N));
+      root.querySelectorAll('[data-tv-r]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.tvR) === R));
+    }
+    root.querySelectorAll('[data-tv-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        mode = b.dataset.tvMode;
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-tv-n]').forEach((b) =>
+      b.addEventListener('click', () => {
+        N = Number(b.dataset.tvN);
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-tv-r]').forEach((b) =>
+      b.addEventListener('click', () => {
+        R = Number(b.dataset.tvR);
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-tst-cost-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tst-cost-demo .tv-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+    margin-bottom: 0.5em;
+  }
+  .aas-tst-cost-demo .tv-head {
+    margin-right: auto;
+    font-size: 0.95em;
+  }
+  .aas-tst-cost-demo .tv-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-tst-cost-demo .tv-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-cost-demo .tv-tab {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tst-cost-demo .tv-mono {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-cost-demo .tv-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tst-cost-demo .tv-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-tst-cost-demo .tv-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
+    align-items: center;
+  }
+  .aas-tst-cost-demo .tv-chart {
+    flex: 1 1 22em;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+  }
+  .aas-tst-cost-demo .tv-svg {
+    display: block;
+    width: 100%;
+    max-height: 20em;
+  }
+  .aas-tst-cost-demo figcaption {
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-cost-demo .tv-col {
+    fill: var(--aas-role-trace);
+    transition:
+      y 0.25s,
+      height 0.25s;
+  }
+  .aas-tst-cost-demo .tv-num {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-cost-demo .tv-x {
+    font-size: 13px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-tst-cost-demo .tv-base {
+    stroke: var(--aas-border);
+    stroke-width: 1;
+  }
+  .aas-tst-cost-demo .tv-side {
+    flex: 0 1 14em;
+    min-width: 0;
+  }
+  .aas-tst-cost-demo .tv-big span {
+    display: block;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-cost-demo .tv-big strong {
+    font-size: 2.2em;
+    color: var(--aas-role-focus);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-cost-demo .tv-row {
+    display: flex;
+    gap: 0.6em;
+    justify-content: space-between;
+    padding: 0.1em 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-cost-demo .tv-row b {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-cost-demo .tv-row.is-rule {
+    margin-top: 0.3em;
+    padding-top: 0.4em;
+    border-top: 1px solid var(--aas-border);
+  }
+  .aas-tst-cost-demo .tv-note {
+    margin: 0.5em 0 0;
+    min-height: 3.6em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-tst-cost-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tst-cost-demo.is-slide .tv-body {
+    flex-wrap: nowrap;
+  }
+  .aas-tst-cost-demo.is-slide .tv-svg {
+    max-height: 34vh;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tst-cost-demo .tv-col {
+      transition: none;
+    }
+  }
+</style>

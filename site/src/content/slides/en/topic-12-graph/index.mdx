@@ -1,7 +1,7 @@
 ---
 title: "Topic 12. Graphs and Shortest Paths"
 description: "Graphs write the world as vertices and edges. Representing and traversing them (BFS, DFS), minimum spanning trees (Kruskal, Prim), the min heap behind both, and shortest paths (Dijkstra, A*)"
-date: "Topic 12 · v1"
+date: "Topic 12 · v2"
 order: 12
 transition: none
 toc_level: 4
@@ -18,6 +18,19 @@ import GraphTermsDemo from '@components/GraphTermsDemo.astro';
 import GraphRepDemo from '@components/GraphRepDemo.astro';
 import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
+import DensityDemo from '@components/DensityDemo.astro';
+import FrontierDemo from '@components/FrontierDemo.astro';
+import SearchCompareDemo from '@components/SearchCompareDemo.astro';
+import TopoPickDemo from '@components/TopoPickDemo.astro';
+import SpanSwapDemo from '@components/SpanSwapDemo.astro';
+import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import WeightPathDemo from '@components/WeightPathDemo.astro';
+import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
+import PqCostDemo from '@components/PqCostDemo.astro';
+import NegWeightDemo from '@components/NegWeightDemo.astro';
+import NegCycleDemo from '@components/NegCycleDemo.astro';
+import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
+import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Numbers match the practice code (topic-12-graph) exactly. */}
@@ -205,6 +218,15 @@ means scanning the whole list.
 
 <Slide>
 
+### Try it: edges and cells
+::sub[Move n and m to see the graph and the cell counts of the two representations change]
+
+<DensityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Adjacency matrix vs. adjacency list
 ::sub[Seoul(0)-Busan(1), Seoul-Daegu(2), Busan-Gwangju(3) · list 4 + 6 slots, matrix 16 cells]
 
@@ -262,6 +284,15 @@ Search asks "who are the neighbours?" most often. All the practice code uses adj
 
 One question remains.  
 **When several edges cross the frontier, which comes first?**
+
+</Slide>
+
+<Slide>
+
+### Try it: pick the frontier edges
+::sub[Any choice reaches the same vertices · oldest first gives the BFS order, newest first the DFS order]
+
+<FrontierDemo slide />
 
 </Slide>
 
@@ -473,27 +504,10 @@ order: 0 6 4 5 3 2 1
 
 <Slide>
 
-#### Application: topological sort
-::sub[u → v: you must take u before v]
+### Try it: topological sort
+::sub[u → v: you must take u before v · build a course order yourself]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="dag" slide />
-
-</div>
-<div>
-
-0. Algorithms
-1. Complexity Theory
-2. Artificial Intelligence
-3. Intro to CS
-4. Cryptography
-5. Scientific Computing
-6. Advanced Programming
-
-</div>
-</div>
+<TopoPickDemo slide />
 
 </Slide>
 
@@ -544,6 +558,15 @@ With a directed cycle there is no topological order.
   - An edge back to a vertex still being visited (a back edge) means a cycle
 - **Strongly connected components**
   - The Kosaraju-Sharir algorithm: two DFS passes
+
+</Slide>
+
+<Slide>
+
+### Try it: BFS and DFS side by side
+::sub[Change the shape and the neighbour order, and click a vertex to change the start]
+
+<SearchCompareDemo slide />
 
 </Slide>
 
@@ -608,6 +631,15 @@ The Kruskal and Prim examples
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### Try it: swap edges in a spanning tree
+::sub[Add an edge from outside the tree, remove one on the cycle, and work down to the lightest tree]
+
+<SpanSwapDemo slide />
 
 </Slide>
 
@@ -810,7 +842,7 @@ total weight = 1.81
 <Slide>
 
 #### Insert and extract-min
-::sub[Both do one comparison per level]
+::sub[Comparisons per level: one for sift up, at most two for sift down]
 
 - **Insert**
   1. Check whether it is full.
@@ -829,6 +861,15 @@ total weight = 1.81
 ::sub[insert 10, insert 0, extract min · orange: the moving element, blue: what it is compared with]
 
 <HeapDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Try it: min heap
+::sub[Insert values and extract the minimum · click a cell to see its parent and children]
+
+<HeapPlayDemo slide />
 
 </Slide>
 
@@ -1035,6 +1076,15 @@ Change one line in Prim and you get Dijkstra; add one estimate and you get A*.
 
 </Slide>
 
+<Slide>
+
+### Try it: the paths of BFS and Dijkstra
+::sub[The path with the fewest edges and the path with the smallest total]
+
+<WeightPathDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Example 6. Dijkstra's algorithm
@@ -1079,6 +1129,15 @@ Vertices are finalised one by one in order of increasing distance.
 ::sub[Blue number: distance so far · green: finalised, dashed blue: from of a vertex not yet finalised]
 
 <HeapGraphDemo mode="dijkstra" slide />
+
+</Slide>
+
+<Slide>
+
+### Try it: Prim and Dijkstra side by side
+::sub[Same graph, same frame, one different line · click a vertex to change the start]
+
+<PrimDijkstraDemo slide />
 
 </Slide>
 
@@ -1143,6 +1202,15 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 
 <Slide>
 
+### Try it: choosing the priority queue
+::sub[Move V and E to see the total formulas change · the bars use a log scale]
+
+<PqCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Running time
 ::sub[Depends on what the priority queue is built from · * amortized]
 
@@ -1194,6 +1262,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 <Slide>
 
+### Try it: negative weights
+::sub[Move the weight of 2→3 and the value added to every edge · thick green is the path Dijkstra found]
+
+<NegWeightDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Negative cycles
 ::sub[A directed cycle whose total edge weight is negative]
 
@@ -1201,6 +1278,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
   - 7 → 5 → 7 is $$6 - 8 = -2$$
   - Every trip around it is shorter, so the shortest path is **undefined.**
 - A shortest-path tree exists **only if** no negative cycle is reachable from s.
+
+</Slide>
+
+<Slide>
+
+### Try it: negative cycles
+::sub[The Dijkstra example graph with 5 → 7 added · go around 7 → 5 → 7 one lap at a time]
+
+<NegCycleDemo slide />
 
 </Slide>
 
@@ -1297,11 +1383,22 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 #### 26 is not the shortest
 ::sub[On the same graph Dijkstra finds 0 → 4 → 5 → 2 → 6, 25]
 
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="sp" nodeTones={{ 0: 'ring', 6: 'ring' }} edgeTones={{ '0-7': 'tree', '7-2': 'tree', '2-6': 'tree', '5-2': 'focus' }} slide />
+
+</div>
+<div>
+
 - 0 → 7 → 2 → 6, **26**, is not the shortest path.
 - The fork in the road is when 5 is closed.
   - From 5 to 2 gives $$g = 14$$, shorter than the current 15.
   - But 2 is already closed, so it is passed over.
   - 2's $$g$$ is frozen at 15, and 6 at 26.
+
+</div>
+</div>
 
 </Slide>
 
@@ -1317,6 +1414,15 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 - This h is admissible but not consistent.
   - $$h(4) = 11 > 4 + h(5) = 10$$
   - $$h(5) = 6 > 1 + h(2) = 5$$
+
+</Slide>
+
+<Slide>
+
+### Try it: edit h
+::sub[Dashed red edges break consistency, green is the path without reopening]
+
+<HeuristicLabDemo slide />
 
 </Slide>
 
@@ -1400,6 +1506,15 @@ path: 0 4 5 2 6, cost 25
 - **Refinements**
   - IDA* (memory), bidirectional A*, hierarchical pathfinding
   - Pattern databases, machine-learned heuristics
+
+</Slide>
+
+<Slide>
+
+### Try it: measure the four algorithms
+::sub[Same graph, from 0 to 6 · click a row and step through it]
+
+<SearchRaceDemo slide />
 
 </Slide>
 

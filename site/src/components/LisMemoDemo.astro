@@ -1,0 +1,572 @@
+---
+// LIS 메모이제이션을 한 걸음씩 돌려 memo 표가 실제로 몇 번 쓰이는지 세는 데모.
+//
+// 행은 지금 볼 원소 i, 열은 마지막으로 고른 원소 prev다. 행과 열 머리에 원소 값을
+// 적어 두어 입력 배열을 찾으러 앞 슬라이드로 돌아가지 않게 했다. 지금 칸은 주황,
+// 표에서 꺼낸 칸은 노랑, 방금 적은 칸은 초록이다. 오른쪽에 코드의 네 단계 가운데
+// 지금 어디인지, 고른 수열, 호출과 꺼낸 횟수를 보인다.
+//
+// 수열을 바꾸면 값이 달라진다. 줄어드는 수열은 꺼낼 일이 한 번도 없고, 늘어나는
+// 수열은 순수 재귀가 2^(n+1) - 1번으로 치솟는데 메모는 표 크기에 묶인다.
+//
+// 절차와 호출 수 세는 법은 algorithm-code topic-14 03_lis(lis_helper)와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `lm-${Math.random().toString(36).slice(2, 9)}`;
+
+const PRESETS: number[][] = [
+  [10, 9, 2, 5, 3, 7, 101, 18],
+  [2, 10, 5, 7, 3],
+  [1, 2, 3, 4, 5, 6, 7, 8],
+  [8, 7, 6, 5, 4, 3, 2, 1],
+];
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '표가 실제로 몇 번 쓰이나',
+    p0: '예제',
+    p1: '다섯 개',
+    p2: '늘어남',
+    p3: '줄어듦',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    end: '끝으로',
+    picked: '고른 수열',
+    calls: '호출',
+    hits: '표에서 꺼냄',
+    filled: '채운 칸',
+    plain: '메모 없으면 호출',
+    idle: 'LisHelper(i = 0, 고른 것 없음)에서 시작합니다. 한 걸음을 누르세요.',
+    call: 'i = {i}, 마지막으로 고른 값 {p}: 처음 보는 칸이라 갈라집니다.',
+    base: 'i = {n}: 더 볼 원소가 없습니다. 0을 돌려줍니다.',
+    hit: 'memo[{i}][{c}] = {v}: 앞에서 구한 칸입니다. 갈라지지 않고 바로 꺼냅니다.',
+    storeBoth: 'memo[{i}][{c}] ← max(고름 {a}, 안 고름 {b}) = {v}',
+    storeNo: 'memo[{i}][{c}] ← 안 고름 {b}. 고를 수 없습니다 (arr[{i}] = {x} ≤ {p})',
+    none: '없음',
+    done: '답은 {v}입니다. 호출 {c}번 중 {h}번을 표에서 꺼냈습니다. 메모가 없으면 {q}번입니다.',
+  },
+  en: {
+    title: 'How often is the table used',
+    p0: 'Example',
+    p1: 'Five',
+    p2: 'Rising',
+    p3: 'Falling',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    end: 'To end',
+    picked: 'picked',
+    calls: 'calls',
+    hits: 'table hits',
+    filled: 'cells filled',
+    plain: 'calls without memo',
+    idle: 'Start from LisHelper(i = 0, nothing picked). Press step.',
+    call: 'i = {i}, last picked value {p}: a new cell, so it branches.',
+    base: 'i = {n}: no elements left. Return 0.',
+    hit: 'memo[{i}][{c}] = {v}: this cell was solved earlier. Take it without branching.',
+    storeBoth: 'memo[{i}][{c}] ← max(pick {a}, skip {b}) = {v}',
+    storeNo: 'memo[{i}][{c}] ← skip {b}. It cannot be picked (arr[{i}] = {x} ≤ {p}).',
+    none: 'none',
+    done: 'The answer is {v}. {h} of {c} calls came from the table. Without memo it takes {q} calls.',
+  },
+  zh: {
+    title: '表实际用到几次',
+    p0: '例题',
+    p1: '五个',
+    p2: '递增',
+    p3: '递减',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    end: '到最后',
+    picked: '已选序列',
+    calls: '调用',
+    hits: '从表取出',
+    filled: '已填格',
+    plain: '无记忆时调用',
+    idle: '从 LisHelper(i = 0, 尚未选择) 开始。请按单步。',
+    call: 'i = {i}，上一个选的值 {p}：第一次见到这一格，于是分叉。',
+    base: 'i = {n}：没有元素了。返回 0。',
+    hit: 'memo[{i}][{c}] = {v}：这一格之前求过。不分叉，直接取出。',
+    storeBoth: 'memo[{i}][{c}] ← max(选 {a}, 不选 {b}) = {v}',
+    storeNo: 'memo[{i}][{c}] ← 不选 {b}。不能选（arr[{i}] = {x} ≤ {p}）。',
+    none: '无',
+    done: '答案是 {v}。{c} 次调用中有 {h} 次从表取出。没有记忆时要 {q} 次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-lis-memo-demo', slide && 'is-slide']}
+  id={id}
+  data-lm-strings={JSON.stringify(t)}
+  data-lm-presets={JSON.stringify(PRESETS)}
+>
+  <div class="lm-bar">
+    <span class="lm-head"><strong>{t.title}</strong></span>
+    <div class="lm-tabs">
+      {
+        PRESETS.map((_, i) => (
+          <button type="button" class="lm-tab" data-lm-preset={i}>
+            {t[`p${i}`]}
+          </button>
+        ))
+      }
+    </div>
+    <span class="lm-controls">
+      <button type="button" class="lm-btn" data-lm-back>{t.back}</button>
+      <button type="button" class="lm-btn" data-lm-step>{t.step}</button>
+      <button type="button" class="lm-btn lm-btn-primary" data-lm-play>{t.play}</button>
+      <button type="button" class="lm-btn" data-lm-end>{t.end}</button>
+      <button type="button" class="lm-btn" data-lm-reset>{t.reset}</button>
+    </span>
+  </div>
+
+  <div class="lm-body">
+    <div class="lm-scroll"><div class="lm-table" data-lm-table></div></div>
+    <div class="lm-side">
+      <pre class="lm-code" data-lm-code><span data-lm-line="base">if i = n: return 0</span>
+<span data-lm-line="hit">if memo[i][prev+1] != -1: return it</span>
+<span data-lm-line="call">exclude, include &lt;- recurse</span>
+<span data-lm-line="store">memo[i][prev+1] &lt;- max(...)</span></pre>
+      <p class="lm-picked"><span>{t.picked}</span> <b data-lm-seq>[]</b></p>
+      <dl class="lm-stats">
+        <dt>{t.calls}</dt>
+        <dd data-lm-calls></dd>
+        <dt>{t.hits}</dt>
+        <dd data-lm-hits></dd>
+        <dt>{t.filled}</dt>
+        <dd data-lm-filled></dd>
+        <dt>{t.plain}</dt>
+        <dd data-lm-plain></dd>
+      </dl>
+    </div>
+  </div>
+
+  <p class="lm-note" data-lm-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.lmStrings);
+    const PRESETS = JSON.parse(root.dataset.lmPresets);
+
+    /* 순수 재귀의 호출 수. lis_helper에서 표만 뺀 것이다. */
+    function plainCalls(arr) {
+      let c = 0;
+      const go = (i, prev) => {
+        c++;
+        if (i === arr.length) return;
+        go(i + 1, prev);
+        if (prev === -1 || arr[i] > arr[prev]) go(i + 1, i);
+      };
+      go(0, -1);
+      return c;
+    }
+
+    /* 메모이제이션을 실제로 돌려 사건 목록을 만든다. 순서는 lis_helper와 같다(안 고름 → 고름). */
+    function plan(arr) {
+      const n = arr.length;
+      const memo = Array.from({ length: n }, () => new Array(n + 1).fill(-1));
+      const events = [];
+      const go = (i, prev, seq) => {
+        if (i === n) {
+          events.push({ k: 'base', i, prev, seq });
+          return 0;
+        }
+        if (memo[i][prev + 1] !== -1) {
+          events.push({ k: 'hit', i, prev, seq, v: memo[i][prev + 1] });
+          return memo[i][prev + 1];
+        }
+        events.push({ k: 'call', i, prev, seq });
+        const ex = go(i + 1, prev, seq);
+        const can = prev === -1 || arr[i] > arr[prev];
+        const inc = can ? 1 + go(i + 1, i, [...seq, arr[i]]) : null;
+        const v = Math.max(inc === null ? 0 : inc, ex);
+        memo[i][prev + 1] = v;
+        events.push({ k: 'store', i, prev, seq, ex, inc, v });
+        return v;
+      };
+      const answer = go(0, -1, []);
+      return { events, answer };
+    }
+
+    const tableEl = root.querySelector('[data-lm-table]');
+    const note = root.querySelector('[data-lm-note]');
+    const seqEl = root.querySelector('[data-lm-seq]');
+    const callsEl = root.querySelector('[data-lm-calls]');
+    const hitsEl = root.querySelector('[data-lm-hits]');
+    const filledEl = root.querySelector('[data-lm-filled]');
+    const plainEl = root.querySelector('[data-lm-plain]');
+    const stepBtn = root.querySelector('[data-lm-step]');
+    const playBtn = root.querySelector('[data-lm-play]');
+    const lines = [...root.querySelectorAll('[data-lm-line]')];
+    const tabs = [...root.querySelectorAll('[data-lm-preset]')];
+
+    let arr = [];
+    let events = [];
+    let answer = 0;
+    let plain = 0;
+    let at = -1;
+    let timer = null;
+    let cells = [];
+
+    function load(k) {
+      stop();
+      arr = PRESETS[k];
+      ({ events, answer } = plan(arr));
+      plain = plainCalls(arr);
+      at = -1;
+      tabs.forEach((b) => b.classList.toggle('is-on', +b.dataset.lmPreset === k));
+      /* 표: 머리에 값을 함께 적는다. */
+      const n = arr.length;
+      tableEl.style.setProperty('--lm-cols', String(n + 1));
+      let html = `<span class="lm-corner">i \\ prev</span><span class="lm-chead">${S.none}</span>`;
+      html += arr.map((x) => `<span class="lm-chead">${x}</span>`).join('');
+      for (let i = 0; i < n; i++) {
+        html += `<span class="lm-rhead"><i>${i}</i><b>${arr[i]}</b></span>`;
+        for (let c = 0; c <= n; c++) html += `<span class="lm-cell" data-lm-i="${i}" data-lm-c="${c}"></span>`;
+      }
+      tableEl.innerHTML = html;
+      cells = [...tableEl.querySelectorAll('[data-lm-i]')];
+      render();
+    }
+
+    function render() {
+      const n = arr.length;
+      const memo = Array.from({ length: n }, () => new Array(n + 1).fill(-1));
+      let calls = 0;
+      let hits = 0;
+      let filled = 0;
+      for (let a = 0; a <= at; a++) {
+        const e = events[a];
+        if (e.k !== 'store') calls++;
+        if (e.k === 'hit') hits++;
+        if (e.k === 'store') {
+          memo[e.i][e.prev + 1] = e.v;
+          filled++;
+        }
+      }
+      const cur = at >= 0 ? events[at] : null;
+      cells.forEach((el) => {
+        const i = +el.dataset.lmI;
+        const c = +el.dataset.lmC;
+        const v = memo[i][c];
+        el.textContent = v === -1 ? '' : String(v);
+        const here = !!cur && cur.i === i && cur.prev + 1 === c;
+        el.classList.toggle('is-set', v !== -1);
+        el.classList.toggle('is-now', here && cur.k === 'call');
+        el.classList.toggle('is-hit', here && cur.k === 'hit');
+        el.classList.toggle('is-write', here && cur.k === 'store');
+        el.classList.toggle('is-axis', !!cur && !here && cur.i < n && (cur.i === i || cur.prev + 1 === c));
+      });
+      lines.forEach((l) => l.classList.toggle('is-now', !!cur && l.dataset.lmLine === cur.k));
+      seqEl.textContent = cur ? `[${cur.seq.join(', ')}]` : '[]';
+      callsEl.textContent = String(calls);
+      hitsEl.textContent = String(hits);
+      filledEl.textContent = `${filled} / ${n * (n + 1)}`;
+      plainEl.textContent = String(plain);
+
+      const last = at === events.length - 1;
+      const pv = (prev) => (prev === -1 ? S.none : String(arr[prev]));
+      let text = S.idle;
+      if (last) {
+        text = fill(S.done, { v: answer, c: calls, h: hits, q: plain });
+      } else if (cur) {
+        const c = cur.prev + 1;
+        if (cur.k === 'call') text = fill(S.call, { i: cur.i, p: pv(cur.prev) });
+        else if (cur.k === 'base') text = fill(S.base, { n });
+        else if (cur.k === 'hit') text = fill(S.hit, { i: cur.i, c, v: cur.v });
+        else if (cur.inc === null) text = fill(S.storeNo, { i: cur.i, c, b: cur.ex, x: arr[cur.i], p: pv(cur.prev) });
+        else text = fill(S.storeBoth, { i: cur.i, c, a: cur.inc, b: cur.ex, v: cur.v });
+      }
+      setLines(note, text);
+      root.classList.toggle('is-done', last);
+      stepBtn.disabled = last;
+      if (last) stop();
+    }
+
+    function stop() {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+        playBtn.textContent = S.play;
+      }
+    }
+    const step = () => {
+      if (at < events.length - 1) at++;
+      render();
+    };
+    root.querySelector('[data-lm-back]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at--;
+      render();
+    });
+    stepBtn.addEventListener('click', () => {
+      stop();
+      step();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer !== null) {
+        stop();
+        return;
+      }
+      if (at >= events.length - 1) at = -1;
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 500);
+    });
+    root.querySelector('[data-lm-end]').addEventListener('click', () => {
+      stop();
+      at = events.length - 1;
+      render();
+    });
+    root.querySelector('[data-lm-reset]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    tabs.forEach((b) => b.addEventListener('click', () => load(+b.dataset.lmPreset)));
+    load(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-lis-memo-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lis-memo-demo .lm-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-lis-memo-demo .lm-head {
+    font-size: 0.95em;
+  }
+  .aas-lis-memo-demo .lm-tabs,
+  .aas-lis-memo-demo .lm-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-lis-memo-demo .lm-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lis-memo-demo .lm-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lis-memo-demo .lm-tab:hover,
+  .aas-lis-memo-demo .lm-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-lis-memo-demo .lm-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lis-memo-demo .lm-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-lis-memo-demo .lm-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-lis-memo-demo .lm-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5em 1.4em;
+    margin-top: 0.5em;
+  }
+  .aas-lis-memo-demo .lm-scroll {
+    overflow-x: auto;
+  }
+  .aas-lis-memo-demo .lm-table {
+    display: grid;
+    grid-template-columns: 3.8em repeat(var(--lm-cols), 2.5em);
+    grid-auto-rows: 1.75em;
+    gap: 0.12em;
+    align-items: stretch;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lis-memo-demo .lm-corner,
+  .aas-lis-memo-demo .lm-chead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-lis-memo-demo .lm-rhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 0.3em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-lis-memo-demo .lm-rhead i {
+    font-style: normal;
+    font-size: 0.85em;
+  }
+  .aas-lis-memo-demo .lm-rhead b {
+    color: var(--aas-text);
+  }
+  .aas-lis-memo-demo .lm-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    transition: background-color 0.15s;
+  }
+  .aas-lis-memo-demo .lm-cell.is-axis {
+    background: color-mix(in srgb, var(--aas-role-focus) 7%, var(--aas-bg));
+  }
+  .aas-lis-memo-demo .lm-cell.is-set {
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-lis-memo-demo .lm-cell.is-now {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-lis-memo-demo .lm-cell.is-hit {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 40%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-lis-memo-demo .lm-cell.is-write {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 45%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-lis-memo-demo .lm-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 0;
+  }
+  .aas-lis-memo-demo .lm-code {
+    margin: 0;
+    padding: 0.4em 0.6em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.5;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    white-space: pre-wrap;
+  }
+  .aas-lis-memo-demo .lm-code span {
+    border-radius: 0.2em;
+    transition: background-color 0.15s;
+  }
+  .aas-lis-memo-demo .lm-code span.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 30%, var(--aas-bg));
+  }
+  .aas-lis-memo-demo .lm-picked {
+    margin: 0;
+    font-size: 0.85em;
+  }
+  .aas-lis-memo-demo .lm-picked span {
+    color: var(--aas-muted);
+  }
+  .aas-lis-memo-demo .lm-picked b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lis-memo-demo .lm-stats {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.1em 0.8em;
+    max-width: 18em;
+    margin: 0;
+    font-size: 0.85em;
+    line-height: 1.45;
+  }
+  .aas-lis-memo-demo .lm-stats dt {
+    margin: 0;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-lis-memo-demo .lm-stats dd {
+    margin: 0;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-lis-memo-demo .lm-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 2.8em;
+    color: var(--aas-muted);
+  }
+  .aas-lis-memo-demo.is-done .lm-note {
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-lis-memo-demo.is-slide {
+    font-size: clamp(1rem, 2.5vh, 1.7rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (max-width: 720px) {
+    .aas-lis-memo-demo .lm-body {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-lis-memo-demo .lm-cell,
+    .aas-lis-memo-demo .lm-code span {
+      transition: none;
+    }
+  }
+</style>

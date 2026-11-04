@@ -13,6 +13,7 @@
 // 절차는 algorithm-code topic-14 02_coin_change(coin_change_memo)와 같다.
 // 0원과 음수는 메모를 보기 전에 돌려주므로 memo[0]은 -1로 남는다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
 
 interface Props {
   coins?: number[];
@@ -194,6 +195,7 @@ const config = { coins, amount, solved, unsolved };
 >
   <div class="cm-bar">
     <span class="cm-head"><strong>{t.title}</strong></span>
+    <DpRef kind="coinMemo" coins={coins} />
     <span class="cm-counts">
       <span>{t.calls} <strong data-cm-calls>0</strong></span>
       <span>{t.solved} <strong data-cm-solved>0</strong></span>
@@ -329,6 +331,20 @@ const config = { coins, amount, solved, unsolved };
       edges.forEach((el, cid) => {
         el.classList.toggle('is-seen', seen.has(cid));
         el.classList.toggle('is-best', best.has(cid));
+      });
+      /* 참고 띠: 지금 낸 동전, 값을 적을 때는 최솟값을 준 동전을 칠한다. */
+      let coin = cur && cur.c !== undefined ? cur.c : null;
+      if (cur && cur.k === 'store') {
+        let least = Infinity;
+        (cur.parts || []).forEach((q) => {
+          if (q.x !== null && q.x < least) {
+            least = q.x;
+            coin = q.c;
+          }
+        });
+      }
+      root.querySelectorAll('[data-dr-key]').forEach((c) => {
+        c.classList.toggle('is-now', c.dataset.drKey === String(coin));
       });
       cells.forEach((c, a) => {
         c.textContent = memo[a] === -1 ? '-1' : show(memo[a]);
@@ -589,11 +605,11 @@ const config = { coins, amount, solved, unsolved };
     font-weight: 600;
   }
   .aas-coin-memo-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.6vh, 1.75rem);
     margin: 0.5rem 0;
   }
   .aas-coin-memo-demo.is-slide .cm-tree {
-    max-height: 34vh;
+    max-height: 31vh;
   }
   .aas-coin-memo-demo.is-slide .cm-a {
     font-size: 19px;

@@ -8,9 +8,11 @@
 //
 // 절차는 algorithm-code의 01_bfs · 02_dfs와 같다. 이웃은 작은 번호부터
 // 보고, BFS는 넣을 때, DFS는 꺼낼 때 방문 표시를 한다. 기본 그래프에서
-// BFS는 0 1 2 5 6 3 4, DFS는 0 6 4 5 3 2 1 순서로 방문한다.
+// BFS는 0 1 2 5 6 3 4, DFS는 0 6 4 5 3 2 1 순서로 방문한다. 오른쪽 인접 목록
+// (GraphAdjTable)에 지금 꺼낸 정점의 줄과 이번에 넣는 이웃을 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 import GraphFigure from './GraphFigure.astro';
+import GraphAdjTable from './GraphAdjTable.astro';
 import { getGraph } from './GraphSamples';
 
 interface Props {
@@ -161,19 +163,22 @@ const rows = Array.from({ length: n }, (_, v) => v);
         <div class="gs-cells" data-gs-cells></div>
       </div>
       <div class="gs-order">{t.order}: <strong data-gs-order></strong></div>
-      <div class="gs-table" role="table">
-        <div class="gs-tr gs-th" role="row">
-          <span role="columnheader">v</span>
-          <span role="columnheader">{t.from}</span>
-          <span role="columnheader">{mode === 'bfs' ? t.dist : t.nth}</span>
-        </div>
-        {rows.map((v) => (
-          <div class="gs-tr" role="row" data-gs-row={v}>
-            <span role="cell">{v}</span>
-            <span role="cell" data-gs-from></span>
-            <span role="cell" data-gs-val></span>
+      <div class="gs-tables">
+        <div class="gs-table" role="table">
+          <div class="gs-tr gs-th" role="row">
+            <span role="columnheader">v</span>
+            <span role="columnheader">{t.from}</span>
+            <span role="columnheader">{mode === 'bfs' ? t.dist : t.nth}</span>
           </div>
-        ))}
+          {rows.map((v) => (
+            <div class="gs-tr" role="row" data-gs-row={v}>
+              <span role="cell">{v}</span>
+              <span role="cell" data-gs-from></span>
+              <span role="cell" data-gs-val></span>
+            </div>
+          ))}
+        </div>
+        <GraphAdjTable graph={graph} />
       </div>
     </div>
   </div>
@@ -287,6 +292,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
         steps.push(
           snapshot(st, {
             cur: v,
+            fresh,
             note: fill(S.bfsEnq, { list: fresh.join(' '), d: st.val[v] + 1 }),
           }),
         );
@@ -336,6 +342,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
         steps.push(
           snapshot(st, {
             cur: v,
+            fresh,
             note: fill(S.dfsPush, { list: fresh.join(' '), top: fresh[fresh.length - 1] }),
           }),
         );
@@ -360,6 +367,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
     const rowEls = [...root.querySelectorAll('[data-gs-row]')];
     const note = root.querySelector('[data-gs-note]');
     const countEl = root.querySelector('[data-gs-count]');
+    const adjRows = [...root.querySelectorAll('[data-at-row]')];
 
     function render(i) {
       const st = i >= 0 ? steps[i] : null;
@@ -410,6 +418,14 @@ const rows = Array.from({ length: n }, (_, v) => v);
         else f.textContent = v === s && (st.done[v] || st.open[v]) ? '-' : '';
         val.textContent = st && st.val[v] !== null ? String(st.val[v]) : '';
         row.classList.toggle('is-now', !!st && st.cur === v);
+      });
+      /* 인접 목록: 지금 꺼낸 정점의 줄, 그 줄에서 이번에 넣는 이웃 */
+      adjRows.forEach((row, v) => {
+        const now = !!st && st.cur === v;
+        row.classList.toggle('is-now', now);
+        row.querySelectorAll('[data-at-to]').forEach((c) =>
+          c.classList.toggle('is-look', now && !!st.fresh && st.fresh.includes(Number(c.dataset.atTo))),
+        );
       });
       countEl.textContent = String(st ? st.order.length : 0);
       setLines(note, st ? st.note : fill(S.idle, { s }));
@@ -563,6 +579,12 @@ const rows = Array.from({ length: n }, (_, v) => v);
     color: var(--aas-text);
     font-family: var(--aas-mono, monospace);
   }
+  .aas-graph-search-demo .gs-tables {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.4em;
+    align-items: flex-start;
+  }
   /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
   .aas-graph-search-demo .gs-table {
     display: grid;
@@ -617,15 +639,38 @@ const rows = Array.from({ length: n }, (_, v) => v);
   .aas-graph-search-demo.is-slide {
     width: 100%;
     box-sizing: border-box;
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.9vh, 2rem);
     margin: 0.5rem 0;
   }
-  /* 데모 상자는 슬라이드 폭을 다 쓰고, 그래프는 높이를 정해 그만큼 키운다. */
+  /* 데모 상자는 슬라이드 폭을 다 쓰고, 설명은 표 아래(그래프 오른쪽)에 둔다.
+     문장마다 줄을 바꾸면 줄이 늘어나는데, 그래프 아래에 두면 높이를 넘는다. */
+  .aas-graph-search-demo.is-slide {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'bar bar'
+      'graph panel'
+      'graph foot';
+    column-gap: 1.6em;
+  }
   .aas-graph-search-demo.is-slide .gs-body {
-    flex-wrap: nowrap;
+    display: contents;
+  }
+  .aas-graph-search-demo.is-slide .gs-bar {
+    grid-area: bar;
+    margin-bottom: 0.5em;
+  }
+  .aas-graph-search-demo.is-slide .gs-panel {
+    grid-area: panel;
+    gap: 0.3em;
+  }
+  .aas-graph-search-demo.is-slide .gs-foot {
+    grid-area: foot;
+    align-self: start;
   }
   .aas-graph-search-demo.is-slide .gs-graph {
-    flex: 0 0 auto;
+    grid-area: graph;
     max-width: none;
     min-width: 0;
     --gf-slide-h: 46vh;
@@ -634,11 +679,24 @@ const rows = Array.from({ length: n }, (_, v) => v);
   .aas-graph-search-demo.is-slide .gs-table {
     font-size: 0.7em;
   }
-  .aas-graph-search-demo.is-slide .gs-panel {
-    gap: 0.45em;
+  .aas-graph-search-demo.is-slide .gs-tr > span {
+    min-height: 1.25em;
+    padding: 0 0.9em;
+  }
+  .aas-graph-search-demo.is-slide .aas-adj-table {
+    font-size: 0.7em;
+  }
+  .aas-graph-search-demo.is-slide .gs-cells {
+    min-height: 1.9em;
+  }
+  .aas-graph-search-demo.is-slide .gs-cell {
+    width: 1.7em;
+    height: 1.7em;
   }
   .aas-graph-search-demo.is-slide .gs-note {
-    min-height: 1.6em;
+    margin-top: 0.3em;
+    min-height: 2.4em;
+    font-size: 0.75em;
   }
 
   @media (prefers-reduced-motion: reduce) {

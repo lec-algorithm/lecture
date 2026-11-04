@@ -1,0 +1,448 @@
+---
+// 같은 거스름돈 문제를 lazy(메모)와 eager(표)가 얼마나 푸는지 금액 띠로 견주는 데모.
+//
+// 동전 묶음과 금액을 바꾸면 위 띠에 메모가 실제로 푼 금액, 아래 띠에 표가 채운 금액이
+// 칠해진다. 메모가 표보다 언제나 유리한 것은 아니다. 동전에 1이 있으면 메모도 전부 풀고,
+// 재귀 스택이 금액만큼 쌓인다. 띠의 칸을 누르면 그 금액이 어떻게 되었는지 보인다.
+//
+// 메모의 호출 수와 푼 금액 수는 algorithm-code topic-14 02_coin_change의
+// coin_change_memo, 표는 coin_change_tab과 같은 절차를 스크립트가 실제로 돌린 값이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `le-${Math.random().toString(36).slice(2, 9)}`;
+const PRESETS = [
+  { coins: [2, 3, 5], amount: 6, max: 60, step: 1 },
+  { coins: [50, 40, 10], amount: 80, max: 200, step: 10 },
+  { coins: [1, 5, 10], amount: 100, max: 200, step: 1 },
+  { coins: [7, 11], amount: 30, max: 100, step: 1 },
+];
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'lazy와 eager가 푸는 양',
+    coin: '동전',
+    amount: '금액',
+    memo: '메모이제이션 (lazy)',
+    tab: '타뷸레이션 (eager)',
+    solved: '푼 금액',
+    calls: '호출',
+    depth: '스택 깊이',
+    filled: '채운 금액',
+    checks: '동전 확인',
+    noStack: '없음',
+    answer: '답',
+    inf: '만들 수 없음',
+    coinsUnit: '{v}개',
+    fewer: '메모는 {A}개 중 {s}개만 풀었습니다. 나머지는 답에 쓰이지 않습니다.',
+    same: '이 금액에서는 메모도 {A}개를 모두 풉니다. 아낀 것이 없습니다.',
+    stack: '대신 재귀가 {d}단까지 쌓이고, 표는 스택을 쓰지 않습니다.',
+    cellBoth: '{a}원: 메모도 표도 풀었고 값은 {v}입니다.',
+    cellEager: '{a}원: 표만 채웠고 값은 {v}입니다. memo[{a}]는 -1로 남았습니다.',
+  },
+  en: {
+    title: 'How much lazy and eager solve',
+    coin: 'coins',
+    amount: 'amount',
+    memo: 'memoization (lazy)',
+    tab: 'tabulation (eager)',
+    solved: 'amounts solved',
+    calls: 'calls',
+    depth: 'stack depth',
+    filled: 'amounts filled',
+    checks: 'coin checks',
+    noStack: 'none',
+    answer: 'answer',
+    inf: 'cannot be made',
+    coinsUnit: '{v} coins',
+    fewer: 'The memo solved only {s} of {A} amounts. The rest are not used by the answer.',
+    same: 'For this amount the memo also solves all {A}. Nothing is saved.',
+    stack: 'In exchange the recursion stacks up to {d} levels, while the table uses no stack.',
+    cellBoth: 'Amount {a}: both the memo and the table solved it. The value is {v}.',
+    cellEager: 'Amount {a}: only the table filled it. The value is {v}, and memo[{a}] stayed -1.',
+  },
+  zh: {
+    title: 'lazy 与 eager 各解多少',
+    coin: '硬币',
+    amount: '金额',
+    memo: '记忆化（lazy）',
+    tab: '递推填表（eager）',
+    solved: '已解金额',
+    calls: '调用',
+    depth: '栈深度',
+    filled: '已填金额',
+    checks: '硬币检查',
+    noStack: '无',
+    answer: '答案',
+    inf: '凑不出',
+    coinsUnit: '{v} 枚',
+    fewer: '记忆化在 {A} 个金额中只解了 {s} 个。其余的答案用不到。',
+    same: '这个金额下记忆化也要解全部 {A} 个。没有省下什么。',
+    stack: '代价是递归最深到 {d} 层，而填表不用栈。',
+    cellBoth: '{a} 韩元：记忆化和填表都解了，值是 {v}。',
+    cellEager: '{a} 韩元：只有填表填了，值是 {v}。memo[{a}] 仍是 -1。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-lazy-eager-demo', slide && 'is-slide']}
+  id={id}
+  data-le-strings={JSON.stringify(t)}
+  data-le-presets={JSON.stringify(PRESETS)}
+>
+  <div class="le-bar">
+    <span class="le-head"><strong>{t.title}</strong></span>
+    <DpRef kind="coin" />
+    <div class="le-tabs">
+      <span class="le-label">{t.coin}</span>
+      {
+        PRESETS.map((p, i) => (
+          <button type="button" class="le-tab" data-le-preset={i}>
+            {p.coins.join(', ')}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+  <label class="le-slider">
+    <span>{t.amount} <b data-le-amount></b></span>
+    <input type="range" min="1" max="60" step="1" value="6" data-le-range />
+    <span class="le-answer">{t.answer} <b data-le-answer></b></span>
+  </label>
+
+  <div class="le-panel">
+    <div class="le-name"><strong>{t.memo}</strong></div>
+    <div class="le-strip" data-le-strip="memo"></div>
+    <dl class="le-stats">
+      <dt>{t.solved}</dt>
+      <dd data-le-solved></dd>
+      <dt>{t.calls}</dt>
+      <dd data-le-calls></dd>
+      <dt>{t.depth}</dt>
+      <dd data-le-depth></dd>
+    </dl>
+  </div>
+  <div class="le-panel">
+    <div class="le-name"><strong>{t.tab}</strong></div>
+    <div class="le-strip" data-le-strip="tab"></div>
+    <dl class="le-stats">
+      <dt>{t.filled}</dt>
+      <dd data-le-filled></dd>
+      <dt>{t.checks}</dt>
+      <dd data-le-checks></dd>
+      <dt>{t.depth}</dt>
+      <dd>{t.noStack}</dd>
+    </dl>
+  </div>
+
+  <p class="le-note" data-le-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.leStrings);
+    const PRESETS = JSON.parse(root.dataset.lePresets);
+    const INF = Infinity;
+    const show = (v) => (v === INF ? 'INF' : String(v));
+
+    const range = root.querySelector('[data-le-range]');
+    const note = root.querySelector('[data-le-note]');
+    const strips = {
+      memo: root.querySelector('[data-le-strip="memo"]'),
+      tab: root.querySelector('[data-le-strip="tab"]'),
+    };
+    const tabs = [...root.querySelectorAll('[data-le-preset]')];
+    const put = (name, v) => {
+      root.querySelector(`[data-le-${name}]`).textContent = String(v);
+    };
+
+    let P = PRESETS[0];
+    let A = P.amount;
+    let cell = null;
+    let memo = [];
+    let dp = [];
+
+    function runMemo(coins, amount) {
+      const m = new Array(amount + 1).fill(-1);
+      let calls = 0;
+      let solved = 0;
+      let depth = 0;
+      let top = 0;
+      const go = (a) => {
+        calls++;
+        depth++;
+        if (depth > top) top = depth;
+        let res;
+        if (a === 0) res = 0;
+        else if (a < 0) res = INF;
+        else if (m[a] !== -1) res = m[a];
+        else {
+          solved++;
+          let best = INF;
+          for (const c of coins) {
+            const r = go(a - c);
+            if (r !== INF && r + 1 < best) best = r + 1;
+          }
+          m[a] = best;
+          res = best;
+        }
+        depth--;
+        return res;
+      };
+      const answer = go(amount);
+      return { m, calls, solved, top, answer };
+    }
+    function runTab(coins, amount) {
+      const t = new Array(amount + 1).fill(INF);
+      t[0] = 0;
+      for (let a = 1; a <= amount; a++) {
+        for (const c of coins) {
+          if (c <= a && t[a - c] !== INF && t[a - c] + 1 < t[a]) t[a] = t[a - c] + 1;
+        }
+      }
+      return t;
+    }
+
+    function draw() {
+      const r = runMemo(P.coins, A);
+      memo = r.m;
+      dp = runTab(P.coins, A);
+      put('amount', A);
+      put('answer', r.answer === INF ? S.inf : fill(S.coinsUnit, { v: r.answer }));
+      put('solved', `${r.solved} / ${A}`);
+      put('calls', r.calls);
+      put('depth', r.top);
+      put('filled', `${A} / ${A}`);
+      put('checks', A * P.coins.length);
+
+      /* 띠: 1원부터 A원까지. 칸이 넓으면 금액을 적는다. */
+      const label = A <= 30;
+      const makeCells = (kind) =>
+        Array.from({ length: A }, (_, k) => {
+          const a = k + 1;
+          const on = kind === 'tab' || memo[a] !== -1;
+          const sel = cell === a ? ' is-sel' : '';
+          return `<button type="button" class="le-cell${on ? ' is-on' : ''}${sel}" data-le-a="${a}" aria-label="${a}">${label ? a : ''}</button>`;
+        }).join('');
+      strips.memo.innerHTML = makeCells('memo');
+      strips.tab.innerHTML = makeCells('tab');
+
+      let text;
+      if (cell !== null && cell <= A) {
+        const v = show(dp[cell]);
+        text = memo[cell] !== -1 ? fill(S.cellBoth, { a: cell, v }) : fill(S.cellEager, { a: cell, v });
+      } else {
+        text = join(
+          r.solved < A ? fill(S.fewer, { A, s: r.solved }) : fill(S.same, { A }),
+          fill(S.stack, { d: r.top }),
+        );
+      }
+      setLines(note, text);
+    }
+
+    function load(i) {
+      P = PRESETS[i];
+      A = P.amount;
+      cell = null;
+      range.min = String(P.step);
+      range.max = String(P.max);
+      range.step = String(P.step);
+      range.value = String(A);
+      tabs.forEach((b) => b.classList.toggle('is-on', +b.dataset.lePreset === i));
+      draw();
+    }
+
+    tabs.forEach((b) => b.addEventListener('click', () => load(+b.dataset.lePreset)));
+    range.addEventListener('input', () => {
+      A = +range.value;
+      cell = null;
+      draw();
+    });
+    root.addEventListener('click', (ev) => {
+      const el = ev.target.closest('[data-le-a]');
+      if (!el) return;
+      const a = +el.dataset.leA;
+      cell = cell === a ? null : a;
+      draw();
+    });
+    load(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-lazy-eager-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lazy-eager-demo .le-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-lazy-eager-demo .le-head {
+    font-size: 0.95em;
+  }
+  .aas-lazy-eager-demo .le-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-lazy-eager-demo .le-label {
+    margin-right: 0.2em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-lazy-eager-demo .le-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lazy-eager-demo .le-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lazy-eager-demo .le-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lazy-eager-demo .le-slider {
+    display: flex;
+    gap: 0.9em;
+    align-items: center;
+    margin: 0.6em 0;
+    font-size: 0.88em;
+  }
+  .aas-lazy-eager-demo .le-slider input {
+    flex: 1 1 auto;
+    min-width: 0;
+    accent-color: var(--aas-accent);
+  }
+  .aas-lazy-eager-demo .le-slider span {
+    white-space: nowrap;
+    color: var(--aas-muted);
+  }
+  .aas-lazy-eager-demo .le-slider b {
+    display: inline-block;
+    min-width: 2em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-lazy-eager-demo .le-answer b {
+    min-width: 6em;
+  }
+  .aas-lazy-eager-demo .le-panel {
+    display: grid;
+    grid-template-columns: 11em minmax(0, 1fr);
+    gap: 0.25em 0.7em;
+    align-items: center;
+    margin-top: 0.45em;
+    padding: 0.45em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-lazy-eager-demo .le-name {
+    font-size: 0.82em;
+    line-height: 1.25;
+  }
+  .aas-lazy-eager-demo .le-strip {
+    display: flex;
+    gap: 1px;
+    height: 1.9em;
+    min-width: 0;
+  }
+  .aas-lazy-eager-demo .le-cell {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.15em;
+    background: var(--aas-panel);
+    color: var(--aas-muted);
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .aas-lazy-eager-demo .le-cell.is-on {
+    border-color: color-mix(in srgb, var(--aas-role-eval) 60%, var(--aas-border));
+    background: color-mix(in srgb, var(--aas-role-eval) 34%, var(--aas-bg));
+    color: var(--aas-text);
+  }
+  .aas-lazy-eager-demo .le-cell.is-sel {
+    border-color: var(--aas-role-focus);
+    box-shadow: inset 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-lazy-eager-demo .le-stats {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 2;
+    gap: 0 0.5em;
+    margin: 0;
+    font-size: 0.8em;
+    line-height: 1.3;
+  }
+  .aas-lazy-eager-demo .le-stats dt {
+    margin: 0;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-lazy-eager-demo .le-stats dd {
+    margin: 0 1em 0 0;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-lazy-eager-demo .le-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 2.8em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-lazy-eager-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (max-width: 720px) {
+    .aas-lazy-eager-demo .le-panel {
+      grid-template-columns: 1fr;
+    }
+    .aas-lazy-eager-demo .le-stats {
+      grid-column: 1;
+    }
+  }
+</style>

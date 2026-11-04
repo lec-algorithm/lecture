@@ -17,6 +17,14 @@ import TrieOrderDemo from '@components/TrieOrderDemo.astro';
 import TrieMissDemo from '@components/TrieMissDemo.astro';
 import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
 import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+import TrieWalkDemo from '@components/TrieWalkDemo.astro';
+import TstWalkDemo from '@components/TstWalkDemo.astro';
+import TrieCostDemo from '@components/TrieCostDemo.astro';
+import TrieRadixDemo from '@components/TrieRadixDemo.astro';
+import TstMapDemo from '@components/TstMapDemo.astro';
+import TstOrderDemo from '@components/TstOrderDemo.astro';
+import TstCostDemo from '@components/TstCostDemo.astro';
+import TrieMsdDemo from '@components/TrieMsdDemo.astro';
 
 > The binary search tree of Topic 07 and the hash table of Topic 08 handled
 > keys **as a whole**: they compare the entire key, or hash the entire key.  
@@ -85,6 +93,8 @@ Click a node in the demo below and its 26-slot link array opens up. The root,
 shown first, uses only the three slots `b`, `s` and `t`; the other 23 are NULL.
 Click a filled slot to move down to that child.
 
+The strip above the demo lists the keys and values in the trie, and highlights the keys below the node you pick.
+
 <TrieNodeDemo />
 
 Three things to know when reading the picture:
@@ -133,6 +143,14 @@ ALGORITHM Insert(root, word, value)
     current.hasValue <- true            // value goes in the last character's node
     current.value <- value
 ```
+
+Run the same pseudocode one line at a time. Type another key or value and it runs on that input. The current line, the variables, the key's characters and the current node's `children[26]` all move together. An insertion run to the end stays in the trie, so you can keep adding keys.
+
+<TrieWalkDemo op="insert" />
+
+- `shore` passes `s` and `h` and creates 3 nodes. 17 nodes become 20, and 442 links become 520.
+- Insert `she` again with another value and no node is created; only the value changes.
+- **Empty** starts from an empty trie.
 
 - C implementation
 
@@ -186,6 +204,12 @@ ALGORITHM Search(root, word)
 The practice code returns -1 when there is no value. It means the same as
 NULL in the figures and demos.
 
+Search for the four keys above or anything else. See which line a miss ends on.
+
+<TrieWalkDemo op="search" />
+
+`shells` returns 3 at `return current.value` after 7 nodes. `shell` ends at the last `return -1`, and `shore` at the `return -1` inside the loop. For `shore`, slot `o` of the `sh` node is marked red.
+
 ### Keys with a prefix \{#trie-prefix}
 
 Think of autocomplete: type `sh` into a search box and `she`, `shells` and
@@ -230,6 +254,12 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
         if node.children[i] != NULL then
             GetAllWordsHelper(node.children[i], prefix + ('a' + i), results)
 ```
+
+Run it with other prefixes. As above, `shore = 7` is already in.
+
+<TrieWalkDemo op="prefix" />
+
+With `sh`, it passes 3 nodes to reach the `sh` node, then collects `she`, `shells` and `shore` in turn. With `shx`, slot `x` of the `sh` node is empty, so collecting never starts.
 
 - C implementation (collecting)
 
@@ -298,6 +328,16 @@ ALGORITHM DeleteHelper(node, word, index)
 
 `DeleteWord(root, word)` just calls `DeleteHelper(root, word, 0)`. The root
 is never deleted, even when empty.
+
+Which nodes come off depends on the key. Follow the `true` and `false` that come back up the recursion. A deletion run to the end stays in the trie, so you can keep deleting.
+
+<TrieWalkDemo op="delete" />
+
+- **shells**: detaches `s`, `l`, `l`, so 20 nodes become 17.
+- **she**: only the value goes. While the path to `shells` remains below `e`, no node is detached.
+- **she after shells**: this time `e` comes off too. `h` stays, because it is on the way to `shore`.
+- **by**: detaches `y` and `b`. Even at the top, the root is never deleted.
+- **shell**: no value, so there is no such key. The trie stays as it was.
 
 ### Run \{#trie-run}
 
@@ -387,6 +427,16 @@ With key length $$m$$ and $$n$$ keys, search and insertion take $$O(m)$$,
 **whatever $$n$$ is.** The `visited 7` in the output is `shells` (6
 characters) plus 1.
 
+Count how key count and prefixes really change the cost. Insert $$N$$ keys of length $$m$$ into three structures, search 1000 times, and average the characters looked at per search. A binary search tree matches two keys from the front on each compare. A hash table reads $$m$$ characters for the hash, then matches the keys in the chain. It has $$N/4$$ slots.
+
+<TrieCostDemo />
+
+- For a hit at $$m = 20$$, as $$N$$ grows from 10 to 10,000 the binary search tree goes from 22.4 to 48.1 characters, while the trie stays at 20.
+- With a 16-character common prefix, the binary search tree looks at 330 characters at $$N$$ = 10,000. The hash table looks at 71.5, and the trie still at 20.
+- For a miss at $$m = 7$$ with no prefix, the trie gives 1.40, 2.15, 2.82, 3.45. The last three match the practice code output below.
+
+Only characters are counted, so memory access and cache costs are not included.
+
 ### Expected cost of a search miss \{#search-miss}
 
 A search miss is even faster. In a trie built from $$N$$ random keys over an
@@ -463,6 +513,14 @@ all the rest are empty.
 Reducing $$R$$ can save a great deal of space. That is where the TST, coming
 up next, starts.
 
+The easiest way to shrink $$R$$ is to split each character into smaller digits. Writing a to z in base $$R$$ makes a character several digits, and the trie is built on those digits. Click a row to pick $$R$$, or type your own keys.
+
+<TrieRadixDemo />
+
+- The six keys need 442 links at $$R$$ = 26 and 138 at $$R$$ = 3. But nodes grow from 17 to 46, and height from 7 to 19.
+- $$R$$ = 16 needs 480, more than $$R$$ = 26. Each character takes two digits, so nodes grow to 30.
+- A TST has 3 links per node, and needs 48 links at height 8. It keeps each character as one node.
+
 ### One-way branching \{#one-way-branching}
 
 The biggest reason a trie uses so much space is long runs of **nodes that
@@ -476,6 +534,8 @@ Merge those nodes into the node below, one per step.
 
 Once everything is merged, only the branching points and the nodes with values
 remain, and 11 nodes become 4 (the root, `shell`, `fish` and `s`).
+
+Use the tabs in the demo to switch key sets. The six keys (`by..the`) go from 17 nodes to 9, and `apple..` from 25 to 11.
 
 A trie with one-way branches removed like this is called a compressed trie
 (radix tree, Patricia trie). Its nodes carry string fragments instead of
@@ -508,6 +568,13 @@ To the right of the root `b` is `s`, and to the right of that is `t`. The
 first-position characters b, s and t form a binary search tree. What was 17
 nodes and 442 links as a trie is now 16 nodes and 48 links. The node count
 dropped only by the trie's root, while the links per node went from 26 to 3.
+
+The demo below puts a trie and a TST of the same keys side by side. Click a trie node and its children light up; in the TST the same characters appear as a small binary search tree below the middle link. Click a key and the path to it lights up in both. Dashed lines stay at the same position; solid lines move to the next.
+
+<TstMapDemo />
+
+- Click the root and `b`, `s`, `t` light up. In the trie they are 3 of 26 slots; in the TST, a binary search tree with 3 nodes, 9 links and height 3.
+- Click `she` and the trie passes 4 nodes. The TST makes 5 compares: 3 on the middle and 2 sideways.
 
 ```c
 typedef struct TSTNode {
@@ -583,6 +650,12 @@ ALGORITHM Insert(root, word, value, index)
 Going left or right keeps `index` as it is; only going down the middle adds
 one. That one-line difference is all there is to a TST.
 
+Run the same insertion on the code. Watch the character strip: the position stays while going left or right, and moves only on the middle link. As above, the first five keys are already in.
+
+<TstWalkDemo op="insert" word="appliance" value={60} prefill={5} />
+
+`appliance` takes 7 compares, 2 of them sideways (right at `e`, left at `c`), and 4 new nodes, the same as the walk-through above. Click **Empty** or `by..the` to build another tree.
+
 ### Search \{#tst-search}
 
 Search goes down by the same rule. It is a hit if, at the last character, we
@@ -594,6 +667,12 @@ meet an equal character in a node that holds a value.
 - **apply**: steps aside to the right twice, at `e` and `i`. 7 nodes
 - **apples**: matches through the `e` of `apple`; `s` is smaller than `t`,
   so it goes left, but the link is empty. A miss
+
+Search for other keys too. Watch the compare and sideways counts at the bottom right.
+
+<TstWalkDemo op="search" />
+
+`applaud` takes 8 compares with 1 sideways, `apply` 7 with 2, and `application` 12 with 1. `app` reaches a node in 3 but it holds no value, and `apples` finds an empty link after 6.
 
 ### Prefix search \{#tst-prefix}
 
@@ -630,6 +709,12 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
   in alphabetical order.
 - Going left or right passes the prefix unchanged; only going down the
   middle appends the node's own character.
+
+Change the prefix and follow the order of collection.
+
+<TstWalkDemo op="prefix" />
+
+`app` collects all seven keys, and `appli` collects `appliance`, `applicable` and `application`, in alphabetical order. `apple` is itself a key, so it goes in first, followed by `applet` below its middle link.
 
 ### Run \{#tst-run}
 
@@ -712,6 +797,14 @@ space (3 links per node)
   (`sorted`) raises the height from 12 to 15. Like a binary search tree, a
   TST changes shape with the insertion order.
 
+Change only the order of the same keys. Each step inserts one key, and the table shows the compares each key costs.
+
+<TstOrderDemo />
+
+- `apple..` in the practice code order gives height 12 and 8.71 compares on average; sorted gives height 15 and 9.57; reverse gives height 12 and 9.29; middle first gives height 12 and 8.71.
+- In any order there are 24 nodes and 72 links.
+- For `by..the` the practice code order is already sorted, with height 8; reverse and middle first give height 7.
+
 ## Tries and TSTs \{#trie-vs-tst}
 
 Build the three structures from the same keys and count their nodes and links.
@@ -749,6 +842,15 @@ average. In the output, too, `applaud` (7 letters) finished in 8 nodes and
 `application` (11 letters) in 12. In the worst case, though, one position can
 take as many sideways steps as the alphabet has letters.
 
+Count where the sideways share is spent. Build a TST from $$N$$ random keys of length 20, search it 1000 times, and see the average sideways moves at each character position.
+
+<TstCostDemo />
+
+- At $$R$$ = 26, $$N$$ = 1,000 a hit takes 28.14 compares: 20 on the middle and 8.14 sideways, close to $$m + \ln N$$ = 26.91.
+- The sideways moves are 4.17 at the first position, 3.39 at the second, 0.54 at the third, and almost none after that. This is what it means that $$\log n$$ is not added per character.
+- A miss takes 11.11. That is above the table's rough $$\ln n$$ = 6.91, but it does not depend on the key length 20, and ten times the keys adds only 3 to 4.
+- Shrink $$R$$ to 2 and each position costs about 0.5 sideways, so the share spreads toward the back.
+
 In short, it is a [[trade-off|trade-off]].
 
 - **Trie**: fast search, $$O(m)$$, at the price of a lot of memory
@@ -785,6 +887,12 @@ There are connections to other topics as well.
 - **MSD radix sort** in Topic 09 splits by the first character, then splits
   each group by the next character. It has the same shape as building a trie
   from the top down.
+
+See that MSD radix sort and the trie have the same shape. On the left are the sorted keys grouped by their first $$d$$ characters; on the right is the trie of the same keys. The same color is the same group.
+
+<TrieMsdDemo />
+
+At $$d$$ = 1 the six keys form three groups `b`, `s`, `t`, and depth 1 of the trie also has three nodes. At $$d$$ = 2 there are four groups `by`, `se`, `sh`, `th`. At $$d$$ = 3 `by` is already placed and drops out, and the remaining groups match the four nodes at depth 3.
 
 ## What to keep \{#takeaway}
 
@@ -839,8 +947,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-11-04 | Eight new demos: one line of code at a time (trie, TST), characters looked at, shrinking R, how a trie maps to a TST, the TST and insertion order, the sideways share, MSD groups and trie levels. Key tables, character strips and link arrays now sit inside the demos |

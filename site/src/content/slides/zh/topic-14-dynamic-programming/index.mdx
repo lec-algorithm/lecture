@@ -1,7 +1,7 @@
 ---
 title: "主题 14. 动态规划"
 description: "让重叠子问题只算一次的动态规划。记忆化与递推填表、lazy 与 eager，以及找零钱·LIS·网格路径·恰好 k 条边的最短路径·0/1 背包与路径还原"
-date: "主题 14 · v1"
+date: "主题 14 · v2"
 order: 14
 transition: none
 toc_level: 4
@@ -17,6 +17,16 @@ import PathDpDemo from '@components/PathDpDemo.astro';
 import FibCountDemo from '@components/FibCountDemo.astro';
 import CoinMemoDemo from '@components/CoinMemoDemo.astro';
 import CoinCompareDemo from '@components/CoinCompareDemo.astro';
+import GeneratorDemo from '@components/GeneratorDemo.astro';
+import CoinCellDemo from '@components/CoinCellDemo.astro';
+import LazyEagerDemo from '@components/LazyEagerDemo.astro';
+import LisPlayDemo from '@components/LisPlayDemo.astro';
+import LisMemoDemo from '@components/LisMemoDemo.astro';
+import GridWaysDemo from '@components/GridWaysDemo.astro';
+import PathTableDemo from '@components/PathTableDemo.astro';
+import KnapCellDemo from '@components/KnapCellDemo.astro';
+import OptimalityDemo from '@components/OptimalityDemo.astro';
+import CallOverlapDemo from '@components/CallOverlapDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-14-dynamic-programming）的运行结果一致。 */}
@@ -139,7 +149,7 @@ ALGORITHM FibIterative(n)
 ### 单步：F(5)
 ::sub[重新计算同一个值的节点是红色]
 
-<RecursionDemo n={5} slide />
+<RecursionDemo n={5} slide fit />
 
 </Slide>
 
@@ -397,6 +407,15 @@ Haskell 这样的语言在语言层面就这样做。
 
 <Slide>
 
+### 动手点一点：生成器
+::sub[每按一次 next() 只计算一个值。和列表比一比计算量]
+
+<GeneratorDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 什么时候 lazy 更好
 ::sub[记忆化这一边]
 
@@ -519,20 +538,10 @@ memo -> 2 coins, solved 5 amounts
 
 <Slide>
 
-#### 填 6 韩元这一格的那一刻
-::sub[对每种硬币看 a - c 韩元那一格]
+### 动手点一点：填这一格的瞬间
+::sub[点格子，看每种硬币的候选，以及沿 choice 倒着走的路径]
 
-| 最后一枚硬币 | 引用的格子 | 候选 |
-| --- | --- | --- |
-| 2 | `dp[4]` = 2 | 3 |
-| 3 | `dp[3]` = 1 | **2**（最小） |
-| 5 | `dp[1]` = INF | 不行 |
-
-<br/>
-
-- 最小值更新时，把那枚硬币记进 `choice[a]`。
-- 最后 `choice[6] = 3` → 3 韩元那格，`choice[3] = 3` → 0 韩元那格
-- **沿表倒着走、还原所做的选择**，就是路径还原。
+<CoinCellDemo slide />
 
 </Slide>
 
@@ -569,6 +578,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 <Slide>
 
+### 动手试试：lazy 与 eager 各解多少
+::sub[改变硬币和金额，记忆化解的金额和填表填的金额一起变]
+
+<LazyEagerDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 动手试试：贪心答错的金额
 ::sub[选一组硬币或自己输入，再点击金额格子比较两种答案]
 
@@ -600,6 +618,15 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 | 2 3 7 18 | 4 |
 
 答案可能不止一个。
+
+</Slide>
+
+<Slide>
+
+### 自己选一选：递增子序列
+::sub[点数字来选。试着找出所有最长的答案]
+
+<LisPlayDemo mode="pick" slide />
 
 </Slide>
 
@@ -644,29 +671,12 @@ ALGORITHM LisHelper(arr, n, i, prev)
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 记忆化的使用情况
-::sub[出乎意料，memo 表并没有被用那么多次]
+### 单步：表实际用到几次
+::sub[没想到记忆表用得并不多。换个序列就不一样了]
 
-```console
-plain recursion = 4, calls = 108
-memo hits (i, prev + 1)
-  hit memo[7][7] = 0
-  hit memo[7][7] = 0
-  hit memo[6][6] = 1
-  hit memo[7][7] = 0
-  hit memo[6][6] = 1
-  hit memo[7][7] = 0
-  hit memo[6][6] = 1
-  hit memo[5][5] = 2
-  hit memo[4][4] = 2
-  hit memo[7][7] = 0
-  hit memo[7][7] = 0
-memo = 4, calls = 62, hits = 11, filled 36 of 72
-```
-
-8 个元素时只有 11 次。越长，$$2^n$$ 与 $$n^2$$ 的差距越大。
+<LisMemoDemo slide />
 
 </Slide>
 
@@ -711,6 +721,15 @@ tab  = 4
 - 最大值 4 第一次出现在第 6 个（101）。
 - 沿 `prev` 走是第 5 个（7）、第 3 个（5）、第 2 个（2），反过来是 `2 5 7 101`
 - 选 18 那边就是 `2 5 7 18`，平局的处理方式决定出哪个答案。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：序列与相同时的处理
+::sub[点格子，还原以该元素结尾的最长序列]
+
+<LisPlayDemo mode="dp" slide />
 
 </Slide>
 
@@ -773,6 +792,15 @@ tab             = 48
 ::sub[点击格子放置或移除障碍，表格会从头重新填写]
 
 <DpGridDemo problem="grid" editable slide />
+
+</Slide>
+
+<Slide>
+
+### 动手点一点：两个方向的表
+::sub[到这里的路径数乘以从这里出发的路径数，就是经过这一格的路径数]
+
+<GridWaysDemo slide />
 
 </Slide>
 
@@ -920,6 +948,15 @@ next[1][4][3] = 3    4 → 3   (代价 1)
 
 <Slide>
 
+### 动手试试：终点与 k
+::sub[点格子，看候选和还原出的路径。边数不同，答案也不同]
+
+<PathTableDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 记下所选的那一行
 ::sub[choice, prev, next]
 
@@ -991,6 +1028,15 @@ best = 220
 
 <Slide>
 
+### 动手点一点：表的一格
+::sub[点格子，看代入数字的递推式，以及这一格选中的物品组合]
+
+<KnapCellDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 动手试试：容量与物品
 ::sub[把容量降到 40，或改动重量、价值，表格、还原结果和贪心的答案会一起改变]
 
@@ -1037,6 +1083,15 @@ best = 220
 
 <Slide>
 
+### 动手试验：把子问题的最优接起来
+::sub[比较最短路径和最长简单路径。改变三个顶点试试]
+
+<OptimalityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 分治 vs. 动态规划
 
 | | 分治 | 动态规划 |
@@ -1049,6 +1104,15 @@ best = 220
 <br/>
 
 斐波那契递归是分治的形状，但子问题重叠，所以低效。
+
+</Slide>
+
+<Slide>
+
+### 动手数一数：子问题重叠吗
+::sub[移动 n，打开记忆。点节点会把相同的问题全部标出]
+
+<CallOverlapDemo slide />
 
 </Slide>
 

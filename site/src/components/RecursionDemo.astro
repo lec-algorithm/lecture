@@ -23,8 +23,10 @@ interface Props {
   n?: number;
   /** 슬라이드용: 글자와 칸을 슬라이드 크기에 맞춘다. */
   slide?: boolean;
+  /** 슬라이드 높이에 트리를 맞춘다. 주제 14에서 쓴다. 주제 01의 모양은 그대로 둔다. */
+  fit?: boolean;
 }
-const { n = 5, slide = false } = Astro.props;
+const { n = 5, slide = false, fit = false } = Astro.props;
 const id = `rd-${Math.random().toString(36).slice(2, 9)}`;
 
 type Node = {
@@ -163,7 +165,7 @@ const uniqueValues = computed.size;
 ---
 
 <div
-  class:list={['aas-recursion-demo', slide && 'is-slide']}
+  class:list={['aas-recursion-demo', slide && 'is-slide', fit && 'is-fit']}
   id={id}
   data-rd-strings={JSON.stringify(t)}
   data-rd-events={JSON.stringify(events)}
@@ -537,6 +539,11 @@ const uniqueValues = computed.size;
   }
   .aas-recursion-demo.is-slide .rd-note {
     min-height: 1.6em;
+  }
+  .aas-recursion-demo.is-slide.is-fit .rd-tree {
+    display: block;
+    max-height: 42vh;
+    margin: 0 auto;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,518 @@
+---
+// 격자 경로를 두 방향으로 세어 나란히 놓는 데모.
+//
+// 왼쪽 표는 타뷸레이션의 "처음부터 여기까지", 오른쪽 표는 메모이제이션의 "여기서
+// 끝까지"다. 칸을 누르면 두 수를 곱해 그 칸을 지나는 길의 수를 보이고, 같은 대각선의
+// 곱을 더하면 언제나 전체 길의 수가 된다는 것을 확인한다. 장애물을 놓으면 두 표가 함께
+// 바뀌고, 메모는 처음부터 닿지 않는 칸을 부르지 않는다(점선 칸). lazy의 증거다.
+//
+// 두 표의 절차, 메모의 호출 수와 푼 칸 수 세는 법은 algorithm-code topic-14
+// 04_grid_paths(paths_memo, paths_tab)와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `gw-${Math.random().toString(36).slice(2, 9)}`;
+const N = 6;
+const OBSTACLES: [number, number][] = [
+  [2, 2],
+  [3, 3],
+  [4, 4],
+];
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '두 방향으로 세기',
+    modeView: '칸 보기',
+    modeObs: '장애물 놓기',
+    orig: '원래 장애물',
+    from: '처음부터 여기까지',
+    fromRule: '위 + 왼쪽',
+    to: '여기서 끝까지',
+    toRule: '아래 + 오른쪽',
+    through: '이 칸을 지나는 길',
+    total: '전체 길',
+    filled: '표가 채운 칸',
+    solved: '메모가 푼 칸',
+    calls: '메모 호출',
+    plain: '메모 없는 호출',
+    cell: '({x}, {y})까지 오는 길 {a}가지, 거기서 끝까지 가는 길 {b}가지, 곱하면 {c}가지입니다.',
+    diag: 'x + y = {s}인 칸의 곱을 모두 더하면 {sum}입니다. 모든 길이 그 대각선을 꼭 한 번 지나기 때문입니다.',
+    blocked: '장애물 칸 ({x}, {y})입니다. 이 칸을 지나는 길은 없습니다.',
+    untouched: '메모는 이 칸을 부르지 않았습니다. 처음부터 닿지 않기 때문입니다.',
+    obsHint: '칸을 누르면 장애물을 놓거나 뺍니다. 출발점과 도착점은 바꿀 수 없습니다.',
+    none: '장애물이 길을 모두 막았습니다. 전체 길은 0가지입니다.',
+  },
+  en: {
+    title: 'Counting from both ends',
+    modeView: 'Inspect cells',
+    modeObs: 'Place obstacles',
+    orig: 'Original obstacles',
+    from: 'From the start to here',
+    fromRule: 'up + left',
+    to: 'From here to the end',
+    toRule: 'down + right',
+    through: 'through this cell',
+    total: 'all paths',
+    filled: 'table cells',
+    solved: 'memo cells',
+    calls: 'memo calls',
+    plain: 'calls without memo',
+    cell: '{a} paths reach ({x}, {y}) and {b} paths go from there to the end. Multiplied, that is {c} paths.',
+    diag: 'Add the products of every cell with x + y = {s} and you get {sum}. Every path crosses that diagonal exactly once.',
+    blocked: '({x}, {y}) is an obstacle. No path goes through it.',
+    untouched: 'The memo never called this cell, because it cannot be reached from the start.',
+    obsHint: 'Click a cell to place or remove an obstacle. The start and the end cannot change.',
+    none: 'The obstacles block every path. There are 0 paths in all.',
+  },
+  zh: {
+    title: '从两头数',
+    modeView: '查看格子',
+    modeObs: '放置障碍',
+    orig: '恢复障碍',
+    from: '从起点到这里',
+    fromRule: '上 + 左',
+    to: '从这里到终点',
+    toRule: '下 + 右',
+    through: '经过这一格的路径',
+    total: '全部路径',
+    filled: '填表的格数',
+    solved: '记忆化解的格数',
+    calls: '记忆化调用',
+    plain: '无记忆时调用',
+    cell: '到 ({x}, {y}) 的路径有 {a} 条，从那里到终点有 {b} 条，相乘得 {c} 条。',
+    diag: '把 x + y = {s} 的各格乘积相加得 {sum}。因为每条路径都恰好经过这条对角线一次。',
+    blocked: '({x}, {y}) 是障碍。没有路径经过它。',
+    untouched: '记忆化没有调用这一格，因为从起点走不到这里。',
+    obsHint: '点击格子放置或移除障碍。起点和终点不能改。',
+    none: '障碍挡住了所有路径。全部路径为 0 条。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const panels = [
+  { side: 'from', name: t.from, rule: t.fromRule },
+  { side: 'to', name: t.to, rule: t.toRule },
+];
+---
+
+<div
+  class:list={['aas-grid-ways-demo', slide && 'is-slide']}
+  id={id}
+  data-gw-strings={JSON.stringify(t)}
+  data-gw-obstacles={JSON.stringify(OBSTACLES)}
+  data-gw-n={N}
+  style={`--gw-n: ${N}`}
+>
+  <div class="gw-bar">
+    <span class="gw-head"><strong>{t.title}</strong></span>
+    <div class="gw-tabs">
+      <button type="button" class="gw-tab" data-gw-mode="view">{t.modeView}</button>
+      <button type="button" class="gw-tab" data-gw-mode="obs">{t.modeObs}</button>
+      <button type="button" class="gw-btn" data-gw-orig>{t.orig}</button>
+    </div>
+  </div>
+
+  <div class="gw-body">
+    {
+      panels.map((p) => (
+        <div class="gw-panel">
+          <h4>
+            {p.name} <span>{p.rule}</span>
+          </h4>
+          <div class="gw-grid">
+            <span class="gw-corner">x \ y</span>
+            {Array.from({ length: N }, (_, j) => <span class="gw-h">{j}</span>)}
+            {Array.from({ length: N }, (_, i) => (
+              <>
+                <span class="gw-h">{i}</span>
+                {Array.from({ length: N }, (_, j) => (
+                  <button type="button" class="gw-cell" data-gw-side={p.side} data-gw-i={i} data-gw-j={j} />
+                ))}
+              </>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+    <dl class="gw-stats">
+      <dt>{t.through}</dt>
+      <dd class="gw-big" data-gw-through></dd>
+      <dt>{t.total}</dt>
+      <dd data-gw-total></dd>
+      <dt>{t.filled}</dt>
+      <dd data-gw-filled></dd>
+      <dt>{t.solved}</dt>
+      <dd data-gw-solved></dd>
+      <dt>{t.calls}</dt>
+      <dd data-gw-calls></dd>
+      <dt>{t.plain}</dt>
+      <dd data-gw-plain></dd>
+    </dl>
+  </div>
+
+  <p class="gw-note" data-gw-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.gwStrings);
+    const ORIG = JSON.parse(root.dataset.gwObstacles);
+    const N = +root.dataset.gwN;
+    const X = N - 1;
+
+    let obstacles = ORIG.map((c) => c.join());
+    let mode = 'view';
+    let cur = [1, 1];
+    const blocked = (x, y) => obstacles.includes(`${x},${y}`);
+    const make = () => Array.from({ length: N }, () => new Array(N).fill(0));
+
+    /* 처음부터 여기까지: paths_tab */
+    function solveFrom() {
+      const dp = make();
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+          if (blocked(i, j)) dp[i][j] = 0;
+          else if (i === 0 && j === 0) dp[i][j] = 1;
+          else dp[i][j] = (i > 0 ? dp[i - 1][j] : 0) + (j > 0 ? dp[i][j - 1] : 0);
+        }
+      }
+      return dp;
+    }
+    /* 여기서 끝까지: 모든 칸의 값. 데모의 표를 다 채우려고 끝에서부터 계산한다. */
+    function solveTo() {
+      const dp = make();
+      for (let i = X; i >= 0; i--) {
+        for (let j = X; j >= 0; j--) {
+          if (i === X && j === X) dp[i][j] = 1;
+          else if (blocked(i, j)) dp[i][j] = 0;
+          else dp[i][j] = (i < X ? dp[i + 1][j] : 0) + (j < X ? dp[i][j + 1] : 0);
+        }
+      }
+      return dp;
+    }
+    /* paths_memo를 그대로 돌려 호출 수와 부른 칸을 잰다. */
+    function runMemo() {
+      const memo = new Map();
+      let calls = 0;
+      const go = (x, y) => {
+        calls++;
+        if (x === X && y === X) return 1;
+        if (x > X || y > X || blocked(x, y)) return 0;
+        const k = `${x},${y}`;
+        if (memo.has(k)) return memo.get(k);
+        const r = go(x + 1, y) + go(x, y + 1);
+        memo.set(k, r);
+        return r;
+      };
+      go(0, 0);
+      return { calls, solved: memo };
+    }
+    /* 메모 없는 재귀의 호출 수 */
+    function runPlain() {
+      let calls = 0;
+      const go = (x, y) => {
+        calls++;
+        if ((x === X && y === X) || x > X || y > X || blocked(x, y)) return;
+        go(x + 1, y);
+        go(x, y + 1);
+      };
+      go(0, 0);
+      return calls;
+    }
+
+    const cells = [...root.querySelectorAll('[data-gw-side]')];
+    const note = root.querySelector('[data-gw-note]');
+    const get = (name) => root.querySelector(`[data-gw-${name}]`);
+
+    function draw() {
+      const from = solveFrom();
+      const to = solveTo();
+      const { calls, solved } = runMemo();
+      const plain = runPlain();
+      const total = from[X][X];
+      const [x, y] = cur;
+      const isBlock = blocked(x, y);
+      const onSame = (i, j) => i + j === x + y;
+
+      cells.forEach((el) => {
+        const i = +el.dataset.gwI;
+        const j = +el.dataset.gwJ;
+        const side = el.dataset.gwSide;
+        const here = i === x && j === y;
+        const block = blocked(i, j);
+        const v = side === 'from' ? from[i][j] : to[i][j];
+        el.textContent = block ? '#' : String(v);
+        el.classList.toggle('is-block', block);
+        el.classList.toggle('is-cur', here && mode === 'view');
+        el.classList.toggle('is-diag', mode === 'view' && !here && onSame(i, j) && !block);
+        const isRef =
+          mode === 'view' &&
+          !isBlock &&
+          (side === 'from'
+            ? (i === x - 1 && j === y) || (i === x && j === y - 1)
+            : (i === x + 1 && j === y) || (i === x && j === y + 1));
+        el.classList.toggle('is-ref', isRef);
+        /* 오른쪽 표: 메모가 부르지 않은 칸. 도착점은 기저라 표에 적히지 않지만 호출은 된다. */
+        const goal = i === X && j === X;
+        el.classList.toggle('is-lazy', side === 'to' && !block && !goal && !solved.has(`${i},${j}`));
+      });
+      root.querySelectorAll('[data-gw-mode]').forEach((b) => b.classList.toggle('is-on', b.dataset.gwMode === mode));
+
+      get('through').textContent = isBlock ? '0' : `${from[x][y]} × ${to[x][y]} = ${from[x][y] * to[x][y]}`;
+      get('total').textContent = String(total);
+      get('filled').textContent = String(N * N);
+      get('solved').textContent = String(solved.size);
+      get('calls').textContent = String(calls);
+      get('plain').textContent = String(plain);
+
+      if (mode === 'obs') {
+        setLines(note, join(S.obsHint, total === 0 ? S.none : ''));
+        return;
+      }
+      if (isBlock) {
+        setLines(note, fill(S.blocked, { x, y }));
+        return;
+      }
+      let sum = 0;
+      for (let i = 0; i < N; i++) {
+        const j = x + y - i;
+        if (j >= 0 && j < N && !blocked(i, j)) sum += from[i][j] * to[i][j];
+      }
+      const goal = x === X && y === X;
+      setLines(
+        note,
+        join(
+          fill(S.cell, { x, y, a: from[x][y], b: to[x][y], c: from[x][y] * to[x][y] }),
+          !goal && !solved.has(`${x},${y}`) ? S.untouched : '',
+          fill(S.diag, { s: x + y, sum }),
+        ),
+      );
+    }
+
+    cells.forEach((el) =>
+      el.addEventListener('click', () => {
+        const i = +el.dataset.gwI;
+        const j = +el.dataset.gwJ;
+        if (mode === 'view') {
+          cur = [i, j];
+        } else if (!(i === 0 && j === 0) && !(i === X && j === X)) {
+          const k = `${i},${j}`;
+          obstacles = obstacles.includes(k) ? obstacles.filter((o) => o !== k) : [...obstacles, k];
+        }
+        draw();
+      }),
+    );
+    root.querySelectorAll('[data-gw-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        mode = b.dataset.gwMode;
+        draw();
+      }),
+    );
+    get('orig').addEventListener('click', () => {
+      obstacles = ORIG.map((c) => c.join());
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-grid-ways-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-grid-ways-demo .gw-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-grid-ways-demo .gw-head {
+    font-size: 0.95em;
+  }
+  .aas-grid-ways-demo .gw-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-grid-ways-demo .gw-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-grid-ways-demo .gw-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-grid-ways-demo .gw-btn {
+    padding: 0.3em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-grid-ways-demo .gw-tab:hover,
+  .aas-grid-ways-demo .gw-btn:hover,
+  .aas-grid-ways-demo .gw-cell:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-grid-ways-demo .gw-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.3em;
+    justify-content: center;
+    margin-top: 0.5em;
+  }
+  .aas-grid-ways-demo .gw-panel {
+    min-width: 0;
+  }
+  .aas-grid-ways-demo h4 {
+    margin: 0 0 0.3em;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--aas-text);
+  }
+  .aas-grid-ways-demo h4 span {
+    margin-left: 0.3em;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-grid-ways-demo .gw-grid {
+    display: grid;
+    grid-template-columns: 2.1em repeat(var(--gw-n), 2.4em);
+    grid-auto-rows: 1.85em;
+    gap: 0.12em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-grid-ways-demo .gw-corner,
+  .aas-grid-ways-demo .gw-h {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-grid-ways-demo .gw-corner {
+    font-size: 0.6em;
+  }
+  .aas-grid-ways-demo .gw-cell {
+    padding: 0;
+    font-family: inherit;
+    font-size: 0.85em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-grid-ways-demo .gw-cell.is-diag {
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, var(--aas-bg));
+  }
+  .aas-grid-ways-demo .gw-cell.is-lazy {
+    border-style: dashed;
+    border-color: var(--aas-muted);
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+  }
+  .aas-grid-ways-demo .gw-cell.is-ref {
+    border-style: solid;
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-grid-ways-demo .gw-cell.is-block {
+    background: color-mix(in srgb, var(--aas-muted) 45%, var(--aas-bg));
+    color: var(--aas-bg);
+    font-weight: 700;
+  }
+  .aas-grid-ways-demo .gw-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-grid-ways-demo .gw-stats {
+    display: grid;
+    flex: 0 1 15em;
+    grid-template-columns: 1fr;
+    gap: 0;
+    align-content: center;
+    margin: 0;
+    font-size: 0.85em;
+    line-height: 1.3;
+  }
+  .aas-grid-ways-demo .gw-stats dt {
+    margin: 0.2em 0 0;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-grid-ways-demo .gw-stats dd {
+    margin: 0;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-grid-ways-demo .gw-stats dd.gw-big {
+    font-size: 1.15em;
+    color: var(--aas-role-focus);
+  }
+  .aas-grid-ways-demo .gw-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 4.2em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-grid-ways-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-grid-ways-demo.is-slide .gw-stats {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.05em 0.7em;
+    flex-basis: 16em;
+  }
+  .aas-grid-ways-demo.is-slide .gw-stats dt {
+    margin: 0;
+  }
+  .aas-grid-ways-demo.is-slide .gw-stats dd {
+    text-align: right;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-grid-ways-demo .gw-cell {
+      transition: none;
+    }
+  }
+</style>

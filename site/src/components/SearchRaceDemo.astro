@@ -1,0 +1,575 @@
+---
+// BFS, Dijkstra, A*, Greedy Best-First를 같은 그래프에서 돌려 표의 칸을 재 보는 데모.
+//
+// 그래프는 sp, 출발 0, 목표 6이다. 네 알고리즘을 실제로 돌려 닫은 정점의 수, 경로,
+// 비용을 표에 적는다. 줄을 누르면 그 알고리즘이 닫는 순서를 한 걸음씩 볼 수 있다.
+// 위쪽 칩으로 h를 바꾸면(예제 h, h*, 0) A*와 Greedy의 줄이 달라진다.
+//   고르는 값: BFS는 큐 순서, Dijkstra는 g, A*는 g + h, Greedy는 h
+//   목표를 꺼내면 멈춘다. A*는 다시 열기를 허용하고 Greedy는 한 번 본 정점을 다시
+//   넣지 않는다.
+// 예제 h에서: BFS 7번 29, Dijkstra 7번 25, A* 8번 25, Greedy 3번 26이다. A*가
+// Dijkstra보다 많이 닫는 것은 이 h가 일관적이지 않아서이고, h*면 4번으로 줄어든다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const g = getGraph('sp');
+const id = `sr-${Math.random().toString(36).slice(2, 9)}`;
+const H0 = [14, 10, 4, 2, 11, 6, 0, 8];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '네 알고리즘 재 보기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    hLabel: 'h',
+    hEx: '예제 h',
+    hStar: 'h*',
+    hZero: '0',
+    alg: '알고리즘',
+    key: '고르는 값',
+    closes: '닫기',
+    path: '경로',
+    cost: '비용',
+    opt: '최단',
+    bfsKey: '큐 순서',
+    idle: '{a}: 줄을 눌러 다른 알고리즘을 고르고 한 걸음씩 보세요.',
+    close: '{a}: {k}번째로 {v}번 정점을 닫습니다.',
+    end: '{a}: 목표를 꺼냈습니다. 닫기 {k}번, 경로 {path}, 비용 {c}입니다.',
+    best: '최단 경로입니다.',
+    notBest: '최단 경로 25가 아닙니다.',
+  },
+  en: {
+    title: 'Measure the four algorithms',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    hLabel: 'h',
+    hEx: 'Example h',
+    hStar: 'h*',
+    hZero: '0',
+    alg: 'Algorithm',
+    key: 'Chooses by',
+    closes: 'Closes',
+    path: 'Path',
+    cost: 'Cost',
+    opt: 'Shortest',
+    bfsKey: 'queue order',
+    idle: '{a}: click a row to choose another algorithm, then step through it.',
+    close: '{a}: close vertex {v}, number {k}.',
+    end: '{a}: the goal came out. {k} closes, path {path}, cost {c}.',
+    best: 'This is the shortest path.',
+    notBest: 'This is not the shortest path 25.',
+  },
+  zh: {
+    title: '测量四个算法',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    hLabel: 'h',
+    hEx: '示例 h',
+    hStar: 'h*',
+    hZero: '0',
+    alg: '算法',
+    key: '选择依据',
+    closes: '关闭',
+    path: '路径',
+    cost: '代价',
+    opt: '最短',
+    bfsKey: '队列顺序',
+    idle: '{a}：点击一行选择别的算法，然后单步查看。',
+    close: '{a}：第 {k} 个关闭顶点 {v}。',
+    end: '{a}：取出了目标。关闭 {k} 次，路径 {path}，代价 {c}。',
+    best: '这是最短路径。',
+    notBest: '这不是最短路径 25。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const ALGS = [
+  { k: 'bfs', name: 'BFS', key: t.bfsKey },
+  { k: 'dij', name: 'Dijkstra', key: 'g' },
+  { k: 'astar', name: 'A*', key: 'g + h' },
+  { k: 'greedy', name: 'Greedy', key: 'h' },
+];
+---
+
+<div
+  class:list={['aas-search-race-demo', slide && 'is-slide']}
+  id={id}
+  data-sr-n={g.nodes.length}
+  data-sr-edges={JSON.stringify(g.edges)}
+  data-sr-h={JSON.stringify(H0)}
+  data-sr-names={JSON.stringify(Object.fromEntries(ALGS.map((a) => [a.k, a.name])))}
+  data-sr-strings={JSON.stringify(t)}
+>
+  <div class="sr-bar">
+    <span class="sr-head"><strong>{t.title}</strong></span>
+    <div class="sr-chips">
+      <span class="sr-chiplabel">{t.hLabel}</span>
+      {[['ex', t.hEx], ['star', t.hStar], ['zero', t.hZero]].map(([k, label]) => (
+        <button type="button" class="sr-chip" data-sr-h-set={k}>{label}</button>
+      ))}
+    </div>
+    <div class="sr-controls">
+      <button type="button" data-act="back" class="sr-btn">{t.back}</button>
+      <button type="button" data-act="step" class="sr-btn">{t.step}</button>
+      <button type="button" data-act="play" class="sr-btn sr-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="sr-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sr-body">
+    <div class="sr-graph">
+      <GraphFigure graph="sp" bare slide={slide} />
+    </div>
+    <div class="sr-panel">
+      <div class="sr-table" role="table">
+        <span class="sr-th">{t.alg}</span>
+        <span class="sr-th">{t.key}</span>
+        <span class="sr-th">{t.closes}</span>
+        <span class="sr-th">{t.path}</span>
+        <span class="sr-th">{t.cost}</span>
+        <span class="sr-th">{t.opt}</span>
+        {
+          ALGS.map((a) => (
+            <button type="button" class="sr-row" data-sr-row={a.k}>
+              <b>{a.name}</b>
+              <span class="sr-mono">{a.key}</span>
+              <span class="sr-mono" data-sr-closes />
+              <span class="sr-mono" data-sr-path />
+              <b class="sr-mono" data-sr-cost />
+              <span data-sr-opt />
+            </button>
+          ))
+        }
+      </div>
+      <div class="sr-order">
+        <span data-sr-seq></span>
+      </div>
+      <p class="sr-note" data-sr-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.srStrings);
+    const NAMES = JSON.parse(root.dataset.srNames);
+    const n = Number(root.dataset.srN);
+    const edges = JSON.parse(root.dataset.srEdges);
+    const H0 = JSON.parse(root.dataset.srH);
+    const START = 0;
+    const GOAL = 6;
+
+    const adj = Array.from({ length: n }, () => []);
+    const back = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v, w]) => {
+      adj[u].push([v, w]);
+      back[v].push([u, w]);
+    });
+    adj.forEach((a) => a.sort((x, y) => x[0] - y[0]));
+    const weight = (u, v) => adj[u].find((e) => e[0] === v)[1];
+    const pathCost = (p) => p.reduce((c, v, i) => (i ? c + weight(p[i - 1], v) : 0), 0);
+
+    /* h*: 목표에서 거꾸로 돌린 Dijkstra */
+    const hStar = new Array(n).fill(Infinity);
+    (() => {
+      const fin = new Array(n).fill(false);
+      hStar[GOAL] = 0;
+      for (;;) {
+        let u = -1;
+        for (let v = 0; v < n; v++) if (!fin[v] && hStar[v] < Infinity && (u < 0 || hStar[v] < hStar[u])) u = v;
+        if (u < 0) break;
+        fin[u] = true;
+        back[u].forEach(([v, w]) => {
+          if (hStar[u] + w < hStar[v]) hStar[v] = hStar[u] + w;
+        });
+      }
+    })();
+    const OPT = hStar[START];
+    const SETS = { ex: H0, star: hStar, zero: H0.map(() => 0) };
+
+    const backtrack = (from) => {
+      const p = [];
+      for (let x = GOAL; x !== -1; x = from[x]) p.unshift(x);
+      return p;
+    };
+    function runBfs() {
+      const seen = new Array(n).fill(false);
+      const from = new Array(n).fill(-1);
+      const q = [START];
+      const closes = [];
+      seen[START] = true;
+      while (q.length) {
+        const u = q.shift();
+        if (u === GOAL) break;
+        closes.push(u);
+        adj[u].forEach(([v]) => {
+          if (!seen[v]) {
+            seen[v] = true;
+            from[v] = u;
+            q.push(v);
+          }
+        });
+      }
+      return { closes, path: backtrack(from) };
+    }
+    /* A*는 다시 열기를 허용한다. h가 0이면 Dijkstra와 같다. */
+    function runAstar(h) {
+      const gs = new Array(n).fill(Infinity);
+      const from = new Array(n).fill(-1);
+      const closed = new Array(n).fill(false);
+      const pq = [];
+      let seq = 0;
+      const closes = [];
+      gs[START] = 0;
+      pq.push({ f: h[START], q: seq++, v: START });
+      while (pq.length) {
+        pq.sort((a, b) => a.f - b.f || a.q - b.q);
+        const { v: u } = pq.shift();
+        if (closed[u]) continue;
+        if (u === GOAL) break;
+        closed[u] = true;
+        closes.push(u);
+        adj[u].forEach(([v, w]) => {
+          const ng = gs[u] + w;
+          if (ng >= gs[v]) return;
+          closed[v] = false;
+          gs[v] = ng;
+          from[v] = u;
+          pq.push({ f: ng + h[v], q: seq++, v });
+        });
+      }
+      return { closes, path: backtrack(from) };
+    }
+    /* Greedy는 h만 본다. 한 번 넣은 정점은 다시 넣지 않는다. */
+    function runGreedy(h) {
+      const seen = new Array(n).fill(false);
+      const from = new Array(n).fill(-1);
+      const pq = [{ f: h[START], q: 0, v: START }];
+      let seq = 1;
+      const closes = [];
+      seen[START] = true;
+      while (pq.length) {
+        pq.sort((a, b) => a.f - b.f || a.q - b.q);
+        const { v: u } = pq.shift();
+        if (u === GOAL) break;
+        closes.push(u);
+        adj[u].forEach(([v]) => {
+          if (!seen[v]) {
+            seen[v] = true;
+            from[v] = u;
+            pq.push({ f: h[v], q: seq++, v });
+          }
+        });
+      }
+      return { closes, path: backtrack(from) };
+    }
+
+    let hKey = 'ex';
+    let alg = 'astar';
+    let runs = {};
+    let at = -1;
+    const plan = () => {
+      const h = SETS[hKey];
+      runs = { bfs: runBfs(), dij: runAstar(H0.map(() => 0)), astar: runAstar(h), greedy: runGreedy(h) };
+    };
+
+    const rowEls = [...root.querySelectorAll('[data-sr-row]')];
+    const chips = [...root.querySelectorAll('[data-sr-h-set]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const noteEl = root.querySelector('[data-sr-note]');
+    const seqEl = root.querySelector('[data-sr-seq]');
+
+    const lastAt = () => runs[alg].closes.length; /* 닫기 다음 한 걸음이 목표 꺼내기 */
+
+    function render() {
+      chips.forEach((c) => c.classList.toggle('is-on', c.dataset.srHSet === hKey));
+      rowEls.forEach((row) => {
+        const k = row.dataset.srRow;
+        const r = runs[k];
+        const c = pathCost(r.path);
+        row.classList.toggle('is-on', k === alg);
+        row.querySelector('[data-sr-closes]').textContent = String(r.closes.length);
+        row.querySelector('[data-sr-path]').textContent = r.path.join(' ');
+        const costEl = row.querySelector('[data-sr-cost]');
+        costEl.textContent = String(c);
+        costEl.classList.toggle('is-bad', c !== OPT);
+        row.querySelector('[data-sr-opt]').textContent = c === OPT ? '✓' : '✗';
+      });
+      const r = runs[alg];
+      const shown = at < 0 ? [] : r.closes.slice(0, at + 1);
+      const end = at >= lastAt();
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', shown.includes(v) && v !== shown[shown.length - 1]);
+        el.classList.toggle('is-focus', !end && v === shown[shown.length - 1]);
+        el.classList.toggle('is-ring', v === START || v === GOAL);
+      });
+      /* 닫은 순서를 정점 옆에 적는다. 다시 열면 마지막 순번이다. */
+      badgeEls.forEach((el, v) => {
+        const k = shown.lastIndexOf(v);
+        el.textContent = k >= 0 ? `#${k + 1}` : '';
+      });
+      const pathSet = new Set();
+      if (end) r.path.forEach((v, i) => i > 0 && pathSet.add(`${r.path[i - 1]}-${v}`));
+      edgeEls.forEach((el, key) => el.classList.toggle('is-tree', pathSet.has(key)));
+      seqEl.textContent = shown.join(' ');
+      root.classList.toggle('is-done', end);
+      const a = NAMES[alg];
+      if (at < 0) setLines(noteEl, fill(S.idle, { a }));
+      else if (end) {
+        const c = pathCost(r.path);
+        setLines(
+          noteEl,
+          join(fill(S.end, { a, k: r.closes.length, path: r.path.join(' '), c }), c === OPT ? S.best : S.notBest),
+        );
+      } else setLines(noteEl, fill(S.close, { a, k: at + 1, v: shown[shown.length - 1] }));
+    }
+
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= lastAt()) return stop();
+      at += 1;
+      render();
+      if (at >= lastAt()) stop();
+    }
+    rowEls.forEach((row) =>
+      row.addEventListener('click', () => {
+        stop();
+        alg = row.dataset.srRow;
+        at = -1;
+        render();
+      }),
+    );
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        stop();
+        hKey = c.dataset.srHSet;
+        plan();
+        at = -1;
+        render();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= lastAt()) {
+        at = -1;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1000);
+    });
+    plan();
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-search-race-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-search-race-demo .sr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-search-race-demo .sr-head {
+    font-size: 0.95em;
+  }
+  .aas-search-race-demo .sr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    align-items: center;
+  }
+  .aas-search-race-demo .sr-chiplabel {
+    margin-right: 0.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-search-race-demo .sr-chip {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-search-race-demo .sr-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-search-race-demo .sr-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-search-race-demo .sr-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-search-race-demo .sr-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-search-race-demo .sr-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-search-race-demo .sr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-search-race-demo .sr-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-search-race-demo .sr-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-search-race-demo .sr-panel {
+    flex: 1 1 18em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 줄 전체가 버튼이다. */
+  .aas-search-race-demo .sr-table {
+    display: grid;
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+    gap: 0 0.8em;
+    font-size: 0.85em;
+    line-height: 1.5;
+  }
+  .aas-search-race-demo .sr-th {
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-search-race-demo .sr-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    padding: 0.1em 0;
+    font: inherit;
+    text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-search-race-demo .sr-row:hover {
+    background: color-mix(in srgb, var(--aas-accent) 10%, transparent);
+  }
+  .aas-search-race-demo .sr-row.is-on {
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, transparent);
+  }
+  .aas-search-race-demo .sr-mono {
+    font-family: var(--aas-mono, monospace);
+    white-space: nowrap;
+  }
+  .aas-search-race-demo .is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-search-race-demo .sr-order {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    min-height: 1.5em;
+    color: var(--aas-muted);
+  }
+  .aas-search-race-demo .sr-note {
+    margin: 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 2.4em;
+  }
+  .aas-search-race-demo.is-done .sr-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-search-race-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-search-race-demo.is-slide .sr-body {
+    flex-wrap: nowrap;
+  }
+  .aas-search-race-demo.is-slide .sr-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 44vh;
+  }
+</style>

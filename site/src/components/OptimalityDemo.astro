@@ -1,0 +1,503 @@
+---
+// 최적성의 원리가 언제 성립하는지 작은 그래프에서 시험하는 데모.
+//
+// 출발, 도착, 거쳐 갈 정점을 고르면 두 부분 문제를 각각 최적으로 풀어 이어 붙인다.
+// 최단 경로에서는 거쳐 갈 정점이 최단 경로 위에 있는 한 이어 붙인 것이 곧 최적이다.
+// 가장 긴 단순 경로에서는 두 조각이 정점을 함께 써서 단순 경로조차 되지 않는다.
+// 이 네 정점 그래프에서 고를 수 있는 24가지 조합 모두 그렇다. 두 끝점만으로 부분 문제를
+// 잡으면 최적 부분 구조가 없다는 것, 동적 계획법이 왜 이 조건을 요구하는지를 보인다.
+//
+// 경로는 추측하지 않고 단순 경로를 모두 늘어놓아 고른다. 간선 비용은 모두 1이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `op-${Math.random().toString(36).slice(2, 9)}`;
+const POS: [number, number][] = [
+  [70, 60],
+  [290, 60],
+  [290, 240],
+  [70, 240],
+];
+const EDGES: [number, number][] = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 0],
+];
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '이어 붙이면 최적인가',
+    short: '최단 경로',
+    long: '가장 긴 단순 경로',
+    from: '출발',
+    to: '도착',
+    via: '거쳐 갈 정점',
+    graph: '정점 넷, 간선 넷인 그래프. 간선 비용은 모두 1',
+    piece: '{a} → {b}의 최적',
+    joined: '이어 붙인 길',
+    real: '{a} → {b}의 진짜 최적',
+    len: '길이 {n}',
+    repeat: '겹치는 정점 {list}',
+    okShort: '이어 붙이면 길이 {n}, 곧 최적입니다. 최단 경로의 부분 경로도 최단입니다.',
+    offShort: '정점 {k}: 어떤 최단 경로 위에도 없어서 돌아가는 길이 됩니다. 원리는 최적 경로 위의 정점에 대해서만 말합니다.',
+    badLong: '이어 붙이면 길이 {n}이지만 두 번 지나는 정점이 있어({list}) 단순 경로가 아닙니다. 두 끝점만으로 잡은 부분 문제에는 최적 부분 구조가 없습니다.',
+  },
+  en: {
+    title: 'Is joining the pieces optimal',
+    short: 'shortest path',
+    long: 'longest simple path',
+    from: 'from',
+    to: 'to',
+    via: 'through',
+    graph: 'A graph of four vertices and four edges. Every edge costs 1',
+    piece: 'best {a} → {b}',
+    joined: 'joined',
+    real: 'real best {a} → {b}',
+    len: 'length {n}',
+    repeat: 'repeated: {list}',
+    okShort: 'The joined length {n} is the optimum. Subpaths of a shortest path are shortest.',
+    offShort: 'Vertex {k} is on no shortest path, so this is a detour. The principle only speaks of vertices on an optimal path.',
+    badLong: 'Joined, the length is {n}, but it visits {list} twice, so it is not even a simple path. Subproblems defined by the two endpoints alone have no optimal substructure.',
+  },
+  zh: {
+    title: '接起来就是最优吗',
+    short: '最短路径',
+    long: '最长简单路径',
+    from: '起点',
+    to: '终点',
+    via: '经过的顶点',
+    graph: '四个顶点、四条边的图。每条边代价都是 1',
+    piece: '{a} → {b} 的最优',
+    joined: '接起来的路',
+    real: '{a} → {b} 真正的最优',
+    len: '长度 {n}',
+    repeat: '重复的顶点 {list}',
+    okShort: '接起来的长度 {n} 就是最优。最短路径的子路径也是最短的。',
+    offShort: '顶点 {k} 不在任何最短路径上，所以这是绕路。这一原理只针对最优路径上的顶点。',
+    badLong: '接起来长度是 {n}，但顶点 {list} 走了两次，连简单路径都不是。只用两个端点定义的子问题没有最优子结构。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const pickers = [
+  { key: 's', name: t.from },
+  { key: 't', name: t.to },
+  { key: 'k', name: t.via },
+];
+---
+
+<div
+  class:list={['aas-optimality-demo', slide && 'is-slide']}
+  id={id}
+  data-op-strings={JSON.stringify(t)}
+  data-op-pos={JSON.stringify(POS)}
+  data-op-edges={JSON.stringify(EDGES)}
+>
+  <div class="op-bar">
+    <span class="op-head"><strong>{t.title}</strong></span>
+    <div class="op-tabs">
+      <button type="button" class="op-tab" data-op-mode="short">{t.short}</button>
+      <button type="button" class="op-tab" data-op-mode="long">{t.long}</button>
+    </div>
+  </div>
+
+  <div class="op-body">
+    <svg class="op-graph" viewBox="0 0 360 300" role="img" aria-label={t.graph}>
+      <g data-op-base>
+        {
+          EDGES.map(([a, b]) => (
+            <line class="op-edge" x1={POS[a][0]} y1={POS[a][1]} x2={POS[b][0]} y2={POS[b][1]} />
+          ))
+        }
+      </g>
+      <g data-op-marks></g>
+      {
+        POS.map(([x, y], u) => (
+          <g class="op-node" data-op-node={u}>
+            <circle cx={x} cy={y} r="24" />
+            <text x={x} y={y} text-anchor="middle" dominant-baseline="central">
+              {u}
+            </text>
+          </g>
+        ))
+      }
+    </svg>
+
+    <div class="op-side">
+      <div class="op-pick">
+        {
+          pickers.map((p) => (
+            <div class="op-pickrow">
+              <span>{p.name}</span>
+              {POS.map((_, u) => (
+                <button type="button" class="op-num" data-op-pick={p.key} data-op-v={u}>
+                  {u}
+                </button>
+              ))}
+            </div>
+          ))
+        }
+      </div>
+      <table class="op-table">
+        <tbody>
+          <tr class="is-a">
+            <th data-op-l1></th>
+            <td data-op-p1></td>
+            <td data-op-n1></td>
+          </tr>
+          <tr class="is-b">
+            <th data-op-l2></th>
+            <td data-op-p2></td>
+            <td data-op-n2></td>
+          </tr>
+          <tr class="is-j">
+            <th>{t.joined}</th>
+            <td data-op-pj></td>
+            <td data-op-nj></td>
+          </tr>
+          <tr class="is-r">
+            <th data-op-l3></th>
+            <td data-op-pr></td>
+            <td data-op-nr></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="op-note" data-op-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.opStrings);
+    const POS = JSON.parse(root.dataset.opPos);
+    const EDGES = JSON.parse(root.dataset.opEdges);
+    const adj = POS.map((_, u) =>
+      EDGES.flatMap(([a, b]) => (a === u ? [b] : b === u ? [a] : [])).sort((x, y) => x - y),
+    );
+
+    /* 단순 경로를 모두 늘어놓는다. */
+    const allPaths = (s, t) => {
+      const out = [];
+      const walk = (u, p) => {
+        if (u === t) {
+          out.push(p);
+          return;
+        }
+        for (const x of adj[u]) if (!p.includes(x)) walk(x, [...p, x]);
+      };
+      walk(s, [s]);
+      return out;
+    };
+    const bestOf = (s, t, mode) => {
+      const list = allPaths(s, t);
+      const lens = list.map((p) => p.length - 1);
+      const n = mode === 'short' ? Math.min(...lens) : Math.max(...lens);
+      return list.filter((p) => p.length - 1 === n);
+    };
+
+    let mode = 'long';
+    let s = 0;
+    let t = 2;
+    let k = 1;
+    const marks = root.querySelector('[data-op-marks]');
+    const note = root.querySelector('[data-op-note]');
+    const put = (name, v) => {
+      root.querySelector(`[data-op-${name}]`).textContent = String(v);
+    };
+    const pathText = (p) => p.join(' → ');
+
+    /* 조각의 간선을 조금씩 비켜 그려 겹쳐도 둘 다 보이게 한다. */
+    function strokes(p, cls, off) {
+      const NS = 'http://www.w3.org/2000/svg';
+      for (let i = 0; i + 1 < p.length; i++) {
+        const [x0, y0] = POS[p[i]];
+        const [x1, y1] = POS[p[i + 1]];
+        /* 비키는 방향은 간선마다 하나로 정한다(번호 작은 쪽 기준). 진행 방향으로 잡으면
+           두 조각이 같은 간선을 반대로 지날 때 같은 쪽으로 비켜 하나가 가려진다. */
+        const flip = p[i] < p[i + 1] ? 1 : -1;
+        const dx = (x1 - x0) * flip;
+        const dy = (y1 - y0) * flip;
+        const len = Math.hypot(dx, dy) || 1;
+        const ox = (-dy / len) * off;
+        const oy = (dx / len) * off;
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', x0 + ox);
+        line.setAttribute('y1', y0 + oy);
+        line.setAttribute('x2', x1 + ox);
+        line.setAttribute('y2', y1 + oy);
+        line.setAttribute('class', `op-seg ${cls}`);
+        marks.appendChild(line);
+      }
+    }
+
+    function draw() {
+      const p1 = bestOf(s, k, mode)[0];
+      const p2 = bestOf(k, t, mode)[0];
+      const best = bestOf(s, t, mode);
+      /* 진짜 최적이 여럿이면 k를 지나는 것을 보인다. */
+      const real = best.find((p) => p.includes(k)) || best[0];
+      const joined = [...p1, ...p2.slice(1)];
+      const repeats = [...new Set(joined.filter((v, i) => joined.indexOf(v) !== i))].sort((a, b) => a - b);
+      const n = joined.length - 1;
+      const on = best.some((p) => p.includes(k));
+
+      marks.replaceChildren();
+      strokes(p1, 'is-a', 6);
+      strokes(p2, 'is-b', -6);
+      root.querySelectorAll('[data-op-node]').forEach((el) => {
+        const u = +el.dataset.opNode;
+        el.classList.toggle('is-s', u === s);
+        el.classList.toggle('is-t', u === t);
+        el.classList.toggle('is-k', u === k);
+        el.classList.toggle('is-rep', repeats.includes(u));
+      });
+      root.querySelectorAll('[data-op-mode]').forEach((b) => b.classList.toggle('is-on', b.dataset.opMode === mode));
+      root.querySelectorAll('[data-op-pick]').forEach((b) => {
+        const v = +b.dataset.opV;
+        const which = b.dataset.opPick;
+        const val = which === 's' ? s : which === 't' ? t : k;
+        b.classList.toggle('is-on', v === val);
+        b.disabled = which === 'k' ? v === s || v === t : which === 's' ? v === t : v === s;
+      });
+
+      put('l1', fill(S.piece, { a: s, b: k }));
+      put('l2', fill(S.piece, { a: k, b: t }));
+      put('l3', fill(S.real, { a: s, b: t }));
+      put('p1', pathText(p1));
+      put('p2', pathText(p2));
+      put('pj', pathText(joined));
+      put('pr', pathText(real));
+      put('n1', fill(S.len, { n: p1.length - 1 }));
+      put('n2', fill(S.len, { n: p2.length - 1 }));
+      put('nj', repeats.length ? fill(S.repeat, { list: repeats.join(', ') }) : fill(S.len, { n }));
+      put('nr', fill(S.len, { n: real.length - 1 }));
+      root.querySelector('.op-table .is-j').classList.toggle('is-bad', repeats.length > 0 || n !== real.length - 1);
+
+      if (mode === 'long') setLines(note, fill(S.badLong, { n, list: repeats.join(', ') }));
+      else if (on) setLines(note, fill(S.okShort, { n }));
+      else setLines(note, fill(S.offShort, { k }));
+    }
+
+    root.querySelectorAll('[data-op-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        mode = b.dataset.opMode;
+        draw();
+      }),
+    );
+    root.querySelectorAll('[data-op-pick]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const v = +b.dataset.opV;
+        if (b.dataset.opPick === 's') s = v;
+        else if (b.dataset.opPick === 't') t = v;
+        else k = v;
+        /* 출발이나 도착이 거쳐 갈 정점과 겹치면 남은 정점 가운데 하나로 옮긴다. */
+        if (k === s || k === t) k = POS.map((_, u) => u).find((u) => u !== s && u !== t);
+        draw();
+      }),
+    );
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-optimality-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-optimality-demo .op-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-optimality-demo .op-head {
+    font-size: 0.95em;
+  }
+  .aas-optimality-demo .op-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-optimality-demo .op-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-optimality-demo .op-tab:hover,
+  .aas-optimality-demo .op-num:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-optimality-demo .op-tab.is-on,
+  .aas-optimality-demo .op-num.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-optimality-demo .op-body {
+    display: grid;
+    grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
+    gap: 0.5em 1.4em;
+    align-items: center;
+    margin-top: 0.4em;
+  }
+  .aas-optimality-demo .op-graph {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .aas-optimality-demo .op-edge {
+    stroke: var(--aas-border);
+    stroke-width: 3;
+  }
+  .aas-optimality-demo .op-seg {
+    stroke-width: 6;
+    stroke-linecap: round;
+  }
+  .aas-optimality-demo .op-seg.is-a {
+    stroke: var(--aas-role-model);
+  }
+  .aas-optimality-demo .op-seg.is-b {
+    stroke: var(--aas-role-guard);
+  }
+  .aas-optimality-demo .op-node circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-bg);
+    stroke-width: 3;
+  }
+  .aas-optimality-demo .op-node text {
+    fill: var(--aas-bg);
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-optimality-demo .op-node.is-s circle {
+    fill: var(--aas-role-eval);
+  }
+  .aas-optimality-demo .op-node.is-t circle {
+    fill: var(--aas-role-focus);
+  }
+  .aas-optimality-demo .op-node.is-rep circle {
+    stroke: var(--aas-role-guard);
+    stroke-width: 6;
+  }
+  .aas-optimality-demo .op-node.is-k circle {
+    stroke: var(--aas-role-model);
+    stroke-width: 6;
+  }
+  .aas-optimality-demo .op-side {
+    min-width: 0;
+  }
+  .aas-optimality-demo .op-pick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1.2em;
+    margin-bottom: 0.6em;
+    font-size: 0.85em;
+  }
+  .aas-optimality-demo .op-pickrow {
+    display: flex;
+    gap: 0.25em;
+    align-items: center;
+  }
+  .aas-optimality-demo .op-pickrow span {
+    margin-right: 0.25em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-optimality-demo .op-num {
+    min-width: 1.9em;
+    padding: 0.1em 0.3em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-optimality-demo .op-num:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .aas-optimality-demo .op-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+    line-height: 1.35;
+  }
+  .aas-optimality-demo .op-table th,
+  .aas-optimality-demo .op-table td {
+    padding: 0.25em 0.6em;
+    text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--aas-border);
+    background: transparent;
+    white-space: nowrap;
+  }
+  .aas-optimality-demo .op-table th {
+    font-weight: 600;
+  }
+  .aas-optimality-demo .op-table td {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-optimality-demo .op-table .is-a th {
+    color: var(--aas-role-model);
+  }
+  .aas-optimality-demo .op-table .is-b th {
+    color: var(--aas-role-guard);
+  }
+  .aas-optimality-demo .op-table .is-j.is-bad td {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-optimality-demo .op-table .is-r td {
+    font-weight: 700;
+  }
+  .aas-optimality-demo .op-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 4.2em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-optimality-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (max-width: 720px) {
+    .aas-optimality-demo .op-body {
+      grid-template-columns: 1fr;
+    }
+    .aas-optimality-demo .op-table th,
+    .aas-optimality-demo .op-table td {
+      white-space: normal;
+    }
+  }
+</style>

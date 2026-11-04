@@ -1,7 +1,7 @@
 ---
 title: "主题 10. 字典树与三向搜索树"
 description: "把字符串键按字符逐个存成路径的字典树，它的查找·插入·前缀查找·删除与空间代价，以及把链接减到三个的 TST"
-date: "主题 10 · v1"
+date: "主题 10 · v2"
 order: 10
 transition: none
 toc_level: 4
@@ -11,12 +11,19 @@ toc_open: false
 import Slide from 'stack-site-builder/components/Slide.astro';
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
-import TrieFigure from '@components/TrieFigure.astro';
 import TrieNodeDemo from '@components/TrieNodeDemo.astro';
 import TrieOrderDemo from '@components/TrieOrderDemo.astro';
 import TrieMissDemo from '@components/TrieMissDemo.astro';
 import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
 import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+import TrieWalkDemo from '@components/TrieWalkDemo.astro';
+import TstWalkDemo from '@components/TstWalkDemo.astro';
+import TrieCostDemo from '@components/TrieCostDemo.astro';
+import TrieRadixDemo from '@components/TrieRadixDemo.astro';
+import TstMapDemo from '@components/TstMapDemo.astro';
+import TstOrderDemo from '@components/TstOrderDemo.astro';
+import TstCostDemo from '@components/TstCostDemo.astro';
+import TrieMsdDemo from '@components/TrieMsdDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的"슬라이드 규칙"。
     数字与实践代码（topic-10-trie）的运行结果一致。 */}
@@ -114,7 +121,7 @@ typedef struct TrieNode {
 <Slide>
 
 ### 存放六个键的字典树
-::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · 点节点就能看到它的链接数组]
+::sub[点节点可看它的链接数组，以及它下面的键]
 
 <TrieNodeDemo slide />
 
@@ -196,6 +203,15 @@ ALGORITHM Insert(root, word, value)
 
 </Slide>
 
+<Slide>
+
+### 逐行看代码：插入
+::sub[自己输入键和值 · 再次插入已有的键只会改值]
+
+<TrieWalkDemo op="insert" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 字典树查找
@@ -259,6 +275,15 @@ ALGORITHM Search(root, word)
 
 </Slide>
 
+<Slide>
+
+### 逐行看代码：查找
+::sub[自己造出两种失败]
+
+<TrieWalkDemo op="search" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 按前缀查找全部
@@ -319,6 +344,15 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 
 </Slide>
 
+<Slide>
+
+### 逐行看代码：前缀
+::sub[多插入了 shore=7 的字典树 · 换个前缀试试]
+
+<TrieWalkDemo op="prefix" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 字典树删除
@@ -366,6 +400,15 @@ ALGORITHM DeleteHelper(node, word, index)
         return (not node.hasValue) and node 是否一个子节点也没有
     return false
 ```
+
+</Slide>
+
+<Slide>
+
+### 逐行看代码：删除
+::sub[摘下哪些节点取决于删除的键]
+
+<TrieWalkDemo op="delete" slide />
 
 </Slide>
 
@@ -436,6 +479,15 @@ nodes = 17
 <br/>
 
 运行结果：`shells`（6 个字符）是 `visited 7`
+
+</Slide>
+
+<Slide>
+
+### 亲自数一数：要看多少个字符
+::sub[键再多、前缀再长，字典树都不变]
+
+<TrieCostDemo slide />
 
 </Slide>
 
@@ -526,8 +578,17 @@ space (R = 26, w = average key length)
 
 <Slide>
 
+### 亲手改改：把 R 变小
+::sub[每个节点的链接变少，但树变深]
+
+<TrieRadixDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 逐步看：折叠单分支
-::sub[空间用得过多，最大的原因是只用一个链接的节点]
+::sub[只用一个链接的节点最费空间 · 换个键集合试试]
 
 <TrieCompressDemo slide />
 
@@ -585,10 +646,10 @@ space (R = 26, w = average key length)
 
 <Slide>
 
-#### 同样六个键放进 TST
-::sub[第一位的 b、s、t 组成二叉搜索树 · 小圆点是空链接]
+### 同样六个键放进 TST
+::sub[字典树的一个节点变成一棵小的二叉搜索树 · 点节点或键试试]
 
-<TrieFigure kind="tst" words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+<TstMapDemo slide />
 
 </Slide>
 
@@ -651,21 +712,6 @@ typedef struct TSTNode {
 
 </Slide>
 
-<Slide>
-
-#### 插入 appliance 时
-::sub[一次比较一次比较地看]
-
-- 要放 `i`，`e` 已经在了，而且 `e < i`
-  - 往右走。
-- 要放 `i`，`i` 已经在了，而且 `i == i`
-  - 在这里进到下一个字符。
-- 要放 `a`，`c` 已经在了，而且 `a < c`
-  - 往左走。
-- 那里是空的，于是把 `a n c e` 新建成节点填进去。
-
-</Slide>
-
 <Slide class="compact">
 
 #### 插入写成代码
@@ -690,6 +736,15 @@ ALGORITHM Insert(root, word, value, index)
 
 </Slide>
 
+<Slide>
+
+### 逐行看代码：TST 插入
+::sub[插入 appliance 之前的状态 · 只有往中间走时才进到下一个字符]
+
+<TstWalkDemo op="insert" word="appliance" value={60} prefill={5} slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## TST 查找与前缀查找
@@ -703,6 +758,15 @@ ALGORITHM Insert(root, word, value, index)
 ::sub[applaud 向左绕一次，apply 向右绕两次]
 
 <TstDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+### 逐行看代码：TST 查找
+::sub[用同样的规则查找 · 换个键试试]
+
+<TstWalkDemo op="search" slide />
 
 </Slide>
 
@@ -748,6 +812,15 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 
 </Slide>
 
+<Slide>
+
+### 逐行看代码：TST 前缀
+::sub[左、自己、中、右 · 换个前缀试试]
+
+<TstWalkDemo op="prefix" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 运行
@@ -771,6 +844,15 @@ space (3 links per node)
   apple..   7     24     72     49      12
   sorted    7     24     72     49      15
 ```
+
+</Slide>
+
+<Slide>
+
+### 一步一步：TST 与插入顺序
+::sub[节点和链接不变，高度却变了]
+
+<TstOrderDemo slide />
 
 </Slide>
 
@@ -825,6 +907,15 @@ space (3 links per node)
 
 <Slide>
 
+### 亲自数一数：向旁边走的部分
+::sub[用随机键建 TST，查找 1000 次]
+
+<TstCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 权衡
 ::sub[省下什么，付出什么]
 
@@ -865,6 +956,15 @@ space (3 links per node)
 - **主题 09 MSD 基数排序**
   - 先按第一个字符分组，组内再按下一个字符分。
   - 和自上而下建字典树是同一个样子。
+
+</Slide>
+
+<Slide>
+
+### 亲手改改：MSD 的分组与字典树的层
+::sub[一个分组就是一个节点 · 增加字符数试试]
+
+<TrieMsdDemo slide />
 
 </Slide>
 

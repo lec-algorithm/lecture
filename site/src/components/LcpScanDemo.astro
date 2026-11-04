@@ -10,7 +10,12 @@
 // mode="lcs": 두 문자열 s1, s2를 '#'로 이어 붙인다. 어느 문자열에서 시작한
 //   접미사인지(1, 2)를 표시하고, 서로 다른 문자열에서 시작한 이웃만 후보로
 //   삼는다. 같은 문자열끼리의 쌍은 회색으로 건너뛴다. 06_lcs와 같은 결과다.
+//
+// 오른쪽 참조 띠는 원문이다. 지금 쌍의 공통 접두사가 원문의 어느 두 자리인지 칠한다.
+// SA[j]의 값이 원문의 어디인지 찾으러 슬라이드를 오가지 않아도 된다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './suffixAlgos.js?raw';
+import SuffixStrip from './SuffixStrip.astro';
 
 interface Props {
   mode?: 'lrs' | 'lcs';
@@ -125,6 +130,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const isLcs = mode === 'lcs';
 ---
 
+<script is:inline set:html={algos} />
 <div
   class:list={['aas-lcpscan-demo', slide && 'is-slide', isLcs && 'is-lcs', n > 10 && 'is-tall']}
   id={id}
@@ -136,6 +142,7 @@ const isLcs = mode === 'lcs';
   data-lp-strings={JSON.stringify(t)}
   data-lp-s1={s1}
   data-lp-s2={s2}
+  data-lp-from={t.colFrom}
 >
   <div class="lp-bar">
     <span class="lp-head"><strong>{isLcs ? t.titleLcs : t.titleLrs}</strong></span>
@@ -147,6 +154,7 @@ const isLcs = mode === 'lcs';
     </div>
   </div>
 
+  <div class="lp-main">
   <div class="lp-scroll">
     <table class="lp-table">
       <thead>
@@ -172,6 +180,8 @@ const isLcs = mode === 'lcs';
         ))}
       </tbody>
     </table>
+  </div>
+  <div class="lp-side"><SuffixStrip /></div>
   </div>
 
   <div class="lp-foot">
@@ -262,6 +272,21 @@ const isLcs = mode === 'lcs';
       box.scrollTo({ top: Math.max(0, top), behavior: reduceMotion ? 'auto' : 'smooth' });
     }
 
+    /* 참조 띠: 지금 쌍(끝나면 답의 쌍)의 공통 접두사가 원문의 어디인지 칠한다. 겹치는 칸은 초록이다. */
+    const { drawStrip, markStrip } = globalThis.aasSuffixAlgos;
+    const strip = root.querySelector('[data-ss]');
+    drawStrip(strip, text, isLcs ? [{ label: root.dataset.lpFrom, values: [...text].map((_, p) => origin(p) || '-') }] : []);
+    function markText(st) {
+      if (!st || (st.j === null && st.best === 0)) return markStrip(strip, {});
+      const j = st.j ?? st.bestAt;
+      const h = st.j !== null ? lcp[j] : st.best;
+      const span = (p) => Array.from({ length: h }, (_, k) => p + k);
+      const a = span(sa[j - 1]);
+      const b = span(sa[j]);
+      const both = a.filter((x) => b.includes(x));
+      markStrip(strip, { 'is-a': a.filter((x) => !both.includes(x)), 'is-b': b.filter((x) => !both.includes(x)), 'is-hit': both });
+    }
+
     function paint(row, len, cls) {
       row.querySelectorAll('[data-lp-k]').forEach((ch) => {
         ch.classList.toggle(cls, Number(ch.dataset.lpK) < len);
@@ -288,6 +313,7 @@ const isLcs = mode === 'lcs';
           ? fill(S.idleLcs, { a: root.dataset.lpS1, b: root.dataset.lpS2 })
           : S.idleLrs);
       root.classList.toggle('is-done', !!(st && st.finished));
+      markText(st);
       follow(st);
     }
 
@@ -378,8 +404,25 @@ const isLcs = mode === 'lcs';
     color: #fff;
   }
 
+  .aas-lcpscan-demo .lp-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: flex-start;
+    justify-content: center;
+  }
   .aas-lcpscan-demo .lp-scroll {
+    flex: 0 1 auto;
+    min-width: 0;
     overflow-x: auto;
+  }
+  .aas-lcpscan-demo .lp-side {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-top: 1.5em;
+  }
+  .aas-lcpscan-demo .lp-side .aas-suf-strip {
+    font-size: 0.68em;
   }
   .aas-lcpscan-demo.aas-lcpscan-demo table {
     width: auto;
@@ -494,7 +537,7 @@ const isLcs = mode === 'lcs';
      지금 보는 쌍을 따라 스크롤한다. 글자 크기는 행이 적은 표와 같다. */
   .aas-lcpscan-demo.is-slide.is-tall .lp-scroll {
     position: relative;
-    max-height: calc(1.6em + 11 * 1.5em);
+    max-height: calc(1.6em + 9.5 * 1.5em);
     overflow-y: auto;
     scrollbar-width: thin;
   }
@@ -504,6 +547,10 @@ const isLcs = mode === 'lcs';
     z-index: 1;
     background: var(--aas-panel);
     box-shadow: inset 0 -1px 0 var(--aas-border);
+  }
+  /* 슬라이드에서는 띠가 표 아래로 내려가면 높이가 넘친다. */
+  .aas-lcpscan-demo.is-slide .lp-main {
+    flex-wrap: nowrap;
   }
   .aas-lcpscan-demo.is-slide .lp-note {
     min-height: 1.6em;

@@ -1,0 +1,492 @@
+---
+// 단순 가중 평균과 평균 중심 예측을 나란히 견주는 데모.
+//
+// 이웃 C와 B(피어슨, k = 3에서 뽑힌 둘)의 평점으로 A의 빈칸을 두 식으로 채운다. 슬라이더로 C의 평점
+// 전체를 올리면(눈금만 후하게) 피어슨은 그대로이고, 단순 가중 평균은 따라 움직이지만 평균 중심 식은
+// 움직이지 않는다. 한 걸음씩 누르면 평균 중심 식의 계산을 차례로 칠한다.
+//
+// 평균은 그 사용자가 본 영화 전체로 잰다(A 4, B 3.667, C 3). 피어슨은 algorithm-code와 같고,
+// 단순 가중 평균은 M3 4.464, M6 1.536이다. 평균 중심 식은 algorithm-code에 없어(바꿔 보기) 이 데모가
+// 같은 식으로 직접 계산한다. M3 5.155, M6 2.226이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import { MOVIE_TITLES, RATINGS, USERS } from './recData';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `mc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '두 가지 예측식',
+    blank: '채울 칸',
+    shift: 'C의 눈금 올리기',
+    back: '뒤로',
+    step: '한 걸음',
+    reset: '처음으로',
+    user: '사용자',
+    mean: '평균',
+    sim: '유사도',
+    dev: '벗어난 값',
+    simple: '단순 가중 평균',
+    centered: '평균 중심',
+    idle: '이웃은 C와 B입니다. 벗어난 값은 이 영화의 평점에서 그 사람의 평균을 뺀 값입니다.',
+    s1: 'A의 평균은 {m}입니다. 예측은 여기서 출발합니다.',
+    s2: 'C는 {i}에 평균 {m}보다 {d} 줬습니다. 여기에 유사도를 곱한 값은 {w}입니다.',
+    s3: 'B는 {i}에 평균 {m}보다 {d} 줬습니다. 여기에 유사도를 곱한 값은 {w}입니다.',
+    s4: '둘을 더해 유사도 합 {sum}으로 나누면 {avg}입니다.',
+    s5: 'A의 평균에 더하면 {sum} = {p}입니다.',
+    over: '5를 넘는 값은 눈금 밖이라 쓸 때는 5로 자릅니다.',
+    moved: 'C의 평점을 모두 +{s} 올려도 피어슨은 {p} 그대로입니다. 단순 가중 평균은 {a}에서 움직여 {b}이지만, 평균 중심은 {c} 그대로입니다.',
+  },
+  en: {
+    title: 'Two prediction formulas',
+    blank: 'blank',
+    shift: 'raise C’s scale',
+    back: 'Back',
+    step: 'Step',
+    reset: 'Reset',
+    user: 'user',
+    mean: 'mean',
+    sim: 'sim',
+    dev: 'deviation',
+    simple: 'simple weighted mean',
+    centered: 'mean-centered',
+    idle: 'The neighbors are C and B. A deviation is the rating of this movie minus that person’s mean.',
+    s1: 'A’s mean is {m}. The prediction starts here.',
+    s2: 'C rated {i} {d} relative to C’s mean of {m}. Times similarity {s}, that is {w}.',
+    s3: 'B rated {i} {d} relative to B’s mean of {m}. Times similarity {s}, that is {w}.',
+    s4: 'Add the two and divide by the similarity sum {sum}: {avg}.',
+    s5: 'Add that to A’s mean: {sum} = {p}.',
+    over: 'A value above 5 is off the scale, so it is cut to 5 when used.',
+    moved: 'Raising all of C’s ratings by +{s} leaves Pearson at {p}. The simple weighted mean moves from {a} to {b}, but the mean-centered value stays {c}.',
+  },
+  zh: {
+    title: '两种预测公式',
+    blank: '要填的格子',
+    shift: '提高 C 的尺度',
+    back: '后退',
+    step: '单步',
+    reset: '重置',
+    user: '用户',
+    mean: '均值',
+    sim: '相似度',
+    dev: '偏离值',
+    simple: '简单加权平均',
+    centered: '以均值为中心',
+    idle: '邻居是 C 和 B。偏离值是这部电影的评分减去那个人的均值。',
+    s1: 'A 的均值是 {m}。预测从这里出发。',
+    s2: 'C 给 {i} 的评分比均值 {m} 偏离 {d}。乘以相似度 {s}，得 {w}。',
+    s3: 'B 给 {i} 的评分比均值 {m} 偏离 {d}。乘以相似度 {s}，得 {w}。',
+    s4: '两者相加，再除以相似度之和 {sum}，得 {avg}。',
+    s5: '加到 A 的均值上：{sum} = {p}。',
+    over: '超过 5 的值在尺度之外，使用时截为 5。',
+    moved: '把 C 的评分全部提高 +{s}，皮尔逊仍是 {p}。简单加权平均从 {a} 变成 {b}，以均值为中心的结果仍是 {c}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const titles = MOVIE_TITLES[lang] ?? MOVIE_TITLES.ko;
+const blanks = [2, 5];
+const rows = [0, 2, 1];
+const items = RATINGS[0].map((_, i) => i);
+---
+
+<div
+  class:list={['aas-mc-demo', slide && 'is-slide']}
+  id={id}
+  data-mc-ratings={JSON.stringify(RATINGS)}
+  data-mc-strings={JSON.stringify(t)}
+>
+  <div class="mc-bar">
+    <span class="mc-head"><strong>{t.title}</strong></span>
+    <div class="mc-controls">
+      <button type="button" class="mc-btn" data-act="back">{t.back}</button>
+      <button type="button" class="mc-btn mc-btn-primary" data-act="step">{t.step}</button>
+      <button type="button" class="mc-btn" data-act="reset">{t.reset}</button>
+    </div>
+  </div>
+  <div class="mc-bar mc-bar2">
+    <span class="mc-group">
+      <span class="mc-label">{t.blank}</span>
+      {blanks.map((b) => <button type="button" class="mc-btn" data-mc-blank={b}>M{b + 1} {titles[b]}</button>)}
+    </span>
+    <label class="mc-range">
+      {t.shift} <strong data-mc-sval></strong>
+      <input type="range" min="0" max="1" step="0.25" value="0" data-mc-range />
+    </label>
+  </div>
+
+  <div class="mc-grid">
+    <span class="mc-hd">{t.user}</span>
+    {items.map((i) => <span class="mc-hd mc-col" data-mc-colhead={i}>M{i + 1}</span>)}
+    <span class="mc-hd">{t.mean}</span>
+    <span class="mc-hd">{t.sim}</span>
+    <span class="mc-hd">{t.dev}</span>
+    {
+      rows.map((u) => (
+        <>
+          <span class="mc-name" data-mc-name={u}>{USERS[u]}</span>
+          {items.map((i) => <span class="mc-cell" data-mc-cell={`${u}-${i}`} />)}
+          <span class="mc-val" data-mc-mean={u} />
+          <span class="mc-val" data-mc-sim={u} />
+          <span class="mc-val" data-mc-dev={u} />
+        </>
+      ))
+    }
+  </div>
+
+  <div class="mc-cards">
+    <div class="mc-card" data-mc-card="simple">
+      <div class="mc-cname">{t.simple}</div>
+      <div class="mc-formula" data-mc-fsimple></div>
+      <strong class="mc-big" data-mc-simple></strong>
+    </div>
+    <div class="mc-card" data-mc-card="centered">
+      <div class="mc-cname">{t.centered}</div>
+      <div class="mc-formula" data-mc-fcentered></div>
+      <strong class="mc-big" data-mc-centered></strong>
+    </div>
+  </div>
+
+  <p class="mc-note" data-mc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const R0 = JSON.parse(root.dataset.mcRatings);
+    const S = JSON.parse(root.dataset.mcStrings);
+    const f3 = (x) => x.toFixed(3);
+    const num = (x) => String(+x.toFixed(2));
+    const signed = (x) => (x > 0 ? `+${f3(x)}` : f3(x));
+    const factor = (x) => (x < 0 ? `(${f3(x)})` : f3(x));
+    const plus = (a, b) => `${num(a)} ${b < 0 ? '-' : '+'} ${f3(Math.abs(b))}`;
+    const LAST = 5;
+
+    function pearson(a, b) {
+      const common = [];
+      for (let i = 0; i < a.length; i++) if (a[i] > 0 && b[i] > 0) common.push(i);
+      if (!common.length) return 0;
+      let sa = 0, sb = 0;
+      for (const i of common) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / common.length, mb = sb / common.length;
+      let n = 0, da = 0, db = 0;
+      for (const i of common) {
+        n += (a[i] - ma) * (b[i] - mb);
+        da += (a[i] - ma) * (a[i] - ma);
+        db += (b[i] - mb) * (b[i] - mb);
+      }
+      return da === 0 || db === 0 ? 0 : n / Math.sqrt(da * db);
+    }
+    const meanOf = (v) => {
+      const seen = v.filter((x) => x > 0);
+      return seen.reduce((a, b) => a + b, 0) / seen.length;
+    };
+
+    let blank = 2;
+    let shift = 0;
+    let at = 0;
+
+    const cells = [...root.querySelectorAll('[data-mc-cell]')];
+    const note = root.querySelector('[data-mc-note]');
+    const range = root.querySelector('[data-mc-range]');
+
+    /* C는 눈금만 shift만큼 올린다. */
+    const matrix = (s) => R0.map((row, u) => (u === 2 ? row.map((x) => (x > 0 ? x + s : 0)) : row.slice()));
+
+    function compute(s, b) {
+      const R = matrix(s);
+      const nbs = [2, 1];
+      const sim = Object.fromEntries(nbs.map((v) => [v, pearson(R[0], R[v])]));
+      const mean = Object.fromEntries([0, 1, 2].map((u) => [u, meanOf(R[u])]));
+      let num1 = 0, den = 0, num2 = 0;
+      const dev = {};
+      for (const v of nbs) {
+        num1 += sim[v] * R[v][b];
+        den += sim[v];
+        dev[v] = R[v][b] - mean[v];
+        num2 += sim[v] * dev[v];
+      }
+      const avg = num2 / den;
+      return { R, nbs, sim, mean, dev, den, avg, simple: num1 / den, centered: mean[0] + avg };
+    }
+
+    function render() {
+      const c = compute(shift, blank);
+      const base = compute(0, blank);
+      const iname = `M${blank + 1}`;
+      cells.forEach((el) => {
+        const [u, i] = el.dataset.mcCell.split('-').map(Number);
+        const x = c.R[u][i];
+        el.textContent = x === 0 ? '?' : num(x);
+        el.classList.toggle('is-blank', x === 0);
+        el.classList.toggle('is-col', i === blank);
+        el.classList.toggle('is-moved', u === 2 && shift > 0);
+      });
+      root.querySelectorAll('[data-mc-colhead]').forEach((h) => h.classList.toggle('is-on', Number(h.dataset.mcColhead) === blank));
+      [0, 1, 2].forEach((u) => {
+        const meanEl = root.querySelector(`[data-mc-mean="${u}"]`);
+        const simEl = root.querySelector(`[data-mc-sim="${u}"]`);
+        const devEl = root.querySelector(`[data-mc-dev="${u}"]`);
+        meanEl.textContent = num(c.mean[u]);
+        simEl.textContent = u === 0 ? '' : f3(c.sim[u]);
+        devEl.textContent = u === 0 ? '' : signed(c.dev[u]);
+      });
+      /* 걸음마다 칠할 곳 */
+      root.querySelector('[data-mc-mean="0"]').classList.toggle('is-hot', at === 1 || at === 5);
+      [[2, 2], [1, 3]].forEach(([u, step]) => {
+        const on = at === step;
+        for (const k of ['mean', 'sim', 'dev']) root.querySelector(`[data-mc-${k}="${u}"]`).classList.toggle('is-hot', on);
+        root.querySelector(`[data-mc-cell="${u}-${blank}"]`).classList.toggle('is-hot', on);
+      });
+      [2, 1].forEach((u) => root.querySelector(`[data-mc-dev="${u}"]`).classList.toggle('is-used', at === 4));
+      root.querySelector('[data-mc-card="centered"]').classList.toggle('is-hot', at === 5);
+
+      root.querySelector('[data-mc-simple]').textContent = f3(c.simple);
+      root.querySelector('[data-mc-centered]').textContent = f3(c.centered);
+      root.querySelector('[data-mc-fsimple]').textContent = `(${f3(c.sim[2])}×${num(c.R[2][blank])} + ${f3(c.sim[1])}×${c.R[1][blank]}) / ${f3(c.den)}`;
+      root.querySelector('[data-mc-fcentered]').textContent = `${num(c.mean[0])} + (${f3(c.sim[2])}×${factor(c.dev[2])} + ${f3(c.sim[1])}×${factor(c.dev[1])}) / ${f3(c.den)}`;
+      root.querySelectorAll('[data-mc-blank]').forEach((b) => b.classList.toggle('is-on', Number(b.dataset.mcBlank) === blank));
+      root.querySelector('[data-mc-sval]').textContent = `+${num(shift)}`;
+      range.value = String(shift);
+
+      let msg;
+      const stepVars = (v) => ({ i: iname, m: num(c.mean[v]), d: signed(c.dev[v]), s: f3(c.sim[v]), w: signed(c.sim[v] * c.dev[v]) });
+      if (at === 1) msg = fill(S.s1, { m: num(c.mean[0]) });
+      else if (at === 2) msg = fill(S.s2, stepVars(2));
+      else if (at === 3) msg = fill(S.s3, stepVars(1));
+      else if (at === 4) msg = fill(S.s4, { sum: f3(c.den), avg: signed(c.avg) });
+      else if (at === 5) msg = join(fill(S.s5, { sum: plus(c.mean[0], c.avg), p: f3(c.centered) }), c.centered > 5 ? S.over : '');
+      else msg = S.idle;
+      if (shift > 0) {
+        const moved = fill(S.moved, { s: num(shift), p: f3(c.sim[2]), a: f3(base.simple), b: f3(c.simple), c: f3(c.centered) });
+        msg = at === 0 ? moved : join(msg, moved);
+      }
+      setLines(note, msg);
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      if (at > 0) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      if (at < LAST) at += 1;
+      render();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      at = 0;
+      shift = 0;
+      render();
+    });
+    range.addEventListener('input', () => {
+      shift = Number(range.value);
+      render();
+    });
+    root.querySelectorAll('[data-mc-blank]').forEach((b) =>
+      b.addEventListener('click', () => {
+        blank = Number(b.dataset.mcBlank);
+        at = 0;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-mc-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-mc-demo .mc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-mc-demo .mc-head {
+    font-size: 0.95em;
+  }
+  .aas-mc-demo .mc-controls,
+  .aas-mc-demo .mc-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-mc-demo .mc-label {
+    margin-right: 0.2em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-mc-demo .mc-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-mc-demo .mc-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-mc-demo .mc-btn.is-on,
+  .aas-mc-demo .mc-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-mc-demo .mc-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-mc-demo .mc-range strong {
+    min-width: 3em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-role-focus);
+  }
+  .aas-mc-demo .mc-range input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-mc-demo .mc-grid {
+    display: grid;
+    grid-template-columns: auto repeat(6, minmax(2.4em, 3em)) minmax(3.2em, 4em) minmax(3.2em, 4em) minmax(4em, 5em);
+    gap: 0.25em;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-mc-demo .mc-hd {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.75em;
+    font-weight: 700;
+    color: var(--aas-muted);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .aas-mc-demo .mc-col {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-mc-demo .mc-col.is-on {
+    color: var(--aas-role-focus);
+  }
+  .aas-mc-demo .mc-name {
+    font-weight: 700;
+    text-align: center;
+    color: var(--aas-muted);
+  }
+  .aas-mc-demo .mc-cell,
+  .aas-mc-demo .mc-val {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75em;
+    border-radius: 0.4em;
+    font-size: 0.9em;
+    font-weight: 700;
+    transition:
+      background-color 0.2s,
+      box-shadow 0.2s;
+  }
+  .aas-mc-demo .mc-cell {
+    border: 1px solid var(--aas-border);
+    background: var(--aas-bg);
+  }
+  .aas-mc-demo .mc-cell.is-col {
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  .aas-mc-demo .mc-cell.is-blank {
+    color: var(--aas-role-focus);
+    border-style: dashed;
+    border-color: var(--aas-role-focus);
+  }
+  .aas-mc-demo .mc-cell.is-moved {
+    color: var(--aas-role-source);
+  }
+  .aas-mc-demo .mc-cell.is-hot,
+  .aas-mc-demo .mc-val.is-hot {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-mc-demo .mc-val.is-used {
+    box-shadow: 0 0 0 3px var(--aas-role-eval);
+  }
+  .aas-mc-demo .mc-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    margin-top: 0.6em;
+  }
+  .aas-mc-demo .mc-card {
+    flex: 1 1 18em;
+    min-width: 0;
+    padding: 0.4em 0.7em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-mc-demo .mc-card.is-hot {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-mc-demo .mc-cname {
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-mc-demo .mc-formula {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+  }
+  .aas-mc-demo .mc-big {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.3em;
+    color: var(--aas-role-focus);
+  }
+  .aas-mc-demo .mc-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.6em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-mc-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-mc-demo .mc-cell,
+    .aas-mc-demo .mc-val {
+      transition: none;
+    }
+  }
+</style>

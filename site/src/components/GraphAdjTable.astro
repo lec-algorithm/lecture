@@ -1,0 +1,91 @@
+---
+// 주제 12의 인접 목록 표. 탐색 데모 안에서 "지금 꺼낸 정점의 이웃이 누구이고
+// 어떤 순서로 보는가"를 다른 슬라이드로 넘어가지 않고 보게 한다.
+//
+// 데모가 [data-at-row="v"]에 is-now를 달면 그 정점의 줄이 칠해지고,
+// [data-at-to="w"]에 is-look을 달면 그 줄에서 지금 고른 이웃이 칠해진다.
+// 이웃은 algorithm-code처럼 작은 번호부터다. 가중치가 있는 그래프는 이웃 번호
+// 뒤 괄호에 작은 글자로 가중치를 붙인다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import { getGraph, type GraphSample } from './GraphSamples';
+
+interface Props {
+  /** GraphSamples의 이름 또는 그래프 자체 */
+  graph: string | GraphSample;
+}
+const { graph } = Astro.props;
+const g = getGraph(graph);
+const LABELS: Record<string, string> = { ko: '인접 목록', en: 'Adjacency lists', zh: '邻接表' };
+const lang = Astro.currentLocale ?? defaultLang;
+const label = LABELS[lang] ?? LABELS.ko;
+const fmt = (w: number) => (g.scale ? (w / g.scale).toFixed(2) : String(w));
+const rows = g.nodes.map(() => [] as [number, number | undefined][]);
+g.edges.forEach(([u, v, w]) => {
+  rows[u].push([v, w]);
+  if (!g.directed) rows[v].push([u, w]);
+});
+rows.forEach((r) => r.sort((a, b) => a[0] - b[0]));
+---
+
+<div class="aas-adj-table" data-at>
+  <div class="at-label">{label}</div>
+  {
+    rows.map((r, v) => (
+      <div class="at-row" data-at-row={v}>
+        <b>{v}</b>
+        {r.map(([w, wt]) => (
+          <span class="at-cell" data-at-to={w}>
+            {w}
+            {wt !== undefined && <small>({fmt(wt)})</small>}
+          </span>
+        ))}
+      </div>
+    ))
+  }
+</div>
+
+<style is:global>
+  .aas-adj-table {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.25;
+    min-width: 0;
+  }
+  .aas-adj-table .at-label {
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-adj-table .at-row {
+    display: flex;
+    gap: 0.15em 0.5em;
+    align-items: baseline;
+    padding: 0 0.3em;
+    border-bottom: 1px solid var(--aas-border);
+    white-space: nowrap;
+    transition: background-color 0.2s;
+  }
+  .aas-adj-table .at-row > b {
+    min-width: 1.5em;
+    color: var(--aas-muted);
+  }
+  .aas-adj-table .at-cell small {
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-adj-table .at-row.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-adj-table .at-row.is-now > b {
+    color: var(--aas-text);
+  }
+  .aas-adj-table .at-cell.is-look {
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-adj-table .at-row {
+      transition: none;
+    }
+  }
+</style>

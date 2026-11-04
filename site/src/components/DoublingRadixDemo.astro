@@ -1,0 +1,574 @@
+---
+// 더블링의 한 라운드를 비교 정렬 대신 LSD 기수 정렬 두 패스로 돌리는 데모.
+//
+// 한 라운드가 네 걸음이다. (1) 시작 위치 순으로 짝을 만든다. (2) 짝의 뒷자리로 안정 정렬한다.
+// (3) 앞자리로 안정 정렬한다. (4) 새 순위를 매긴다. 앞 라운드의 순위(첫 라운드는 문자 코드)는
+// 오른쪽 참조 띠에 있고, 줄을 누르면 그 짝을 만든 두 칸이 칠해진다. 문자열을 바꾸면 라운드가
+// 몇 번 필요한지 달라진다. 순서는 03_suffix_array의 k = 2, k = 4 표와 같다. 짝이 같으면
+// 시작 위치 순인 것도 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './suffixAlgos.js?raw';
+import SuffixStrip from './SuffixStrip.astro';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `dr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '짝을 두 자리 수로 정렬',
+    text: '문자열',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    colI: '시작',
+    colSuffix: '접미사',
+    colPair: '짝',
+    colRank: '새 순위',
+    code: '코드',
+    rank: '순위',
+    newRank: '새 순위',
+    idle: '시작 위치 순으로 줄을 세웠습니다. 한 걸음을 누르면 라운드가 시작됩니다.',
+    pairs: '라운드 k = {k}: 짝을 만듭니다. 앞자리는 내 {what}, 뒷자리는 {h}칸 뒤의 {what}입니다.',
+    codeWhat: '문자 코드',
+    rankWhat: '순위',
+    pass1: '패스 1: 뒷자리로 안정 정렬합니다. 비교 없이 값마다 모으기만 합니다.',
+    pass2: '패스 2: 앞자리로 안정 정렬합니다. 앞자리가 같으면 패스 1의 순서가 그대로 남습니다.',
+    rankStep: '새 순위를 매깁니다. 서로 다른 순위는 {d}/{n}입니다.',
+    rankTie: '아직 같은 순위가 남아 k를 두 배로 합니다.',
+    done: '순위가 모두 달라 끝납니다. 라운드 {r}번, 패스 {p}번입니다. SA = {sa}',
+    pick: '{s}: 앞 {h}글자의 값 {a}, 위치 {p}의 값 {b} → ({a}, {b})',
+    pickOut: '{s}: 앞 {h}글자의 값 {a}, {h}칸 뒤는 문자열 밖이라 -1 → ({a}, -1)',
+    roundLabel: '라운드',
+    distinctLabel: '서로 다른 순위',
+  },
+  en: {
+    title: 'Sort pairs as two-digit numbers',
+    text: 'String',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    colI: 'start',
+    colSuffix: 'suffix',
+    colPair: 'pair',
+    colRank: 'new rank',
+    code: 'code',
+    rank: 'rank',
+    newRank: 'new rank',
+    idle: 'Rows stand in start-position order. Step to begin the round.',
+    pairs: 'Round k = {k}: make the pairs. The first digit is my own {what}; the second is the {what} {h} ahead.',
+    codeWhat: 'character code',
+    rankWhat: 'rank',
+    pass1: 'Pass 1: stable-sort by the second digit. No comparisons, only gathering by value.',
+    pass2: 'Pass 2: stable-sort by the first digit. Rows with the same first digit keep the order of pass 1.',
+    rankStep: 'Assign new ranks. Distinct ranks: {d}/{n}.',
+    rankTie: 'Some ranks are still equal, so k doubles.',
+    done: 'All ranks differ, so we stop: {r} round(s), {p} passes. SA = {sa}',
+    pick: '{s}: first {h} char(s) give {a}, position {p} gives {b} → ({a}, {b})',
+    pickOut: '{s}: first {h} char(s) give {a}, {h} ahead is outside the string, so -1 → ({a}, -1)',
+    roundLabel: 'round',
+    distinctLabel: 'distinct ranks',
+  },
+  zh: {
+    title: '把数对当两位数排序',
+    text: '字符串',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    colI: '起始',
+    colSuffix: '后缀',
+    colPair: '数对',
+    colRank: '新排名',
+    code: '编码',
+    rank: '排名',
+    newRank: '新排名',
+    idle: '各行按起始位置排好。按单步开始这一轮。',
+    pairs: '第 k = {k} 轮：构造数对。高位是自己的{what}，低位是 {h} 格之后的{what}。',
+    codeWhat: '字符编码',
+    rankWhat: '排名',
+    pass1: '第 1 趟：按低位稳定排序。不做比较，只按值收集。',
+    pass2: '第 2 趟：按高位稳定排序。高位相同的行保持第 1 趟的顺序。',
+    rankStep: '赋予新排名。不同的排名有 {d}/{n} 个。',
+    rankTie: '还有相同的排名，所以 k 翻倍。',
+    done: '排名全都不同，结束：{r} 轮，{p} 趟。SA = {sa}',
+    pick: '{s}：前 {h} 个字符的值 {a}，位置 {p} 的值 {b} → ({a}, {b})',
+    pickOut: '{s}：前 {h} 个字符的值 {a}，{h} 格之后超出字符串，取 -1 → ({a}, -1)',
+    roundLabel: '轮',
+    distinctLabel: '不同的排名',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = ['banana', 'mississippi', 'aaaaaaaa', 'abracadabra'];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-doubling-radix-demo', slide && 'is-slide']} id={id} data-dr-strings={JSON.stringify(t)}>
+  <div class="dr-bar">
+    <span class="dr-head"><strong>{t.title}</strong></span>
+    <div class="dr-controls">
+      <button type="button" data-act="back" class="dr-btn">{t.back}</button>
+      <button type="button" data-act="step" class="dr-btn">{t.step}</button>
+      <button type="button" data-act="play" class="dr-btn dr-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="dr-btn">{t.reset}</button>
+    </div>
+  </div>
+  <div class="dr-inputs">
+    <label class="dr-input">
+      <span>{t.text}</span>
+      <input type="text" data-dr-in value={presets[0]} maxlength="11" spellcheck="false" autocomplete="off" />
+    </label>
+    <div class="dr-chips">
+      {presets.map((p) => <button type="button" class="dr-chip" data-dr-preset={p}>{p}</button>)}
+    </div>
+  </div>
+
+  <div class="dr-main">
+    <div class="dr-table">
+      <div class="dr-row dr-th">
+        <span>{t.colI}</span><span class="dr-suf">{t.colSuffix}</span><span>{t.colPair}</span><span>{t.colRank}</span>
+      </div>
+      <div class="dr-body" data-dr-body></div>
+    </div>
+    <div class="dr-side">
+      <SuffixStrip />
+      <p class="dr-pick" data-dr-pick></p>
+      <p class="dr-count">
+        {t.roundLabel} k = <strong data-dr-k>-</strong><br />
+        {t.distinctLabel} <strong data-dr-d>-</strong>
+      </p>
+    </div>
+  </div>
+
+  <p class="dr-note" data-dr-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.drStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const { doublingRounds, drawStrip, markStrip, cleanWord } = globalThis.aasSuffixAlgos;
+
+    const input = root.querySelector('[data-dr-in]');
+    const body = root.querySelector('[data-dr-body]');
+    const strip = root.querySelector('[data-ss]');
+    const note = root.querySelector('[data-dr-note]');
+    const pick = root.querySelector('[data-dr-pick]');
+    const kEl = root.querySelector('[data-dr-k]');
+    const dEl = root.querySelector('[data-dr-d]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let text = '';
+    let steps = [];
+    let at = -1;
+    let sel = 0;
+    let timer = null;
+
+    function plan() {
+      const rounds = doublingRounds(text);
+      const n = text.length;
+      const out = [];
+      let passes = 0;
+      for (const R of rounds) {
+        const what = R.k === 2 ? S.codeWhat : S.rankWhat;
+        out.push({ R, phase: 'pairs', order: R.start, note: fill(S.pairs, { k: R.k, what, h: R.h }) });
+        out.push({ R, phase: 'pass1', order: R.pass1.order, note: S.pass1 });
+        out.push({ R, phase: 'pass2', order: R.pass2.order, note: S.pass2 });
+        passes += 2;
+        const tail = R.distinct === n ? '' : S.rankTie;
+        out.push({ R, phase: 'rank', order: R.pass2.order, note: join(fill(S.rankStep, { d: R.distinct, n }), tail) });
+      }
+      const last = rounds[rounds.length - 1];
+      out.push({
+        R: last, phase: 'done', order: last.pass2.order,
+        note: fill(S.done, { r: rounds.length, p: passes, sa: last.pass2.order.join(' ') }),
+      });
+      return out;
+    }
+
+    function build() {
+      const n = text.length;
+      body.style.setProperty('--dr-n', String(n));
+      body.innerHTML = [...text]
+        .map(
+          (_, i) =>
+            `<button type="button" class="dr-row dr-tr" data-dr-row="${i}" style="--dr-slot:${i}"><span class="dr-i">${i}</span><span class="dr-suf">${[...text.slice(i)]
+              .map((c, k) => `<i data-dr-c="${k}">${c}</i>`)
+              .join('')}</span><span class="dr-pair" data-dr-pair></span><span class="dr-rank" data-dr-rank></span></button>`,
+        )
+        .join('');
+    }
+
+    function render() {
+      const st = at >= 0 ? steps[at] : null;
+      const n = text.length;
+      const order = st ? st.order : [...Array(n).keys()];
+      const slot = new Array(n);
+      order.forEach((p, j) => (slot[p] = j));
+      const R = st ? st.R : null;
+      const showNext = !!st && (st.phase === 'rank' || st.phase === 'done');
+
+      /* 이번 패스의 키가 같은 줄을 묶어 띠를 번갈아 칠한다. */
+      const keyOf = (i) => {
+        if (!st) return null;
+        if (st.phase === 'pass1') return R.key[i][1];
+        if (st.phase === 'pass2') return R.key[i][0];
+        if (st.phase === 'rank') return R.next[i];
+        return null;
+      };
+      const band = {};
+      let b = 0;
+      let prev = null;
+      order.forEach((p, j) => {
+        const k = keyOf(p);
+        if (j > 0 && k !== prev) b += 1;
+        band[p] = b % 2;
+        prev = k;
+      });
+      body.querySelectorAll('[data-dr-row]').forEach((row) => {
+        const i = Number(row.dataset.drRow);
+        row.style.setProperty('--dr-slot', String(slot[i]));
+        row.classList.toggle('is-sel', i === sel);
+        row.classList.toggle('is-band', !!st && keyOf(i) !== null && band[i] === 1);
+        row.classList.toggle('is-final', !!st && st.phase === 'done');
+        const pairEl = row.querySelector('[data-dr-pair]');
+        if (R) {
+          const [a, c] = R.key[i];
+          const clsA = st.phase === 'pass2' ? 'is-cur' : '';
+          const clsB = st.phase === 'pass1' ? 'is-cur' : st.phase === 'pass2' ? 'is-ok' : '';
+          pairEl.innerHTML = `(<b class="${clsA}">${String(a).padStart(3, ' ')}</b>, <b class="${clsB}">${String(c).padStart(3, ' ')}</b>)`;
+        } else {
+          pairEl.textContent = '';
+        }
+        row.querySelector('[data-dr-rank]').textContent = showNext ? String(R.next[i]) : '';
+        row.querySelectorAll('[data-dr-c]').forEach((c) => {
+          const k = Number(c.dataset.drC);
+          const h = R ? R.h : 0;
+          c.classList.toggle('is-a', i === sel && !!R && k < h);
+          c.classList.toggle('is-b', i === sel && !!R && k >= h && k < 2 * h);
+        });
+      });
+
+      if (R) {
+        const rows = [{ label: R.k === 2 ? S.code : S.rank, values: R.rank }];
+        if (showNext) rows.push({ label: S.newRank, values: R.next, cls: 'ss-next' });
+        drawStrip(strip, text, rows);
+        const p = sel + R.h;
+        markStrip(strip, { 'is-a': [sel], 'is-b': p < n ? [p] : [] });
+        const [a, c] = R.key[sel];
+        const s = text.slice(sel);
+        pick.textContent = p < n ? fill(S.pick, { s, h: R.h, a, p, b: c }) : fill(S.pickOut, { s, h: R.h, a });
+      } else {
+        drawStrip(strip, text, []);
+        markStrip(strip, { 'is-a': [sel] });
+        pick.textContent = '';
+      }
+      kEl.textContent = R ? String(R.k) : '-';
+      dEl.textContent = showNext ? `${R.distinct}/${n}` : '-';
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', !!(st && st.phase === 'done'));
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function rebuild() {
+      stop();
+      text = `${cleanWord(input.value, 11) || 'a'}$`;
+      steps = plan();
+      at = -1;
+      sel = Math.min(3, text.length - 1);
+      build();
+      root.querySelectorAll('[data-dr-preset]').forEach((b) => b.classList.toggle('is-on', b.dataset.drPreset === input.value));
+      render();
+    }
+
+    body.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-dr-row]');
+      if (!row) return;
+      sel = Number(row.dataset.drRow);
+      render();
+    });
+    input.addEventListener('input', rebuild);
+    root.querySelectorAll('[data-dr-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = b.dataset.drPreset;
+        rebuild();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) at = -1;
+      render();
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1500);
+    });
+    rebuild();
+  })();
+</script>
+
+<style is:global>
+  .aas-doubling-radix-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --dr-rowh: 1.26em;
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-doubling-radix-demo .dr-bar,
+  .aas-doubling-radix-demo .dr-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-doubling-radix-demo .dr-inputs {
+    margin: 0.4em 0;
+    justify-content: flex-start;
+  }
+  .aas-doubling-radix-demo .dr-head {
+    font-size: 0.95em;
+  }
+  .aas-doubling-radix-demo .dr-controls,
+  .aas-doubling-radix-demo .dr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
+  .aas-doubling-radix-demo .dr-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-doubling-radix-demo .dr-btn:hover,
+  .aas-doubling-radix-demo .dr-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-doubling-radix-demo .dr-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-doubling-radix-demo .dr-chip {
+    padding: 0.2em 0.65em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-doubling-radix-demo .dr-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-doubling-radix-demo .dr-input {
+    display: inline-flex;
+    gap: 0.45em;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-doubling-radix-demo .dr-input input {
+    width: 8.5em;
+    padding: 0.18em 0.5em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-doubling-radix-demo .dr-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-doubling-radix-demo .dr-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.1em;
+    align-items: flex-start;
+  }
+  .aas-doubling-radix-demo .dr-table {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-doubling-radix-demo .dr-side {
+    flex: 1 1 15em;
+    min-width: 0;
+  }
+  .aas-doubling-radix-demo .dr-row {
+    display: grid;
+    grid-template-columns: 2.4em 9.6em 6.8em 3.3em;
+    align-items: center;
+    height: var(--dr-rowh);
+    line-height: 1.15;
+  }
+  .aas-doubling-radix-demo .dr-th {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.72em;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+    grid-template-columns: calc(2.4em / 0.72) calc(9.6em / 0.72) calc(6.8em / 0.72) calc(3.3em / 0.72);
+  }
+  .aas-doubling-radix-demo .dr-th span,
+  .aas-doubling-radix-demo .dr-tr > span {
+    text-align: center;
+    white-space: pre;
+  }
+  .aas-doubling-radix-demo .dr-row .dr-suf {
+    text-align: left;
+    padding-left: 0.3em;
+  }
+  .aas-doubling-radix-demo .dr-body {
+    position: relative;
+    height: calc(var(--dr-n, 7) * var(--dr-rowh));
+  }
+  .aas-doubling-radix-demo .dr-tr {
+    position: absolute;
+    left: 0;
+    top: calc(var(--dr-slot) * var(--dr-rowh));
+    width: 22.1em;
+    padding: 0;
+    font: inherit;
+    border: none;
+    border-radius: 0.25em;
+    background: none;
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      top 0.55s cubic-bezier(0.65, 0, 0.35, 1),
+      background-color 0.2s;
+  }
+  .aas-doubling-radix-demo .dr-tr.is-band {
+    background: color-mix(in srgb, var(--aas-muted) 13%, transparent);
+  }
+  .aas-doubling-radix-demo .dr-tr.is-final {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+  .aas-doubling-radix-demo .dr-tr.is-sel {
+    outline: 1.5px solid var(--aas-role-focus);
+    outline-offset: -1.5px;
+  }
+  .aas-doubling-radix-demo .dr-i {
+    font-weight: 700;
+  }
+  .aas-doubling-radix-demo .dr-suf i {
+    display: inline-block;
+    width: 0.74em;
+    font-style: normal;
+    text-align: center;
+  }
+  .aas-doubling-radix-demo .dr-suf i.is-a {
+    background: color-mix(in srgb, var(--aas-role-model) 30%, transparent);
+  }
+  .aas-doubling-radix-demo .dr-suf i.is-b {
+    background: color-mix(in srgb, var(--aas-role-trace) 30%, transparent);
+  }
+  .aas-doubling-radix-demo .dr-pair {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-doubling-radix-demo .dr-pair b {
+    font-weight: 400;
+  }
+  .aas-doubling-radix-demo .dr-pair b.is-cur {
+    font-weight: 700;
+    color: var(--aas-role-focus);
+  }
+  .aas-doubling-radix-demo .dr-pair b.is-ok {
+    color: var(--aas-role-eval);
+  }
+  .aas-doubling-radix-demo .dr-rank {
+    font-weight: 700;
+  }
+  .aas-doubling-radix-demo .dr-side .aas-suf-strip {
+    font-size: 0.68em;
+  }
+  .aas-doubling-radix-demo .dr-pick {
+    margin: 0.5em 0 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    min-height: 2.8em;
+  }
+  .aas-doubling-radix-demo .dr-count {
+    margin: 0.3em 0 0;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+  .aas-doubling-radix-demo .dr-count strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-doubling-radix-demo .dr-note {
+    margin: 0.45em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-doubling-radix-demo.is-slide {
+    font-size: clamp(1rem, 2.35vh, 1.6rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-doubling-radix-demo .dr-tr {
+      transition: none;
+    }
+  }
+</style>

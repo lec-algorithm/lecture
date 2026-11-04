@@ -18,6 +18,18 @@ import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
+import CountingPassDemo from '@components/CountingPassDemo.astro';
+import RadixCostDemo from '@components/RadixCostDemo.astro';
+import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
+import MsdStringDemo from '@components/MsdStringDemo.astro';
+import MsdCostDemo from '@components/MsdCostDemo.astro';
+import SuffixTableDemo from '@components/SuffixTableDemo.astro';
+import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
+import KasaiCostDemo from '@components/KasaiCostDemo.astro';
+import LrsFindDemo from '@components/LrsFindDemo.astro';
+import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
+import LcsPlayDemo from '@components/LcsPlayDemo.astro';
+import KwicDemo from '@components/KwicDemo.astro';
 
 > Topic 03's counting sort sorted in $$O(n + k)$$ without comparisons, but
 > it was unusable when the value range $$k$$ was large.  
@@ -177,6 +189,19 @@ These are the same three passes as the demo. For strings, one character
 counts as one digit, and the counting array has 256 slots (the values of
 one byte).
 
+### Step by step: count, cumulate, place \{#lsd-counting}
+
+Follow the four stages of the code line by line. On the left, the line being run is colored, and
+on the right, `count` and `B` change to match. You can type your own numbers into the input box,
+and the tabs switch step 3 to run from the front.
+
+<CountingPassDemo />
+
+Look at step 3 of the second pass. Placing from the back puts `437` at `B[2]` and then `531` at
+`B[1]`, so the order made by the first pass (`531` ahead) survives. Placing from the front sends
+`531` to `B[2]` first, which reverses the order, and the final result is the wrong
+`074 042 008 437 531`. [Why it must be stable](#lsd-stable) below explains why.
+
 ### Why it must be stable \{#lsd-stable}
 
 Why LSD works comes down to one property that every pass preserves.
@@ -241,6 +266,20 @@ $$O(n \log n)$$. Radix sort shines on data whose **key length is fixed**.
 When $$d$$ is set independently of $$n$$, as with 32-bit integers, national
 ID numbers, postal codes, and fixed-length codes, it is $$O(n)$$.
 
+You can choose how to split the key. In the demo below, move the element count $$n$$ and the value
+range $$U$$ and watch the pass count $$d$$ and the work $$d(n + k)$$ change for each radix $$k$$. Counting
+sort $$n + U$$ and comparison sort $$n \log_2 n$$ sit alongside; the bars use a log scale.
+
+<RadixCostDemo />
+
+- With $$n$$ and $$U$$ both 1,000, counting sort is cheapest at 2,000. Radix $$k = 10$$ takes
+  3 × 1,010 = 3,030. When the range is small, one counting sort is better.
+- With $$n$$ at a million and $$U = 2^{32}$$, $$k = 256$$ gives $$d = 4$$ and 4,001,024 of work.
+  $$k = 65536$$ needs 2 passes and 2,131,072, which is less, but it allocates 65,536 counting cells.
+  Counting sort would need about 4.3 billion cells.
+- The **Range = n²** tab grows $$U$$ with $$n$$. With $$n$$ at a million, $$k = 10$$ gives $$d = 12$$.
+  When $$d$$ is not fixed, the work takes the $$n \log n$$ shape described above.
+
 ### Running time \{#lsd-runtime}
 
 These are measured times for sorting integer arrays of various sizes. LSD
@@ -264,6 +303,17 @@ absolute values.
   $$d$$ is fixed too, so it is $$O(n)$$. Splitting 32-bit integers into
   bytes gives $$d = 4$$.
 - At a million elements, LSD is about four times faster than quicksort.
+
+The table's values were measured in C. The demo below runs the same four sorts in JavaScript, in this
+browser, right now. Press **Measure** to fill in the time for each size, and use the tabs to change
+the input order. Cells where insertion sort would take too long are not measured; they are estimated
+from the previous cell and marked †.
+
+<RuntimeRaceDemo />
+
+Values depend on the computer, so look at the ratios. LSD reads every digit whatever the input, so
+its time hardly changes between tabs. Insertion sort is the fastest on already sorted input and the
+slowest on reversed input.
 
 ## Example 2. MSD radix sort \{#msd}
 
@@ -379,6 +429,16 @@ settled.
   stay in the same bucket. With many identical keys, MSD reads every
   character too.
 
+Type your own words. Colored cells are characters read, and orange is the character being read.
+Cells that stay faded were never read.
+
+<MsdStringDemo />
+
+- `she shells sea by the shore` reads only 14 of 22 characters and finishes in 4 calls. `by` and
+  `the` have only their first character read.
+- `ant bee cat dog elk fox` splits completely at the first character and reads 6 of 18.
+- `sea sea sea sea` reads all 12 characters. Equal keys must be read to the end to know they are equal.
+
 ### Analysis \{#msd-analysis}
 
 - **Best** $$O(n + k)$$: every element lands in a different bucket on the
@@ -394,6 +454,18 @@ three elements, scanning empty counting slots takes longer than the
 elements themselves. It is worse for byte strings, where $$k = 256$$. So
 real implementations hand small buckets (say, 15 elements or fewer) to
 insertion sort.
+
+Now count what was just described. The demo really runs both sorts and counts digit reads, counting-cell
+scans (calls × $$k$$), and insertion sort's compares. The total adds the three counts; it shows scale,
+not actual time.
+
+<MsdCostDemo />
+
+- On the slide example, digit reads are MSD 14 and LSD 24. `111 112 113 114` is 12 for both, and
+  `100 200 300 400` is 4 for MSD.
+- With 1,000 random values at $$k = 256$$, MSD reads 2,001 digits, half of LSD's 4,000. But it makes
+  242 calls and scans 61,952 cells, so the totals are MSD 63,953 and LSD 5,024.
+- Use the slider to hand buckets of size 16 or less to insertion sort, and MSD drops to 1 call and a total of 2,764.
 
 ### LSD and MSD \{#lsd-vs-msd}
 
@@ -470,11 +542,22 @@ $$SA = [6, 5, 3, 1, 0, 4, 2]$$. Storing the suffixes as strings would take
 $$1 + 2 + \dots + n$$ characters, $$O(n^2)$$ space, but recording only the
 starting positions takes $$n$$ integers, $$O(n)$$.
 
+Try the table yourself. The left is by start position, the right in dictionary order. Click a row on
+either side to mark the same suffix on both and read off $$SA[j]$$ and $$rank[i]$$. Change the string
+and everything is recomputed.
+
+<SuffixTableDemo />
+
 Why `$` is needed becomes clear from `a$` and `ana$`. Without `$`, `a` is a
 prefix of `ana`, and you would have to state a separate rule that "the
 shorter one comes first." Appending the smallest end character folds that
 rule into character comparison. It also means no suffix is a prefix of
 another suffix.
+
+The demo below starts without `$`. In `banana`, 4 pairs of suffixes are in a prefix relation, and rows
+that are a prefix of another suffix get a red tag. Add `$` with the button and those pairs disappear.
+
+<SuffixTableDemo sentinel={false} />
 
 ### The simple way \{#suffix-naive}
 
@@ -538,6 +621,9 @@ $$k$$ characters of each suffix are colored, to show that the pair stands
 in for those $$k$$ characters. Sorting by the pairs moves the rows and
 assigns new ranks. Rows with the same rank (suffixes not yet told apart)
 are grouped in orange.
+
+The strip on the right holds the ingredients of the keys: character codes (k = 2) or the previous round's
+ranks. Click a row to mark the two cells behind its key.
 
 <SuffixArrayDemo />
 
@@ -654,6 +740,15 @@ the first), and a round becomes $$O(n)$$. The total is then
 $$O(n \log n)$$. Going further, there are algorithms that build it in
 $$O(n)$$ (SA-IS, DC3).
 
+Run the two passes yourself. One round is four steps: make the pairs in start-position order, stable-sort
+by the second digit, stable-sort by the first digit, and assign new ranks. You can change the string,
+and clicking a row marks the two cells behind its pair in the strip on the right.
+
+<DoublingRadixDemo />
+
+`banana$` finishes in 2 rounds and 4 passes, and the row order matches the output above. Distinct ranks
+grow 9, 11, 12 for `mississippi$` and 3, 5, 9 for `aaaaaaaa$`.
+
 ## Example 4. The LCP array \{#lcp}
 
 The **LCP array** (longest common prefix array) is the companion of the
@@ -678,6 +773,11 @@ characters each pair of neighbors shares**.
 $$LCP = [-, 0, 1, 3, 0, 0, 2]$$. Comparing each neighboring pair from the
 start is easy, but when common prefixes are long, as in `aaaa...a$`, every
 pair reads a long way and it becomes $$O(n^2)$$.
+
+Click a row to compare it with its previous neighbor and color the common prefix. Change the string and
+the LCP array is recomputed. The LCP of `mississippi$` is `- 0 1 1 4 0 0 1 0 2 1 3`.
+
+<SuffixTableDemo lcp />
 
 ### Kasai's algorithm \{#kasai}
 
@@ -800,6 +900,16 @@ and there is one mismatching comparison per position. The **total** is
 $$O(n)$$. If you already have the suffix array, the LCP array comes almost
 for free.
 
+Draw the cost by position. One bar is one position $$i$$. Gray is the characters skipped, green the actual
+character compares, and the dashed outline the compares when the neighbor is compared from scratch.
+Click a bar to see that position's suffix and previous neighbor. The slider switches the string to `a` only.
+
+<KasaiCostDemo />
+
+- `banana$` takes Kasai 9 and from scratch 12.
+- With 8 `a`s it is 15 and 36; with 60 it is 119 and 1,830. Only the from-scratch side grows quadratically.
+- The more gray piles up, the fewer compares remain. The bound $$3n$$ sums the analysis above: $$2n$$ increases of $$h$$ and $$n$$ mismatches.
+
 ## Example 5. Longest repeated substring \{#lrs}
 
 **Longest repeated substring** (LRS): find the longest substring that
@@ -863,6 +973,9 @@ ALGORITHM LongestRepeatedSubstring(T, n)
     return T[SA[at] .. SA[at] + best - 1]
 ```
 
+The strip on the right is the original text. It marks the two places of the current pair's common
+prefix, and a cell in both turns green.
+
 <LcpScanDemo />
 
 For `banana$` it is `ana` (positions 1 and 3, overlapping). Try the
@@ -917,6 +1030,16 @@ brute force: "acaag", 120 pairs, 161 char compares
 Both methods give the same answer. Going through the sort, only 15
 neighboring pairs need checking; brute force checks all 120 position pairs.
 
+Back to the 283-character sequence. The demo builds the suffix array and LCP and lists the pairs with
+the largest LCP. Click a row to mark the two places of that substring in the text. Brute force also runs
+to the end and its compares are counted.
+
+<LrsFindDemo />
+
+- The answer is the 15 characters `agagttatactggtc` at positions 31 and 217. The second and third rows are the same repeat with leading characters removed.
+- Brute force takes 40,186 position pairs and 54,888 character compares. After sorting it takes 283 neighboring pairs and 562 Kasai compares.
+- Draw a random sequence and the longest repeat is much shorter. The 15 characters in this sequence are unlikely to be chance.
+
 ### Performance \{#lrs-performance}
 
 These measurements are from Sedgewick & Wayne's *Algorithms*. † marks an
@@ -948,6 +1071,15 @@ so $$O(n^2)$$. At a billion characters, $$O(n^2)$$ finishes for none of
 the four. To get an answer, the suffix sort has to be $$O(n \log n)$$ or
 better. An MSD-style sort, which suits keys of varying length, or this
 topic's doubling (with radix sort, $$O(n \log n)$$) is the way.
+
+Put it in numbers. Change $$n$$, $$D$$, and the operations per second with the sliders, and the time for
+B, C, D and doubling is estimated from the formulas. These are estimates, not measurements.
+
+<GenomeScaleDemo />
+
+With $$n = 10^9$$, $$D = 20$$ and $$10^9$$ operations per second, brute force takes about 317 years,
+insertion sort about 7.9 years, and length-padded LSD about 31.7 years. Under the same conditions, doubling
+with radix sort takes 2 minutes. Even a machine 1000 times faster leaves brute force at about 116 days.
 
 ## Example 6. Longest common substring \{#lcs}
 
@@ -1030,6 +1162,16 @@ j = 5, where `iss` from `kiss` meets `iss` from `mississippi`. The time is
 $$O(n \log n)$$ for the suffix array plus $$O(n)$$ for the LCP and the scan,
 with $$n = |S_1| + |S_2| + 2$$.
 
+Turn the rules off yourself. Enter two strings and toggle the separator and the rule "only pairs from
+different strings." The demo compares the answer with the true LCS found by dynamic programming.
+
+<LcsPlayDemo />
+
+- With both rules on, `mississippi` and `kiss` give `iss`, and `sip` in place of `kiss` gives `sip`.
+- For `ab` and `cabc`, turning the separator off makes the answer `abc`. `cabc` follows `ab` directly,
+  so the common prefix runs past the end of S1. `abc` is not in `ab`.
+- Turning the source rule off makes the answer for `mississippi` and `kiss` become `issi`. That is the LRS.
+
 ### Using suffix arrays: keyword in context \{#kwic}
 
 **KWIC** (keyword in context) is a search that shows every occurrence of a
@@ -1058,6 +1200,16 @@ n that bed and search the straw hold
 
 No matter how long the text, each query is one binary search over the
 suffix array.
+
+Follow the binary search. The suffix array is built on the 285 characters of the first paragraph of *A
+Tale of Two Cities*. One step is one compare. Once the start and end of the range are found, the
+occurrences appear with their context.
+
+<KwicDemo />
+
+`it was` has 10 occurrences and takes 16 compares; `the season` has 2 and takes 12. `search` is not in
+this paragraph, and 14 compares are enough to know. With two binary searches, the bound is
+$$2\lceil \log_2 285 \rceil = 18$$.
 
 ## Example 7. Stacks and queues \{#stack-queue}
 
@@ -1093,6 +1245,8 @@ previous pass's order. Counting sort's "place from the back" is a way to do
 the same job as ten queue buckets using a single array.
 
 What happens if the buckets become **stacks**? Try it on the same input.
+
+The pass log on the right also holds the queue bucket results for the same input, so you can compare them pass by pass.
 
 <LsdRadixDemo buckets="stack" />
 
@@ -1200,8 +1354,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-11-04 | Added 12 demos (one counting pass, choosing the radix, real timing, MSD on strings, MSD cost, suffix table, radix-sorting pairs, Kasai cost, LRS in 283 characters, scale estimates, LCS rules, KWIC binary search). Character codes, ranks, the original text and a pass log now sit inside the demos |

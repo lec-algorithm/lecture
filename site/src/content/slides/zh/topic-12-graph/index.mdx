@@ -1,7 +1,7 @@
 ---
 title: "主题 12. 图与最短路径"
 description: "用顶点和边描述世界的图。图的表示与遍历（BFS、DFS）、最小生成树（Kruskal、Prim）、支撑二者的最小堆，以及最短路径（Dijkstra、A*）"
-date: "主题 12 · v1"
+date: "主题 12 · v2"
 order: 12
 transition: none
 toc_level: 4
@@ -18,6 +18,19 @@ import GraphTermsDemo from '@components/GraphTermsDemo.astro';
 import GraphRepDemo from '@components/GraphRepDemo.astro';
 import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
+import DensityDemo from '@components/DensityDemo.astro';
+import FrontierDemo from '@components/FrontierDemo.astro';
+import SearchCompareDemo from '@components/SearchCompareDemo.astro';
+import TopoPickDemo from '@components/TopoPickDemo.astro';
+import SpanSwapDemo from '@components/SpanSwapDemo.astro';
+import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import WeightPathDemo from '@components/WeightPathDemo.astro';
+import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
+import PqCostDemo from '@components/PqCostDemo.astro';
+import NegWeightDemo from '@components/NegWeightDemo.astro';
+import NegCycleDemo from '@components/NegCycleDemo.astro';
+import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
+import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-12-graph）的运行结果一致。 */}
@@ -205,6 +218,15 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 <Slide>
 
+### 动手试试：边数与格数
+::sub[移动 n 和 m，图和两种表示的格数一起变化]
+
+<DensityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 邻接矩阵 vs. 邻接表
 ::sub[首尔(0)-釜山(1)、首尔-大邱(2)、釜山-光州(3) · 表是 4 + 6 格，矩阵是 16 格]
 
@@ -262,6 +284,15 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 剩下的问题只有一个。  
 **横跨边界的边有好几条时，先选哪一条？**
+
+</Slide>
+
+<Slide>
+
+### 动手试试：选择边界边
+::sub[无论先选哪条边，到达的顶点都一样 · 只选最早的是 BFS 的顺序，只选最新的是 DFS 的顺序]
+
+<FrontierDemo slide />
 
 </Slide>
 
@@ -473,27 +504,10 @@ order: 0 6 4 5 3 2 1
 
 <Slide>
 
-#### 应用：拓扑排序
-::sub[u → v：先修 u 才能修 v]
+### 动手试试：拓扑排序
+::sub[u → v：必须先修 u 才能修 v · 亲手排出选课顺序]
 
-<div class="aas-split">
-<div>
-
-<GraphFigure graph="dag" slide />
-
-</div>
-<div>
-
-0. Algorithms
-1. Complexity Theory
-2. Artificial Intelligence
-3. Intro to CS
-4. Cryptography
-5. Scientific Computing
-6. Advanced Programming
-
-</div>
-</div>
+<TopoPickDemo slide />
 
 </Slide>
 
@@ -544,6 +558,15 @@ topological sort (V = 7, E = 11, directed)
   - 有通回正在访问的顶点的边（back edge）就是环
 - **强连通分量**
   - Kosaraju-Sharir 算法：两次 DFS
+
+</Slide>
+
+<Slide>
+
+### 动手试试：BFS 与 DFS 并排
+::sub[更换形状和邻居顺序，点击顶点可更换起点]
+
+<SearchCompareDemo slide />
 
 </Slide>
 
@@ -608,6 +631,15 @@ Kruskal 与 Prim 的例子
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+### 动手试试：替换生成树的边
+::sub[加入树外的边，去掉环上的边，一直降到最轻的树]
+
+<SpanSwapDemo slide />
 
 </Slide>
 
@@ -810,7 +842,7 @@ total weight = 1.81
 <Slide>
 
 #### 插入与取出最小值
-::sub[每层都只比较一次]
+::sub[每层比较次数：sift up 一次，sift down 最多两次]
 
 - **插入**
   1. 检查是否已满。
@@ -829,6 +861,15 @@ total weight = 1.81
 ::sub[insert 10, insert 0, extract min · 橙色是移动的元素，蓝色是比较对象]
 
 <HeapDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 动手试试：最小堆
+::sub[插入值并取出最小值 · 点击格子可以看到父节点和子节点的下标]
+
+<HeapPlayDemo slide />
 
 </Slide>
 
@@ -1035,6 +1076,15 @@ total weight = 1.81
 
 </Slide>
 
+<Slide>
+
+### 动手试试：BFS 与 Dijkstra 的路径
+::sub[边数最少的路径和权重总和最小的路径]
+
+<WeightPathDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 例 6. Dijkstra 算法
@@ -1079,6 +1129,15 @@ total weight = 1.81
 ::sub[蓝色数字是目前找到的距离 · 绿色已确定，蓝色虚线是尚未确定的 from]
 
 <HeapGraphDemo mode="dijkstra" slide />
+
+</Slide>
+
+<Slide>
+
+### 动手试试：Prim 与 Dijkstra 并排
+::sub[同一个图，同一个框架，只差一行 · 点击顶点可更换起点]
+
+<PrimDijkstraDemo slide />
 
 </Slide>
 
@@ -1143,6 +1202,15 @@ path 0 -> 6: 0 4 5 2 6 (25)
 
 <Slide>
 
+### 动手试试：选择优先队列
+::sub[移动 V 和 E，合计公式的值随之变化 · 条形是对数刻度]
+
+<PqCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 运行时间
 ::sub[取决于用什么实现优先队列 · * 均摊]
 
@@ -1194,6 +1262,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 <Slide>
 
+### 动手试试：负权重
+::sub[移动 2→3 的权重和所有边要加的值 · 粗绿线是 Dijkstra 找到的路径]
+
+<NegWeightDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 负环
 ::sub[边权之和为负的有向环]
 
@@ -1201,6 +1278,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
   - 7 → 5 → 7 是 $$6 - 8 = -2$$
   - 每绕一圈就更短，最短路径**没有定义**。
 - 只有在 s 能到达的负环**不存在时**，最短路径树才存在。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：负环
+::sub[在 Dijkstra 的例子图上加入 5 → 7 · 一圈一圈地绕 7 → 5 → 7]
+
+<NegCycleDemo slide />
 
 </Slide>
 
@@ -1297,11 +1383,22 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### 26 不是最短
 ::sub[在同一个图上 Dijkstra 是 0 → 4 → 5 → 2 → 6，25]
 
+<div class="aas-split">
+<div>
+
+<GraphFigure graph="sp" nodeTones={{ 0: 'ring', 6: 'ring' }} edgeTones={{ '0-7': 'tree', '7-2': 'tree', '2-6': 'tree', '5-2': 'focus' }} slide />
+
+</div>
+<div>
+
 - 0 → 7 → 2 → 6，**26** 不是最短路径。
 - 分歧出现在关闭 5 的时候。
   - 从 5 到 2，$$g = 14$$，比现在的 15 短。
   - 可是 2 已经关闭，于是直接略过。
   - 2 的 $$g$$ 定在 15，6 也定在 26。
+
+</div>
+</div>
 
 </Slide>
 
@@ -1317,6 +1414,15 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 - 这个例子的 h 可采纳，但不一致。
   - $$h(4) = 11 > 4 + h(5) = 10$$
   - $$h(5) = 6 > 1 + h(2) = 5$$
+
+</Slide>
+
+<Slide>
+
+### 动手试试：修改 h
+::sub[红色虚线是违反一致性的边，绿色是不重新打开时的路径]
+
+<HeuristicLabDemo slide />
 
 </Slide>
 
@@ -1400,6 +1506,15 @@ path: 0 4 5 2 6, cost 25
 - **进一步改进**
   - IDA*（内存）、双向 A*、分层寻路
   - 模式数据库、机器学习启发式
+
+</Slide>
+
+<Slide>
+
+### 动手试试：测量四个算法
+::sub[同一个图，从 0 到 6 · 点击一行，然后单步查看]
+
+<SearchRaceDemo slide />
 
 </Slide>
 

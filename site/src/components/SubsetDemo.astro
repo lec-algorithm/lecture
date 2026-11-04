@@ -1,0 +1,502 @@
+---
+// NFA를 DFA로 바꾸면(부분집합 구성) 상태가 몇 개 되는지 실제로 만들어 보는 데모.
+//
+// 정규식은 (a|b)*a(a|b)…(a|b), 곧 "끝에서 k번째 글자가 a"인 문자열이다. NFA는 regexCore의
+// BuildNFA로 만들고, DFA의 상태 하나는 NFA의 상태 집합 하나다. 시작 집합에서 a와 b를
+// 읽어 새 집합이 나오면 DFA 상태를 하나 더하는 일을 더 나올 것이 없을 때까지 한다.
+// k를 올리면 NFA는 5씩 늘지만 DFA는 2^k + 1개가 된다. 마지막 k글자를 다 기억해야 하기
+// 때문이다. 표의 행을 누르면 그 집합을 번호 띠에서 칠한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexCore from './RegexCore.astro';
+
+interface Props {
+  /** 처음 고른 k */
+  k?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { k = 3, slide = false } = Astro.props;
+const id = `sb-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'DFA로 바로 만들면',
+    kLabel: '끝에서 k번째가 a',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    toEnd: '끝까지',
+    reset: '처음으로',
+    nfa: 'NFA 상태',
+    dfa: 'DFA 상태',
+    state: 'DFA',
+    word: '가장 짧은 입력',
+    set: 'NFA 상태 집합',
+    accept: '수락',
+    more: '… {n}개 더',
+    idle: 'DFA의 상태 하나는 NFA의 상태 집합 하나입니다. 시작 집합에서 a와 b를 읽어 새 집합이 나오면 DFA 상태를 더합니다.',
+    now: 'D{i}에서 a를 읽으면 D{a}, b를 읽으면 D{b}입니다. 지금까지 {n}개입니다.',
+    done: '더 나올 집합이 없습니다. NFA 상태 {m}개가 DFA 상태 {d}개가 되었습니다. 마지막 k글자를 모두 기억해야 해서 2^{k}개이고, 아무것도 읽지 않은 시작 집합이 하나 더 있습니다.',
+  },
+  en: {
+    title: 'Going straight to a DFA',
+    kLabel: 'k-th from the end is a',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    toEnd: 'To end',
+    reset: 'Reset',
+    nfa: 'NFA states',
+    dfa: 'DFA states',
+    state: 'DFA',
+    word: 'shortest input',
+    set: 'set of NFA states',
+    accept: 'accept',
+    more: '… {n} more',
+    idle: 'One DFA state is one set of NFA states. Read a and b from the start set, and add a DFA state whenever a new set appears.',
+    now: 'From D{i}, a leads to D{a} and b leads to D{b}. {n} so far.',
+    done: 'No new set appears. {m} NFA states became {d} DFA states. The last k characters must all be remembered, which takes 2^{k}, and the start set with nothing read adds one more.',
+  },
+  zh: {
+    title: '直接构造 DFA 的话',
+    kLabel: '倒数第 k 个是 a',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    toEnd: '到结尾',
+    reset: '重置',
+    nfa: 'NFA 状态',
+    dfa: 'DFA 状态',
+    state: 'DFA',
+    word: '最短输入',
+    set: 'NFA 状态集合',
+    accept: '接受',
+    more: '… 还有 {n} 个',
+    idle: 'DFA 的一个状态就是 NFA 的一个状态集合。从开始集合读 a 和 b，出现新集合就增加一个 DFA 状态。',
+    now: '从 D{i} 读 a 到 D{a}，读 b 到 D{b}。目前共 {n} 个。',
+    done: '没有新集合了。NFA 的 {m} 个状态变成了 DFA 的 {d} 个状态。必须记住最后 k 个字符，所以有 2^{k} 个，再加上什么都没读的开始集合。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<RegexCore />
+<div class:list={['aas-subset-demo', slide && 'is-slide']} id={id} data-sb-k={k} data-sb-strings={JSON.stringify(t)}>
+  <div class="sb-bar">
+    <span class="sb-head"><strong>{t.title}</strong> <code data-sb-regex></code></span>
+    <div class="sb-controls">
+      <button type="button" data-act="back" class="sb-btn">{t.back}</button>
+      <button type="button" data-act="step" class="sb-btn">{t.step}</button>
+      <button type="button" data-act="play" class="sb-btn sb-btn-primary">{t.play}</button>
+      <button type="button" data-act="end" class="sb-btn">{t.toEnd}</button>
+      <button type="button" data-act="reset" class="sb-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="sb-stats">
+    <label class="sb-range">{t.kLabel} · k = <strong data-sb-kval></strong><input type="range" min="1" max="10" step="1" value={k} data-sb-range /></label>
+    <div class="sb-bars">
+      <div class="sb-barrow is-nfa"><span>{t.nfa}</span><i data-sb-bar="nfa"></i><strong data-sb-nfa></strong></div>
+      <div class="sb-barrow is-dfa"><span>{t.dfa}</span><i data-sb-bar="dfa"></i><strong data-sb-dfa></strong></div>
+    </div>
+  </div>
+
+  <div class="sb-ruler" data-sb-ruler></div>
+
+  <div class="sb-tablewrap" data-sb-wrap>
+    <table class="sb-table">
+      <thead><tr><th>{t.state}</th><th>{t.word}</th><th class="is-set">{t.set}</th><th>a</th><th>b</th><th>{t.accept}</th></tr></thead>
+      <tbody data-sb-body></tbody>
+    </table>
+  </div>
+  <p class="sb-note" data-sb-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.sbStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    const core = globalThis.aasRegexCore;
+    const ROWS_MAX = 40;
+
+    /* 부분집합 구성. 큐에 넣은 순서가 DFA 상태 번호다. */
+    function construct(k) {
+      const regex = `(a|b)*a${'(a|b)'.repeat(k - 1)}`;
+      const g = core.build(regex);
+      const keyOf = (s) => [...s].sort((a, b) => a - b).join(' ');
+      const start = core.closure(g, new Set([0])).set;
+      const ids = new Map([[keyOf(start), 0]]);
+      const dfa = [{ set: start, word: '', next: {} }];
+      for (let i = 0; i < dfa.length; i++) {
+        for (const ch of ['a', 'b']) {
+          const { match } = core.readChar(g, dfa[i].set, ch);
+          const to = core.closure(g, match).set;
+          const key = keyOf(to);
+          if (!ids.has(key)) {
+            ids.set(key, dfa.length);
+            dfa.push({ set: to, word: dfa[i].word + ch, next: {} });
+          }
+          dfa[i].next[ch] = ids.get(key);
+        }
+      }
+      return { regex, g, dfa };
+    }
+
+    const body = root.querySelector('[data-sb-body]');
+    const ruler = root.querySelector('[data-sb-ruler]');
+    const range = root.querySelector('[data-sb-range]');
+    const kval = root.querySelector('[data-sb-kval]');
+    const regexEl = root.querySelector('[data-sb-regex]');
+    const nfaEl = root.querySelector('[data-sb-nfa]');
+    const dfaEl = root.querySelector('[data-sb-dfa]');
+    const note = root.querySelector('[data-sb-note]');
+    const wrap = root.querySelector('[data-sb-wrap]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let k = Number(root.dataset.sbK);
+    let built = null;
+    let at = 0;           // 표에 올린 DFA 상태 수
+    let picked = 0;
+    let timer = null;
+
+    function buildRuler() {
+      const { re, M } = built.g;
+      ruler.replaceChildren(...Array.from({ length: M + 1 }, (_, i) => {
+        const c = document.createElement('span');
+        c.className = 'sb-mark';
+        c.dataset.sbState = String(i);
+        const ch = document.createElement('b');
+        ch.textContent = i < M ? re[i] : '✓';
+        const num = document.createElement('small');
+        num.textContent = String(i);
+        c.append(ch, num);
+        return c;
+      }));
+      ruler.style.setProperty('--sb-n', String(M + 1));
+    }
+
+    function render() {
+      const { dfa, g, regex } = built;
+      const total = dfa.length;
+      kval.textContent = String(k);
+      regexEl.textContent = k <= 4 ? regex : `(a|b)*a (a|b)×${k - 1}`;
+      nfaEl.textContent = fmt(g.M + 1);
+      dfaEl.textContent = fmt(at);
+      /* 막대는 선형 눈금이고, 지금 k에서 끝까지 만든 값 중 큰 쪽이 끝이다. */
+      const top = Math.max(g.M + 1, total);
+      const scale = (v) => (v / top) * 100;
+      root.querySelector('[data-sb-bar="nfa"]').style.width = `${scale(g.M + 1)}%`;
+      root.querySelector('[data-sb-bar="dfa"]').style.width = `${scale(at)}%`;
+
+      const shown = Math.min(at, ROWS_MAX);
+      const rows = [];
+      for (let i = 0; i < shown; i++) {
+        const d = dfa[i];
+        const tr = document.createElement('tr');
+        tr.className = `${i === picked ? 'is-picked' : ''}${i === at - 1 ? ' is-new' : ''}`;
+        const acc = d.set.has(g.M);
+        /* 표에 아직 없는 집합으로 가는 칸은 칠해 둔다. 다음 걸음에 줄이 생긴다. */
+        const known = (ch) => (d.next[ch] < at ? '' : 'is-next');
+        for (const [text, cls] of [
+          [`D${i}`, 'is-id'], [d.word || 'ε', ''], [core.show(d.set), 'is-set'],
+          [`D${d.next.a}`, known('a')], [`D${d.next.b}`, known('b')], [acc ? '●' : '', acc ? 'is-acc' : ''],
+        ]) {
+          const td = document.createElement('td');
+          td.textContent = text;
+          td.className = cls;
+          tr.appendChild(td);
+        }
+        tr.addEventListener('click', () => {
+          picked = i;
+          render();
+        });
+        rows.push(tr);
+      }
+      if (at > ROWS_MAX) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 6;
+        td.className = 'is-more';
+        td.textContent = fill(S.more, { n: fmt(at - ROWS_MAX) });
+        tr.appendChild(td);
+        rows.push(tr);
+      }
+      body.replaceChildren(...rows);
+      const cur = body.querySelector('.is-new');
+      if (cur) wrap.scrollTop = Math.max(0, cur.offsetTop - wrap.clientHeight + cur.offsetHeight * 2);
+      else if (at > ROWS_MAX) wrap.scrollTop = wrap.scrollHeight;
+
+      const set = at > 0 && dfa[picked] ? dfa[picked].set : new Set();
+      ruler.querySelectorAll('[data-sb-state]').forEach((c) => c.classList.toggle('is-in', set.has(Number(c.dataset.sbState))));
+
+      if (at === 0) setLines(note, S.idle);
+      else if (at === total) setLines(note, fill(S.done, { m: fmt(g.M + 1), d: fmt(total), k }));
+      else {
+        const d = dfa[at - 1];
+        setLines(note, fill(S.now, { i: at - 1, a: d.next.a, b: d.next.b, n: fmt(at) }));
+      }
+      root.classList.toggle('is-done', at === total);
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function setAt(next) {
+      at = Math.max(0, Math.min(built.dfa.length, next));
+      picked = Math.max(0, Math.min(at, ROWS_MAX) - 1);
+      render();
+    }
+    function load() {
+      stop();
+      built = construct(k);
+      buildRuler();
+      setAt(0);
+    }
+
+    range.addEventListener('input', () => {
+      k = Number(range.value);
+      load();
+    });
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      setAt(at - 1);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      setAt(at + 1);
+    });
+    root.querySelector('[data-act="end"]').addEventListener('click', () => {
+      stop();
+      setAt(built.dfa.length);
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      setAt(0);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= built.dfa.length) setAt(0);
+      playBtn.textContent = S.stop;
+      const chunk = Math.max(1, Math.ceil(built.dfa.length / 40));
+      timer = setInterval(() => {
+        setAt(at + chunk);
+        if (at >= built.dfa.length) stop();
+      }, 500);
+    });
+    load();
+  })();
+</script>
+
+<style is:global>
+  .aas-subset-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-subset-demo .sb-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.8em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5em;
+  }
+  .aas-subset-demo .sb-head {
+    font-size: 0.95em;
+  }
+  .aas-subset-demo .sb-controls {
+    display: flex;
+    gap: 0.3em;
+  }
+  .aas-subset-demo .sb-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-subset-demo .sb-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-subset-demo .sb-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-subset-demo .sb-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    align-items: center;
+  }
+  .aas-subset-demo .sb-range {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-subset-demo .sb-range strong {
+    min-width: 1.2em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-subset-demo .sb-range input {
+    width: 6em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-subset-demo .sb-bars {
+    flex: 1 1 14em;
+    min-width: 0;
+    display: grid;
+    gap: 0.15em;
+    font-size: 0.78em;
+  }
+  .aas-subset-demo .sb-barrow {
+    display: grid;
+    grid-template-columns: 6.5em minmax(0, 1fr) 3.5em;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-subset-demo .sb-barrow span {
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-subset-demo .sb-barrow i {
+    display: block;
+    height: 0.75em;
+    border-radius: 0.2em;
+    transition: width 0.25s;
+  }
+  .aas-subset-demo .sb-barrow.is-nfa i {
+    background: var(--aas-role-model);
+  }
+  .aas-subset-demo .sb-barrow.is-dfa i {
+    background: var(--aas-role-guard);
+  }
+  .aas-subset-demo .sb-barrow strong {
+    font-family: var(--aas-mono, monospace);
+    text-align: right;
+  }
+  .aas-subset-demo .sb-ruler {
+    display: grid;
+    grid-template-columns: repeat(var(--sb-n), minmax(0, 1fr));
+    gap: 1px;
+    margin-top: 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.62em;
+    line-height: 1.2;
+  }
+  .aas-subset-demo .sb-mark {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.2em;
+    background: var(--aas-bg);
+  }
+  .aas-subset-demo .sb-mark small {
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-subset-demo .sb-mark.is-in {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 35%, var(--aas-bg));
+  }
+  .aas-subset-demo .sb-tablewrap {
+    margin-top: 0.4em;
+    height: 8.6em;
+    overflow: auto;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-subset-demo .sb-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.35;
+  }
+  .aas-subset-demo .sb-table th,
+  .aas-subset-demo .sb-table td {
+    padding: 0.05em 0.5em;
+    text-align: center;
+    white-space: nowrap;
+    border: none;
+  }
+  .aas-subset-demo .sb-table th {
+    position: sticky;
+    top: 0;
+    font-family: var(--aas-sans, inherit);
+    font-weight: 400;
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+  }
+  .aas-subset-demo .sb-table .is-set {
+    text-align: left;
+    white-space: normal;
+  }
+  .aas-subset-demo .sb-table td.is-id {
+    font-weight: 700;
+  }
+  .aas-subset-demo .sb-table td.is-acc {
+    color: var(--aas-role-eval);
+  }
+  .aas-subset-demo .sb-table td.is-next {
+    color: var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-subset-demo .sb-table td.is-more {
+    color: var(--aas-muted);
+  }
+  .aas-subset-demo .sb-table tbody tr {
+    cursor: pointer;
+  }
+  .aas-subset-demo .sb-table tbody tr.is-picked {
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, var(--aas-bg));
+  }
+  .aas-subset-demo .sb-note {
+    margin: 0.5em 0 0;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+    min-height: 2.8em;
+  }
+  .aas-subset-demo.is-done .sb-note {
+    color: var(--aas-text);
+  }
+  .aas-subset-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-subset-demo * {
+      transition: none !important;
+    }
+  }
+</style>

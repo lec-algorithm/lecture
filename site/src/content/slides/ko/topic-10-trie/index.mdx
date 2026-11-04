@@ -1,7 +1,7 @@
 ---
 title: "주제 10. 트라이와 TST"
 description: "문자열 키를 문자 하나씩 경로로 저장하는 트라이, 그 탐색·삽입·접두사 검색·삭제와 공간 비용, 그리고 링크를 셋으로 줄인 TST"
-date: "주제 10 · v1"
+date: "주제 10 · v2"
 order: 10
 transition: none
 toc_level: 4
@@ -11,12 +11,19 @@ toc_open: false
 import Slide from 'stack-site-builder/components/Slide.astro';
 import TrieDemo from '@components/TrieDemo.astro';
 import TstDemo from '@components/TstDemo.astro';
-import TrieFigure from '@components/TrieFigure.astro';
 import TrieNodeDemo from '@components/TrieNodeDemo.astro';
 import TrieOrderDemo from '@components/TrieOrderDemo.astro';
 import TrieMissDemo from '@components/TrieMissDemo.astro';
 import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
 import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+import TrieWalkDemo from '@components/TrieWalkDemo.astro';
+import TstWalkDemo from '@components/TstWalkDemo.astro';
+import TrieCostDemo from '@components/TrieCostDemo.astro';
+import TrieRadixDemo from '@components/TrieRadixDemo.astro';
+import TstMapDemo from '@components/TstMapDemo.astro';
+import TstOrderDemo from '@components/TstOrderDemo.astro';
+import TstCostDemo from '@components/TstCostDemo.astro';
+import TrieMsdDemo from '@components/TrieMsdDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-10-trie)의 실행 결과와 같습니다. */}
@@ -114,7 +121,7 @@ typedef struct TrieNode {
 <Slide>
 
 ### 키 여섯 개를 담은 트라이
-::sub[by=4 · sea=2 · sells=1 · she=0 · shells=3 · the=5 · 노드를 누르면 그 노드의 링크 배열]
+::sub[노드를 누르면 그 노드의 링크 배열과, 그 아래의 키가 칠해집니다]
 
 <TrieNodeDemo slide />
 
@@ -196,6 +203,15 @@ ALGORITHM Insert(root, word, value)
 
 </Slide>
 
+<Slide>
+
+### 코드 한 줄씩: 삽입
+::sub[키와 값을 직접 쳐 보세요 · 있는 키를 다시 넣으면 값만 바뀝니다]
+
+<TrieWalkDemo op="insert" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 트라이 검색
@@ -259,6 +275,15 @@ ALGORITHM Search(root, word)
 
 </Slide>
 
+<Slide>
+
+### 코드 한 줄씩: 검색
+::sub[실패 두 가지를 직접 만들어 보세요]
+
+<TrieWalkDemo op="search" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 접두사로 모두 찾기
@@ -319,6 +344,15 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 
 </Slide>
 
+<Slide>
+
+### 코드 한 줄씩: 접두사
+::sub[shore=7을 더 넣은 트라이 · 접두사를 바꿔 보세요]
+
+<TrieWalkDemo op="prefix" slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 트라이 삭제
@@ -366,6 +400,15 @@ ALGORITHM DeleteHelper(node, word, index)
         return (not node.hasValue) and node에 자식이 하나도 없는가
     return false
 ```
+
+</Slide>
+
+<Slide>
+
+### 코드 한 줄씩: 삭제
+::sub[지우는 키에 따라 떼어 내는 노드가 다릅니다]
+
+<TrieWalkDemo op="delete" slide />
 
 </Slide>
 
@@ -436,6 +479,15 @@ nodes = 17
 <br/>
 
 실행 결과: `shells`(6글자)는 `visited 7`
+
+</Slide>
+
+<Slide>
+
+### 직접 세어 보기: 글자를 몇 번 보는가
+::sub[키가 늘어도, 접두사가 길어져도 트라이는 그대로입니다]
+
+<TrieCostDemo slide />
 
 </Slide>
 
@@ -526,8 +578,17 @@ space (R = 26, w = average key length)
 
 <Slide>
 
+### 직접 바꿔 보기: R을 줄이면
+::sub[노드마다 링크는 줄지만 깊이가 늘어납니다]
+
+<TrieRadixDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 한 걸음씩: 단일 분기 접기
-::sub[과도한 공간 사용의 가장 큰 이유는 링크를 하나만 쓰는 노드입니다]
+::sub[링크를 하나만 쓰는 노드가 공간을 가장 많이 씁니다 · 키 집합을 바꿔 보세요]
 
 <TrieCompressDemo slide />
 
@@ -585,10 +646,10 @@ space (R = 26, w = average key length)
 
 <Slide>
 
-#### 같은 여섯 키를 TST로
-::sub[첫 자리의 b, s, t가 이진 탐색 트리를 이룹니다 · 작은 점은 빈 링크]
+### 같은 여섯 키를 TST로
+::sub[트라이의 노드 하나가 작은 이진 탐색 트리가 됩니다 · 노드나 키를 눌러 보세요]
 
-<TrieFigure kind="tst" words={[["by", 4], ["sea", 2], ["sells", 1], ["she", 0], ["shells", 3], ["the", 5]]} counts slide />
+<TstMapDemo slide />
 
 </Slide>
 
@@ -651,21 +712,6 @@ typedef struct TSTNode {
 
 </Slide>
 
-<Slide>
-
-#### appliance를 넣을 때
-::sub[비교 한 번씩 짚어 보면]
-
-- `i`를 넣으려는데 `e`가 이미 있고 `e < i`
-  - 오른쪽으로 갑니다.
-- `i`를 넣으려는데 `i`가 이미 있고 `i == i`
-  - 여기서 다음 문자로 넘어갑니다.
-- `a`를 넣으려는데 `c`가 이미 있고 `a < c`
-  - 왼쪽으로 갑니다.
-- 그 자리가 비어 있으므로 `a n c e`를 새 노드로 채웁니다.
-
-</Slide>
-
 <Slide class="compact">
 
 #### 삽입을 코드로
@@ -690,6 +736,15 @@ ALGORITHM Insert(root, word, value, index)
 
 </Slide>
 
+<Slide>
+
+### 코드 한 줄씩: TST 삽입
+::sub[appliance를 넣기 전 상태입니다 · 글자 칸은 가운데로 갈 때만 넘어갑니다]
+
+<TstWalkDemo op="insert" word="appliance" value={60} prefill={5} slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## TST 검색과 접두사 검색
@@ -703,6 +758,15 @@ ALGORITHM Insert(root, word, value, index)
 ::sub[applaud는 왼쪽으로 한 번, apply는 오른쪽으로 두 번 비켜 갑니다]
 
 <TstDemo mode="search" slide />
+
+</Slide>
+
+<Slide>
+
+### 코드 한 줄씩: TST 검색
+::sub[같은 규칙으로 찾습니다 · 키를 바꿔 보세요]
+
+<TstWalkDemo op="search" slide />
 
 </Slide>
 
@@ -748,6 +812,15 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 
 </Slide>
 
+<Slide>
+
+### 코드 한 줄씩: TST 접두사
+::sub[왼쪽, 자기, 가운데, 오른쪽 · 접두사를 바꿔 보세요]
+
+<TstWalkDemo op="prefix" slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 실행
@@ -771,6 +844,15 @@ space (3 links per node)
   apple..   7     24     72     49      12
   sorted    7     24     72     49      15
 ```
+
+</Slide>
+
+<Slide>
+
+### 한 걸음씩: TST와 넣는 순서
+::sub[노드와 링크는 그대로인데 높이가 바뀝니다]
+
+<TstOrderDemo slide />
 
 </Slide>
 
@@ -825,6 +907,15 @@ space (3 links per node)
 
 <Slide>
 
+### 직접 세어 보기: 옆으로 비켜 가는 몫
+::sub[무작위 키로 TST를 만들어 1000번 찾기]
+
+<TstCostDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 트레이드오프
 ::sub[무엇을 아끼고 무엇을 내주는가]
 
@@ -865,6 +956,15 @@ space (3 links per node)
 - **주제 09 MSD 기수 정렬**
   - 첫 문자로 나누고, 같은 묶음 안에서 다음 문자로 나눕니다.
   - 트라이를 위에서부터 만드는 것과 같은 모양입니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 바꿔 보기: MSD의 묶음과 트라이의 층
+::sub[묶음 하나가 노드 하나입니다 · 글자 수를 늘려 보세요]
+
+<TrieMsdDemo slide />
 
 </Slide>
 

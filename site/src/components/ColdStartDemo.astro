@@ -11,7 +11,11 @@
 // 절차와 수치는 algorithm-code의 collaborativeFiltering.c(피어슨, k = 3:
 // M3 4.464, M6 1.536)와 contentBasedFiltering.c(M3 0.802, M7 0.764,
 // M6 0.189)와 같다.
+//
+// 영화 표(RecMovieKey)를 데모 안에 둔다. 콘텐츠 점수를 보일 때는 점수의 재료인 장르까지
+// 함께 보이고, 대상의 빈칸인 영화의 줄을 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RecMovieKey from './RecMovieKey.astro';
 
 interface Props {
   /** 콘텐츠 기반 점수 열도 보여 줄지 */
@@ -181,6 +185,7 @@ const items = features.map((_, i) => `M${i + 1}`);
 
     <div class="csd-result">
       <p class="csd-legend">{content ? t.legend : t.legendCf}</p>
+      <RecMovieKey items={7} genres={content} />
       <p class="csd-meta"><span>{t.neighbors}</span> <strong data-csd-nb></strong></p>
       {content && <p class="csd-meta"><span>{t.profile}</span> <strong data-csd-prof></strong></p>}
       <p class="csd-note" data-csd-note></p>
@@ -295,6 +300,7 @@ const items = features.map((_, i) => `M${i + 1}`);
     const profEl = root.querySelector('[data-csd-prof]');
     const note = root.querySelector('[data-csd-note]');
     const toggles = [...root.querySelectorAll('[data-csd-toggle]')];
+    const keyCells = [...root.querySelectorAll('[data-rk-item]')];
 
     function render() {
       const st = compute();
@@ -306,6 +312,7 @@ const items = features.map((_, i) => `M${i + 1}`);
         h.classList.toggle('is-nb', st.nb.includes(u));
       });
       colHeads.forEach((h, i) => h.classList.toggle('is-blank', st.blanks.includes(i)));
+      keyCells.forEach((c) => c.classList.toggle('is-now', st.blanks.includes(Number(c.dataset.rkItem))));
       cells.forEach((el, key) => {
         const [u, i] = key.split('-').map(Number);
         const x = R[u][i];
@@ -474,6 +481,7 @@ const items = features.map((_, i) => `M${i + 1}`);
     gap: 0.25em;
     font-family: var(--aas-mono, monospace);
   }
+  .aas-cold-demo:not(.show-item) .rk-new,
   .aas-cold-demo:not(.show-item) .is-new-col,
   .aas-cold-demo:not(.show-user) .is-new-row {
     display: none;
@@ -561,6 +569,9 @@ const items = features.map((_, i) => `M${i + 1}`);
     flex: 1 1 14em;
     max-width: 30em;
   }
+  .aas-cold-demo .aas-rec-key {
+    margin: 0.4em 0;
+  }
   .aas-cold-demo .csd-legend {
     margin: 0;
     font-size: 0.8em;
@@ -585,7 +596,7 @@ const items = features.map((_, i) => `M${i + 1}`);
 
   /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
   .aas-cold-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.75vh, 2rem);
     margin: 0.5rem 0;
   }
   .aas-cold-demo.is-slide .csd-cell {

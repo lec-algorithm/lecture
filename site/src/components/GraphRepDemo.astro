@@ -58,7 +58,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     none: '(없음)',
     stats: '간선 {m}개 · 행렬 {nn}칸 중 1이 {ones}칸 · 목록은 정점 {n}칸 + 이웃 {ones}칸',
     idle: '01_bfs와 같은 그래프입니다. 무방향 간선 하나가 행렬에서는 대칭인 두 칸, 목록에서는 양 끝의 목록에 한 칸씩입니다.',
-    scan: '{v}의 이웃 찾기: 행렬은 {v}행 {n}칸을 모두 봐야 하고, 목록은 이웃 {d}칸만 봅니다.',
+    scan: '{v}의 이웃 찾기: 간선 목록은 {m}칸 전부, 행렬은 {v}행 {n}칸 전부를 봐야 합니다. 인접 목록은 이웃 {d}칸만 봅니다.',
     scanNone: '{v}의 이웃 찾기: 행렬은 {v}행 {n}칸을 모두 보고서야 이웃이 없다는 것을 압니다. 목록은 비어 있으니 바로 압니다.',
     add: '간선 {e} 넣기: 행렬은 [{a}][{b}], [{b}][{a}] 두 칸을 1로 바꾸고, 목록은 {a}·{b}의 목록 끝에 하나씩 붙입니다. 둘 다 O(1)입니다.',
     del: '간선 {e} 빼기: 행렬은 두 칸을 0으로 바꾸면 끝입니다. 목록은 {a}와 {b}의 목록에서 그 이웃을 찾아 지워야 해서 차수만큼 봅니다.',
@@ -75,7 +75,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     none: '(none)',
     stats: '{m} edges · {ones} of {nn} matrix cells are 1 · the list has {n} vertex slots + {ones} neighbour slots',
     idle: 'The same graph as 01_bfs. One undirected edge is two symmetric cells in the matrix and one slot in each end’s list.',
-    scan: 'Neighbours of {v}: the matrix has to read all {n} cells of row {v}, the list reads only its {d} neighbours.',
+    scan: 'Neighbours of {v}: the edge list has to read all {m} pairs and the matrix all {n} cells of row {v}. The adjacency list reads only its {d} neighbours.',
     scanNone: 'Neighbours of {v}: the matrix reads all {n} cells of row {v} before it knows there are none. The list is empty, so it knows at once.',
     add: 'Add edge {e}: the matrix sets cells [{a}][{b}] and [{b}][{a}] to 1, and the lists of {a} and {b} each get one entry at the end. Both are O(1).',
     del: 'Remove edge {e}: the matrix just sets two cells to 0. The list has to find that neighbour in the lists of {a} and {b}, which costs the degree.',
@@ -92,7 +92,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     none: '（无）',
     stats: '{m} 条边 · 矩阵 {nn} 格中 {ones} 格为 1 · 邻接表有顶点 {n} 格 + 邻居 {ones} 格',
     idle: '与 01_bfs 相同的图。一条无向边在矩阵中是对称的两格，在邻接表中是两端各一格。',
-    scan: '找 {v} 的邻居：矩阵要看完第 {v} 行全部 {n} 格，邻接表只看 {d} 个邻居。',
+    scan: '找 {v} 的邻居：边列表要看完全部 {m} 项，矩阵要看完第 {v} 行全部 {n} 格。邻接表只看 {d} 个邻居。',
     scanNone: '找 {v} 的邻居：矩阵看完第 {v} 行全部 {n} 格才知道没有邻居。邻接表是空的，马上就知道。',
     add: '加入边 {e}：矩阵把 [{a}][{b}] 和 [{b}][{a}] 两格改为 1，邻接表在 {a} 和 {b} 的表尾各加一项。两者都是 O(1)。',
     del: '删除边 {e}：矩阵把两格改为 0 就行。邻接表要在 {a} 和 {b} 的表中找到该邻居再删，代价是度。',
@@ -258,6 +258,7 @@ const idx = Array.from({ length: n }, (_, v) => v);
               const s = document.createElement('span');
               s.className = 'gr-chip';
               if (k === hit) s.classList.add('is-hit');
+              if (sel >= 0) s.classList.add('is-scan');
               s.textContent = k;
               return s;
             })
@@ -302,7 +303,7 @@ const idx = Array.from({ length: n }, (_, v) => v);
       sel = sel === v ? -1 : v;
       hit = null;
       const d = sel >= 0 ? L[sel].length : 0;
-      note = sel < 0 ? S.idle : fill(d ? S.scan : S.scanNone, { v: sel, n, d });
+      note = sel < 0 ? S.idle : fill(d ? S.scan : S.scanNone, { v: sel, n, d, m: order.length });
       render();
     }
 
@@ -515,6 +516,9 @@ const idx = Array.from({ length: n }, (_, v) => v);
     border-radius: 0.25em;
     background: var(--aas-bg);
   }
+  .aas-graph-rep-demo .gr-chip.is-scan {
+    background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
   .aas-graph-rep-demo .gr-chip.is-hit {
     background: var(--aas-role-eval);
     border-color: var(--aas-role-eval);
@@ -561,7 +565,7 @@ const idx = Array.from({ length: n }, (_, v) => v);
   .aas-graph-rep-demo.is-slide {
     width: 100%;
     box-sizing: border-box;
-    font-size: clamp(1rem, 2.9vh, 2rem);
+    font-size: clamp(1rem, 2.7vh, 1.85rem);
     margin: 0.5rem 0;
   }
   .aas-graph-rep-demo.is-slide .gr-body {

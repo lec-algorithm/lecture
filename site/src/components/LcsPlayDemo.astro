@@ -1,0 +1,442 @@
+---
+// 두 문자열과 두 규칙을 직접 바꾸며 LCS의 답이 맞는지 확인하는 데모.
+//
+// T = S1 + "#" + S2 + "$"의 접미사 배열과 LCP를 정말 계산한다. 구분자를 빼거나 "서로 다른
+// 문자열의 이웃만" 규칙을 끄면 답이 틀어지는 것을 동적 계획법으로 구한 진짜 LCS와 견주어
+// 보인다. 구분자를 빼면 공통 접두사가 S1의 끝을 넘어 S2로 이어지고(ab와 cabc에서 abc), 규칙을
+// 끄면 한 문자열 안의 반복이 답이 된다(mississippi에서 issi). 두 규칙을 다 켠 값은 06_lcs와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './suffixAlgos.js?raw';
+import SuffixStrip from './SuffixStrip.astro';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `lc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LCS 직접 찾기',
+    sep: '구분자 #',
+    filter: '서로 다른 문자열의 이웃만',
+    on: '켬',
+    off: '끔',
+    colJ: 'j',
+    colSa: 'SA',
+    colFrom: '출처',
+    colLcp: 'LCP',
+    colSuffix: '접미사',
+    from: '출처',
+    answerLabel: '이 방법의 답',
+    truthLabel: '진짜 LCS',
+    empty: '(없음)',
+    ok: '답이 맞습니다. {a}는 두 문자열에 모두 나옵니다.',
+    badSep: '틀렸습니다. {a}는 S1에 없습니다. 구분자가 없어서 공통 접두사가 S1의 끝을 넘어 S2로 이어졌습니다.',
+    badFilter: '틀렸습니다. {a}는 S2에 없습니다. 한 문자열 안의 반복을 집었습니다. 그것은 LRS입니다.',
+    badBoth: '틀렸습니다. {a}는 두 문자열에 모두 나오지 않습니다.',
+    longer: '이 조합에서는 답의 길이가 진짜 LCS의 길이와 다릅니다.',
+    lucky: '이번에는 답이 우연히 맞았습니다. 규칙을 끈 채로 다른 문자열을 넣어 보세요.',
+  },
+  en: {
+    title: 'Find the LCS yourself',
+    sep: 'Separator #',
+    filter: 'Only pairs from different strings',
+    on: 'on',
+    off: 'off',
+    colJ: 'j',
+    colSa: 'SA',
+    colFrom: 'src',
+    colLcp: 'LCP',
+    colSuffix: 'suffix',
+    from: 'src',
+    answerLabel: 'This method says',
+    truthLabel: 'True LCS',
+    empty: '(none)',
+    ok: 'Correct. {a} appears in both strings.',
+    badSep: 'Wrong. {a} is not in S1. Without a separator, the common prefix ran past the end of S1 into S2.',
+    badFilter: 'Wrong. {a} is not in S2. It picked a repeat inside one string. That is the LRS.',
+    badBoth: 'Wrong. {a} does not appear in both strings.',
+    longer: 'With this combination, the answer length differs from the true LCS length.',
+    lucky: 'This time the answer is right by luck. Keep the rule off and try other strings.',
+  },
+  zh: {
+    title: '亲手找 LCS',
+    sep: '分隔符 #',
+    filter: '只看来自不同字符串的邻居',
+    on: '开',
+    off: '关',
+    colJ: 'j',
+    colSa: 'SA',
+    colFrom: '来源',
+    colLcp: 'LCP',
+    colSuffix: '后缀',
+    from: '来源',
+    answerLabel: '这种方法的答案',
+    truthLabel: '真正的 LCS',
+    empty: '（无）',
+    ok: '答案正确。{a} 在两个字符串里都出现。',
+    badSep: '错了。{a} 不在 S1 中。没有分隔符，公共前缀越过 S1 的结尾连到了 S2。',
+    badFilter: '错了。{a} 不在 S2 中。它选中了一个字符串内部的重复。那是 LRS。',
+    badBoth: '错了。{a} 并非在两个字符串里都出现。',
+    longer: '在这种组合下，答案的长度与真正的 LCS 长度不同。',
+    lucky: '这次答案碰巧是对的。保持规则关闭，再试试别的字符串。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const presets = [
+  ['mississippi', 'kiss'],
+  ['mississippi', 'sip'],
+  ['ab', 'cabc'],
+];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-lcs-play-demo', slide && 'is-slide']} id={id} data-lc-strings={JSON.stringify(t)}>
+  <div class="lc-bar">
+    <span class="lc-head"><strong>{t.title}</strong></span>
+    <div class="lc-chips">
+      {presets.map(([a, b]) => <button type="button" class="lc-chip" data-lc-a={a} data-lc-b={b}>{a} · {b}</button>)}
+    </div>
+  </div>
+  <div class="lc-inputs">
+    <label class="lc-input"><span>S1</span><input type="text" data-lc-in="a" value="mississippi" maxlength="14" spellcheck="false" autocomplete="off" /></label>
+    <label class="lc-input"><span>S2</span><input type="text" data-lc-in="b" value="kiss" maxlength="14" spellcheck="false" autocomplete="off" /></label>
+    <button type="button" class="lc-toggle" data-lc-toggle="sep">{t.sep}: <b></b></button>
+    <button type="button" class="lc-toggle" data-lc-toggle="filter">{t.filter}: <b></b></button>
+  </div>
+
+  <div class="lc-strip"><SuffixStrip /></div>
+
+  <div class="lc-table" data-lc-table></div>
+
+  <div class="lc-answers">
+    <span>{t.answerLabel} <strong data-lc-ans></strong></span>
+    <span>{t.truthLabel} <strong data-lc-truth></strong></span>
+  </div>
+  <p class="lc-note" data-lc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const S = JSON.parse(root.dataset.lcStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const { buildSA, kasai, drawStrip, markStrip, cleanWord } = globalThis.aasSuffixAlgos;
+
+    const inA = root.querySelector('[data-lc-in="a"]');
+    const inB = root.querySelector('[data-lc-in="b"]');
+    const tableEl = root.querySelector('[data-lc-table]');
+    const strip = root.querySelector('[data-ss]');
+    const note = root.querySelector('[data-lc-note]');
+    const useSep = { sep: true, filter: true };
+
+    /* 진짜 LCS 길이: 동적 계획법 */
+    function trueLcs(a, b) {
+      let best = 0;
+      let at = 0;
+      const prev = new Array(b.length + 1).fill(0);
+      for (let i = 1; i <= a.length; i++) {
+        let diag = 0;
+        for (let j = 1; j <= b.length; j++) {
+          const up = prev[j];
+          prev[j] = a[i - 1] === b[j - 1] ? diag + 1 : 0;
+          if (prev[j] > best) {
+            best = prev[j];
+            at = i;
+          }
+          diag = up;
+        }
+      }
+      return a.slice(at - best, at);
+    }
+
+    function render() {
+      const a = cleanWord(inA.value, 14) || 'a';
+      const b = cleanWord(inB.value, 14) || 'a';
+      const T = useSep.sep ? `${a}#${b}$` : `${a}${b}$`;
+      const n = T.length;
+      const L = a.length;
+      const origin = (p) => {
+        if (p === n - 1) return 0;
+        if (p < L) return 1;
+        if (useSep.sep && p === L) return 0;
+        return 2;
+      };
+      const sa = buildSA(T);
+      const { lcp } = kasai(T, sa);
+      let best = 0;
+      let at = 0;
+      for (let j = 1; j < n; j++) {
+        const f = origin(sa[j]);
+        const g = origin(sa[j - 1]);
+        const cand = useSep.filter ? f !== 0 && g !== 0 && f !== g : true;
+        if (cand && lcp[j] > best) {
+          best = lcp[j];
+          at = j;
+        }
+      }
+      const ans = best > 0 ? T.slice(sa[at], sa[at] + best) : '';
+      const truth = trueLcs(a, b);
+      const shown = (s) => (s.length > 15 ? `${s.slice(0, 14)}…` : s);
+      const headRow = (brk) => `<div class="lc-row lc-headrow${brk ? ' is-break' : ''}"><i>${S.colJ}</i><i>${S.colSa}</i><span>${S.colFrom}</span><b>${S.colLcp}</b><span>${S.colSuffix}</span></div>`;
+      const half = Math.ceil(n / 2);
+      tableEl.innerHTML = sa
+        .map((p, j) => {
+          const f = origin(p);
+          const g = j > 0 ? origin(sa[j - 1]) : 0;
+          const cand = j > 0 && (useSep.filter ? f !== 0 && g !== 0 && f !== g : true);
+          const isAns = best > 0 && (j === at || j === at - 1);
+          const suffix = shown(T.slice(p));
+          const hi = isAns ? Math.min(best, suffix.length) : 0;
+          const sufHtml = `<mark>${suffix.slice(0, hi)}</mark>${suffix.slice(hi)}`;
+          return `<div class="lc-row${isAns ? ' is-ans' : ''}${cand ? '' : ' is-skip'}"><i>${j}</i><i>${p}</i><span class="lc-o lc-o${f}">${f || '-'}</span><b>${j === 0 ? '-' : lcp[j]}</b><span class="lc-suf">${sufHtml}</span></div>`;
+        })
+        .map((row, j) => (j === 0 ? headRow(false) + row : n > 13 && j === half ? headRow(true) + row : row))
+        .join('');
+      tableEl.classList.toggle('is-two', n > 13);
+      const srcRow = { label: S.from, values: [...T].map((_, p) => origin(p) || '-') };
+      drawStrip(strip, T, [srcRow]);
+      const hitA = best > 0 ? Array.from({ length: best }, (_, k) => sa[at] + k) : [];
+      const hitB = best > 0 ? Array.from({ length: best }, (_, k) => sa[at - 1] + k) : [];
+      markStrip(strip, { 'is-a': hitA, 'is-b': hitB });
+      root.querySelector('[data-lc-ans]').textContent = ans || S.empty;
+      root.querySelector('[data-lc-truth]').textContent = truth || S.empty;
+
+      const inBoth = ans !== '' && a.includes(ans) && b.includes(ans);
+      const rightLen = ans.length === truth.length;
+      let msg;
+      if (ans === '') msg = truth === '' ? fill(S.ok, { a: S.empty }) : S.longer;
+      else if (inBoth && rightLen) msg = useSep.sep && useSep.filter ? fill(S.ok, { a: ans }) : join(fill(S.ok, { a: ans }), S.lucky);
+      else if (!inBoth && !a.includes(ans) && b.includes(ans)) msg = fill(S.badSep, { a: ans });
+      else if (!inBoth && a.includes(ans) && !b.includes(ans)) msg = fill(S.badFilter, { a: ans });
+      else if (!inBoth) msg = fill(useSep.sep ? S.badBoth : S.badSep, { a: ans });
+      else msg = S.longer;
+      setLines(note, msg);
+      root.classList.toggle('is-wrong', !(inBoth && rightLen) && !(ans === '' && truth === ''));
+
+      root.querySelectorAll('[data-lc-toggle]').forEach((btn) => {
+        const on = useSep[btn.dataset.lcToggle];
+        btn.classList.toggle('is-on', on);
+        btn.querySelector('b').textContent = on ? S.on : S.off;
+      });
+      root.querySelectorAll('[data-lc-a]').forEach((p) => p.classList.toggle('is-on', p.dataset.lcA === a && p.dataset.lcB === b));
+    }
+
+    root.querySelectorAll('[data-lc-a]').forEach((p) =>
+      p.addEventListener('click', () => {
+        inA.value = p.dataset.lcA;
+        inB.value = p.dataset.lcB;
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-lc-toggle]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        useSep[btn.dataset.lcToggle] = !useSep[btn.dataset.lcToggle];
+        render();
+      }),
+    );
+    inA.addEventListener('input', render);
+    inB.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-lcs-play-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lcs-play-demo .lc-bar,
+  .aas-lcs-play-demo .lc-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.7em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-lcs-play-demo .lc-inputs {
+    margin: 0.4em 0;
+    justify-content: flex-start;
+  }
+  .aas-lcs-play-demo .lc-head {
+    font-size: 0.95em;
+  }
+  .aas-lcs-play-demo .lc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-lcs-play-demo .lc-chip,
+  .aas-lcs-play-demo .lc-toggle {
+    padding: 0.2em 0.65em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lcs-play-demo .lc-chip {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lcs-play-demo .lc-chip:hover,
+  .aas-lcs-play-demo .lc-toggle:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lcs-play-demo .lc-chip.is-on,
+  .aas-lcs-play-demo .lc-toggle.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+  }
+  .aas-lcs-play-demo .lc-chip.is-on {
+    font-weight: 700;
+  }
+  .aas-lcs-play-demo .lc-input {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.82em;
+    font-weight: 700;
+  }
+  .aas-lcs-play-demo .lc-input input {
+    width: 8.5em;
+    padding: 0.15em 0.45em;
+    font: inherit;
+    font-weight: 400;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-lcs-play-demo .lc-input input:focus {
+    outline: 2px solid var(--aas-accent);
+    outline-offset: 1px;
+  }
+  .aas-lcs-play-demo .lc-strip .aas-suf-strip {
+    font-size: 0.66em;
+  }
+  .aas-lcs-play-demo .lc-table {
+    margin-top: 0.4em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.32;
+    min-height: calc(10 * 1.32em);
+  }
+  .aas-lcs-play-demo .lc-table.is-two {
+    column-count: 2;
+    column-gap: 1.6em;
+  }
+  .aas-lcs-play-demo .lc-row {
+    display: grid;
+    grid-template-columns: 1.7em 1.7em 2.2em 2.2em 1fr;
+    gap: 0.25em;
+    align-items: center;
+    padding: 0 0.3em;
+    break-inside: avoid;
+    border-radius: 0.2em;
+  }
+  .aas-lcs-play-demo .lc-headrow {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+    border-radius: 0;
+  }
+  .aas-lcs-play-demo .lc-headrow b {
+    font-weight: 400;
+  }
+  .aas-lcs-play-demo .lc-headrow span:nth-child(3) {
+    text-align: center;
+  }
+  .aas-lcs-play-demo .lc-headrow.is-break {
+    break-before: column;
+  }
+  .aas-lcs-play-demo .lc-row i {
+    font-style: normal;
+    text-align: right;
+    color: var(--aas-muted);
+  }
+  .aas-lcs-play-demo .lc-row b {
+    text-align: center;
+  }
+  .aas-lcs-play-demo .lc-row.is-skip {
+    opacity: 0.55;
+  }
+  .aas-lcs-play-demo .lc-row.is-ans {
+    opacity: 1;
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, transparent);
+  }
+  .aas-lcs-play-demo.is-wrong .lc-row.is-ans {
+    background: color-mix(in srgb, var(--aas-role-guard) 16%, transparent);
+  }
+  .aas-lcs-play-demo .lc-row mark {
+    color: inherit;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-eval) 34%, transparent);
+  }
+  .aas-lcs-play-demo.is-wrong .lc-row mark {
+    background: color-mix(in srgb, var(--aas-role-guard) 30%, transparent);
+  }
+  .aas-lcs-play-demo .lc-o {
+    text-align: center;
+    border-radius: 0.25em;
+    color: var(--aas-muted);
+  }
+  .aas-lcs-play-demo .lc-o1 {
+    color: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-lcs-play-demo .lc-o2 {
+    color: var(--aas-role-trace);
+    font-weight: 700;
+  }
+  .aas-lcs-play-demo .lc-suf {
+    white-space: pre;
+    overflow: hidden;
+  }
+  .aas-lcs-play-demo .lc-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.6em;
+    margin-top: 0.35em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-lcs-play-demo .lc-answers strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-lcs-play-demo.is-wrong [data-lc-ans] {
+    color: var(--aas-role-guard);
+  }
+  .aas-lcs-play-demo .lc-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-lcs-play-demo.is-slide {
+    font-size: clamp(1rem, 2.5vh, 1.7rem);
+    margin: 0.5rem 0;
+  }
+</style>

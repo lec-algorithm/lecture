@@ -1,0 +1,66 @@
+---
+// 지금 다루는 키를 글자 칸으로 보이는 띠. 몇 번째 글자를 보고 있는지 칠한다.
+//
+// 데모의 스크립트가 [data-tape] 안에 글자마다 <b>를 넣고 is-past(지난 글자), is-now(지금
+// 글자), is-miss(여기서 실패)를 단다. 트라이는 칸이 한 걸음마다 넘어가고, TST는 가운데로
+// 갈 때만 넘어간다.
+interface Props {
+  /** 띠 앞에 붙일 이름 */
+  label?: string;
+}
+const { label = 'word' } = Astro.props;
+---
+
+<span class="aas-key-tape">
+  <span class="kt2-label">{label}</span>
+  <span class="kt2-cells" data-tape></span>
+</span>
+
+<style is:global>
+  .aas-key-tape {
+    display: inline-flex;
+    gap: 0.5em;
+    align-items: center;
+    min-width: 0;
+    font-size: 0.8em;
+  }
+  .aas-key-tape .kt2-label {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-key-tape .kt2-cells {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.12em;
+    min-height: 1.5em;
+  }
+  .aas-key-tape .kt2-cells b {
+    display: inline-block;
+    width: 1.35em;
+    line-height: 1.4;
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+  }
+  .aas-key-tape .kt2-cells b.is-past {
+    color: var(--aas-muted);
+    background: color-mix(in srgb, var(--aas-role-model) 14%, var(--aas-bg));
+  }
+  .aas-key-tape .kt2-cells b.is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 35%, var(--aas-bg));
+  }
+  .aas-key-tape .kt2-cells b.is-miss {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 30%, var(--aas-bg));
+  }
+  .aas-key-tape .kt2-cells b.is-hit {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 30%, var(--aas-bg));
+  }
+</style>

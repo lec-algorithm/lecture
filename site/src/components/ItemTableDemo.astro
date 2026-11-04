@@ -1,0 +1,442 @@
+---
+// 아이템 유사도 표를 보고, 이 표가 왜 미리 계산해 두기 좋은지 재 보는 데모.
+//
+// 왼쪽은 영화 여섯 편의 코사인 표이고, 맨 위 줄은 A의 평점이다. ?를 누르면 그 빈칸을 고르고, 표에서 그
+// 줄의 A가 본 영화 중 가장 비슷한 k = 2편을 칠해 예측을 적는다. 숫자 칸을 누르면 A의 평점이 0→1→…→5→0으로 바뀌고,
+// 표의 값과 A의 사용자 유사도가 각각 얼마나 움직였는지 잰다. 슬라이더로 나머지 네 사람을 똑같이 n배
+// 늘리면, 영화의 평점이 많아질수록 한 사람이 표를 덜 흔드는 것이 숫자로 보인다. 사용자 유사도는 A와
+// 그 사람 둘만 보므로 그대로다.
+//
+// n = 1이면 algorithm-code의 아이템 기반 출력과 같다. M3: M4 0.845, M1 0.836 → 4.497,
+// M6: M5 0.909, M4 0.620 → 2.811. A의 M1을 5에서 1로 바꾸면 표는 n = 1에서 최대 0.156, n = 100에서
+// 0.002 움직이고, 사용자 코사인은 어느 n이든 최대 0.112 움직인다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RecMovieKey from './RecMovieKey.astro';
+import { RATINGS } from './recData';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `it-${Math.random().toString(36).slice(2, 9)}`;
+const nItems = RATINGS[0].length;
+const items = Array.from({ length: nItems }, (_, i) => i);
+const CROWD = [1, 10, 100, 1000];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '아이템 유사도 표',
+    crowd: '다른 사용자',
+    times: '{n}배 ({m}명)',
+    restore: '원래대로',
+    rowA: 'A',
+    tableMove: '표의 최대 변화',
+    userMove: 'A의 사용자 유사도 최대 변화',
+    idle: '물음표를 누르면 그 빈칸을 고릅니다. 숫자 칸을 누르면 A의 평점이 바뀝니다.',
+    predict: '{item} = ({terms}) / ({den}) = {p}',
+    noBlank: 'A가 모든 영화를 봐서 빈칸이 없습니다.',
+    pick: '{item} 줄에서 A가 본 영화 중 가장 비슷한 {list}의 값을 표에서 꺼내 씁니다.',
+    moved: 'A의 평점이 바뀌자 표는 최대 {d}, 사용자 유사도는 최대 {e} 움직였습니다.',
+    many: '평점이 많이 쌓인 영화일수록 한 사람이 표를 덜 흔듭니다. 그래서 미리 계산해 두기 좋습니다.',
+  },
+  en: {
+    title: 'Item similarity table',
+    crowd: 'other users',
+    times: '×{n} ({m} people)',
+    restore: 'Restore',
+    rowA: 'A',
+    tableMove: 'largest change in the table',
+    userMove: 'largest change in A’s user similarities',
+    idle: 'Click a question mark to choose that blank. Click a number to change A’s rating.',
+    predict: '{item} = ({terms}) / ({den}) = {p}',
+    noBlank: 'A has rated every movie, so there are no blanks.',
+    pick: 'In the {item} row, the values for {list}, the most similar movies A rated, are taken straight from the table.',
+    moved: 'After A’s rating changed, the table moved by at most {d}, and the user similarities by at most {e}.',
+    many: 'The more ratings a movie has, the less one person shakes the table. That is why it is good to compute ahead of time.',
+  },
+  zh: {
+    title: '物品相似度表',
+    crowd: '其他用户',
+    times: '{n} 倍（{m} 人）',
+    restore: '还原',
+    rowA: 'A',
+    tableMove: '表的最大变化',
+    userMove: 'A 的用户相似度最大变化',
+    idle: '点击问号选择那个空格。点击数字格子可以改 A 的评分。',
+    predict: '{item} = ({terms}) / ({den}) = {p}',
+    noBlank: 'A 看过了所有电影，没有空格。',
+    pick: '在 {item} 这一行，直接从表中取出 A 看过的电影里最相似的 {list} 的值。',
+    moved: 'A 的评分改变后，表最多变化 {d}，用户相似度最多变化 {e}。',
+    many: '评分积累得越多的电影，一个人对表的影响越小。所以适合预先计算。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-itemtab-demo', slide && 'is-slide']}
+  id={id}
+  data-it-ratings={JSON.stringify(RATINGS)}
+  data-it-crowd={JSON.stringify(CROWD)}
+  data-it-strings={JSON.stringify(t)}
+>
+  <div class="it-bar">
+    <span class="it-head"><strong>{t.title}</strong></span>
+    <label class="it-range">
+      {t.crowd} <strong data-it-cval></strong>
+      <input type="range" min="0" max={CROWD.length - 1} step="1" value="0" data-it-range />
+    </label>
+    <button type="button" class="it-btn" data-it-restore>{t.restore}</button>
+  </div>
+
+  <div class="it-body">
+    <div class="it-grid" style={`--it-n: ${nItems}`}>
+      <span class="it-rowhead is-a">{t.rowA}</span>
+      {items.map((i) => <button type="button" class="it-a" data-it-a={i} />)}
+      <span></span>
+      {items.map((i) => <span class="it-colhead" data-it-colhead={i}>M{i + 1}</span>)}
+      {
+        items.map((r) => (
+          <>
+            <span class="it-rowhead" data-it-rowhead={r}>M{r + 1}</span>
+            {items.map((c) => <span class:list={['it-sim', r === c && 'is-self']} data-it-sim={`${r}-${c}`} />)}
+          </>
+        ))
+      }
+    </div>
+    <div class="it-side">
+      <div class="it-stat"><span>{t.tableMove}</span><strong data-it-dtable>0.000</strong></div>
+      <div class="it-stat"><span>{t.userMove}</span><strong data-it-duser>0.000</strong></div>
+      <RecMovieKey genres />
+    </div>
+  </div>
+
+  <p class="it-formula" data-it-formula></p>
+  <p class="it-note" data-it-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const R = JSON.parse(root.dataset.itRatings);
+    const CROWD = JSON.parse(root.dataset.itCrowd);
+    const S = JSON.parse(root.dataset.itStrings);
+    const f3 = (x) => x.toFixed(3);
+    const A0 = R[0].slice();
+    const n = A0.length;
+    const others = R.slice(1);
+    const K = 2;
+
+    let A = A0.slice();
+    let times = 1;
+    let blank = 2;
+
+    /* 다른 사용자를 times배 늘린 행렬의 두 열 코사인. A는 한 사람 그대로다.
+       행을 실제로 복제한 것과 같은 값을 합으로 바로 구한다. */
+    function itemCos(a, x, y, mult) {
+      let dot = a[x] * a[y], nx = a[x] * a[x], ny = a[y] * a[y];
+      for (const row of others) {
+        dot += mult * row[x] * row[y];
+        nx += mult * row[x] * row[x];
+        ny += mult * row[y] * row[y];
+      }
+      return nx === 0 || ny === 0 ? 0 : dot / Math.sqrt(nx * ny);
+    }
+    function cosine(a, b) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
+    }
+
+    const simEls = [...root.querySelectorAll('[data-it-sim]')];
+    const aEls = [...root.querySelectorAll('[data-it-a]')];
+    const formula = root.querySelector('[data-it-formula]');
+    const note = root.querySelector('[data-it-note]');
+    const range = root.querySelector('[data-it-range]');
+    const keyCells = [...root.querySelectorAll('[data-rk-item]')];
+
+    function render() {
+      const blanks = A.map((_, i) => i).filter((i) => A[i] === 0);
+      if (!blanks.includes(blank)) blank = blanks.length ? blanks[0] : -1;
+
+      /* 지금 빈칸의 줄: A가 본 영화 중 코사인이 큰 순서로 k편 */
+      let near = [];
+      if (blank >= 0) {
+        near = A.map((_, j) => j)
+          .filter((j) => j !== blank && A[j] > 0)
+          .map((j) => [itemCos(A, blank, j, times), j])
+          .filter(([s]) => s > 0)
+          .sort((p, q) => q[0] - p[0])
+          .slice(0, K)
+          .map(([, j]) => j);
+      }
+      aEls.forEach((el) => {
+        const i = Number(el.dataset.itA);
+        el.textContent = A[i] === 0 ? '?' : String(A[i]);
+        el.classList.toggle('is-blank', A[i] === 0);
+        el.classList.toggle('is-sel', i === blank);
+        el.classList.toggle('is-near', near.includes(i));
+        el.classList.toggle('is-changed', A[i] !== A0[i]);
+      });
+      simEls.forEach((el) => {
+        const [r, c] = el.dataset.itSim.split('-').map(Number);
+        const s = itemCos(A, r, c, times);
+        el.textContent = f3(s);
+        el.style.setProperty('--it-heat', `${Math.round(Math.max(0, s) ** 3 * 60)}%`);
+        el.classList.toggle('is-row', r === blank);
+        el.classList.toggle('is-pick', r === blank && near.includes(c));
+      });
+      root.querySelectorAll('[data-it-rowhead]').forEach((h) => h.classList.toggle('is-on', Number(h.dataset.itRowhead) === blank));
+      root.querySelectorAll('[data-it-colhead]').forEach((h) => h.classList.toggle('is-on', near.includes(Number(h.dataset.itColhead))));
+      keyCells.forEach((c) => c.classList.toggle('is-now', Number(c.dataset.rkItem) === blank || near.includes(Number(c.dataset.rkItem))));
+
+      /* 처음 평점과 견준 변화. 표는 빈칸과 상관없이 전체에서, 사용자는 네 사람에서 */
+      let dTable = 0;
+      for (let x = 0; x < n; x++) {
+        for (let y = x + 1; y < n; y++) dTable = Math.max(dTable, Math.abs(itemCos(A, x, y, times) - itemCos(A0, x, y, times)));
+      }
+      let dUser = 0;
+      for (const row of others) dUser = Math.max(dUser, Math.abs(cosine(A, row) - cosine(A0, row)));
+      root.querySelector('[data-it-dtable]').textContent = f3(dTable);
+      root.querySelector('[data-it-duser]').textContent = f3(dUser);
+      root.querySelector('[data-it-cval]').textContent = fill(S.times, { n: times.toLocaleString('en-US'), m: (times * others.length).toLocaleString('en-US') });
+
+      const changed = A.some((x, i) => x !== A0[i]);
+      const iname = (i) => `M${i + 1}`;
+      if (blank < 0) {
+        formula.textContent = '';
+        setLines(note, join(S.noBlank, changed ? fill(S.moved, { d: f3(dTable), e: f3(dUser) }) : ''));
+        return;
+      }
+      const sims = near.map((j) => itemCos(A, blank, j, times));
+      const den = sims.reduce((a, b) => a + b, 0);
+      const num = near.reduce((sum, j, i) => sum + sims[i] * A[j], 0);
+      formula.textContent = den === 0 ? `${iname(blank)} = ?` : fill(S.predict, {
+        item: iname(blank),
+        terms: near.map((j, i) => `${f3(sims[i])}×${A[j]}`).join(' + '),
+        den: sims.map(f3).join(' + '),
+        p: f3(num / den),
+      });
+      const pick = fill(S.pick, { item: iname(blank), list: near.map(iname).join('·') });
+      setLines(note, changed ? join(fill(S.moved, { d: f3(dTable), e: f3(dUser) }), S.many) : join(pick, S.idle));
+    }
+
+    aEls.forEach((el) =>
+      el.addEventListener('click', () => {
+        const i = Number(el.dataset.itA);
+        /* 아직 고르지 않은 ?는 고르기만 한다. 나머지는 평점을 올리고, 0이 되면 그 빈칸을 고른다. */
+        if (A[i] === 0 && blank !== i) blank = i;
+        else {
+          A[i] = (A[i] + 1) % 6;
+          if (A[i] === 0) blank = i;
+        }
+        render();
+      }),
+    );
+    range.addEventListener('input', () => {
+      times = CROWD[Number(range.value)];
+      render();
+    });
+    root.querySelector('[data-it-restore]').addEventListener('click', () => {
+      A = A0.slice();
+      times = 1;
+      blank = 2;
+      range.value = '0';
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-itemtab-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-itemtab-demo .it-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-itemtab-demo .it-head {
+    font-size: 0.95em;
+  }
+  .aas-itemtab-demo .it-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-itemtab-demo .it-range strong {
+    min-width: 7.5em;
+    color: var(--aas-role-focus);
+  }
+  .aas-itemtab-demo .it-range input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-itemtab-demo .it-btn {
+    padding: 0.3em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-itemtab-demo .it-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-itemtab-demo .it-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.8em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-itemtab-demo .it-grid {
+    display: grid;
+    grid-template-columns: 2.2em repeat(var(--it-n), minmax(2.8em, 3.4em));
+    gap: 0.2em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-itemtab-demo .it-colhead,
+  .aas-itemtab-demo .it-rowhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-itemtab-demo .it-colhead.is-on {
+    color: var(--aas-role-eval);
+  }
+  .aas-itemtab-demo .it-rowhead.is-on {
+    color: var(--aas-role-focus);
+  }
+  .aas-itemtab-demo .it-rowhead.is-a {
+    color: var(--aas-role-focus);
+    font-size: 0.9em;
+  }
+  .aas-itemtab-demo .it-a {
+    height: 1.7em;
+    padding: 0;
+    font-family: inherit;
+    font-size: 0.95em;
+    font-weight: 700;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-itemtab-demo .it-a:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-itemtab-demo .it-a.is-blank {
+    color: var(--aas-role-focus);
+    border-style: dashed;
+    border-color: var(--aas-role-focus);
+  }
+  .aas-itemtab-demo .it-a.is-sel {
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+  }
+  .aas-itemtab-demo .it-a.is-near {
+    box-shadow: 0 0 0 2px var(--aas-role-eval);
+  }
+  .aas-itemtab-demo .it-a.is-changed {
+    color: var(--aas-role-source);
+  }
+  .aas-itemtab-demo .it-sim {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.9em;
+    font-size: 0.78em;
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--aas-role-model) var(--it-heat, 0%), var(--aas-bg));
+    transition: background-color 0.2s;
+  }
+  .aas-itemtab-demo .it-sim.is-self {
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+  }
+  .aas-itemtab-demo .it-sim.is-row {
+    box-shadow: inset 0 0 0 1px var(--aas-role-focus);
+  }
+  .aas-itemtab-demo .it-sim.is-pick {
+    box-shadow: 0 0 0 2px var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-itemtab-demo .it-side {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .aas-itemtab-demo .it-stat {
+    display: flex;
+    gap: 0.6em;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-itemtab-demo .it-stat strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.3em;
+    color: var(--aas-role-focus);
+  }
+  .aas-itemtab-demo .it-side .aas-rec-key {
+    margin-top: 0.4em;
+  }
+  .aas-itemtab-demo .it-formula {
+    margin: 0.5em 0 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    font-weight: 700;
+    min-height: 1.4em;
+  }
+  .aas-itemtab-demo .it-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-text);
+    min-height: 2.6em;
+  }
+
+  /* 슬라이드용. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-itemtab-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-itemtab-demo .it-sim {
+      transition: none;
+    }
+  }
+</style>

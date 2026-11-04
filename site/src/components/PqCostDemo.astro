@@ -1,0 +1,353 @@
+---
+// Dijkstra의 우선순위 큐를 무엇으로 만들지 V와 E로 견주는 데모.
+//
+// 슬라이더로 정점 수 V와 간선 수 E를 고르면 표의 합계 공식을 그대로 계산해 막대로
+// 보인다(상수를 뺀 값이다). 막대는 로그 눈금이다.
+//   정렬 안 된 배열 V², 이진 힙 E log₂ V, d-way 힙 E log_{E/V} V (E/V가 2보다
+//   작으면 d = 2), 피보나치 힙 E + V log₂ V
+// 배열과 이진 힙이 만나는 곳은 E = V² / log₂ V다. V = 1000이면 약 100,343이다.
+// 그래서 밀집 그래프는 배열, 희소 그래프는 이진 힙이 낫다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `pc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '우선순위 큐 고르기',
+    v: '정점 V',
+    e: '간선 E',
+    sparse: '희소 E = 3V',
+    dense: '밀집 E = V(V-1)',
+    array: '정렬 안 된 배열',
+    binary: '이진 힙',
+    dway: 'd-way 힙',
+    fib: '피보나치 힙',
+    best: '가장 작음',
+    cross: '배열과 이진 힙이 만나는 E는 약 {c}입니다.',
+    arrWins: '지금 E는 그보다 커서 배열이 이진 힙보다 작습니다.',
+    binWins: '지금 E는 그보다 작아서 이진 힙이 배열보다 작습니다.',
+    constNote: '상수를 뺀 공식의 값이라 실제 시간의 순위와는 다를 수 있습니다.',
+  },
+  en: {
+    title: 'Choosing the priority queue',
+    v: 'vertices V',
+    e: 'edges E',
+    sparse: 'Sparse E = 3V',
+    dense: 'Dense E = V(V-1)',
+    array: 'Unsorted array',
+    binary: 'Binary heap',
+    dway: 'd-way heap',
+    fib: 'Fibonacci heap',
+    best: 'smallest',
+    cross: 'The array and the binary heap meet at about E = {c}.',
+    arrWins: 'E is above that now, so the array beats the binary heap.',
+    binWins: 'E is below that now, so the binary heap beats the array.',
+    constNote: 'These formulas drop the constants, so real running times may rank differently.',
+  },
+  zh: {
+    title: '选择优先队列',
+    v: '顶点 V',
+    e: '边 E',
+    sparse: '稀疏 E = 3V',
+    dense: '稠密 E = V(V-1)',
+    array: '无序数组',
+    binary: '二叉堆',
+    dway: 'd 叉堆',
+    fib: '斐波那契堆',
+    best: '最小',
+    cross: '数组与二叉堆相交于 E 约为 {c}。',
+    arrWins: '现在的 E 比它大，所以数组比二叉堆小。',
+    binWins: '现在的 E 比它小，所以二叉堆比数组小。',
+    constNote: '这是去掉常数的公式值，实际运行时间的排名可能不同。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const ROWS = [
+  { k: 'array', name: t.array, formula: 'V²' },
+  { k: 'binary', name: t.binary, formula: 'E log<sub>2</sub> V' },
+  { k: 'dway', name: t.dway, formula: 'E log<sub>E/V</sub> V' },
+  { k: 'fib', name: t.fib, formula: 'E + V log<sub>2</sub> V' },
+];
+---
+
+<div class:list={['aas-pq-cost-demo', slide && 'is-slide']} id={id} data-pc-strings={JSON.stringify(t)}>
+  <div class="pc-bar">
+    <span class="pc-head"><strong>{t.title}</strong></span>
+    <div class="pc-controls">
+      <button type="button" class="pc-btn" data-pc-act="sparse">{t.sparse}</button>
+      <button type="button" class="pc-btn" data-pc-act="dense">{t.dense}</button>
+    </div>
+  </div>
+
+  <div class="pc-sliders">
+    <label class="pc-range">
+      {t.v} <strong data-pc-vval></strong>
+      <input type="range" min="1" max="6" step="0.25" value="3" data-pc-v />
+    </label>
+    <label class="pc-range">
+      {t.e} <strong data-pc-eval></strong>
+      <input type="range" min="0" max="100" step="1" value="10" data-pc-e />
+    </label>
+  </div>
+
+  <div class="pc-table">
+    {
+      ROWS.map((r) => (
+        <div class="pc-row" data-pc-row={r.k}>
+          <span class="pc-name">{r.name}</span>
+          <code set:html={r.formula} />
+          <i>
+            <u data-pc-bar />
+          </i>
+          <b data-pc-val />
+          <small data-pc-best>{t.best}</small>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="pc-note" data-pc-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.pcStrings);
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    const fmt = (x) => {
+      if (x < 1e7) return Math.round(x).toLocaleString('en-US');
+      const e = Math.floor(Math.log10(x));
+      return `${(x / 10 ** e).toFixed(1)} × 10${[...String(e)].map((d) => SUP[d]).join('')}`;
+    };
+
+    const vRange = root.querySelector('[data-pc-v]');
+    const eRange = root.querySelector('[data-pc-e]');
+    const rows = Object.fromEntries([...root.querySelectorAll('[data-pc-row]')].map((r) => [r.dataset.pcRow, r]));
+    const noteEl = root.querySelector('[data-pc-note]');
+
+    const getV = () => Math.round(10 ** Number(vRange.value));
+    /* E는 V에서 V(V-1)까지 로그 눈금으로 움직인다. 칩(희소, 밀집)은 E를 정확히 맞춘다. */
+    let chip = 'sparse';
+    const getE = (V) => {
+      if (chip === 'sparse') return Math.min(3 * V, V * (V - 1));
+      if (chip === 'dense') return V * (V - 1);
+      const lo = Math.log(V);
+      const hi = Math.log(V * (V - 1));
+      return Math.round(Math.exp(lo + ((hi - lo) * Number(eRange.value)) / 100));
+    };
+    const syncSlider = (V, E) => {
+      const lo = Math.log(V);
+      const hi = Math.log(V * (V - 1));
+      eRange.value = String(Math.round((100 * (Math.log(E) - lo)) / (hi - lo)));
+    };
+
+    function render() {
+      const V = getV();
+      const E = getE(V);
+      if (chip) syncSlider(V, E);
+      const d = Math.max(2, E / V);
+      const vals = {
+        array: V * V,
+        binary: E * Math.log2(V),
+        dway: (E * Math.log(V)) / Math.log(d),
+        fib: E + V * Math.log2(V),
+      };
+      const top = Math.max(...Object.values(vals));
+      const least = Math.min(...Object.values(vals));
+      Object.entries(vals).forEach(([k, x]) => {
+        const r = rows[k];
+        r.querySelector('[data-pc-val]').textContent = fmt(x);
+        r.querySelector('[data-pc-bar]').style.width = `${Math.max(2, (100 * Math.log(x)) / Math.log(top))}%`;
+        r.classList.toggle('is-best', x === least);
+      });
+      root.querySelector('[data-pc-vval]').textContent = fmt(V);
+      root.querySelector('[data-pc-eval]').textContent = fmt(E);
+      const cross = (V * V) / Math.log2(V);
+      setLines(
+        noteEl,
+        join(
+          fill(S.cross, { c: fmt(cross) }),
+          vals.array < vals.binary ? S.arrWins : vals.binary < vals.array ? S.binWins : '',
+          S.constNote,
+        ),
+      );
+    }
+
+    vRange.addEventListener('input', render);
+    eRange.addEventListener('input', () => {
+      chip = null;
+      render();
+    });
+    root.querySelector('[data-pc-act="sparse"]').addEventListener('click', () => {
+      chip = 'sparse';
+      render();
+    });
+    root.querySelector('[data-pc-act="dense"]').addEventListener('click', () => {
+      chip = 'dense';
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-pq-cost-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-pq-cost-demo .pc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-pq-cost-demo .pc-head {
+    font-size: 0.95em;
+  }
+  .aas-pq-cost-demo .pc-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-pq-cost-demo .pc-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-pq-cost-demo .pc-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-pq-cost-demo .pc-sliders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 2em;
+    margin: 0.6em 0;
+  }
+  .aas-pq-cost-demo .pc-range {
+    flex: 1 1 16em;
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-pq-cost-demo .pc-range strong {
+    min-width: 6.8em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.1em;
+  }
+  .aas-pq-cost-demo .pc-range input {
+    flex: 1 1 auto;
+    min-width: 0;
+    accent-color: var(--aas-accent);
+  }
+  .aas-pq-cost-demo .pc-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+    font-size: 0.85em;
+  }
+  .aas-pq-cost-demo .pc-row {
+    display: grid;
+    grid-template-columns: 8.5em 7em minmax(0, 1fr) 7.5em 3.8em;
+    gap: 0.7em;
+    align-items: center;
+    padding: 0.15em 0.4em;
+    border-radius: 0.35em;
+  }
+  .aas-pq-cost-demo .pc-row code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-pq-cost-demo .pc-row code sub {
+    font-size: 0.7em;
+  }
+  .aas-pq-cost-demo .pc-name {
+    white-space: nowrap;
+  }
+  .aas-pq-cost-demo .pc-row > i {
+    display: block;
+    height: 0.9em;
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-pq-cost-demo .pc-row u {
+    display: block;
+    height: 100%;
+    border-radius: 0.25em;
+    background: var(--aas-role-model);
+    transition: width 0.25s;
+  }
+  .aas-pq-cost-demo .pc-row > b {
+    font-family: var(--aas-mono, monospace);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .aas-pq-cost-demo .pc-row small {
+    visibility: hidden;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--aas-role-focus);
+    white-space: nowrap;
+  }
+  .aas-pq-cost-demo .pc-row.is-best {
+    background: color-mix(in srgb, var(--aas-role-focus) 12%, var(--aas-bg));
+  }
+  .aas-pq-cost-demo .pc-row.is-best small {
+    visibility: visible;
+  }
+  .aas-pq-cost-demo .pc-row.is-best u {
+    background: var(--aas-role-focus);
+  }
+  .aas-pq-cost-demo .pc-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-pq-cost-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-pq-cost-demo .pc-row u {
+      transition: none;
+    }
+  }
+</style>

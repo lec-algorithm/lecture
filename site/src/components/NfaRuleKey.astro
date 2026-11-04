@@ -1,0 +1,97 @@
+---
+// 정규식에서 NFA를 만드는 규칙 표. 데모 안에서 규칙을 바로 보게 한다.
+//
+// 데모가 [data-nk-rule]에 is-now를 달면 그 규칙의 열이 칠해진다. buttons를 주면 기호
+// 칸이 단추가 되어 데모가 눌림을 받을 수 있다. 뜻은 "만드는 법" 슬라이드와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 규칙 칸을 단추로 만든다. */
+  buttons?: boolean;
+}
+const { buttons = false } = Astro.props;
+const RULES: Record<string, Record<string, [string, string]>> = {
+  ko: {
+    match: ['글자 x', '읽고 i → i+1'],
+    sym: ['( ) *', '읽지 않고 i → i+1'],
+    star: ['x* (…)*', '시작 ↔ *'],
+    or: ['(A|B)', '( → B, | → )'],
+  },
+  en: {
+    match: ['char x', 'read, i → i+1'],
+    sym: ['( ) *', 'no read, i → i+1'],
+    star: ['x* (…)*', 'start ↔ *'],
+    or: ['(A|B)', '( → B, | → )'],
+  },
+  zh: {
+    match: ['字符 x', '读入，i → i+1'],
+    sym: ['( ) *', '不读，i → i+1'],
+    star: ['x* (…)*', '开始 ↔ *'],
+    or: ['(A|B)', '( → B, | → )'],
+  },
+};
+const LABELS: Record<string, { rule: string; edge: string }> = {
+  ko: { rule: '기호', edge: '전이' },
+  en: { rule: 'symbol', edge: 'transition' },
+  zh: { rule: '符号', edge: '转移' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const rows = Object.entries(RULES[lang] ?? RULES.ko);
+const l = LABELS[lang] ?? LABELS.ko;
+---
+
+<div class="aas-nfa-rule-key" style={`--nk-cols: ${rows.length}`}>
+  <span class="nk-label">{l.rule}</span>
+  {rows.map(([key, [sym]]) => buttons
+    ? <button type="button" class="nk-cell nk-sym" data-nk-rule={key} data-nk-pick={key}>{sym}</button>
+    : <code class="nk-cell nk-sym" data-nk-rule={key}>{sym}</code>)}
+  <span class="nk-label">{l.edge}</span>
+  {rows.map(([key, [, edge]]) => <span class="nk-cell" data-nk-rule={key}>{edge}</span>)}
+</div>
+
+<style is:global>
+  .aas-nfa-rule-key {
+    display: inline-grid;
+    grid-template-columns: auto repeat(var(--nk-cols), auto);
+    font-size: 0.68em;
+    line-height: 1.3;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-nfa-rule-key .nk-label {
+    padding: 0.05em 0.6em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-nfa-rule-key .nk-cell {
+    padding: 0.05em 0.55em;
+    text-align: center;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+  }
+  .aas-nfa-rule-key code.nk-sym,
+  .aas-nfa-rule-key button.nk-sym {
+    background: none;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    font-weight: 700;
+    border: none;
+  }
+  .aas-nfa-rule-key button.nk-sym {
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+  }
+  .aas-nfa-rule-key .nk-cell.is-now,
+  .aas-nfa-rule-key button.nk-sym.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-nfa-rule-key .nk-cell {
+      transition: none;
+    }
+  }
+</style>
