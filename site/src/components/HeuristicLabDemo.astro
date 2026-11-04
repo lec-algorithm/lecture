@@ -1,0 +1,536 @@
+---
+// 휴리스틱 값을 직접 고쳐 보며 허용성과 일관성을 재는 데모.
+//
+// 그래프는 Dijkstra·A* 예제(sp), 출발 0, 목표 6이다. 정점마다 h를 올리고 내리면
+// 그때마다 세 가지를 다시 계산한다.
+//   허용성: h(v) ≤ h*(v). h*는 목표에서 거꾸로 돌린 Dijkstra로 구한다
+//           (25 22 11 9 16 12 0 18).
+//   일관성: 모든 간선 u → v에서 h(u) ≤ w + h(v). 어긴 간선은 빨간 점선이다.
+//   A* 결과: 다시 열지 않을 때와 다시 열 때를 실제로 돌려 닫은 순서, 경로, 비용을 잰다.
+// 예제 h(14 10 4 2 11 6 0 8)에서는 4→5, 5→2를 어기고, 다시 열지 않으면 26(0 7 2 6),
+// 다시 열면 25(0 4 5 2 6)다. 07_a_star의 출력과 같다. h(4)를 9, h(5)를 5로 고치면
+// 일관적이 되어 다시 열지 않아도 25를 찾는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const g = getGraph('sp');
+const n = g.nodes.length;
+const id = `hl-${Math.random().toString(36).slice(2, 9)}`;
+const H0 = [14, 10, 4, 2, 11, 6, 0, 8];
+const GOAL = 6;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '휴리스틱 직접 고치기',
+    ex: '예제 h',
+    zero: 'h = 0',
+    star: 'h = h*',
+    over: 'h = 2h*',
+    vertex: '정점',
+    adm: '허용',
+    admissible: '허용적',
+    consistent: '일관적',
+    yes: '예',
+    no: '아니오',
+    runNo: '다시 열지 않음',
+    runYes: '다시 열기',
+    closes: '닫기',
+    path: '경로',
+    cost: '비용',
+    badEdges: '어긴 간선',
+    none: '없음',
+    bothOk: '허용적이고 일관적입니다. 다시 열지 않아도 최단 경로 25를 찾습니다.',
+    admOnly: '허용적이지만 일관적이지 않습니다. 다시 열기를 허용해야 25가 보장됩니다.',
+    notAdm: '허용적이지 않습니다. 남은 거리를 부풀리면 25를 보장하지 못합니다.',
+    lucky: '이번에는 다시 열지 않아도 25가 나왔지만, 일관적이지 않으면 보장은 없습니다.',
+    missed: '다시 열지 않은 실행은 {c}에 멈춰 최단 경로를 놓칩니다.',
+    missedBoth: '두 실행 모두 최단 경로 25를 놓칩니다.',
+  },
+  en: {
+    title: 'Edit the heuristic yourself',
+    ex: 'Example h',
+    zero: 'h = 0',
+    star: 'h = h*',
+    over: 'h = 2h*',
+    vertex: 'Vertex',
+    adm: 'ok',
+    admissible: 'admissible',
+    consistent: 'consistent',
+    yes: 'yes',
+    no: 'no',
+    runNo: 'No reopening',
+    runYes: 'Reopening',
+    closes: 'Closes',
+    path: 'Path',
+    cost: 'Cost',
+    badEdges: 'Violated edges',
+    none: 'none',
+    bothOk: 'Admissible and consistent. The shortest path 25 is found even without reopening.',
+    admOnly: 'Admissible but not consistent. Reopening must be allowed to guarantee 25.',
+    notAdm: 'Not admissible. Inflating the remaining distance cannot guarantee 25.',
+    lucky: 'No reopening also reached 25 this time, but without consistency there is no guarantee.',
+    missed: 'The run without reopening stops at {c} and misses the shortest path.',
+    missedBoth: 'Both runs miss the shortest path 25.',
+  },
+  zh: {
+    title: '亲手修改启发式',
+    ex: '示例 h',
+    zero: 'h = 0',
+    star: 'h = h*',
+    over: 'h = 2h*',
+    vertex: '顶点',
+    adm: '可采纳',
+    admissible: '可采纳',
+    consistent: '一致',
+    yes: '是',
+    no: '否',
+    runNo: '不重新打开',
+    runYes: '重新打开',
+    closes: '关闭',
+    path: '路径',
+    cost: '代价',
+    badEdges: '违反的边',
+    none: '无',
+    bothOk: '既可采纳又一致。不重新打开也能找到最短路径 25。',
+    admOnly: '可采纳但不一致。必须允许重新打开才能保证 25。',
+    notAdm: '不可采纳。放大剩余距离就无法保证 25。',
+    lucky: '这次不重新打开也得到了 25，但不一致就没有保证。',
+    missed: '不重新打开的运行停在 {c}，错过了最短路径。',
+    missedBoth: '两次运行都错过了最短路径 25。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const rows = Array.from({ length: n }, (_, v) => v);
+---
+
+<div
+  class:list={['aas-h-lab-demo', slide && 'is-slide']}
+  id={id}
+  data-hl-n={n}
+  data-hl-edges={JSON.stringify(g.edges)}
+  data-hl-h={JSON.stringify(H0)}
+  data-hl-goal={GOAL}
+  data-hl-strings={JSON.stringify(t)}
+>
+  <div class="hl-bar">
+    <span class="hl-head"><strong>{t.title}</strong></span>
+    <div class="hl-chips">
+      {['ex', 'zero', 'star', 'over'].map((k) => <button type="button" class="hl-chip" data-hl-set={k}>{t[k]}</button>)}
+    </div>
+  </div>
+
+  <div class="hl-body">
+    <div class="hl-graph">
+      <GraphFigure graph="sp" bare slide={slide} />
+    </div>
+    <div class="hl-panel">
+      <div class="hl-top">
+        <div class="hl-table" role="table">
+          <span class="hl-th">{t.vertex}</span><span class="hl-th">h</span><span class="hl-th">h*</span><span class="hl-th">{t.adm}</span>
+          {
+            rows.map((v) => (
+              <>
+                <span class="hl-v">{v}</span>
+                <span class="hl-step">
+                  {v === GOAL ? (
+                    <b data-hl-val={v} />
+                  ) : (
+                    <>
+                      <button type="button" class="hl-pm" data-hl-dec={v} aria-label={`h(${v}) -1`}>−</button>
+                      <b data-hl-val={v} />
+                      <button type="button" class="hl-pm" data-hl-inc={v} aria-label={`h(${v}) +1`}>+</button>
+                    </>
+                  )}
+                </span>
+                <span data-hl-star={v} />
+                <span data-hl-ok={v} />
+              </>
+            ))
+          }
+        </div>
+        <div class="hl-side">
+          <div class="hl-verdict">
+            <span>{t.admissible} <b data-hl-adm /></span>
+            <span>{t.consistent} <b data-hl-con /></span>
+          </div>
+          <div class="hl-bad">{t.badEdges}: <span data-hl-bad /></div>
+          <div class="hl-runs">
+            {
+              ['no', 'yes'].map((k) => (
+                <div class="hl-run" data-hl-run={k}>
+                  <strong>{k === 'no' ? t.runNo : t.runYes}</strong>
+                  <div>{t.closes} <code data-hl-closes /></div>
+                  <div>{t.path} <code data-hl-path /></div>
+                  <div>{t.cost} <b data-hl-cost /></div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+      <p class="hl-note" data-hl-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.hlStrings);
+    const n = Number(root.dataset.hlN);
+    const edges = JSON.parse(root.dataset.hlEdges);
+    const H0 = JSON.parse(root.dataset.hlH);
+    const goal = Number(root.dataset.hlGoal);
+    const START = 0;
+    const MAX_H = 60;
+
+    const adj = Array.from({ length: n }, () => []);
+    const back = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v, w]) => {
+      adj[u].push([v, w]);
+      back[v].push([u, w]);
+    });
+    adj.forEach((a) => a.sort((x, y) => x[0] - y[0]));
+
+    /* h*: 목표에서 거꾸로 돌린 Dijkstra */
+    const hs = new Array(n).fill(Infinity);
+    (() => {
+      const fin = new Array(n).fill(false);
+      hs[goal] = 0;
+      for (;;) {
+        let u = -1;
+        for (let v = 0; v < n; v++) if (!fin[v] && hs[v] < Infinity && (u < 0 || hs[v] < hs[u])) u = v;
+        if (u < 0) break;
+        fin[u] = true;
+        back[u].forEach(([v, w]) => {
+          if (hs[u] + w < hs[v]) hs[v] = hs[u] + w;
+        });
+      }
+    })();
+    const OPT = hs[START];
+
+    /* 절차는 aStar.pseudo와 같다. 같은 f면 먼저 넣은 항목이 먼저다. */
+    function astar(h, reopen) {
+      const gs = new Array(n).fill(Infinity);
+      const from = new Array(n).fill(-1);
+      const closed = new Array(n).fill(false);
+      const pq = [];
+      let seq = 0;
+      const seqList = [];
+      gs[START] = 0;
+      pq.push({ f: h[START], q: seq++, v: START });
+      while (pq.length) {
+        pq.sort((a, b) => a.f - b.f || a.q - b.q);
+        const { v: u } = pq.shift();
+        if (closed[u]) continue;
+        if (u === goal) {
+          const path = [];
+          for (let x = goal; x !== -1; x = from[x]) path.unshift(x);
+          return { closes: seqList, path, cost: gs[goal] };
+        }
+        closed[u] = true;
+        seqList.push(u);
+        adj[u].forEach(([v, w]) => {
+          const ng = gs[u] + w;
+          if (ng >= gs[v]) return;
+          if (closed[v] && !reopen) return;
+          closed[v] = false;
+          gs[v] = ng;
+          from[v] = u;
+          pq.push({ f: ng + h[v], q: seq++, v });
+        });
+      }
+      return { closes: seqList, path: [], cost: Infinity };
+    }
+
+    const SETS = { ex: H0.slice(), zero: H0.map(() => 0), star: hs.slice(), over: hs.map((x) => 2 * x) };
+    let h = SETS.ex.slice();
+    let active = 'ex';
+
+    const chips = [...root.querySelectorAll('[data-hl-set]')];
+    const edgeEls = new Map();
+    root.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const q = (s) => root.querySelector(s);
+    root.querySelectorAll('[data-hl-star]').forEach((el) => (el.textContent = String(hs[Number(el.dataset.hlStar)])));
+
+    function render() {
+      chips.forEach((c) => c.classList.toggle('is-on', c.dataset.hlSet === active));
+      h.forEach((x, v) => {
+        q(`[data-hl-val="${v}"]`).textContent = String(x);
+        const ok = x <= hs[v];
+        const o = q(`[data-hl-ok="${v}"]`);
+        o.textContent = ok ? '✓' : '✗';
+        o.classList.toggle('is-bad', !ok);
+        badgeEls[v].textContent = `h=${x}`;
+      });
+      const admOk = h.every((x, v) => x <= hs[v]);
+      const bad = edges.filter(([u, v, w]) => h[u] > w + h[v]);
+      const conOk = bad.length === 0;
+      const setFlag = (el, ok) => {
+        el.textContent = ok ? S.yes : S.no;
+        el.classList.toggle('is-bad', !ok);
+      };
+      setFlag(q('[data-hl-adm]'), admOk);
+      setFlag(q('[data-hl-con]'), conOk);
+      const list = bad.map(([u, v, w]) => `${u}→${v} (${h[u]} > ${w} + ${h[v]})`);
+      const SHOW = 3;
+      q('[data-hl-bad]').textContent = list.length
+        ? list.slice(0, SHOW).join(', ') + (list.length > SHOW ? ` +${list.length - SHOW}` : '')
+        : S.none;
+      const r = { no: astar(h, false), yes: astar(h, true) };
+      Object.entries(r).forEach(([k, x]) => {
+        const box = q(`[data-hl-run="${k}"]`);
+        box.querySelector('[data-hl-closes]').textContent = `${x.closes.join(' ')} (${x.closes.length})`;
+        box.querySelector('[data-hl-path]').textContent = x.path.join(' ');
+        const c = box.querySelector('[data-hl-cost]');
+        c.textContent = String(x.cost);
+        c.classList.toggle('is-bad', x.cost !== OPT);
+      });
+      const badSet = new Set(bad.map(([u, v]) => `${u}-${v}`));
+      const pathSet = new Set();
+      r.no.path.forEach((v, i) => i > 0 && pathSet.add(`${r.no.path[i - 1]}-${v}`));
+      edgeEls.forEach((el, key) => {
+        el.classList.toggle('is-reject', badSet.has(key) && !pathSet.has(key));
+        el.classList.toggle('is-tree', pathSet.has(key));
+      });
+      nodeEls.forEach((el, v) => el.classList.toggle('is-ring', v === START || v === goal));
+      const first = !admOk ? S.notAdm : conOk ? S.bothOk : S.admOnly;
+      let second = '';
+      if (r.no.cost !== OPT && r.yes.cost !== OPT) second = S.missedBoth;
+      else if (r.no.cost !== OPT) second = fill(S.missed, { c: r.no.cost });
+      else if (!conOk) second = S.lucky;
+      setLines(q('[data-hl-note]'), join(first, second));
+    }
+
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        active = c.dataset.hlSet;
+        h = SETS[active].slice();
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-hl-dec]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const v = Number(b.dataset.hlDec);
+        h[v] = Math.max(0, h[v] - 1);
+        active = null;
+        render();
+      }),
+    );
+    root.querySelectorAll('[data-hl-inc]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const v = Number(b.dataset.hlInc);
+        h[v] = Math.min(MAX_H, h[v] + 1);
+        active = null;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-h-lab-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-h-lab-demo .hl-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-h-lab-demo .hl-head {
+    font-size: 0.95em;
+  }
+  .aas-h-lab-demo .hl-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-h-lab-demo .hl-chip {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aas-h-lab-demo .hl-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-h-lab-demo .hl-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-h-lab-demo .hl-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.4em;
+    align-items: flex-start;
+  }
+  .aas-h-lab-demo .hl-graph {
+    flex: 1 1 20em;
+    max-width: 27em;
+  }
+  .aas-h-lab-demo .hl-panel {
+    flex: 1 1 18em;
+    min-width: 0;
+  }
+  .aas-h-lab-demo .hl-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.2em;
+    align-items: flex-start;
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
+  .aas-h-lab-demo .hl-table {
+    display: grid;
+    grid-template-columns: auto auto auto auto;
+    gap: 0 0.6em;
+    font-size: 0.8em;
+    font-family: var(--aas-mono, monospace);
+    text-align: center;
+    line-height: 1.5;
+  }
+  .aas-h-lab-demo .hl-table > * {
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-h-lab-demo .hl-th {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-h-lab-demo .hl-step {
+    display: inline-flex;
+    gap: 0.25em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-h-lab-demo .hl-step b {
+    min-width: 1.5em;
+  }
+  .aas-h-lab-demo .hl-pm {
+    width: 1.3em;
+    height: 1.3em;
+    padding: 0;
+    font: inherit;
+    line-height: 1;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-h-lab-demo .hl-pm:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-h-lab-demo .is-bad {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-h-lab-demo .hl-side {
+    flex: 1 1 14em;
+    min-width: 0;
+    font-size: 0.8em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+  }
+  .aas-h-lab-demo .hl-verdict {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 1.2em;
+    font-size: 1.05em;
+  }
+  .aas-h-lab-demo .hl-verdict b {
+    color: var(--aas-role-eval);
+  }
+  .aas-h-lab-demo .hl-verdict b.is-bad {
+    color: var(--aas-role-guard);
+  }
+  .aas-h-lab-demo .hl-bad {
+    color: var(--aas-muted);
+    min-height: 2.8em;
+  }
+  .aas-h-lab-demo .hl-bad span {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-h-lab-demo .hl-run {
+    padding: 0.2em 0.5em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    line-height: 1.35;
+  }
+  .aas-h-lab-demo .hl-run code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+  }
+  .aas-h-lab-demo .hl-run b {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.15em;
+  }
+  .aas-h-lab-demo .hl-note {
+    margin: 0.4em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-h-lab-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.85rem);
+    margin: 0.5rem 0;
+  }
+  .aas-h-lab-demo.is-slide .hl-body {
+    flex-wrap: nowrap;
+  }
+  .aas-h-lab-demo.is-slide .hl-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 44vh;
+  }
+  .aas-h-lab-demo.is-slide .aas-graph-figure .gf-badge {
+    font-size: 21px;
+  }
+  .aas-h-lab-demo.is-slide .hl-top {
+    flex-wrap: nowrap;
+  }
+</style>
