@@ -1,0 +1,403 @@
+---
+// 알파벳 크기 R을 바꾸면 트라이의 링크와 깊이가 어떻게 달라지는지 세어 보는 데모.
+//
+// 글자 a부터 z(0부터 25)를 R진수 자리로 풀어 쓰고, 그 자리들로 트라이를 실제로 만들어
+// 노드와 링크를 센다. R이 줄면 노드마다 링크는 줄지만 글자 하나가 여러 자리가 되어 노드 수와
+// 깊이가 늘어난다. 맨 아래 줄은 같은 키로 만든 TST다. 노드마다 링크가 3개면서 깊이는 거의
+// 늘지 않는다. 행을 누르면 고른 키가 그 R에서 어떤 자리들이 되는지 보인다.
+//
+// R = 26은 algorithm-code의 topic-10-trie/01_trie의 space 표와, TST 줄은 02_tst의 space 표와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+
+interface Props {
+  /** 처음 고른 R */
+  radix?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { radix = 26, slide = false } = Astro.props;
+const id = `tx-${Math.random().toString(36).slice(2, 9)}`;
+
+const SETS: Record<string, string[]> = {
+  six: ['by', 'sea', 'sells', 'she', 'shells', 'the'],
+  apple: ['apple', 'application', 'apply', 'applaud', 'applet', 'appliance', 'applicable'],
+};
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'R을 줄이면',
+    input: '키',
+    r: 'R',
+    digits: '글자당 자리',
+    nodes: '노드',
+    links: '링크 = 노드 × R',
+    height: '높이',
+    tst: 'TST (3개)',
+    hint: '행을 누르세요',
+    key: '가장 긴 키를 자리로 풀면',
+    noteMin: '링크가 가장 적은 트라이는 R = {r}의 {l}개입니다. 대신 높이가 R = 26의 {h0}에서 {h}로 늘어납니다.',
+    noteTst: 'TST는 노드마다 링크 3개인데 {l}개면 되고 높이는 {h}입니다. 글자 하나를 여러 자리로 풀지 않고 노드 하나로 두기 때문입니다.',
+    bad: '키를 쳐 보세요. a부터 z까지의 소문자만 씁니다.',
+  },
+  en: {
+    title: 'Shrinking R',
+    input: 'Keys',
+    r: 'R',
+    digits: 'digits per char',
+    nodes: 'nodes',
+    links: 'links = nodes × R',
+    height: 'height',
+    tst: 'TST (3)',
+    hint: 'click a row',
+    key: 'The longest key in digits',
+    noteMin: 'The trie with the fewest links is R = {r} with {l}. But its height grows from {h0} at R = 26 to {h}.',
+    noteTst: 'A TST has 3 links per node, yet needs only {l} at height {h}. It keeps each character as one node instead of splitting it into digits.',
+    bad: 'Type some keys. Only lowercase letters a to z are used.',
+  },
+  zh: {
+    title: '把 R 变小',
+    input: '键',
+    r: 'R',
+    digits: '每字符位数',
+    nodes: '节点',
+    links: '链接 = 节点 × R',
+    height: '高度',
+    tst: 'TST（3 个）',
+    hint: '点某一行',
+    key: '最长的键按位展开',
+    noteMin: '链接最少的字典树是 R = {r}，有 {l} 个。但高度从 R = 26 时的 {h0} 增加到 {h}。',
+    noteTst: 'TST 每个节点 3 个链接，却只要 {l} 个，高度 {h}。它不把字符拆成几位，一个字符就是一个节点。',
+    bad: '请输入键。只用小写字母 a 到 z。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const radixes = [2, 3, 4, 8, 16, 26];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-trie-radix-demo', slide && 'is-slide']} id={id} data-tx-config={JSON.stringify({ radix, radixes, sets: SETS })} data-tx-strings={JSON.stringify(t)}>
+  <div class="tx-bar">
+    <span class="tx-head"><strong>{t.title}</strong> <span class="tx-hint">{t.hint}</span></span>
+    <div class="tx-tabs">
+      <label class="tx-input">{t.input}<input type="text" data-tx-input autocomplete="off" spellcheck="false" /></label>
+      <button type="button" class="tx-tab" data-tx-tab="six">by..the</button>
+      <button type="button" class="tx-tab" data-tx-tab="apple">apple..</button>
+    </div>
+  </div>
+  <table class="tx-table">
+    <thead>
+      <tr>
+        <th>{t.r}</th>
+        <th>{t.digits}</th>
+        <th>{t.nodes}</th>
+        <th class="tx-wide">{t.links}</th>
+        <th class="tx-wide">{t.height}</th>
+      </tr>
+    </thead>
+    <tbody data-tx-rows></tbody>
+  </table>
+  <p class="tx-digits"><span>{t.key}</span> <span class="tx-digit-text" data-tx-digits></span></p>
+  <p class="tx-note" data-tx-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const cfg = JSON.parse(root.dataset.txConfig);
+    const S = JSON.parse(root.dataset.txStrings);
+    const { buildTst, tstHeight, cleanWords } = globalThis.aasTrieAlgos;
+
+    /* 글자 하나를 R진수 d자리로: 26칸을 담는 가장 작은 d */
+    function digitsPerChar(R) {
+      let d = 1;
+      let cap = R;
+      while (cap < 26) {
+        cap *= R;
+        d += 1;
+      }
+      return d;
+    }
+    function encode(ch, R, d) {
+      let x = ch.charCodeAt(0) - 97;
+      const out = [];
+      for (let i = 0; i < d; i++) {
+        out.unshift(x % R);
+        x = Math.floor(x / R);
+      }
+      return out;
+    }
+    /* plan:start (R진수 자리로 트라이를 실제로 만들어 센다) */
+    function count(words, R) {
+      const d = digitsPerChar(R);
+      const seen = new Set(['']);
+      let depth = 0;
+      for (const w of words) {
+        let path = '';
+        let lv = 0;
+        for (const ch of w) {
+          for (const x of encode(ch, R, d)) {
+            path += `${x},`;
+            lv += 1;
+            seen.add(path);
+          }
+        }
+        depth = Math.max(depth, lv);
+      }
+      return { R, d, nodes: seen.size, links: seen.size * R, height: depth + 1 };
+    }
+    /* plan:end */
+
+    const rowsBox = root.querySelector('[data-tx-rows]');
+    const input = root.querySelector('[data-tx-input]');
+    const digitsBox = root.querySelector('[data-tx-digits]');
+    const note = root.querySelector('[data-tx-note]');
+    let words = cfg.sets.six;
+    let tab = 'six';
+    let R = cfg.radix;
+
+    function render() {
+      const list = cfg.radixes.map((r) => count(words, r));
+      const tst = buildTst(words.map((w, i) => [w, i]));
+      const tstRow = { R: 'TST', d: 1, nodes: tst.size, links: tst.size * 3, height: tstHeight(tst) };
+      const rows = [...list, tstRow];
+      const maxLinks = Math.max(...rows.map((r) => r.links));
+      const maxH = Math.max(...rows.map((r) => r.height));
+      const bar = (v, max, cls) => {
+        const box = document.createElement('td');
+        box.className = 'tx-barcell';
+        const i = document.createElement('i');
+        i.className = cls;
+        i.style.width = `calc((100% - 3.2em) * ${v / max})`;
+        box.append(i, Object.assign(document.createElement('b'), { textContent: String(v) }));
+        return box;
+      };
+      rowsBox.replaceChildren(
+        ...rows.map((r) => {
+          const tr = document.createElement('tr');
+          const isTst = r.R === 'TST';
+          if (r.R === R) tr.className = 'is-now';
+          if (isTst) tr.className = 'is-tst';
+          const head = document.createElement('td');
+          if (isTst) head.textContent = S.tst;
+          else {
+            const b = Object.assign(document.createElement('button'), { type: 'button', className: 'tx-r', textContent: String(r.R) });
+            b.addEventListener('click', () => {
+              R = r.R;
+              render();
+            });
+            head.append(b);
+          }
+          tr.append(
+            head,
+            Object.assign(document.createElement('td'), { className: 'tx-num', textContent: isTst ? '-' : String(r.d) }),
+            Object.assign(document.createElement('td'), { className: 'tx-num', textContent: String(r.nodes) }),
+            bar(r.links, maxLinks, 'is-links'),
+            bar(r.height, maxH, 'is-height'),
+          );
+          return tr;
+        }),
+      );
+      const cur = list.find((r) => r.R === R);
+      const sample = words.reduce((a, b) => (b.length > a.length ? b : a), words[0]);
+      const d = cur.d;
+      digitsBox.replaceChildren(
+        Object.assign(document.createElement('b'), { textContent: sample }),
+        ` = ${[...sample].map((ch) => encode(ch, R, d).join(R > 9 ? '.' : '')).join(' ')}`,
+      );
+      const best = list.reduce((a, b) => (b.links < a.links ? b : a));
+      const base26 = list.find((r) => r.R === 26);
+      setLines(
+        note,
+        join(
+          fill(S.noteMin, { r: best.R, l: best.links, h0: base26.height, h: best.height }),
+          fill(S.noteTst, { l: tstRow.links, h: tstRow.height }),
+        ),
+      );
+      root.querySelectorAll('[data-tx-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.txTab === tab));
+    }
+    root.querySelectorAll('[data-tx-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        tab = b.dataset.txTab;
+        words = cfg.sets[tab];
+        input.value = words.join(' ');
+        render();
+      }),
+    );
+    input.addEventListener('input', () => {
+      const w = cleanWords(input.value).map((s) => s.slice(0, 12)).slice(0, 12);
+      if (w.length === 0) return setLines(note, S.bad);
+      words = w;
+      tab = '';
+      render();
+    });
+    input.value = words.join(' ');
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-trie-radix-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-radix-demo .tx-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.4em;
+  }
+  .aas-trie-radix-demo .tx-head {
+    font-size: 0.95em;
+  }
+  .aas-trie-radix-demo .tx-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-radix-demo .tx-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-trie-radix-demo .tx-input {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-right: 0.4em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-radix-demo .tx-input input {
+    width: 18em;
+    padding: 0.15em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.45em;
+  }
+  .aas-trie-radix-demo .tx-tab {
+    padding: 0.2em 0.7em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-radix-demo .tx-tab:hover,
+  .aas-trie-radix-demo .tx-r:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-radix-demo .tx-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-trie-radix-demo .tx-table {
+    width: 100% !important;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .aas-trie-radix-demo .tx-table th {
+    padding: 0.15em 0.5em;
+    font-size: 0.85em;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-trie-radix-demo .tx-table th.tx-wide {
+    width: 36%;
+  }
+  .aas-trie-radix-demo .tx-table td {
+    padding: 0.12em 0.5em;
+    border-bottom: 1px solid var(--aas-border);
+    font-family: var(--aas-mono, monospace);
+    white-space: nowrap;
+  }
+  .aas-trie-radix-demo .tx-table tr.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 20%, transparent);
+  }
+  .aas-trie-radix-demo .tx-table tr.is-tst {
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
+  }
+  .aas-trie-radix-demo .tx-r {
+    min-width: 2.6em;
+    padding: 0 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    font-weight: 700;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-radix-demo .tx-barcell i {
+    display: inline-block;
+    height: 0.7em;
+    margin-right: 0.4em;
+    border-radius: 0.2em;
+    transition: width 0.25s;
+  }
+  .aas-trie-radix-demo .tx-barcell i.is-links {
+    background: var(--aas-role-model);
+  }
+  .aas-trie-radix-demo .tx-barcell i.is-height {
+    background: var(--aas-role-trace);
+  }
+  .aas-trie-radix-demo .tx-digits {
+    margin: 0.5em 0 0;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-radix-demo .tx-digit-text {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+    overflow-wrap: anywhere;
+  }
+  .aas-trie-radix-demo .tx-note {
+    margin: 0.4em 0 0;
+    min-height: 3.6em;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-radix-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-radix-demo .tx-barcell i {
+      transition: none;
+    }
+  }
+</style>

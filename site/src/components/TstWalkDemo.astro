@@ -1,0 +1,1096 @@
+---
+// 키를 직접 쳐서 TST의 의사코드를 한 줄씩 돌려 보는 데모.
+//
+// 탭으로 삽입·검색·접두사를 고르고 키를 치면, 그 입력으로 실제 절차를 돌려 단계를
+// 만든다. 한 걸음마다 지금 줄을 칠하고, 변수(c, index, 노드의 문자)와 키의 글자 띠, TST에
+// 든 키 표를 함께 보인다. 왼쪽·오른쪽으로 가면 글자 띠의 칸이 그대로이고 가운데로 가야
+// 다음 칸으로 넘어간다. 끝까지 돌린 삽입만 TST에 남는다.
+//
+// 의사코드는 algorithm-code의 topic-10-trie/02_tst/tst.pseudo와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+import TrieKeyTable from './TrieKeyTable.astro';
+import TrieKeyTape from './TrieKeyTape.astro';
+
+type Op = 'insert' | 'search' | 'prefix';
+interface Props {
+  /** 처음 고른 연산 */
+  op?: Op;
+  /** 처음 칠 키 */
+  word?: string;
+  /** 처음 값 */
+  value?: number;
+  /** apple 키 일곱 개 중 앞에서 몇 개를 넣어 두고 시작할지 */
+  prefill?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { op = 'insert', word, value = 60, prefill = 7, slide = false } = Astro.props;
+const id = `tz-${Math.random().toString(36).slice(2, 9)}`;
+
+const SETS: Record<string, [string, number][]> = {
+  apple: [
+    ['apple', 10],
+    ['application', 20],
+    ['apply', 30],
+    ['applaud', 40],
+    ['applet', 50],
+    ['appliance', 60],
+    ['applicable', 70],
+  ],
+  six: [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+};
+const SAMPLES: Record<string, Record<Op, string[]>> = {
+  apple: {
+    insert: ['appliance', 'applicable', 'apple', 'apt'],
+    search: ['applaud', 'apply', 'application', 'app', 'apples'],
+    prefix: ['app', 'appli', 'apple', 'b'],
+  },
+  six: {
+    insert: ['shore', 'she', 'sell', 'bye'],
+    search: ['she', 'shells', 'shell', 'shore'],
+    prefix: ['sh', 'se', 't', 'x'],
+  },
+};
+const insertCode = [
+  'ALGORITHM Insert(root, word, value, index)',
+  '    c <- word[index]',
+  '    if root = NULL then',
+  '        root <- CreateTSTNode(c)',
+  '    if c < root.data then',
+  '        root.left <- Insert(root.left, word, value, index)',
+  '    else if c > root.data then',
+  '        root.right <- Insert(root.right, word, value, index)',
+  '    else if index < length(word)-1 then',
+  '        root.middle <- Insert(root.middle, word, value, index+1)',
+  '    else',
+  '        root.hasValue <- true',
+  '        root.value <- value',
+  '    return root',
+];
+const searchCode = [
+  'ALGORITHM GetNode(root, word)',
+  '    node <- root, index <- 0',
+  '    while node != NULL do',
+  '        c <- word[index]',
+  '        if c < node.data then node <- node.left',
+  '        else if c > node.data then node <- node.right',
+  '        else if index = length(word)-1 then return node',
+  '        else',
+  '            node <- node.middle',
+  '            index <- index + 1',
+  '    return NULL',
+  'ALGORITHM Search(root, word)',
+  '    node <- GetNode(root, word)',
+  '    if node != NULL and node.hasValue then return node.value',
+  '    return -1',
+];
+const prefixCode = (empty: string, addSelf: string, addNode: string) => [
+  'ALGORITHM GetWordsWithPrefix(root, prefix)',
+  `    results <- ${empty}`,
+  '    prefixNode <- GetNode(root, prefix)',
+  '    if prefixNode = NULL then return results',
+  `    if prefixNode.hasValue then ${addSelf}`,
+  '    GetAllWordsHelper(prefixNode.middle, prefix, results)',
+  '    return results',
+  'ALGORITHM GetAllWordsHelper(node, prefix, results)',
+  '    if node = NULL then return',
+  '    GetAllWordsHelper(node.left, prefix, results)',
+  `    if node.hasValue then ${addNode}`,
+  '    GetAllWordsHelper(node.middle, prefix + node.data, results)',
+  '    GetAllWordsHelper(node.right, prefix, results)',
+];
+const CODE: Record<string, Record<Op, string[]>> = {
+  ko: {
+    insert: insertCode,
+    search: searchCode,
+    prefix: prefixCode('빈 목록', 'results에 (prefix, prefixNode.value) 추가', 'results에 (prefix + node.data, node.value) 추가'),
+  },
+  en: {
+    insert: insertCode,
+    search: searchCode,
+    prefix: prefixCode('empty list', 'append (prefix, prefixNode.value) to results', 'append (prefix + node.data, node.value) to results'),
+  },
+  zh: {
+    insert: insertCode,
+    search: searchCode,
+    prefix: prefixCode('空列表', '把 (prefix, prefixNode.value) 加入 results', '把 (prefix + node.data, node.value) 加入 results'),
+  },
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '코드 한 줄씩',
+    insert: '삽입',
+    search: '검색',
+    prefix: '접두사',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    clear: '비우기',
+    wordLabel: '키',
+    prefixLabel: '접두사',
+    valueLabel: '값',
+    compared: '비교',
+    side: '옆으로',
+    nodes: '노드',
+    links: '링크',
+    empty: '키를 쳐 보세요. a부터 z까지의 소문자만 씁니다.',
+    full: '키가 {n}개라 더 넣지 않습니다. 비운 뒤에 넣어 보세요.',
+    'insert.start': 'Insert("{w}", {v}): 첫 글자 {c}로 루트에서 시작합니다.',
+    'insert.new': '자리가 비어 있습니다. {c} 노드를 만듭니다.',
+    'insert.less': '{c} < {d}: 왼쪽으로 갑니다. 글자 칸은 그대로입니다.',
+    'insert.greater': '{c} > {d}: 오른쪽으로 갑니다. 글자 칸은 그대로입니다.',
+    'insert.equal': '{c} = {d}: 가운데로 갑니다. 이때만 다음 글자로 넘어갑니다.',
+    'insert.last': '{c} = {d}: 마지막 글자입니다. 이 노드의 값은 이제 {v}입니다.',
+    'insert.replace': '{c} = {d}: 마지막 글자입니다. 값을 바꿉니다: {o} → {v}.',
+    'insert.done': '비교 {k}번, 새 노드 {m}개입니다. 끝까지 돌린 삽입은 TST에 남습니다.',
+    'search.start': 'Search("{w}"): 첫 글자 {c}로 루트에서 시작합니다.',
+    'search.less': '{c} < {d}: 왼쪽으로 갑니다. 글자 칸은 그대로입니다.',
+    'search.greater': '{c} > {d}: 오른쪽으로 갑니다. 글자 칸은 그대로입니다.',
+    'search.equal': '{c} = {d}: 가운데로 갑니다. 이때만 다음 글자로 넘어갑니다.',
+    'search.last': '{c} = {d}: 마지막 글자입니다. 이 노드를 돌려줍니다.',
+    'search.null': '가야 할 링크가 비어 있습니다. NULL을 돌려주니 실패입니다.',
+    'search.hit': '값은 {v}입니다. 성공입니다. 비교 {k}번 중 옆으로 {s}번입니다.',
+    'search.noValue': '노드는 있지만 값이 없습니다. 지금 찾은 글자들은 키가 아닙니다.',
+    'prefix.start': 'GetWordsWithPrefix("{w}"): 먼저 접두사의 마지막 글자 노드를 찾습니다.',
+    'prefix.null': '가야 할 링크가 비어 있습니다. 이 접두사로 시작하는 키는 없습니다.',
+    'prefix.reach': '접두사의 노드입니다. 이 키들은 전부 가운데 링크 아래에 있습니다.',
+    'prefix.self': '접두사 "{w}" 자체가 키입니다(값 {v}). 먼저 넣습니다.',
+    'prefix.middle': '가운데 링크 아래만 모읍니다.',
+    'prefix.noMiddle': '가운데 링크가 비어 있어 더 모을 것이 없습니다.',
+    'prefix.left': '"{s}" 노드의 왼쪽부터 봅니다. 접두사는 그대로입니다.',
+    'prefix.take': '"{s}"의 값은 {v}입니다. 결과에 넣습니다.',
+    'prefix.pass': '"{s}"에는 값이 없습니다.',
+    'prefix.down': '가운데로 내려갑니다. 접두사에 {c}를 붙입니다.',
+    'prefix.right': '오른쪽을 봅니다. 접두사는 그대로입니다.',
+    'prefix.done': '이 접두사로 시작하는 키 {n}개를 사전 순으로 모았습니다.',
+  },
+  en: {
+    title: 'One line of code at a time',
+    insert: 'Insert',
+    search: 'Search',
+    prefix: 'Prefix',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    clear: 'Empty',
+    wordLabel: 'Key',
+    prefixLabel: 'Prefix',
+    valueLabel: 'Value',
+    compared: 'compares',
+    side: 'sideways',
+    nodes: 'nodes',
+    links: 'links',
+    empty: 'Type a key. Only lowercase letters a to z are used.',
+    full: 'There are already {n} keys, so no more go in. Empty it first.',
+    'insert.start': 'Insert("{w}", {v}): start at the root with the first character {c}.',
+    'insert.new': 'The spot is empty. Create a node for {c}.',
+    'insert.less': '{c} < {d}: go left. The character position stays.',
+    'insert.greater': '{c} > {d}: go right. The character position stays.',
+    'insert.equal': '{c} = {d}: go down the middle. Only this moves to the next character.',
+    'insert.last': '{c} = {d}: the last character. Store the value {v} here.',
+    'insert.replace': '{c} = {d}: the last character. Replace the value {o} with {v}.',
+    'insert.done': '{k} compares and {m} new nodes. An insertion run to the end stays in the TST.',
+    'search.start': 'Search("{w}"): start at the root with the first character {c}.',
+    'search.less': '{c} < {d}: go left. The character position stays.',
+    'search.greater': '{c} > {d}: go right. The character position stays.',
+    'search.equal': '{c} = {d}: go down the middle. Only this moves to the next character.',
+    'search.last': '{c} = {d}: the last character. Return this node.',
+    'search.null': 'The link we need is null. NULL comes back, so it is a miss.',
+    'search.hit': 'It holds {v}. A hit, with {k} compares, {s} of them sideways.',
+    'search.noValue': 'The node exists but holds no value. "{w}" is not a key.',
+    'prefix.start': 'GetWordsWithPrefix("{w}"): first find the node of the prefix’s last character.',
+    'prefix.null': 'The link we need is null. No key starts with this prefix.',
+    'prefix.reach': 'This is the prefix’s node. All those keys lie below its middle link.',
+    'prefix.self': 'The prefix "{w}" is itself a key (value {v}). Add it first.',
+    'prefix.middle': 'Collect only below the middle link.',
+    'prefix.noMiddle': 'The middle link is empty, so there is nothing more to collect.',
+    'prefix.left': 'Look left of "{s}" first. The prefix stays.',
+    'prefix.take': '"{s}" holds {v}. Add it to the results.',
+    'prefix.pass': '"{s}" holds no value.',
+    'prefix.down': 'Go down the middle and append {c} to the prefix.',
+    'prefix.right': 'Look right. The prefix stays.',
+    'prefix.done': 'Collected {n} keys starting with "{w}", in alphabetical order.',
+  },
+  zh: {
+    title: '逐行看代码',
+    insert: '插入',
+    search: '查找',
+    prefix: '前缀',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    clear: '清空',
+    wordLabel: '键',
+    prefixLabel: '前缀',
+    valueLabel: '值',
+    compared: '比较',
+    side: '向旁边',
+    nodes: '节点',
+    links: '链接',
+    empty: '请输入键。只用小写字母 a 到 z。',
+    full: '已经有 {n} 个键，不再插入。请先清空。',
+    'insert.start': 'Insert("{w}", {v})：用第一个字符 {c} 从根开始。',
+    'insert.new': '这个位置是空的。新建 {c} 节点。',
+    'insert.less': '{c} < {d}：往左。字符位置不变。',
+    'insert.greater': '{c} > {d}：往右。字符位置不变。',
+    'insert.equal': '{c} = {d}：往中间。只有这时才进到下一个字符。',
+    'insert.last': '{c} = {d}：最后一个字符。在这个节点存入值 {v}。',
+    'insert.replace': '{c} = {d}：最后一个字符。把值 {o} 换成 {v}。',
+    'insert.done': '比较 {k} 次，新建 {m} 个节点。运行到底的插入会留在 TST 里。',
+    'search.start': 'Search("{w}")：用第一个字符 {c} 从根开始。',
+    'search.less': '{c} < {d}：往左。字符位置不变。',
+    'search.greater': '{c} > {d}：往右。字符位置不变。',
+    'search.equal': '{c} = {d}：往中间。只有这时才进到下一个字符。',
+    'search.last': '{c} = {d}：最后一个字符。返回这个节点。',
+    'search.null': '要走的链接是空的。返回 NULL，查找失败。',
+    'search.hit': '有值 {v}。查找成功，比较 {k} 次，其中向旁边 {s} 次。',
+    'search.noValue': '节点存在，但没有值。"{w}" 不是键。',
+    'prefix.start': 'GetWordsWithPrefix("{w}")：先找到前缀最后一个字符的节点。',
+    'prefix.null': '要走的链接是空的。没有以这个前缀开头的键。',
+    'prefix.reach': '这是前缀的节点。这些键全在它的中间链接下面。',
+    'prefix.self': '前缀 "{w}" 本身就是键（值 {v}）。先放进去。',
+    'prefix.middle': '只收集中间链接下面的键。',
+    'prefix.noMiddle': '中间链接是空的，没有更多可收集的。',
+    'prefix.left': '先看 "{s}" 的左边。前缀不变。',
+    'prefix.take': '"{s}" 存有值 {v}。放进结果。',
+    'prefix.pass': '"{s}" 没有值。',
+    'prefix.down': '往中间走，在前缀后面接上 {c}。',
+    'prefix.right': '看右边。前缀不变。',
+    'prefix.done': '按字典序收集到 {n} 个以 "{w}" 开头的键。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const code = CODE[lang] ?? CODE.ko;
+const ops: Op[] = ['insert', 'search', 'prefix'];
+const config = { op, word: word ?? SAMPLES.apple[op][0], value, prefill, sets: SETS, samples: SAMPLES, code };
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-tst-walk-demo', slide && 'is-slide']} id={id} data-tz-config={JSON.stringify(config)} data-tz-strings={JSON.stringify(t)}>
+  <div class="tz-bar">
+    <div class="tz-tabs">
+      <span class="tz-head"><strong>{t.title}</strong></span>
+      {ops.map((o) => <button type="button" class="tz-tab" data-tz-op={o}>{t[o]}</button>)}
+    </div>
+    <div class="tz-controls">
+      <button type="button" data-act="back" class="tz-btn">{t.back}</button>
+      <button type="button" data-act="step" class="tz-btn">{t.step}</button>
+      <button type="button" data-act="play" class="tz-btn tz-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="tz-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="tz-inputs">
+    <label class="tz-field"><span data-tz-wordlabel></span><input type="text" data-tz-word maxlength="12" autocomplete="off" spellcheck="false" /></label>
+    <label class="tz-field" data-tz-valuebox>{t.valueLabel}<input type="text" inputmode="numeric" data-tz-value maxlength="3" autocomplete="off" /></label>
+    <span class="tz-samples" data-tz-samples></span>
+    <span class="tz-gap"></span>
+    <button type="button" class="tz-tab tz-mono" data-tz-set="apple">apple..</button>
+    <button type="button" class="tz-tab tz-mono" data-tz-set="six">by..the</button>
+    <button type="button" class="tz-tab" data-tz-set="empty">{t.clear}</button>
+  </div>
+
+  <div class="tz-body">
+    <div class="tz-left">
+      <div class="tz-code" data-tz-code></div>
+      <div class="tz-state">
+        <TrieKeyTape />
+        <span class="tz-vars" data-tz-vars></span>
+      </div>
+    </div>
+    <div class="tz-right">
+      <TrieKeyTable />
+      <svg class="tz-svg" data-tz-svg role="img" aria-label={t.title}></svg>
+    </div>
+  </div>
+
+  <div class="tz-foot">
+    <p class="tz-note" data-tz-note></p>
+    <span class="tz-count" data-tz-count></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const cfg = JSON.parse(root.dataset.tzConfig);
+    const S = JSON.parse(root.dataset.tzStrings);
+    const { buildTst, tstInsert, layoutTst, tstWalk } = globalThis.aasTrieAlgos;
+    const MAX_KEYS = 10;
+
+    let setName = 'apple';
+    let keys = new Map(cfg.sets.apple.slice(0, cfg.prefill));
+    let op = cfg.op;
+    let word = cfg.word;
+    let steps = [];
+    let at = 0;
+    let finalKeys = null;
+    let timer = null;
+
+    const clean = (raw) => raw.toLowerCase().replace(/[^a-z]/g, '');
+    const parseValue = (raw) => {
+      const v = parseInt(raw, 10);
+      return Number.isFinite(v) && v >= 0 ? v : 0;
+    };
+
+    /* plan:start (의사코드와 같은 절차를 돌려 단계를 만든다) */
+    function plan(theOp, w, value) {
+      const out = [];
+      const pairs = [...keys.entries()];
+      const tst = buildTst(pairs);
+      const layoutT = buildTst(pairs);
+      if (theOp === 'insert' && w) tstInsert(layoutT, w, value);
+      const present = new Set(tst.keys());
+      const vals = {};
+      for (const [nid, n] of tst) if (n.value !== null) vals[nid] = n.value;
+      const keyPairs = () => [...cfgKeys.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+      const cfgKeys = new Map(keys);
+      const nextKeys = new Map(keys);
+      const push = (o) => out.push({ present: [...present], values: { ...vals }, keyList: keyPairs(), mark: {}, vars: [], ...o });
+      const mk = (path, last, kind = 'cur') => {
+        const m = {};
+        path.forEach((n) => (m[n] = 'path'));
+        if (last !== undefined) m[last] = kind;
+        return m;
+      };
+      const single = (note) => ({ steps: [{ present: [...present], values: { ...vals }, keyList: keyPairs(), mark: {}, vars: [], lines: [], note, compares: 0, sides: 0 }], layoutT: buildTst(pairs), next: keys });
+      if (!w) return single(S.empty);
+
+      if (theOp === 'insert') {
+        if (!keys.has(w) && keys.size >= MAX_KEYS) return single(fill(S.full, { n: keys.size }));
+        let nid = '';
+        let index = 0;
+        const path = [];
+        let compares = 0;
+        let sides = 0;
+        let made = 0;
+        const base = () => ({ keyNow: w, compares, sides });
+        push({ ...base(), lines: [0], note: fill(S['insert.start'], { w, v: value, c: w[0] }), vars: [['index', 0], ['c', `'${w[0]}'`]], tape: { w, i: 0 } });
+        for (;;) {
+          const c = w[index];
+          if (!present.has(nid)) {
+            present.add(nid);
+            made += 1;
+            push({ ...base(), lines: [1, 2, 3], mark: { ...mk(path), [nid]: 'new' }, note: fill(S['insert.new'], { c }), vars: [['index', index], ['c', `'${c}'`]], tape: { w, i: index } });
+            const last = index === w.length - 1;
+            if (last) {
+              vals[nid] = value;
+              nextKeys.set(w, value);
+              cfgKeys.set(w, value);
+              push({ ...base(), lines: [10, 11, 12], mark: { ...mk(path), [nid]: 'hit' }, note: fill(S['insert.last'], { c, d: c, v: value }), vars: [['index', index], ['c', `'${c}'`], ['root.data', `'${c}'`]], tape: { w, i: index, st: 'hit' } });
+              break;
+            }
+            path.push(nid);
+            nid += 'M';
+            index += 1;
+            continue;
+          }
+          const d = layoutT.get(nid).ch;
+          const vars = [['index', index], ['c', `'${c}'`], ['root.data', `'${d}'`]];
+          compares += 1;
+          if (c < d) {
+            sides += 1;
+            push({ ...base(), lines: [1, 4, 5], mark: mk(path, nid), note: fill(S['insert.less'], { c, d }), vars, tape: { w, i: index } });
+            path.push(nid);
+            nid += 'L';
+          } else if (c > d) {
+            sides += 1;
+            push({ ...base(), lines: [1, 6, 7], mark: mk(path, nid), note: fill(S['insert.greater'], { c, d }), vars, tape: { w, i: index } });
+            path.push(nid);
+            nid += 'R';
+          } else if (index < w.length - 1) {
+            push({ ...base(), lines: [1, 8, 9], mark: mk(path, nid), note: fill(S['insert.equal'], { c, d }), vars, tape: { w, i: index } });
+            path.push(nid);
+            nid += 'M';
+            index += 1;
+          } else {
+            const old = vals[nid];
+            vals[nid] = value;
+            nextKeys.set(w, value);
+            cfgKeys.set(w, value);
+            const note = old === undefined ? fill(S['insert.last'], { c, d, v: value }) : fill(S['insert.replace'], { c, d, o: old, v: value });
+            push({ ...base(), lines: [1, 10, 11, 12], mark: mk(path, nid, 'hit'), note, vars, tape: { w, i: index, st: 'hit' } });
+            break;
+          }
+        }
+        push({ ...base(), lines: [13], mark: mk(path, nid, 'hit'), note: fill(S['insert.done'], { k: compares, m: made }), vars: [], tape: { w, i: w.length }, done: true });
+        return { steps: out, layoutT, next: nextKeys };
+      }
+
+      if (theOp === 'search') {
+        const { log, node } = tstWalk(tst, w);
+        let compares = 0;
+        let sides = 0;
+        const path = [];
+        const base = () => ({ keyNow: w, compares, sides });
+        push({ ...base(), lines: [12, 0, 1], note: fill(S['search.start'], { w, c: w[0] }), vars: [['index', 0], ['c', `'${w[0]}'`]], tape: { w, i: 0 } });
+        log.forEach((e) => {
+          compares += 1;
+          const vars = [['index', e.index], ['c', `'${e.c}'`], ['node.data', `'${e.d}'`]];
+          if (e.kind === 'less' || e.kind === 'greater') {
+            sides += 1;
+            push({ ...base(), lines: [2, 3, e.kind === 'less' ? 4 : 5], mark: mk(path, e.nid), note: fill(S[`search.${e.kind}`], e), vars, tape: { w, i: e.index } });
+          } else if (e.kind === 'equal') {
+            push({ ...base(), lines: [2, 3, 7, 8, 9], mark: mk(path, e.nid), note: fill(S['search.equal'], e), vars, tape: { w, i: e.index } });
+          } else {
+            push({ ...base(), lines: [2, 3, 6], mark: mk(path, e.nid), note: fill(S['search.last'], e), vars, tape: { w, i: e.index } });
+          }
+          path.push(e.nid);
+        });
+        if (node === null) {
+          const last = path[path.length - 1];
+          const i = log.length ? log[log.length - 1].index : 0;
+          push({ ...base(), lines: [10], mark: mk(path.slice(0, -1), last, 'miss'), note: S['search.null'], vars: [['index', i]], tape: { w, i, st: 'miss' } });
+          push({ ...base(), lines: [14], mark: mk(path.slice(0, -1), last, 'miss'), note: S['search.null'], vars: [['return', '-1']], tape: { w, i, st: 'miss' }, done: true });
+        } else if (vals[node] !== undefined) {
+          push({ ...base(), lines: [13], mark: mk(path.slice(0, -1), node, 'hit'), note: fill(S['search.hit'], { v: vals[node], k: compares, s: sides }), vars: [['return', vals[node]]], tape: { w, i: w.length - 1, st: 'hit' }, done: true });
+        } else {
+          push({ ...base(), lines: [13, 14], mark: mk(path.slice(0, -1), node, 'miss'), note: fill(S['search.noValue'], { w }), vars: [['return', '-1']], tape: { w, i: w.length - 1, st: 'miss' }, done: true });
+        }
+        return { steps: out, layoutT, next: keys };
+      }
+
+      /* prefix */
+      const { log, node } = tstWalk(tst, w);
+      const path = [];
+      const results = [];
+      const resVar = () => ['results', results.length ? results.join(' ') : '∅'];
+      const base = () => ({ found: [...results] });
+      push({ ...base(), lines: [0, 1, 2], note: fill(S['prefix.start'], { w }), vars: [resVar()], tape: { w, i: 0 } });
+      log.forEach((e) => {
+        const kind = e.kind === 'last' ? 'equal' : e.kind;
+        push({ ...base(), lines: [2], mark: mk(path, e.nid), note: fill(S[`search.${kind}`], e), vars: [['index', e.index], ['c', `'${e.c}'`], ['node.data', `'${e.d}'`]], tape: { w, i: e.index } });
+        path.push(e.nid);
+      });
+      if (node === null) {
+        const last = path[path.length - 1];
+        push({ ...base(), lines: [3], mark: mk(path.slice(0, -1), last, 'miss'), note: S['prefix.null'], vars: [resVar()], tape: { w, i: log.length ? log[log.length - 1].index : 0, st: 'miss' }, done: true });
+        return { steps: out, layoutT, next: keys };
+      }
+      const stem = path.slice(0, -1);
+      push({ ...base(), lines: [3], mark: mk(stem, node), note: S['prefix.reach'], vars: [resVar()], tape: { w, i: w.length } });
+      const seen = {};
+      const took = {};
+      const paint = (cur) => {
+        const m = mk(stem, node);
+        Object.assign(m, seen, took);
+        if (cur !== undefined && !took[cur]) m[cur] = 'cur';
+        return m;
+      };
+      if (vals[node] !== undefined) {
+        results.push(w);
+        took[node] = 'take';
+        push({ ...base(), lines: [4], mark: paint(), note: fill(S['prefix.self'], { w, v: vals[node] }), vars: [resVar()], tape: { w, i: w.length } });
+      }
+      const hasMid = present.has(`${node}M`);
+      push({ ...base(), lines: [5], mark: paint(), note: S[hasMid ? 'prefix.middle' : 'prefix.noMiddle'], vars: [['prefix', `"${w}"`], resVar()], tape: { w, i: w.length } });
+      (function collect(nid, pre) {
+        if (!present.has(nid)) return;
+        const n = layoutT.get(nid);
+        const s = pre + n.ch;
+        if (present.has(`${nid}L`)) {
+          push({ ...base(), lines: [9], mark: paint(nid), note: fill(S['prefix.left'], { s }), vars: [['prefix', `"${pre}"`], ['node.data', `'${n.ch}'`], resVar()], tape: { w, i: w.length } });
+          collect(`${nid}L`, pre);
+        }
+        seen[nid] = 'seen';
+        if (vals[nid] !== undefined) {
+          results.push(s);
+          took[nid] = 'take';
+          push({ ...base(), lines: [10], mark: paint(nid), note: fill(S['prefix.take'], { s, v: vals[nid] }), vars: [['prefix', `"${pre}"`], ['node.data', `'${n.ch}'`], resVar()], tape: { w, i: w.length } });
+        } else {
+          push({ ...base(), lines: [10], mark: paint(nid), note: fill(S['prefix.pass'], { s }), vars: [['prefix', `"${pre}"`], ['node.data', `'${n.ch}'`], resVar()], tape: { w, i: w.length } });
+        }
+        if (present.has(`${nid}M`)) {
+          push({ ...base(), lines: [11], mark: paint(nid), note: fill(S['prefix.down'], { c: n.ch }), vars: [['prefix', `"${s}"`], resVar()], tape: { w, i: w.length } });
+          collect(`${nid}M`, s);
+        }
+        if (present.has(`${nid}R`)) {
+          push({ ...base(), lines: [12], mark: paint(nid), note: S['prefix.right'], vars: [['prefix', `"${pre}"`], resVar()], tape: { w, i: w.length } });
+          collect(`${nid}R`, pre);
+        }
+      })(`${node}M`, w);
+      push({ ...base(), lines: [6], mark: paint(), note: fill(S['prefix.done'], { n: results.length, w }), vars: [resVar()], tape: { w, i: w.length }, done: true });
+      return { steps: out, layoutT, next: keys };
+    }
+    /* plan:end */
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const svg = root.querySelector('[data-tz-svg]');
+    const codeBox = root.querySelector('[data-tz-code]');
+    const varsBox = root.querySelector('[data-tz-vars]');
+    const noteBox = root.querySelector('[data-tz-note]');
+    const countBox = root.querySelector('[data-tz-count]');
+    const wordInput = root.querySelector('[data-tz-word]');
+    const valueInput = root.querySelector('[data-tz-value]');
+    const valueBox = root.querySelector('[data-tz-valuebox]');
+    const wordLabel = root.querySelector('[data-tz-wordlabel]');
+    const samplesBox = root.querySelector('[data-tz-samples]');
+    const keyList = root.querySelector('[data-tk-list]');
+    const tapeBox = root.querySelector('[data-tape]');
+    const playBtn = root.querySelector('[data-act="play"]');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let nodeEls = new Map();
+    let edgeEls = new Map();
+    let stubEls = new Map();
+    const DIRS = { L: -1, M: 0, R: 1 };
+    function drawTree(t) {
+      const UNIT = 36;
+      const LEVEL = 28;
+      const RAD = 13;
+      svg.replaceChildren();
+      nodeEls = new Map();
+      edgeEls = new Map();
+      stubEls = new Map();
+      if (t.size === 0) {
+        svg.setAttribute('viewBox', '-40 -30 80 60');
+        return;
+      }
+      const { pos, slots, depth } = layoutTst(t, UNIT, LEVEL);
+      const PAD = 26;
+      const W = Math.max(0, slots - 1) * UNIT;
+      svg.setAttribute('viewBox', `${-PAD} ${-RAD - 6} ${W + 2 * PAD} ${Math.max(depth, 6) * LEVEL + 2 * RAD + 22}`);
+      const stubs = el('g', {});
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      svg.append(stubs, edges, nodes);
+      for (const [nid, n] of t) {
+        const p = pos.get(nid);
+        if (nid !== '') {
+          const q = pos.get(nid.slice(0, -1));
+          const line = el('line', { class: 'tz-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+          edges.appendChild(line);
+          edgeEls.set(nid, line);
+        }
+        for (const [dir, dx] of Object.entries(DIRS)) {
+          const sx = p.x + dx * 9;
+          const sy = p.y + RAD + 7;
+          const g = el('g', { class: 'tz-stub' });
+          g.append(el('line', { x1: p.x + dx * 5, y1: p.y + RAD - 2, x2: sx, y2: sy }), el('circle', { cx: sx, cy: sy, r: 2.2 }));
+          stubs.appendChild(g);
+          stubEls.set(nid + dir, g);
+        }
+        const g = el('g', { class: 'tz-nd', transform: `translate(${p.x} ${p.y})` });
+        g.append(el('circle', { r: RAD }), el('text', { class: 'tz-ch' }, n.ch), el('text', { class: 'tz-val', x: RAD + 2, y: -RAD + 2 }));
+        nodes.appendChild(g);
+        nodeEls.set(nid, g);
+      }
+    }
+
+    const MARKS = ['path', 'cur', 'new', 'hit', 'miss', 'take', 'seen'];
+    function render() {
+      const st = steps[at];
+      const present = new Set(st.present);
+      for (const [nid, g] of nodeEls) {
+        const mark = st.mark[nid];
+        const on = present.has(nid);
+        g.classList.toggle('is-off', !on);
+        g.classList.toggle('has-value', st.values[nid] !== undefined);
+        for (const m of MARKS) g.classList.toggle(`is-${m}`, mark === m);
+        g.querySelector('.tz-val').textContent = st.values[nid] === undefined ? '' : String(st.values[nid]);
+        const line = edgeEls.get(nid);
+        if (line) {
+          line.classList.toggle('is-off', !on);
+          line.classList.toggle('is-path', ['path', 'cur', 'hit', 'miss'].includes(mark));
+          line.classList.toggle('is-new', mark === 'new');
+          line.classList.toggle('is-take', ['take', 'seen'].includes(mark));
+        }
+        for (const dir of Object.keys(DIRS)) stubEls.get(nid + dir).classList.toggle('is-off', !on || present.has(nid + dir));
+      }
+      [...codeBox.children].forEach((ln, i) => ln.classList.toggle('is-now', st.lines.includes(i)));
+      varsBox.replaceChildren(
+        ...st.vars.map(([k, v]) => {
+          const s = document.createElement('span');
+          s.append(`${k} = `, Object.assign(document.createElement('b'), { textContent: String(v) }));
+          return s;
+        }),
+      );
+      tapeBox.replaceChildren(
+        ...(st.tape
+          ? [...st.tape.w].map((c, i) => {
+              const b = document.createElement('b');
+              b.textContent = c;
+              b.className = i < st.tape.i ? 'is-past' : i === st.tape.i ? `is-${st.tape.st || 'now'}` : '';
+              return b;
+            })
+          : []),
+      );
+      keyList.replaceChildren(
+        ...st.keyList.map(([w, v]) => {
+          const cell = document.createElement('span');
+          cell.className = 'tk-cell';
+          cell.dataset.tkKey = w;
+          cell.append(Object.assign(document.createElement('b'), { textContent: w }), Object.assign(document.createElement('i'), { textContent: String(v) }));
+          if (w === st.keyNow) cell.classList.add('is-now');
+          if (st.found && st.found.includes(w)) cell.classList.add('is-take');
+          return cell;
+        }),
+      );
+      setLines(noteBox, st.note);
+      const n = present.size;
+      countBox.replaceChildren();
+      const pairs = [];
+      if (st.compares !== undefined) pairs.push([S.compared, st.compares], [S.side, st.sides]);
+      pairs.push([S.nodes, n], [S.links, n * 3]);
+      pairs.forEach(([k, v], i) => {
+        if (i) countBox.append(' · ');
+        countBox.append(`${k} `, Object.assign(document.createElement('strong'), { textContent: String(v) }));
+      });
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function commit() {
+      if (at === steps.length - 1 && finalKeys) keys = new Map(finalKeys);
+    }
+    function replan() {
+      stop();
+      commit();
+      const p = plan(op, word, parseValue(valueInput.value));
+      steps = p.steps;
+      finalKeys = p.next;
+      at = 0;
+      drawTree(p.layoutT);
+      render();
+    }
+    const sampleSet = () => (setName === 'six' ? 'six' : 'apple');
+    function setOp(o) {
+      stop();
+      commit();
+      finalKeys = null;
+      op = o;
+      word = cfg.samples[sampleSet()][o][0];
+      wordInput.value = word;
+      syncChrome();
+      replan();
+    }
+    function syncChrome() {
+      root.querySelectorAll('[data-tz-op]').forEach((b) => b.classList.toggle('is-on', b.dataset.tzOp === op));
+      wordLabel.textContent = op === 'prefix' ? S.prefixLabel : S.wordLabel;
+      valueBox.style.visibility = op === 'insert' ? 'visible' : 'hidden';
+      root.querySelector('.aas-key-tape .kt2-label').textContent = op === 'prefix' ? 'prefix' : 'word';
+      codeBox.replaceChildren(
+        ...cfg.code[op].map((ln) => Object.assign(document.createElement('div'), { className: 'tz-line', textContent: ln })),
+      );
+      samplesBox.replaceChildren(
+        ...cfg.samples[sampleSet()][op].map((s) => {
+          const b = Object.assign(document.createElement('button'), { type: 'button', className: 'tz-sample', textContent: s });
+          b.addEventListener('click', () => {
+            wordInput.value = s;
+            word = s;
+            /* 예제 키를 누르면 실습 코드의 값을 함께 넣는다. */
+            const known = [...cfg.sets.apple, ...cfg.sets.six].find(([k]) => k === s);
+            if (known) valueInput.value = String(known[1]);
+            replan();
+          });
+          return b;
+        }),
+      );
+      root.querySelectorAll('[data-tz-set]').forEach((b) => b.classList.toggle('is-on', b.dataset.tzSet === setName));
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelectorAll('[data-tz-op]').forEach((b) => b.addEventListener('click', () => setOp(b.dataset.tzOp)));
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, reduceMotion ? 1400 : 900);
+    });
+    wordInput.addEventListener('input', () => {
+      const w = clean(wordInput.value);
+      if (w !== wordInput.value) wordInput.value = w;
+      word = w;
+      replan();
+    });
+    valueInput.addEventListener('input', () => {
+      if (op === 'insert') {
+        const keep = at;
+        const p = plan(op, word, parseValue(valueInput.value));
+        steps = p.steps;
+        finalKeys = p.next;
+        at = Math.min(keep, steps.length - 1);
+        render();
+      }
+    });
+    root.querySelectorAll('[data-tz-set]').forEach((b) =>
+      b.addEventListener('click', () => {
+        stop();
+        finalKeys = null;
+        setName = b.dataset.tzSet;
+        keys = new Map(setName === 'empty' ? [] : cfg.sets[setName]);
+        word = cfg.samples[sampleSet()][op][0];
+        wordInput.value = word;
+        syncChrome();
+        replan();
+      }),
+    );
+    wordInput.value = word;
+    valueInput.value = String(cfg.value);
+    syncChrome();
+    replan();
+  })();
+</script>
+
+<!-- 노드·가지·코드 줄은 스크립트가 만들므로 is:global로 두고 .aas-tst-walk-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-tst-walk-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tst-walk-demo .tz-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-tst-walk-demo .tz-head {
+    margin-right: 0.4em;
+    font-size: 0.95em;
+  }
+  .aas-tst-walk-demo .tz-tabs,
+  .aas-tst-walk-demo .tz-controls,
+  .aas-tst-walk-demo .tz-samples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-tst-walk-demo .tz-tab,
+  .aas-tst-walk-demo .tz-sample {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tst-walk-demo .tz-sample,
+  .aas-tst-walk-demo .tz-mono {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-walk-demo .tz-tab:hover,
+  .aas-tst-walk-demo .tz-sample:hover,
+  .aas-tst-walk-demo .tz-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tst-walk-demo .tz-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-tst-walk-demo .tz-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tst-walk-demo .tz-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-tst-walk-demo .tz-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.7em;
+    align-items: center;
+    margin: 0.4em 0 0.3em;
+  }
+  .aas-tst-walk-demo .tz-gap {
+    flex: 1 1 auto;
+  }
+  .aas-tst-walk-demo .tz-field {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-walk-demo .tz-field input {
+    width: 8.5em;
+    padding: 0.15em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    font-size: 1.05em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.45em;
+  }
+  .aas-tst-walk-demo .tz-field input[data-tz-value] {
+    width: 3em;
+  }
+  .aas-tst-walk-demo .tz-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: stretch;
+    margin: 0.4em 0;
+  }
+  .aas-tst-walk-demo .tz-left {
+    flex: 1 1 28em;
+    min-width: 0;
+  }
+  .aas-tst-walk-demo .tz-code {
+    margin: 0;
+    padding: 0.35em 0;
+    overflow: hidden;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.64em;
+    line-height: 1.32;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+  }
+  .aas-tst-walk-demo .tz-line {
+    padding: 0 0.7em;
+    min-height: 1.32em;
+    white-space: pre;
+    border-left: 3px solid transparent;
+  }
+  .aas-tst-walk-demo .tz-line.is-now {
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    border-left-color: var(--aas-role-focus);
+  }
+  .aas-tst-walk-demo .tz-state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em 0.8em;
+    align-items: center;
+    align-content: flex-start;
+    margin-top: 0.35em;
+    min-height: 2.6em;
+  }
+  .aas-tst-walk-demo .tz-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 0.7em;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-walk-demo .tz-vars span {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-walk-demo .tz-vars b {
+    color: var(--aas-text);
+  }
+  .aas-tst-walk-demo .tz-right {
+    display: flex;
+    flex: 1 1 18em;
+    flex-direction: column;
+    gap: 0.3em;
+    min-width: 0;
+  }
+  .aas-tst-walk-demo .tz-svg {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    max-height: 24em;
+  }
+  .aas-tst-walk-demo .tz-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 0.3em;
+  }
+  .aas-tst-walk-demo .tz-note {
+    flex: 1 1 22em;
+    margin: 0;
+    min-height: 2.5em;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-walk-demo .tz-count {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-tst-walk-demo .tz-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 가지와 노드: TST 데모와 같은 색 */
+  .aas-tst-walk-demo .tz-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    transition:
+      opacity 0.25s,
+      stroke 0.2s;
+  }
+  .aas-tst-walk-demo .tz-edge.is-path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-tst-walk-demo .tz-edge.is-new,
+  .aas-tst-walk-demo .tz-edge.is-take {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-tst-walk-demo .tz-edge.is-off,
+  .aas-tst-walk-demo .tz-nd.is-off,
+  .aas-tst-walk-demo .tz-stub.is-off {
+    opacity: 0;
+  }
+  .aas-tst-walk-demo .tz-stub line {
+    stroke: var(--aas-muted);
+    stroke-width: 1;
+    opacity: 0.5;
+  }
+  .aas-tst-walk-demo .tz-stub circle {
+    fill: var(--aas-muted);
+    opacity: 0.6;
+  }
+  .aas-tst-walk-demo .tz-nd circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.2s,
+      stroke 0.2s;
+  }
+  .aas-tst-walk-demo .tz-nd.has-value circle {
+    fill: var(--aas-text);
+  }
+  .aas-tst-walk-demo .tz-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-walk-demo .tz-nd.has-value .tz-ch,
+  .aas-tst-walk-demo .tz-nd.is-path .tz-ch,
+  .aas-tst-walk-demo .tz-nd.is-cur .tz-ch,
+  .aas-tst-walk-demo .tz-nd.is-new .tz-ch,
+  .aas-tst-walk-demo .tz-nd.is-hit .tz-ch,
+  .aas-tst-walk-demo .tz-nd.is-miss .tz-ch,
+  .aas-tst-walk-demo .tz-nd.is-take .tz-ch {
+    fill: var(--aas-bg);
+  }
+  .aas-tst-walk-demo .tz-val {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-walk-demo .tz-nd.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-tst-walk-demo .tz-nd.is-cur circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-tst-walk-demo .tz-nd.is-new circle,
+  .aas-tst-walk-demo .tz-nd.is-take circle,
+  .aas-tst-walk-demo .tz-nd.is-hit circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-tst-walk-demo .tz-nd.is-seen circle {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-tst-walk-demo .tz-nd.is-miss circle {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-tst-walk-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tst-walk-demo.is-slide .tz-body {
+    flex-wrap: nowrap;
+  }
+  .aas-tst-walk-demo.is-slide .tz-left {
+    flex: 0 0 56%;
+  }
+  .aas-tst-walk-demo.is-slide .tz-right {
+    flex: 1 1 auto;
+  }
+  .aas-tst-walk-demo.is-slide .tz-svg {
+    height: 29vh;
+    max-height: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tst-walk-demo .tz-edge,
+    .aas-tst-walk-demo .tz-nd circle {
+      transition: none;
+    }
+  }
+</style>

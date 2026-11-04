@@ -1,0 +1,577 @@
+---
+// 같은 키로 만든 트라이와 TST를 나란히 놓고, 노드를 눌러 서로 어떻게 대응하는지 보는 데모.
+//
+// 트라이의 루트가 아닌 노드와 TST의 노드는 일대일로 대응한다(같은 접두사, 같은 문자).
+// 트라이 노드 하나를 누르면 그 노드의 자식들이 초록으로 칠해지고, TST에서는 같은 문자들이
+// 그 노드의 가운데 링크 아래에 작은 이진 탐색 트리를 이룬 것이 보인다. 키를 누르면 그
+// 키를 찾는 길을 두 구조에서 함께 칠하고, 비교 횟수를 가운데와 옆으로 나누어 센다.
+//
+// 키 집합은 탭으로 고르거나 직접 친다. 숫자는 algorithm-code의 topic-10-trie의 space
+// 표와 같은 셈이다(트라이는 노드마다 링크 26개, TST는 3개).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+import TrieKeyTable from './TrieKeyTable.astro';
+
+interface Props {
+  /** 처음 고른 키 집합 */
+  set?: 'six' | 'apple';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { set = 'six', slide = false } = Astro.props;
+const id = `tp-${Math.random().toString(36).slice(2, 9)}`;
+
+const SETS: Record<string, [string, number][]> = {
+  six: [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+  apple: [
+    ['apple', 10],
+    ['application', 20],
+    ['apply', 30],
+    ['applaud', 40],
+    ['applet', 50],
+    ['appliance', 60],
+    ['applicable', 70],
+  ],
+};
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '트라이의 노드가 TST에서는',
+    input: '키',
+    hint: '노드나 키를 누르세요',
+    trie: '트라이',
+    tst: 'TST',
+    root: '루트',
+    nodes: '노드',
+    links: '링크',
+    legend: '점선 같은 자리 · 실선 다음 자리',
+    'pick.root': '루트의 26칸 중 {k}칸({cs})을 씁니다.',
+    'pick.node': '"{s}" 노드의 26칸 중 {k}칸({cs})을 씁니다.',
+    'pick.group': 'TST에서는 이 {k}개가 왼쪽·오른쪽으로 이어진 작은 이진 탐색 트리입니다. 링크 {l}개, 높이 {h}입니다.',
+    'pick.one': 'TST에서는 그 문자 하나가 가운데 링크로 바로 이어집니다.',
+    'pick.leaf': '"{s}" 노드의 26칸은 모두 NULL입니다. TST에서는 가운데 링크가 비어 있습니다.',
+    'pick.rootGroup': 'TST에서는 이 {k}개가 왼쪽·오른쪽으로 이어진 이진 탐색 트리입니다. 링크 {l}개, 높이 {h}입니다.',
+    'key.line': '{w}: 트라이는 링크 {m}개를 따라 노드 {v}개를 거칩니다. TST는 비교 {c}번이고, 가운데 {m}번에 옆으로 {s}번입니다.',
+    'key.same': '옆으로 비켜 가지 않습니다.',
+  },
+  en: {
+    title: 'A trie node, seen in the TST',
+    input: 'Keys',
+    hint: 'click a node or a key',
+    trie: 'Trie',
+    tst: 'TST',
+    root: 'root',
+    nodes: 'nodes',
+    links: 'links',
+    legend: 'dashed same position · solid next position',
+    'pick.root': 'The root uses {k} of its 26 slots ({cs}).',
+    'pick.node': 'Node "{s}" uses {k} of its 26 slots ({cs}).',
+    'pick.group': 'In the TST these {k} form a small binary search tree joined by left and right links: {l} links, height {h}.',
+    'pick.one': 'In the TST that one character follows straight on the middle link.',
+    'pick.leaf': 'All 26 slots of node "{s}" are null. In the TST its middle link is empty.',
+    'pick.rootGroup': 'In the TST these {k} form a binary search tree joined by left and right links: {l} links, height {h}.',
+    'key.line': '{w}: the trie follows {m} links through {v} nodes. The TST makes {c} compares: {m} on the middle and {s} sideways.',
+    'key.same': 'It never steps sideways.',
+  },
+  zh: {
+    title: '字典树的节点在 TST 里',
+    input: '键',
+    hint: '点节点或键',
+    trie: '字典树',
+    tst: 'TST',
+    root: '根',
+    nodes: '节点',
+    links: '链接',
+    legend: '虚线 同一位置 · 实线 下一位置',
+    'pick.root': '根的 26 格中用了 {k} 格（{cs}）。',
+    'pick.node': '"{s}" 节点的 26 格中用了 {k} 格（{cs}）。',
+    'pick.group': '在 TST 里，这 {k} 个由左右链接连成一棵小的二叉搜索树：{l} 个链接，高度 {h}。',
+    'pick.one': '在 TST 里，那一个字符直接由中间链接接上。',
+    'pick.leaf': '"{s}" 节点的 26 格全是 NULL。在 TST 里它的中间链接是空的。',
+    'pick.rootGroup': '在 TST 里，这 {k} 个由左右链接连成一棵二叉搜索树：{l} 个链接，高度 {h}。',
+    'key.line': '{w}：字典树沿 {m} 个链接经过 {v} 个节点。TST 比较 {c} 次，中间 {m} 次，向旁边 {s} 次。',
+    'key.same': '不向旁边走。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-tst-map-demo', slide && 'is-slide']} id={id} data-tp-set={set} data-tp-sets={JSON.stringify(SETS)} data-tp-strings={JSON.stringify(t)}>
+  <div class="tp-bar">
+    <span class="tp-head"><strong>{t.title}</strong> <span class="tp-hint">{t.hint}</span></span>
+    <div class="tp-tabs">
+      <label class="tp-input">{t.input}<input type="text" data-tp-input autocomplete="off" spellcheck="false" /></label>
+      <button type="button" class="tp-tab" data-tp-tab="six">by..the</button>
+      <button type="button" class="tp-tab" data-tp-tab="apple">apple..</button>
+    </div>
+  </div>
+  <TrieKeyTable />
+  <div class="tp-body">
+    <figure class="tp-panel">
+      <svg class="tp-svg" data-tp-trie role="img" aria-label={t.trie}></svg>
+      <figcaption><strong>{t.trie}</strong> <span data-tp-trie-count></span></figcaption>
+    </figure>
+    <figure class="tp-panel">
+      <svg class="tp-svg" data-tp-tst role="img" aria-label={t.tst}></svg>
+      <figcaption><strong>{t.tst}</strong> <span data-tp-tst-count></span> <em>{t.legend}</em></figcaption>
+    </figure>
+  </div>
+  <p class="tp-note" data-tp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.tpStrings);
+    const SETS = JSON.parse(root.dataset.tpSets);
+    const { buildTrie, buildTst, layoutTrie, layoutTst, tstWalk, cleanWords } = globalThis.aasTrieAlgos;
+    const R = 26;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const trieSvg = root.querySelector('[data-tp-trie]');
+    const tstSvg = root.querySelector('[data-tp-tst]');
+    const note = root.querySelector('[data-tp-note]');
+    const input = root.querySelector('[data-tp-input]');
+    const keyList = root.querySelector('[data-tk-list]');
+
+    let pairs = [];
+    let trie;
+    let tst;
+    let pathToTst;
+    let trieEls;
+    let tstEls;
+    let sel = '';
+    let selKey = null;
+    let tab = root.dataset.tpSet;
+
+    /* TST에서 path 노드의 자식들이 이루는 작은 이진 탐색 트리의 노드들 */
+    function groupOf(path) {
+      const start = path === '' ? '' : `${pathToTst.get(path)}M`;
+      const out = [];
+      (function go(nid) {
+        if (!tst.has(nid)) return;
+        out.push(nid);
+        go(`${nid}L`);
+        go(`${nid}R`);
+      })(start);
+      return out;
+    }
+    function groupHeight(path) {
+      const start = path === '' ? '' : `${pathToTst.get(path)}M`;
+      const h = (nid) => (tst.has(nid) ? 1 + Math.max(h(`${nid}L`), h(`${nid}R`)) : 0);
+      return h(start);
+    }
+
+    function build() {
+      trie = buildTrie(pairs);
+      tst = buildTst(pairs);
+      pathToTst = new Map();
+      for (const [nid, n] of tst) pathToTst.set(n.path, nid);
+      /* 트라이 그림 */
+      {
+        const UNIT = 40;
+        const LEVEL = 40;
+        const RAD = 14;
+        const { pos, slots, depth } = layoutTrie(trie, UNIT, LEVEL);
+        trieSvg.setAttribute('viewBox', `-28 ${-RAD - 16} ${Math.max(slots - 1, 1) * UNIT + 56} ${Math.max(depth, 3) * LEVEL + 2 * RAD + 22}`);
+        trieSvg.replaceChildren();
+        const edges = el('g', {});
+        const nodes = el('g', {});
+        trieSvg.append(edges, nodes);
+        trieEls = new Map();
+        for (const [nid, n] of trie) {
+          const p = pos.get(nid);
+          let line = null;
+          if (n.parent !== null) {
+            const q = pos.get(n.parent);
+            line = el('line', { class: 'tp-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+            edges.appendChild(line);
+          }
+          const g = el('g', { class: 'tp-nd', transform: `translate(${p.x} ${p.y})`, 'data-path': nid });
+          if (nid === '') {
+            g.classList.add('is-root');
+            g.append(el('circle', { r: RAD * 0.8 }), el('text', { class: 'tp-root', y: -RAD - 2 }, S.root));
+          } else {
+            g.append(el('circle', { r: RAD }), el('text', { class: 'tp-ch' }, n.ch));
+            if (n.value !== null) g.append(el('text', { class: 'tp-val', x: RAD + 2, y: RAD * 0.55 }, String(n.value)));
+          }
+          g.addEventListener('click', () => pick(nid));
+          nodes.appendChild(g);
+          trieEls.set(nid, { g, line });
+        }
+      }
+      /* TST 그림 */
+      {
+        const UNIT = 44;
+        const LEVEL = 27;
+        const RAD = 12;
+        const { pos, slots, depth } = layoutTst(tst, UNIT, LEVEL);
+        tstSvg.setAttribute('viewBox', `-24 ${-RAD - 6} ${Math.max(slots - 1, 1) * UNIT + 48} ${Math.max(depth, 3) * LEVEL + 2 * RAD + 12}`);
+        tstSvg.replaceChildren();
+        const edges = el('g', {});
+        const nodes = el('g', {});
+        tstSvg.append(edges, nodes);
+        tstEls = new Map();
+        for (const [nid, n] of tst) {
+          const p = pos.get(nid);
+          let line = null;
+          if (nid !== '') {
+            const q = pos.get(nid.slice(0, -1));
+            const dir = nid[nid.length - 1];
+            line = el('line', { class: `tp-edge ${dir === 'M' ? '' : 'is-side'}`, x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+            edges.appendChild(line);
+          }
+          const g = el('g', { class: 'tp-nd', transform: `translate(${p.x} ${p.y})`, 'data-path': n.path });
+          g.append(el('circle', { r: RAD }), el('text', { class: 'tp-ch' }, n.ch));
+          if (n.value !== null) g.append(el('text', { class: 'tp-val', x: RAD + 2, y: -RAD + 3 }, String(n.value)));
+          g.addEventListener('click', () => pick(n.path));
+          nodes.appendChild(g);
+          tstEls.set(nid, { g, line });
+        }
+      }
+      const tn = trie.size;
+      const sn = tst.size;
+      root.querySelector('[data-tp-trie-count]').textContent = `${S.nodes} ${tn} · ${S.links} ${tn * R}`;
+      root.querySelector('[data-tp-tst-count]').textContent = `${S.nodes} ${sn} · ${S.links} ${sn * 3}`;
+      /* 키 표: 누르면 그 키의 길을 칠한다. */
+      keyList.replaceChildren(
+        ...pairs.map(([w, v]) => {
+          const cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'tk-cell';
+          cell.dataset.tkKey = w;
+          cell.append(Object.assign(document.createElement('b'), { textContent: w }), Object.assign(document.createElement('i'), { textContent: String(v) }));
+          cell.addEventListener('click', () => pickKey(w));
+          return cell;
+        }),
+      );
+      root.querySelectorAll('[data-tp-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.tpTab === tab));
+    }
+
+    function paint(trieMarks, tstMarks) {
+      for (const [nid, { g, line }] of trieEls) {
+        const m = trieMarks[nid] || '';
+        g.setAttribute('class', `tp-nd${nid === '' ? ' is-root' : ''}${m ? ` is-${m}` : ''}`);
+        if (line) line.setAttribute('class', `tp-edge${m ? ` is-${m}` : ''}`);
+      }
+      for (const [nid, { g, line }] of tstEls) {
+        const m = tstMarks[nid] || '';
+        g.setAttribute('class', `tp-nd${m ? ` is-${m}` : ''}`);
+        if (line) {
+          const side = nid[nid.length - 1] !== 'M';
+          line.setAttribute('class', `tp-edge${side ? ' is-side' : ''}${m ? ` is-${m}` : ''}`);
+        }
+      }
+    }
+
+    function pick(path) {
+      sel = path;
+      selKey = null;
+      const n = trie.get(path);
+      const kids = n.kids;
+      const trieMarks = { [path]: 'sel' };
+      kids.forEach((k) => (trieMarks[k] = 'kid'));
+      const tstMarks = {};
+      if (path !== '') tstMarks[pathToTst.get(path)] = 'sel';
+      const group = groupOf(path);
+      group.forEach((nid) => (tstMarks[nid] = 'kid'));
+      /* 그룹 안의 왼쪽·오른쪽 링크만 칠하고, 그룹 머리로 들어오는 가운데 링크도 칠한다. */
+      paint(trieMarks, tstMarks);
+      const k = kids.length;
+      const cs = kids.map((c) => trie.get(c).ch).join(', ');
+      let text;
+      if (k === 0) text = fill(S['pick.leaf'], { s: path });
+      else {
+        const first = path === '' ? fill(S['pick.root'], { k, cs }) : fill(S['pick.node'], { s: path, k, cs });
+        const second = k === 1 && path !== ''
+          ? S['pick.one']
+          : fill(path === '' ? S['pick.rootGroup'] : S['pick.group'], { k, l: k * 3, h: groupHeight(path) });
+        text = join(first, second);
+      }
+      setLines(note, text);
+      keyList.querySelectorAll('[data-tk-key]').forEach((c) => {
+        const w = c.dataset.tkKey;
+        c.classList.toggle('is-take', w === path);
+        c.classList.toggle('is-now', path !== '' && w !== path && w.startsWith(path));
+      });
+    }
+
+    function pickKey(w) {
+      selKey = w;
+      const trieMarks = { '': 'path' };
+      for (let i = 1; i <= w.length; i++) trieMarks[w.slice(0, i)] = i === w.length ? 'hit' : 'path';
+      const { log } = tstWalk(tst, w);
+      const tstMarks = {};
+      let sides = 0;
+      log.forEach((e) => {
+        tstMarks[e.nid] = e.kind === 'less' || e.kind === 'greater' ? 'away' : e.kind === 'last' ? 'hit' : 'path';
+        if (e.kind === 'less' || e.kind === 'greater') sides += 1;
+      });
+      paint(trieMarks, tstMarks);
+      const line = fill(S['key.line'], { w, m: w.length, v: w.length + 1, c: log.length, s: sides });
+      setLines(note, sides === 0 ? join(line, S['key.same']) : line);
+      keyList.querySelectorAll('[data-tk-key]').forEach((c) => {
+        c.classList.toggle('is-take', c.dataset.tkKey === w);
+        c.classList.toggle('is-now', false);
+      });
+    }
+
+    function usePairs(next, keepInput) {
+      pairs = next;
+      if (!keepInput) input.value = pairs.map(([w]) => w).join(' ');
+      build();
+      pick('');
+    }
+    root.querySelectorAll('[data-tp-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        tab = b.dataset.tpTab;
+        usePairs(SETS[tab]);
+      }),
+    );
+    input.addEventListener('input', () => {
+      const words = cleanWords(input.value).slice(0, 10).map((w) => w.slice(0, 12));
+      const unique = [...new Set(words)];
+      if (unique.length === 0) return;
+      tab = '';
+      usePairs(unique.map((w, i) => [w, i]), true);
+    });
+    usePairs(SETS[tab]);
+  })();
+</script>
+
+<!-- 노드와 가지는 스크립트가 만들므로 is:global로 두고 .aas-tst-map-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-tst-map-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tst-map-demo .tp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35em;
+  }
+  .aas-tst-map-demo .tp-head {
+    font-size: 0.95em;
+  }
+  .aas-tst-map-demo .tp-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-map-demo .tp-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-tst-map-demo .tp-input {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-right: 0.4em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-map-demo .tp-input input {
+    width: 16em;
+    padding: 0.15em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.45em;
+  }
+  .aas-tst-map-demo .tp-tab {
+    padding: 0.2em 0.7em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tst-map-demo .tp-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tst-map-demo .tp-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-tst-map-demo button.tk-cell {
+    cursor: pointer;
+    font-size: inherit;
+    line-height: inherit;
+    color: var(--aas-text);
+  }
+  .aas-tst-map-demo button.tk-cell:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tst-map-demo .tp-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    margin-top: 0.3em;
+  }
+  .aas-tst-map-demo .tp-panel {
+    flex: 1 1 20em;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+  }
+  .aas-tst-map-demo .tp-svg {
+    display: block;
+    width: 100%;
+    max-height: 22em;
+  }
+  .aas-tst-map-demo figcaption {
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-map-demo figcaption strong {
+    color: var(--aas-text);
+    margin-right: 0.3em;
+  }
+  .aas-tst-map-demo figcaption em {
+    margin-left: 0.5em;
+    font-style: normal;
+  }
+  .aas-tst-map-demo .tp-note {
+    margin: 0.4em 0 0;
+    min-height: 2.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+
+  .aas-tst-map-demo .tp-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    transition: stroke 0.15s;
+  }
+  .aas-tst-map-demo .tp-edge.is-side {
+    stroke-dasharray: 4 3;
+    stroke: var(--aas-role-trace);
+    stroke-width: 2;
+  }
+  .aas-tst-map-demo .tp-edge.is-kid {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-tst-map-demo .tp-edge.is-path,
+  .aas-tst-map-demo .tp-edge.is-hit,
+  .aas-tst-map-demo .tp-edge.is-away {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-tst-map-demo .tp-nd {
+    cursor: pointer;
+  }
+  .aas-tst-map-demo .tp-nd circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.15s,
+      stroke 0.15s;
+  }
+  .aas-tst-map-demo .tp-nd.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .aas-tst-map-demo .tp-nd:hover circle {
+    stroke: var(--aas-accent);
+  }
+  .aas-tst-map-demo .tp-ch {
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-tst-map-demo .tp-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .aas-tst-map-demo .tp-val {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+    pointer-events: none;
+  }
+  .aas-tst-map-demo .tp-nd.is-sel circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-tst-map-demo .tp-nd.is-kid circle,
+  .aas-tst-map-demo .tp-nd.is-hit circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-tst-map-demo .tp-nd.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-tst-map-demo .tp-nd.is-away circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-tst-map-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tst-map-demo.is-slide .tp-body {
+    flex-wrap: nowrap;
+  }
+  .aas-tst-map-demo.is-slide .tp-svg {
+    max-height: 36vh;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-tst-map-demo .tp-edge,
+    .aas-tst-map-demo .tp-nd circle {
+      transition: none;
+    }
+  }
+</style>

@@ -1,0 +1,97 @@
+---
+// 지금 노드의 children[26]을 데모 안에서 보이는 띠. 문자와 칸 번호를 함께 적는다.
+//
+// 칸은 [data-ls]이다. 데모가 is-on(링크가 있다), is-now(지금 보는 칸), is-miss(지금 보는
+// 칸이 NULL)를 달고, [data-ls-name]에 어느 노드의 배열인지 적는다. rows를 2로 주면 13칸씩
+// 두 줄이 되어 옆 칸에 넣을 수 있다.
+interface Props {
+  /** 줄 수: 1이면 26칸 한 줄, 2면 13칸씩 두 줄 */
+  rows?: 1 | 2;
+}
+const { rows = 1 } = Astro.props;
+const letters = [...'abcdefghijklmnopqrstuvwxyz'];
+---
+
+<div class="aas-link-strip" style={`--ls-cols: ${rows === 2 ? 13 : 26}`}>
+  <div class="ls-name"><span class="ls-arr">children[26]</span> <span class="ls-who" data-ls-name></span></div>
+  <div class="ls-grid">
+    {
+      letters.map((ch, i) => (
+        <span class="ls-cell" data-ls={ch}>
+          <b>{ch}</b>
+          <i>{i}</i>
+        </span>
+      ))
+    }
+  </div>
+</div>
+
+<style is:global>
+  .aas-link-strip {
+    min-width: 0;
+    font-size: 0.72em;
+    line-height: 1.15;
+  }
+  .aas-link-strip .ls-name {
+    margin-bottom: 0.15em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-link-strip .ls-arr {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-link-strip .ls-who {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+  }
+  .aas-link-strip .ls-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--ls-cols), minmax(0, 1fr));
+    gap: 0.12em;
+  }
+  .aas-link-strip .ls-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.08em 0;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+  .aas-link-strip .ls-cell b {
+    font-weight: 400;
+  }
+  .aas-link-strip .ls-cell i {
+    font-style: normal;
+    font-size: 0.72em;
+  }
+  .aas-link-strip .ls-cell.is-on {
+    color: var(--aas-text);
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-link-strip .ls-cell.is-on b {
+    font-weight: 700;
+  }
+  .aas-link-strip .ls-cell.is-now {
+    color: var(--aas-text);
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-link-strip .ls-cell.is-miss {
+    color: var(--aas-text);
+    border-color: var(--aas-role-guard);
+    box-shadow: 0 0 0 2px var(--aas-role-guard);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-link-strip .ls-cell {
+      transition: none;
+    }
+  }
+</style>

@@ -17,6 +17,14 @@ import TrieOrderDemo from '@components/TrieOrderDemo.astro';
 import TrieMissDemo from '@components/TrieMissDemo.astro';
 import TrieSpaceDemo from '@components/TrieSpaceDemo.astro';
 import TrieCompressDemo from '@components/TrieCompressDemo.astro';
+import TrieWalkDemo from '@components/TrieWalkDemo.astro';
+import TstWalkDemo from '@components/TstWalkDemo.astro';
+import TrieCostDemo from '@components/TrieCostDemo.astro';
+import TrieRadixDemo from '@components/TrieRadixDemo.astro';
+import TstMapDemo from '@components/TstMapDemo.astro';
+import TstOrderDemo from '@components/TstOrderDemo.astro';
+import TstCostDemo from '@components/TstCostDemo.astro';
+import TrieMsdDemo from '@components/TrieMsdDemo.astro';
 
 > 主题 07 的二叉搜索树和主题 08 的哈希表都是把键**整个**拿来处理。
 > 要么比较整个键，要么用整个键算哈希值。  
@@ -78,6 +86,8 @@ typedef struct TrieNode {
 在下面的演示里点一个节点，它的 26 格链接数组就会展开。一开始显示的根只用了
 `b`、`s`、`t` 三格，其余 23 格都是 NULL。点涂色的格子，就走到那个子节点。
 
+演示上方的表列出字典树里的键和值，并标出所选节点下面的键。
+
 <TrieNodeDemo />
 
 看图有三点。
@@ -119,6 +129,14 @@ ALGORITHM Insert(root, word, value)
     current.hasValue <- true            // 值放在键的最后一个字符对应的节点上
     current.value <- value
 ```
+
+把同样的伪代码逐行运行。改输入键或值，就按新的输入重新运行；当前行、变量、键的字符带和当前节点的 `children[26]` 一起变化。运行到底的插入会留在字典树里，所以可以接着插入。
+
+<TrieWalkDemo op="insert" />
+
+- `shore` 经过 `s` 和 `h`，新建 3 个节点。17 个节点变成 20 个，442 个链接变成 520 个。
+- 用别的值再次插入 `she`，不会新建节点，只改值。
+- 点**清空**就从空的字典树开始。
 
 - C 实现
 
@@ -167,6 +185,12 @@ ALGORITHM Search(root, word)
 
 实践代码在没有值时返回 -1，与图和演示中的 NULL 意思相同。
 
+查找上面四个键或任意别的键。看看失败时停在哪一行。
+
+<TrieWalkDemo op="search" />
+
+`shells` 在 `return current.value` 返回 3，经过 7 个节点。`shell` 停在最后的 `return -1`，`shore` 停在循环里的 `return -1`。`shore` 时，`sh` 节点的 `o` 格标成红色。
+
 ### 按前缀查找全部 \{#trie-prefix}
 
 想想在搜索框里输入到 `sh` 时，就弹出 `she`、`shells`、`shore` 的自动补全。
@@ -208,6 +232,12 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
         if node.children[i] != NULL then
             GetAllWordsHelper(node.children[i], prefix + ('a' + i), results)
 ```
+
+换个前缀运行。和上面一样，一开始已有 `shore = 7`。
+
+<TrieWalkDemo op="prefix" />
+
+用 `sh` 查找时，先经过 3 个节点到 `sh`，再依次收集 `she`、`shells`、`shore`。用 `shx` 时，`sh` 节点的 `x` 格是空的，根本不开始收集。
 
 - C 实现（收集）
 
@@ -272,6 +302,16 @@ ALGORITHM DeleteHelper(node, word, index)
 
 `DeleteWord(root, word)` 只是调用 `DeleteHelper(root, word, 0)`。根即使空了
 也不删。
+
+摘下哪些节点取决于删除的键。跟着递归返回的 `true` 和 `false` 走一遍。运行到底的删除会留在字典树里，所以可以接着删除。
+
+<TrieWalkDemo op="delete" />
+
+- **shells**：摘下 `s`、`l`、`l` 三个节点，20 个节点变成 17 个。
+- **she**：只清除值。`e` 下面还有通往 `shells` 的路时，不摘下任何节点。
+- **删除 shells 之后再删 she**：这次 `e` 也被摘下。`h` 是通往 `shore` 的路，所以留下。
+- **by**：摘下 `y` 和 `b`。即使到了最上面，根也不删。
+- **shell**：没有值，所以这个键不存在。字典树不变。
 
 ### 运行 \{#trie-run}
 
@@ -354,6 +394,16 @@ nodes = 17
 设键长为 $$m$$、键的个数为 $$n$$，查找和插入都是 $$O(m)$$，**与 $$n$$
 多大无关**。运行结果中的 `visited 7` 正是 `shells`（6 个字母）加 1。
 
+亲自数一数键的个数和前缀怎样改变代价。把 $$N$$ 个长度 $$m$$ 的键放进三种结构，查找 1000 次，求每次看的字符数的平均值。二叉搜索树每次比较都从头对比两个键；哈希表先读 $$m$$ 个字符算哈希，再对比链上的键，格子数是 $$N/4$$。
+
+<TrieCostDemo />
+
+- $$m = 20$$ 的查找成功时，$$N$$ 从 10 增加到 10,000，二叉搜索树从 22.4 个字符增加到 48.1 个，字典树一直是 20 个。
+- 公共前缀加长到 16 个字符时，$$N$$ = 10,000 的二叉搜索树要看 330 个字符。哈希表是 71.5 个，字典树仍是 20 个。
+- $$m = 7$$、没有前缀的查找失败时，字典树是 1.40、2.15、2.82、3.45。后三个值与下面实践代码的输出相同。
+
+这里只数字符，不包括内存访问和缓存的代价。
+
 ### 查找失败的期望 \{#search-miss}
 
 查找失败更快。在大小为 $$R$$ 的字母表上用 $$N$$ 个随机键建成的字典树中，
@@ -419,6 +469,14 @@ $$RNw$$ = 546。无论哪种，大多数链接都是 NULL。每个节点进来�
 
 减小 $$R$$ 可以省下相当多的空间。这正是后面 TST 的出发点。
 
+缩小 $$R$$ 最简单的办法是把字符拆成更小的位。把 a 到 z 写成 $$R$$ 进制，一个字符就变成几位，再用这些位建字典树。点某一行选 $$R$$，或者自己输入键。
+
+<TrieRadixDemo />
+
+- 六个键的链接在 $$R$$ = 26 时是 442 个，$$R$$ = 3 时减到 138 个。但节点从 17 个增加到 46 个，高度从 7 增加到 19。
+- $$R$$ = 16 要 480 个，反而比 $$R$$ = 26 多。一个字符占两位，节点增加到 30 个。
+- TST 每个节点 3 个链接，只要 48 个，高度 8。它把一个字符放在一个节点里。
+
 ### 单分支 \{#one-way-branching}
 
 字典树过度占用空间的最大原因，是**只用一个链接的节点**连成长串。只放
@@ -431,6 +489,8 @@ $$RNw$$ = 546。无论哪种，大多数链接都是 NULL。每个节点进来�
 
 全部合并后，只剩下分叉处和存值的节点，11 个节点变成 4 个（根、`shell`、`fish`、
 `s`）。
+
+用演示里的标签换键集合。六个键（`by..the`）从 17 个节点变成 9 个，`apple..` 从 25 个变成 11 个。
 
 这样去掉单分支的字典树叫压缩字典树（radix tree、Patricia trie）。节点上挂的
 不是一个字符，而是一段字符串。本主题不实现它，而是转向直接减少链接数的 TST。
@@ -459,6 +519,13 @@ TST（ternary search tree，三向搜索树）是字典树在内存上更高效�
 搜索树。字典树是 17 个节点、442 个链接，这里变成了 16 个节点、48 个链接。
 节点数只少了字典树的根那一个，
 每个节点的链接却从 26 个减到了 3 个。
+
+下面的演示把同样的键建成的字典树和 TST 并排放在一起。点字典树的节点，它的子节点就会标色；在 TST 里，同样的字符显示为中间链接下面的一棵小二叉搜索树。点键，就在两边同时标出查找它的路。虚线是同一位置，实线是下一位置。
+
+<TstMapDemo />
+
+- 点根，`b`、`s`、`t` 标色。在字典树里是 26 格中的 3 格；在 TST 里是 3 个节点、9 个链接、高度 3 的二叉搜索树。
+- 点 `she`，字典树经过 4 个节点。TST 比较 5 次，中间 3 次，向旁边 2 次。
 
 ```c
 typedef struct TSTNode {
@@ -527,6 +594,12 @@ ALGORITHM Insert(root, word, value, index)
 
 往左或往右时 `index` 不变，只有往中间时才加一。这一行的差别就是 TST 的全部。
 
+在代码上运行同样的插入。看字符带：往左、往右时位置不变，只有往中间走才前进。和上面一样，一开始已有前五个键。
+
+<TstWalkDemo op="insert" word="appliance" value={60} prefill={5} />
+
+`appliance` 比较 7 次，其中向旁边 2 次（在 `e` 往右，在 `c` 往左），新建 4 个节点，与上面的讲解相同。点**清空**或 `by..the` 可以建别的树。
+
 ### 查找 \{#tst-search}
 
 查找也按同样的规则往下走。在最后一个字符遇到相同字符时，若那个节点有值就成功。
@@ -537,6 +610,12 @@ ALGORITHM Insert(root, word, value, index)
 - **apply**：在 `e` 和 `i` 处往右绕开两次。7 个节点
 - **apples**：与 `apple` 的 `e` 都相同之后，`s` 比 `t` 小要往左，但那条链接
   是空的。失败
+
+也查找别的键。看右下角的比较次数和向旁边的次数。
+
+<TstWalkDemo op="search" />
+
+`applaud` 比较 8 次，向旁边 1 次；`apply` 7 次，向旁边 2 次；`application` 12 次，向旁边 1 次。`app` 比较 3 次到达节点但没有值；`apples` 比较 6 次后链接是空的。
 
 ### 前缀查找 \{#tst-prefix}
 
@@ -568,6 +647,12 @@ ALGORITHM GetAllWordsHelper(node, prefix, results)
 - **收集顺序**是左、自己、中间、右。这与二叉搜索树的中序遍历是同一个想法，
   所以结果按字典序输出。
 - 往左右走时前缀原样传下去，只有往中间走时才接上自己的字符。
+
+换前缀，跟着看收集的顺序。
+
+<TstWalkDemo op="prefix" />
+
+`app` 收集全部七个键，`appli` 按字典序收集 `appliance`、`applicable`、`application` 三个。`apple` 本身是键，所以先放进去，接着是它中间链接下面的 `applet`。
 
 ### 运行 \{#tst-run}
 
@@ -647,6 +732,14 @@ space (3 links per node)
 - **插入顺序**：同样的键按字典序插入（`sorted`），高度从 12 增加到 15。
   TST 和二叉搜索树一样，形状随插入顺序而变。
 
+只改变相同键的插入顺序。每一步插入一个键，表里看每个键要比较几次。
+
+<TstOrderDemo />
+
+- `apple..` 按实践代码的顺序插入，高度 12，平均比较 8.71 次；按字典序，高度 15，平均 9.57 次；逆序，高度 12，平均 9.29 次；从中间开始，高度 12，平均 8.71 次。
+- 无论什么顺序，都是 24 个节点、72 个链接。
+- `by..the` 的实践代码顺序正好是字典序，高度 8；逆序和从中间开始都是高度 7。
+
 ## 字典树与 TST \{#trie-vs-tst}
 
 用同样的键建三种结构，数一数节点和链接。切换标签或自己输入单词试试。TST 的节点
@@ -678,6 +771,15 @@ $$m + \ln n$$。运行结果中 `applaud`（7 个字母）在 8 个节点、`app
 （11 个字母）在 12 个节点内结束。不过最坏情况下，一个位置可能要往旁边走字母表
 大小那么多次。
 
+亲自数一数向旁边的部分花在哪里。用 $$N$$ 个长度 20 的随机键建 TST，查找 1000 次，看每个字符位置向旁边走的平均次数。
+
+<TstCostDemo />
+
+- $$R$$ = 26、$$N$$ = 1,000 时查找成功比较 28.14 次：中间 20 次，向旁边 8.14 次，接近 $$m + \ln N$$ = 26.91。
+- 向旁边的次数是第一位 4.17 次、第二位 3.39 次、第三位 0.54 次，之后几乎没有。这就是说 $$\log n$$ 不是每个字符都加一次。
+- 查找失败是 11.11 次，比表里的粗略值 $$\ln n$$ = 6.91 大，但与键长 20 无关，$$N$$ 增加十倍也只多 3 到 4 次。
+- 把 $$R$$ 减到 2，每个位置向旁边约 0.5 次，这部分会一直分散到后面。
+
 归结起来就是[[trade-off|权衡]]。
 
 - **字典树**：查找快，$$O(m)$$，代价是大量内存
@@ -706,6 +808,12 @@ $$m + \ln n$$。运行结果中 `applaud`（7 个字母）在 8 个节点、`app
   编码，因为无前缀，字符只在叶子上。
 - 主题 09 的**MSD 基数排序**先按第一个字符分组，再在同组内按下一个字符分组。
   这和从上往下建字典树是同样的形状。
+
+用眼睛看 MSD 基数排序和字典树形状相同。左边是排好序的键按前 $$d$$ 个字符分组，右边是同样的键的字典树。同样的颜色是同一组。
+
+<TrieMsdDemo />
+
+六个键在 $$d$$ = 1 时分成 `b`、`s`、`t` 三组，字典树的深度 1 也有三个节点。$$d$$ = 2 时是 `by`、`se`、`sh`、`th` 四组。$$d$$ = 3 时 `by` 的位置已定而退出，剩下的组与深度 3 的四个节点相同。
 
 ## 本主题要带走的 \{#takeaway}
 
@@ -747,9 +855,10 @@ src/topic-10-trie/
 
 ## 版本记录 \{#changelog}
 
-幻灯片与本资料一起升版。当前版本是 **v1**，幻灯片左下角
+幻灯片与本资料一起升版。当前版本是 **v2**，幻灯片左下角
 可以看到同一版本号。
 
 | 版本 | 日期 | 内容 |
 | --- | --- | --- |
 | v1 | 2026-10-28 | 首次公开 |
+| v2 | 2026-11-04 | 新增八个演示：逐行看代码（字典树、TST）、要看多少个字符、把 R 变小、字典树与 TST 的对应、TST 与插入顺序、向旁边走的部分、MSD 的分组与字典树的层。键表、字符带、链接数组放进演示内部 |

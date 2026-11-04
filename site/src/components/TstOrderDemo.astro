@@ -1,0 +1,650 @@
+---
+// 같은 키를 넣는 순서만 바꿔 TST의 모양과 높이가 어떻게 달라지는지 보는 데모.
+//
+// 순서 탭을 고르면 다 넣은 트리부터 보이고, 처음으로를 누르면 빈 트리에서 다시 넣는다.
+// 순서 탭을 고르고 한 걸음씩 키를 넣는다. 노드 수와 링크 수는 순서와 상관없이 같고,
+// 높이와 키마다 드는 비교 횟수만 달라진다. 비교 횟수는 지금까지 넣은 트리에서 실제로 찾아
+// 센다. 트라이는 순서와 상관없이 모양이 같다는 것과 견준다.
+//
+// apple 키는 실습 코드(algorithm-code의 topic-10-trie/02_tst)의 일곱 키이고, 순서를 그대로
+// 두면 높이 12, 사전 순이면 높이 15로 실습 코드의 space 표와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+
+type Order = 'code' | 'sorted' | 'reverse' | 'middle' | 'shuffle';
+interface Props {
+  /** 처음 고른 순서 */
+  order?: Order;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { order = 'code', slide = false } = Astro.props;
+const id = `tq-${Math.random().toString(36).slice(2, 9)}`;
+
+const SETS: Record<string, [string, number][]> = {
+  apple: [
+    ['apple', 10],
+    ['application', 20],
+    ['apply', 30],
+    ['applaud', 40],
+    ['applet', 50],
+    ['appliance', 60],
+    ['applicable', 70],
+  ],
+  six: [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+};
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'TST와 넣는 순서',
+    code: '실습 코드 순서',
+    sorted: '사전 순',
+    reverse: '역순',
+    middle: '가운데부터',
+    shuffle: '섞기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    nodes: '노드',
+    links: '링크',
+    height: '높이',
+    avg: '평균 비교',
+    key: '키',
+    compares: '비교',
+    log: '지금까지 본 순서의 높이',
+    idle: '빈 TST입니다. 키를 이 순서로 넣어 봅니다.',
+    word: '{w} = {v}: 비교 {k}번, 새 노드 {m}개입니다. 높이는 {h}입니다.',
+    done: '노드 {n}개, 링크 {l}개, 높이 {h}, 키 하나를 찾는 평균 비교 {a}번입니다.',
+    same: '노드와 링크는 어느 순서든 같고, 트라이라면 모양까지 같습니다.',
+  },
+  en: {
+    title: 'The TST and insertion order',
+    code: 'Practice code order',
+    sorted: 'Sorted',
+    reverse: 'Reverse',
+    middle: 'Middle first',
+    shuffle: 'Shuffle',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    nodes: 'nodes',
+    links: 'links',
+    height: 'height',
+    avg: 'average compares',
+    key: 'key',
+    compares: 'compares',
+    log: 'Heights of the orders so far',
+    idle: 'An empty TST. Insert the keys in this order.',
+    word: '{w} = {v}: {k} compares and {m} new nodes. The height is {h}.',
+    done: '{n} nodes, {l} links, height {h}, and {a} compares on average to find a key.',
+    same: 'Nodes and links are the same in any order, and a trie would keep even the same shape.',
+  },
+  zh: {
+    title: 'TST 与插入顺序',
+    code: '实践代码的顺序',
+    sorted: '字典序',
+    reverse: '逆序',
+    middle: '从中间开始',
+    shuffle: '打乱',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    nodes: '节点',
+    links: '链接',
+    height: '高度',
+    avg: '平均比较',
+    key: '键',
+    compares: '比较',
+    log: '已看过的顺序的高度',
+    idle: '空的 TST。按这个顺序插入键。',
+    word: '{w} = {v}：比较 {k} 次，新建 {m} 个节点。高度是 {h}。',
+    done: '{n} 个节点，{l} 个链接，高度 {h}，查找一个键平均比较 {a} 次。',
+    same: '节点和链接在任何顺序下都相同，换成字典树连形状也相同。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const orders: Order[] = ['code', 'sorted', 'reverse', 'middle', 'shuffle'];
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-tst-order-demo', slide && 'is-slide']} id={id} data-tq-order={order} data-tq-sets={JSON.stringify(SETS)} data-tq-strings={JSON.stringify(t)}>
+  <div class="tq-bar">
+    <span class="tq-head"><strong>{t.title}</strong></span>
+    <div class="tq-tabs">
+      <button type="button" class="tq-tab tq-mono" data-tq-set="apple">apple..</button>
+      <button type="button" class="tq-tab tq-mono" data-tq-set="six">by..the</button>
+    </div>
+    <div class="tq-controls">
+      <button type="button" data-act="back" class="tq-btn">{t.back}</button>
+      <button type="button" data-act="step" class="tq-btn">{t.step}</button>
+      <button type="button" data-act="play" class="tq-btn tq-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="tq-btn">{t.reset}</button>
+    </div>
+  </div>
+  <div class="tq-row">
+    <div class="tq-tabs">
+      {orders.map((o) => <button type="button" class="tq-tab" data-tq-tab={o}>{t[o]}</button>)}
+    </div>
+    <div class="tq-seq" data-tq-seq></div>
+  </div>
+  <div class="tq-body">
+    <svg class="tq-svg" data-tq-svg role="img" aria-label={t.title}></svg>
+    <div class="tq-side">
+      <div class="tq-stats">
+        <span>{t.nodes} <strong data-tq-nodes></strong></span>
+        <span>{t.links} <strong data-tq-links></strong></span>
+        <span class="tq-big">{t.height} <strong data-tq-height></strong></span>
+      </div>
+      <table class="tq-table">
+        <thead>
+          <tr><th>{t.key}</th><th>{t.compares}</th></tr>
+        </thead>
+        <tbody data-tq-rows></tbody>
+      </table>
+      <div class="tq-log"><span>{t.log}</span><span data-tq-log></span></div>
+    </div>
+  </div>
+  <p class="tq-note" data-tq-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.tqStrings);
+    const SETS = JSON.parse(root.dataset.tqSets);
+    const { tstInsert, tstWalk, tstHeight, layoutTst } = globalThis.aasTrieAlgos;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const svg = root.querySelector('[data-tq-svg]');
+    const seqBox = root.querySelector('[data-tq-seq]');
+    const rowsBox = root.querySelector('[data-tq-rows]');
+    const playBtn = root.querySelector('[data-act="play"]');
+
+    let setName = 'apple';
+    let orderName = root.dataset.tqOrder;
+    let list = [];
+    let steps = [];
+    let at = 0;
+    let timer = null;
+    let edgeEls = new Map();
+    let nodeEls = new Map();
+    /* 끝까지 넣어 본 순서의 높이: 순서마다 기억해 둔다. */
+    let heights = {};
+
+    const byKey = ([a], [b]) => (a < b ? -1 : 1);
+    const middleFirst = (l) => {
+      if (l.length === 0) return [];
+      const m = Math.floor((l.length - 1) / 2);
+      return [l[m], ...middleFirst(l.slice(0, m)), ...middleFirst(l.slice(m + 1))];
+    };
+    const shuffled = (l) => {
+      const a = [...l];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+    function makeOrder(o) {
+      const base = SETS[setName];
+      const sorted = [...base].sort(byKey);
+      if (o === 'sorted') return sorted;
+      if (o === 'reverse') return [...sorted].reverse();
+      if (o === 'middle') return middleFirst(sorted);
+      if (o === 'shuffle') return shuffled(base);
+      return base;
+    }
+
+    /* plan:start (실습 코드의 삽입을 순서대로 돌려 단계를 만든다) */
+    function plan() {
+      const tst = new Map();
+      const out = [{ present: [], valued: [], made: [], path: [], cur: -1, note: S.idle, cost: {}, height: 0 }];
+      list.forEach(([w, v], i) => {
+        const { log, made } = tstInsert(tst, w, v);
+        const cost = {};
+        list.slice(0, i + 1).forEach(([k]) => (cost[k] = tstWalk(tst, k).log.length));
+        const h = tstHeight(tst);
+        out.push({
+          present: [...tst.keys()],
+          valued: [...tst].filter(([, n]) => n.value !== null).map(([nid]) => nid),
+          made,
+          path: log.map((e) => e.nid),
+          cur: i,
+          cost,
+          height: h,
+          note: fill(S.word, { w, v, k: log.length, m: made.length, h }),
+        });
+      });
+      const last = out[out.length - 1];
+      const sum = Object.values(last.cost).reduce((a, b) => a + b, 0);
+      out.push({
+        ...last,
+        made: [],
+        path: [],
+        cur: list.length,
+        done: true,
+        note: join(fill(S.done, { n: tst.size, l: tst.size * 3, h: last.height, a: (sum / list.length).toFixed(2) }), S.same),
+      });
+      return { steps: out, tst };
+    }
+    /* plan:end */
+
+    function draw(tst) {
+      const UNIT = 36;
+      const LEVEL = 28;
+      const RAD = 13;
+      const { pos, slots, depth } = layoutTst(tst, UNIT, LEVEL);
+      const PAD = 26;
+      svg.setAttribute('viewBox', `${-PAD} ${-RAD - 6} ${Math.max(slots - 1, 0) * UNIT + 2 * PAD} ${depth * LEVEL + 2 * RAD + 20}`);
+      svg.replaceChildren();
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      svg.append(edges, nodes);
+      edgeEls = new Map();
+      nodeEls = new Map();
+      for (const [nid, n] of tst) {
+        const p = pos.get(nid);
+        if (nid !== '') {
+          const q = pos.get(nid.slice(0, -1));
+          const line = el('line', { class: 'tq-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+          edges.appendChild(line);
+          edgeEls.set(nid, line);
+        }
+        const g = el('g', { class: 'tq-nd', transform: `translate(${p.x} ${p.y})` });
+        g.append(el('circle', { r: RAD }), el('text', { class: 'tq-ch' }, n.ch));
+        nodes.appendChild(g);
+        nodeEls.set(nid, g);
+      }
+    }
+
+    function render() {
+      const st = steps[at];
+      const present = new Set(st.present);
+      for (const [nid, g] of nodeEls) {
+        const on = present.has(nid);
+        g.classList.toggle('is-off', !on);
+        g.classList.toggle('has-value', st.valued.includes(nid));
+        g.classList.toggle('is-new', st.made.includes(nid));
+        g.classList.toggle('is-path', st.path.includes(nid));
+        const line = edgeEls.get(nid);
+        if (line) {
+          line.classList.toggle('is-off', !on);
+          line.classList.toggle('is-new', st.made.includes(nid));
+          line.classList.toggle('is-path', st.path.includes(nid));
+        }
+      }
+      [...seqBox.children].forEach((c, i) => {
+        c.classList.toggle('is-done', i < st.cur);
+        c.classList.toggle('is-now', i === st.cur);
+      });
+      const n = st.present.length;
+      root.querySelector('[data-tq-nodes]').textContent = String(n);
+      root.querySelector('[data-tq-links]').textContent = String(n * 3);
+      root.querySelector('[data-tq-height]').textContent = String(st.height);
+      /* 표: 사전 순으로 놓고, 비교가 많은 키일수록 막대가 길다. */
+      const rows = [...SETS[setName]].sort(byKey);
+      const maxCost = Math.max(1, ...Object.values(st.cost));
+      rowsBox.replaceChildren(
+        ...rows.map(([w]) => {
+          const tr = document.createElement('tr');
+          const cost = st.cost[w];
+          const cur = list[st.cur] && list[st.cur][0] === w;
+          if (cur) tr.className = 'is-now';
+          const td = Object.assign(document.createElement('td'), { className: 'tq-key', textContent: w });
+          const barCell = document.createElement('td');
+          barCell.className = 'tq-cost';
+          if (cost !== undefined) {
+            const bar = document.createElement('i');
+            bar.style.width = `${(cost / maxCost) * 100}%`;
+            barCell.append(bar, Object.assign(document.createElement('b'), { textContent: String(cost) }));
+          }
+          tr.append(td, barCell);
+          return tr;
+        }),
+      );
+      if (st.done && orderName !== 'shuffle') {
+        heights[orderName] = st.height;
+      }
+      root.querySelector('[data-tq-log]').textContent = Object.entries(heights)
+        .map(([o, h]) => `${S[o]} ${h}`)
+        .join(' · ');
+      setLines(root.querySelector('[data-tq-note]'), st.note);
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+    function start() {
+      stop();
+      list = makeOrder(orderName);
+      const p = plan();
+      steps = p.steps;
+      at = steps.length - 1;
+      seqBox.replaceChildren(
+        ...list.map(([w]) => Object.assign(document.createElement('span'), { className: 'tq-word', textContent: w })),
+      );
+      draw(p.tst);
+      root.querySelectorAll('[data-tq-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.tqTab === orderName));
+      root.querySelectorAll('[data-tq-set]').forEach((b) => b.classList.toggle('is-on', b.dataset.tqSet === setName));
+      render();
+    }
+    root.querySelectorAll('[data-tq-tab]').forEach((b) =>
+      b.addEventListener('click', () => {
+        orderName = b.dataset.tqTab;
+        start();
+      }),
+    );
+    root.querySelectorAll('[data-tq-set]').forEach((b) =>
+      b.addEventListener('click', () => {
+        setName = b.dataset.tqSet;
+        heights = {};
+        start();
+      }),
+    );
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+    start();
+  })();
+</script>
+
+<!-- 노드와 표의 칸은 스크립트가 만들므로 is:global로 두고 .aas-tst-order-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-tst-order-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-tst-order-demo .tq-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-tst-order-demo .tq-head {
+    font-size: 0.95em;
+  }
+  .aas-tst-order-demo .tq-tabs,
+  .aas-tst-order-demo .tq-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-tst-order-demo .tq-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    align-items: center;
+    margin: 0.4em 0;
+  }
+  .aas-tst-order-demo .tq-tab {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tst-order-demo .tq-mono {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-order-demo .tq-tab:hover,
+  .aas-tst-order-demo .tq-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-tst-order-demo .tq-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-tst-order-demo .tq-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-tst-order-demo .tq-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-tst-order-demo .tq-seq {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+  }
+  .aas-tst-order-demo .tq-word {
+    padding: 0 0.45em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+    font-weight: 700;
+    color: var(--aas-muted);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+  }
+  .aas-tst-order-demo .tq-word.is-done {
+    color: var(--aas-text);
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-tst-order-demo .tq-word.is-now {
+    color: var(--aas-text);
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  .aas-tst-order-demo .tq-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: flex-start;
+  }
+  .aas-tst-order-demo .tq-svg {
+    flex: 1 1 18em;
+    min-width: 0;
+    max-height: 22em;
+  }
+  .aas-tst-order-demo .tq-side {
+    flex: 0 1 22em;
+    min-width: 0;
+  }
+  .aas-tst-order-demo .tq-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 0.9em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-order-demo .tq-stats strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-tst-order-demo .tq-big strong {
+    font-size: 1.7em;
+    color: var(--aas-role-focus);
+  }
+  .aas-tst-order-demo .tq-table {
+    width: 100%;
+    margin: 0.3em 0;
+    border-collapse: collapse;
+    font-size: 0.75em;
+  }
+  .aas-tst-order-demo .tq-table th {
+    padding: 0 0.5em;
+    font-weight: 600;
+    text-align: left;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-tst-order-demo .tq-table td {
+    padding: 0.05em 0.5em;
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-tst-order-demo .tq-table tr.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, transparent);
+  }
+  .aas-tst-order-demo .tq-key {
+    width: 8.5em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-tst-order-demo .tq-cost {
+    position: relative;
+  }
+  .aas-tst-order-demo .tq-cost i {
+    display: inline-block;
+    height: 0.75em;
+    max-width: calc(100% - 2em);
+    margin-right: 0.35em;
+    background: var(--aas-role-model);
+    border-radius: 0.2em;
+  }
+  .aas-tst-order-demo .tq-cost b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-order-demo .tq-log {
+    display: flex;
+    flex-direction: column;
+    min-height: 2.6em;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-order-demo .tq-log span:last-child {
+    font-weight: 700;
+    color: var(--aas-text);
+  }
+  .aas-tst-order-demo .tq-note {
+    margin: 0.3em 0 0;
+    min-height: 2.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-tst-order-demo .tq-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+  }
+  .aas-tst-order-demo .tq-edge.is-path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-tst-order-demo .tq-edge.is-new {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-tst-order-demo .tq-edge.is-off,
+  .aas-tst-order-demo .tq-nd.is-off {
+    opacity: 0;
+  }
+  .aas-tst-order-demo .tq-nd circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+  }
+  .aas-tst-order-demo .tq-nd.has-value circle {
+    fill: var(--aas-text);
+  }
+  .aas-tst-order-demo .tq-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-tst-order-demo .tq-nd.has-value .tq-ch,
+  .aas-tst-order-demo .tq-nd.is-path .tq-ch,
+  .aas-tst-order-demo .tq-nd.is-new .tq-ch {
+    fill: var(--aas-bg);
+  }
+  .aas-tst-order-demo .tq-nd.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-tst-order-demo .tq-nd.is-new circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-tst-order-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+  }
+  .aas-tst-order-demo.is-slide .tq-body {
+    flex-wrap: nowrap;
+  }
+  .aas-tst-order-demo.is-slide .tq-svg {
+    flex: 1 1 auto;
+    width: auto;
+    height: 37vh;
+    max-height: none;
+  }
+</style>

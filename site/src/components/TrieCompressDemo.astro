@@ -7,7 +7,8 @@
 // 둔다고 할 때의 링크 수를 함께 센다.
 //
 // 합치는 규칙은 TrieFigure의 kind="compressed"와 같다. 기본 키는 원본 자료의
-// shells=1, shellfish=2다.
+// shells=1, shellfish=2다. 탭으로 by..the(주제의 여섯 키)와 apple..로 바꿔 접히는 몫이
+// 키 집합에 따라 얼마나 다른지 볼 수 있다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -74,18 +75,45 @@ const STRINGS: Record<string, Record<string, string>> = {
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const SETS: Record<string, [string, number][]> = {
+  shells: words,
+  six: [
+    ['by', 4],
+    ['sea', 2],
+    ['sells', 1],
+    ['she', 0],
+    ['shells', 3],
+    ['the', 5],
+  ],
+  apple: [
+    ['apple', 10],
+    ['application', 20],
+    ['apply', 30],
+    ['applaud', 40],
+    ['applet', 50],
+    ['appliance', 60],
+    ['applicable', 70],
+  ],
+};
+const LABELS: Record<string, string> = { shells: words.map(([w]) => w).join(' · '), six: 'by..the', apple: 'apple..' };
 ---
 
 <div
   class:list={['aas-trie-compress-demo', slide && 'is-slide']}
   id={id}
-  data-tc-words={JSON.stringify(words)}
+  data-tc-sets={JSON.stringify(SETS)}
   data-tc-strings={JSON.stringify(t)}
 >
   <div class="tc-bar">
     <span class="tc-head">
       <strong>{t.title}</strong>
-      <span class="tc-chip">{words.map(([w, v]) => `${w}=${v}`).join(' ')}</span>
+      {
+        Object.keys(SETS).map((k) => (
+          <button type="button" class="tc-chip" data-tc-tab={k}>
+            {LABELS[k]}
+          </button>
+        ))
+      }
     </span>
     <div class="tc-controls">
       <button type="button" data-act="back" class="tc-btn">{t.back}</button>
@@ -119,11 +147,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
     const S = JSON.parse(root.dataset.tcStrings);
-    const words = JSON.parse(root.dataset.tcWords);
+    const SETS = JSON.parse(root.dataset.tcSets);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const R = 26;
 
     /* plan:start */
+    function plan(words) {
     /* 트라이를 만든다. 노드 id는 처음 만들 때의 경로 문자열, 합쳐도 위 노드의 id가 남는다. */
     const trie = new Map([['', { label: '', kids: [], value: null }]]);
     for (const [w, v] of words) {
@@ -171,7 +200,10 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       steps.push({ snap: snapshot(), hot: k, note: fill(S.merge, { a, b, ab: a + b }), single: singles() });
     }
     steps.push({ snap: snapshot(), note: fill(S.done, { from: first, to: trie.size }), single: 0, done: true });
+    return steps;
+    }
     /* plan:end */
+    let steps = [];
 
     const NS = 'http://www.w3.org/2000/svg';
     const el = (name, attrs, text) => {
@@ -202,10 +234,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       return { pos, slots: slot, maxD };
     };
     /* 그림의 틀은 처음(가장 큰) 트라이로 정해 두어 단계마다 크기가 바뀌지 않게 한다. */
-    const big = layout(steps[0].snap);
-    const maxLabel = Math.max(...[...steps[steps.length - 1].snap.values()].map((n) => n.label.length));
-    const half = Math.max(RAD, 8 + maxLabel * 5.2);
-    svg.setAttribute('viewBox', `${-half - 16} ${-RAD - 18} ${(big.slots - 1) * UNIT + 2 * half + 32} ${big.maxD * LEVEL + 2 * RAD + 22}`);
+    function frame() {
+      const big = layout(steps[0].snap);
+      const maxLabel = Math.max(...[...steps[steps.length - 1].snap.values()].map((n) => n.label.length));
+      const half = Math.max(RAD, 8 + maxLabel * 5.2);
+      svg.setAttribute('viewBox', `${-half - 16} ${-RAD - 18} ${(big.slots - 1) * UNIT + 2 * half + 32} ${big.maxD * LEVEL + 2 * RAD + 22}`);
+    }
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     function render(i) {
@@ -280,7 +314,16 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       playBtn.textContent = S.stop;
       timer = setInterval(step, 1100);
     });
-    render(0);
+    function use(k) {
+      stop();
+      steps = plan(SETS[k]);
+      at = 0;
+      frame();
+      render(0);
+      root.querySelectorAll('[data-tc-tab]').forEach((b) => b.classList.toggle('is-on', b.dataset.tcTab === k));
+    }
+    root.querySelectorAll('[data-tc-tab]').forEach((b) => b.addEventListener('click', () => use(b.dataset.tcTab)));
+    use(Object.keys(SETS)[0]);
   })();
 </script>
 
@@ -309,12 +352,22 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     font-size: 0.95em;
   }
   .aas-trie-compress-demo .tc-chip {
-    font-size: 0.85em;
+    font-size: 0.8em;
     font-family: var(--aas-mono, monospace);
-    border-radius: 0.5em;
-    padding: 0.1em 0.5em;
-    border: 1px solid color-mix(in srgb, var(--aas-role-model) 55%, transparent);
-    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+    border-radius: 999px;
+    padding: 0.2em 0.7em;
+    border: 1px solid var(--aas-border);
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-compress-demo .tc-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-compress-demo .tc-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
   }
   .aas-trie-compress-demo .tc-controls {
     display: flex;
@@ -438,7 +491,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     min-height: 2.4em;
   }
   .aas-trie-compress-demo.is-slide {
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
     margin: 0.5rem 0;
   }
   .aas-trie-compress-demo.is-slide .tc-body {
@@ -453,7 +506,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   }
   .aas-trie-compress-demo.is-slide .tc-svg {
     flex: 0 0 auto;
-    height: 47vh;
+    height: 44vh;
     width: auto;
     max-width: 60%;
     max-height: none;
