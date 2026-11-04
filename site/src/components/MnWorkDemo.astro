@@ -1,0 +1,273 @@
+---
+// "최악 O(MN)"이라는 약속을 숫자로 재 보는 데모.
+//
+// 정규식 a*…a*b(a*가 r번)에 a가 N개인 텍스트를 regexCore의 NFA로 실제로 돌린다. 막대
+// 하나가 글자 하나를 읽고 ε 닫힘까지 하는 동안 집합에 넣은 상태 수이고, 윗선이 M + 1이다.
+// 막대는 윗선을 넘지 못하므로 전체 작업량은 (M + 1)(N + 1)을 넘지 못한다.
+// 슬라이더로 M이나 N을 두 배로 하면 작업량이 몇 배가 되는지도 실제로 돌려 계산한다.
+// r과 N이 2·2, 4·4, …, 10·10이면 nfaRegex.c의 work(16, 46, 92, 154, 232)와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import RegexCore from './RegexCore.astro';
+
+interface Props {
+  /** 처음 r (a*의 개수) */
+  r?: number;
+  /** 처음 N (텍스트 길이) */
+  n?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { r = 4, n = 8, slide = false } = Astro.props;
+const id = `mw-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'O(MN) 재 보기',
+    rLabel: 'a*의 개수 (M을 키운다)',
+    nLabel: '텍스트 길이 N',
+    work: '작업량',
+    bound: '상한 (M+1)(N+1)',
+    ratio: '작업량 ÷ MN',
+    doubleN: 'N을 두 배로',
+    doubleM: 'M을 약 두 배로',
+    times: '{x}배',
+    start: '시작',
+    top: 'M + 1 = {m}',
+    note: '막대 하나가 글자 하나를 읽는 동안 집합에 넣은 상태 수입니다. M + 1을 넘지 못하므로 전체는 MN에 비례합니다. 집합에 같은 상태를 두 번 넣지 않기 때문입니다.',
+  },
+  en: {
+    title: 'Measuring O(MN)',
+    rLabel: 'number of a* (raises M)',
+    nLabel: 'text length N',
+    work: 'work',
+    bound: 'bound (M+1)(N+1)',
+    ratio: 'work ÷ MN',
+    doubleN: 'double N',
+    doubleM: 'about double M',
+    times: '×{x}',
+    start: 'start',
+    top: 'M + 1 = {m}',
+    note: 'One bar is the number of states put in the set while reading one character. It cannot exceed M + 1, so the total is proportional to MN. The set never takes the same state twice.',
+  },
+  zh: {
+    title: '测量 O(MN)',
+    rLabel: 'a* 的个数（增大 M）',
+    nLabel: '文本长度 N',
+    work: '工作量',
+    bound: '上限 (M+1)(N+1)',
+    ratio: '工作量 ÷ MN',
+    doubleN: 'N 翻倍',
+    doubleM: 'M 约翻倍',
+    times: '{x} 倍',
+    start: '开始',
+    top: 'M + 1 = {m}',
+    note: '一根柱子是读一个字符时放入集合的状态数。它不会超过 M + 1，所以总量与 MN 成正比。这是因为集合不会两次放入同一状态。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<RegexCore />
+<div class:list={['aas-mn-work-demo', slide && 'is-slide']} id={id} data-mw-r={r} data-mw-n={n} data-mw-strings={JSON.stringify(t)}>
+  <div class="mw-bar">
+    <span class="mw-head"><strong>{t.title}</strong> <code data-mw-regex></code></span>
+    <span class="mw-m">M = <strong data-mw-m></strong> · N = <strong data-mw-nn></strong></span>
+  </div>
+  <div class="mw-sliders">
+    <label>{t.rLabel} <strong data-mw-rval></strong><input type="range" min="1" max="16" step="1" value={r} data-mw-r-range /></label>
+    <label>{t.nLabel} <strong data-mw-nval></strong><input type="range" min="1" max="40" step="1" value={n} data-mw-n-range /></label>
+  </div>
+
+  <div class="mw-chart">
+    <span class="mw-top" data-mw-top></span>
+    <div class="mw-bars" data-mw-bars></div>
+  </div>
+
+  <div class="mw-stats">
+    <div class="mw-stat is-main"><span>{t.work}</span><strong data-mw-work></strong></div>
+    <div class="mw-stat"><span>{t.bound}</span><strong data-mw-bound></strong></div>
+    <div class="mw-stat"><span>{t.ratio}</span><strong data-mw-ratio></strong></div>
+    <div class="mw-stat"><span>{t.doubleN}</span><strong data-mw-dn></strong></div>
+    <div class="mw-stat"><span>{t.doubleM}</span><strong data-mw-dm></strong></div>
+  </div>
+  <p class="mw-note" data-mw-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.mwStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+    const fmt = (v) => v.toLocaleString('en-US');
+    const core = globalThis.aasRegexCore;
+    const rRange = root.querySelector('[data-mw-r-range]');
+    const nRange = root.querySelector('[data-mw-n-range]');
+    const barsEl = root.querySelector('[data-mw-bars]');
+
+    const regexOf = (r) => `${'a*'.repeat(r)}b`;
+    const measure = (r, n) => {
+      const g = core.build(regexOf(r));
+      const res = core.run(g, 'a'.repeat(n));
+      return { M: g.M, work: res.work, sizes: res.trail.map((x) => x.set.size) };
+    };
+
+    function render() {
+      const r = Number(rRange.value);
+      const n = Number(nRange.value);
+      const now = measure(r, n);
+      root.querySelector('[data-mw-regex]').textContent = r <= 4 ? regexOf(r) : `a*×${r} b`;
+      root.querySelector('[data-mw-m]').textContent = String(now.M);
+      root.querySelector('[data-mw-nn]').textContent = String(n);
+      root.querySelector('[data-mw-rval]').textContent = String(r);
+      root.querySelector('[data-mw-nval]').textContent = String(n);
+      root.querySelector('[data-mw-top]').textContent = fill(S.top, { m: now.M + 1 });
+      barsEl.replaceChildren(...now.sizes.map((size, i) => {
+        const b = document.createElement('span');
+        b.className = 'mw-b';
+        b.style.height = `${(size / (now.M + 1)) * 100}%`;
+        b.title = `${i === 0 ? S.start : i}: ${size}`;
+        return b;
+      }));
+      root.querySelector('[data-mw-work]').textContent = fmt(now.work);
+      root.querySelector('[data-mw-bound]').textContent = fmt((now.M + 1) * (n + 1));
+      root.querySelector('[data-mw-ratio]').textContent = (now.work / (now.M * n)).toFixed(2);
+      const dn = measure(r, n * 2);
+      const dm = measure(r * 2, n);
+      root.querySelector('[data-mw-dn]').textContent = fill(S.times, { x: (dn.work / now.work).toFixed(2) });
+      root.querySelector('[data-mw-dm]').textContent = fill(S.times, { x: (dm.work / now.work).toFixed(2) });
+      setLines(root.querySelector('[data-mw-note]'), S.note);
+    }
+    rRange.addEventListener('input', render);
+    nRange.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-mn-work-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-mn-work-demo .mw-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.4em;
+  }
+  .aas-mn-work-demo .mw-head {
+    font-size: 0.95em;
+  }
+  .aas-mn-work-demo .mw-m {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-mn-work-demo .mw-sliders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-mn-work-demo .mw-sliders label {
+    flex: 1 1 14em;
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .aas-mn-work-demo .mw-sliders strong {
+    min-width: 1.3em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-mn-work-demo .mw-sliders input {
+    flex: 1;
+    min-width: 4em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-mn-work-demo .mw-chart {
+    position: relative;
+    height: 6.8em;
+    margin-top: 1.1em;
+    border-top: 2px dashed var(--aas-role-guard);
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-mn-work-demo .mw-top {
+    position: absolute;
+    top: -1.75em;
+    right: 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    color: var(--aas-role-guard);
+  }
+  .aas-mn-work-demo .mw-bars {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 100%;
+  }
+  .aas-mn-work-demo .mw-b {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 2.5em;
+    background: var(--aas-role-model);
+    border-radius: 0.15em 0.15em 0 0;
+    transition: height 0.2s;
+  }
+  .aas-mn-work-demo .mw-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    margin-top: 0.6em;
+  }
+  .aas-mn-work-demo .mw-stat {
+    flex: 1 1 7em;
+    min-width: 0;
+    padding: 0.15em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-mn-work-demo .mw-stat span {
+    display: block;
+    font-size: 0.68em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-mn-work-demo .mw-stat strong {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-mn-work-demo .mw-stat.is-main strong {
+    color: var(--aas-role-model);
+    font-size: 1.15em;
+  }
+  .aas-mn-work-demo .mw-note {
+    margin: 0.5em 0 0;
+    font-size: 0.82em;
+    color: var(--aas-text);
+    min-height: 2.8em;
+  }
+  .aas-mn-work-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-mn-work-demo * {
+      transition: none !important;
+    }
+  }
+</style>
