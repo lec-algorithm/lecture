@@ -1,0 +1,103 @@
+---
+// 주제 13의 데모가 쓰는 NFA 절차(regexCore.js)를 페이지에 넣고, 스크립트가 그리는
+// NFA 그림의 스타일을 둔다. 그림 모양은 NfaDemo와 같다. 한 페이지에 여러 번 놓여도
+// 절차는 한 번만 정의된다.
+import core from './regexCore.js?raw';
+---
+
+<script is:inline set:html={core} />
+
+<style is:global>
+  .ng-graph {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
+  .ng-graph .ng-tip-match path {
+    fill: var(--aas-text);
+  }
+  .ng-graph .ng-tip-eps path {
+    fill: var(--aas-role-model);
+  }
+  .ng-graph .ng-tip-on path {
+    fill: var(--aas-role-focus);
+  }
+  .ng-graph .ng-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 10;
+    cursor: pointer;
+  }
+  .ng-graph .ng-edge {
+    fill: none;
+    stroke-width: 1.6;
+    pointer-events: none;
+    transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+  }
+  .ng-graph .ng-edge.is-match {
+    stroke: var(--aas-text);
+  }
+  .ng-graph .ng-edge.is-eps {
+    stroke: var(--aas-role-model);
+    stroke-dasharray: 4 3;
+    opacity: 0.75;
+  }
+  .ng-graph .ng-edge.is-on {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+    opacity: 1;
+  }
+  .ng-graph .ng-state circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-text);
+    stroke-width: 1.6;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .ng-graph .ng-state .ng-ring {
+    fill: none;
+  }
+  .ng-graph .ng-char {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .ng-graph .ng-num {
+    font-size: 11px;
+    font-family: var(--aas-mono, monospace);
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .ng-graph .ng-state.is-in circle:not(.ng-ring) {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .ng-graph .ng-state.is-in .ng-char {
+    fill: #fff;
+  }
+  .ng-graph .ng-state.is-now circle:not(.ng-ring) {
+    fill: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .ng-graph .ng-state.is-now .ng-char {
+    fill: var(--aas-text);
+  }
+  .ng-graph .ng-state.is-seed circle:not(.ng-ring) {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .ng-graph .ng-state.is-yes circle:not(.ng-ring) {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ng-graph .ng-edge,
+    .ng-graph .ng-state circle {
+      transition: none;
+    }
+  }
+</style>
