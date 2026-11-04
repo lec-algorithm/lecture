@@ -1,0 +1,1201 @@
+---
+// 키를 직접 쳐서 트라이의 의사코드를 한 줄씩 돌려 보는 데모.
+//
+// 탭으로 삽입·검색·접두사·삭제를 고르고 키를 치면, 그 입력으로 실제 절차를 돌려 단계를
+// 만든다. 한 걸음마다 지금 줄을 칠하고, 변수(i, index, current)와 지금 노드의 링크 배열,
+// 키의 글자 띠, 트라이에 든 키 표를 함께 보인다. 끝까지 돌린 삽입과 삭제만 트라이에
+// 남는다. 처음 트라이는 실습 코드의 여섯 키이고(접두사와 삭제는 실습 코드처럼 shore=7을
+// 더한다), 비우면 빈 트라이에서 시작한다.
+//
+// 의사코드는 algorithm-code의 topic-10-trie/01_trie/trie.pseudo와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import algos from './trieAlgos.js?raw';
+import TrieKeyTable from './TrieKeyTable.astro';
+import TrieKeyTape from './TrieKeyTape.astro';
+import TrieLinkStrip from './TrieLinkStrip.astro';
+
+type Op = 'insert' | 'search' | 'prefix' | 'delete';
+interface Props {
+  /** 처음 고른 연산 */
+  op?: Op;
+  /** 처음 칠 키 */
+  word?: string;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { op = 'insert', word, slide = false } = Astro.props;
+const id = `tw-${Math.random().toString(36).slice(2, 9)}`;
+
+const WORDS: [string, number][] = [
+  ['by', 4],
+  ['sea', 2],
+  ['sells', 1],
+  ['she', 0],
+  ['shells', 3],
+  ['the', 5],
+];
+const SAMPLES: Record<Op, string[]> = {
+  insert: ['shore', 'she', 'sell', 'bye'],
+  search: ['shells', 'shell', 'she', 'shore'],
+  prefix: ['sh', 'se', 't', 'shx'],
+  delete: ['shells', 'she', 'by', 'shell'],
+};
+
+const CODE_COMMON = {
+  insert: [
+    'ALGORITHM Insert(root, word, value)',
+    '    current <- root',
+    '    for i <- 0 to length(word)-1 do',
+    "        index <- word[i] - 'a'",
+    '        if current.children[index] = NULL then',
+    '            current.children[index] <- CreateTrieNode()',
+    '        current <- current.children[index]',
+    '    current.hasValue <- true',
+    '    current.value <- value',
+  ],
+  search: [
+    'ALGORITHM Search(root, word)',
+    '    current <- root',
+    '    for i <- 0 to length(word)-1 do',
+    "        index <- word[i] - 'a'",
+    '        if current.children[index] = NULL then',
+    '            return -1',
+    '        current <- current.children[index]',
+    '    if current.hasValue then',
+    '        return current.value',
+    '    return -1',
+  ],
+};
+const prefixCode = (empty: string, add: string) => [
+  'ALGORITHM GetWordsWithPrefix(root, prefix)',
+  '    current <- root',
+  '    for i <- 0 to length(prefix)-1 do',
+  "        index <- prefix[i] - 'a'",
+  `        if current.children[index] = NULL then return ${empty}`,
+  '        current <- current.children[index]',
+  '    GetAllWordsHelper(current, prefix, results)',
+  'ALGORITHM GetAllWordsHelper(node, prefix, results)',
+  '    if node = NULL then return',
+  `    if node.hasValue then ${add}`,
+  '    for i <- 0 to 25 do',
+  '        if node.children[i] != NULL then',
+  "            GetAllWordsHelper(node.children[i], prefix + ('a' + i), results)",
+];
+const deleteCode = (noKids: string, free: string) => [
+  'ALGORITHM DeleteHelper(node, word, index)',
+  '    if index = length(word) then',
+  '        if not node.hasValue then return false',
+  '        node.hasValue <- false',
+  `        return ${noKids}`,
+  "    child <- node.children[word[index] - 'a']",
+  '    if child = NULL then return false',
+  '    if DeleteHelper(child, word, index + 1) then',
+  `        ${free}`,
+  `        return (not node.hasValue) and ${noKids}`,
+  '    return false',
+];
+const CODE: Record<string, Record<string, string[]>> = {
+  ko: {
+    ...CODE_COMMON,
+    prefix: prefixCode('빈 목록', 'results에 (prefix, node.value) 추가'),
+    delete: deleteCode('node에 자식이 하나도 없는가', 'child를 해제하고 그 링크를 NULL로'),
+  },
+  en: {
+    ...CODE_COMMON,
+    prefix: prefixCode('empty list', 'append (prefix, node.value) to results'),
+    delete: deleteCode('node has no children at all', 'free child and set that link to NULL'),
+  },
+  zh: {
+    ...CODE_COMMON,
+    prefix: prefixCode('空列表', '把 (prefix, node.value) 加入 results'),
+    delete: deleteCode('node 是否一个子节点也没有', '释放 child，把那个链接设为 NULL'),
+  },
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    sep: ' ',
+    title: '코드 한 줄씩',
+    insert: '삽입',
+    search: '검색',
+    prefix: '접두사',
+    delete: '삭제',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    restore: '처음 키로',
+    clear: '비우기',
+    root: '루트',
+    wordLabel: '키',
+    prefixLabel: '접두사',
+    valueLabel: '값',
+    visited: '거친 노드',
+    nodes: '노드',
+    links: '링크',
+    results: '모은 키',
+    empty: '키를 쳐 보세요. a부터 z까지의 소문자만 씁니다.',
+    full: '키가 {n}개라 더 넣지 않습니다. 지우거나 비운 뒤에 넣어 보세요.',
+    'insert.start': 'Insert("{w}", {v}): 루트에서 시작합니다.',
+    'insert.index': '{i}번째 글자 {c}는 {x}번 칸입니다.',
+    'insert.null': '{x}번 칸이 NULL입니다.',
+    'insert.linked': '{x}번 칸에 링크가 있습니다. 새로 만들지 않습니다.',
+    'insert.make': '새 노드를 만들어 {c} 칸에 답니다.',
+    'insert.move': '{c} 링크를 따라 내려갑니다.',
+    'insert.flag': '키의 마지막 글자 노드에 왔습니다. 값이 있다고 표시합니다.',
+    'insert.value': '이 노드의 값은 이제 {v}입니다.',
+    'insert.replace': '이미 값이 있었습니다. 값을 바꿉니다: {o} → {v}.',
+    'insert.done': '노드 {m}개를 새로 만들고 {k}개를 지났습니다. 끝까지 돌린 삽입은 트라이에 남습니다.',
+    'search.start': 'Search("{w}"): 루트에서 시작합니다.',
+    'search.index': '{i}번째 글자 {c}는 {x}번 칸입니다.',
+    'search.null': '{x}번 칸이 NULL입니다. 링크가 없어 실패합니다.',
+    'search.linked': '{x}번 칸에 링크가 있습니다.',
+    'search.move': '{c} 링크를 따라 내려갑니다.',
+    'search.check': '키를 다 읽었습니다. 이 노드에 값이 있는지 봅니다.',
+    'search.hit': '값은 {v}입니다. 성공입니다.',
+    'search.noValue': '이 노드에는 값이 없습니다. 지금 찾은 글자들은 다른 키의 접두사일 뿐 키가 아닙니다.',
+    'prefix.start': 'GetWordsWithPrefix("{w}"): 먼저 접두사를 따라 내려갑니다.',
+    'prefix.index': '{i}번째 글자 {c}는 {x}번 칸입니다.',
+    'prefix.null': '{x}번 칸이 NULL입니다. 이 접두사로 시작하는 키는 없습니다.',
+    'prefix.move': '{c} 링크를 따라 내려갑니다.',
+    'prefix.reach': '접두사의 노드에 왔습니다. 이 아래를 모두 돕니다.',
+    'prefix.take': '"{s}"의 값은 {v}입니다. 결과에 넣습니다.',
+    'prefix.pass': '"{s}"에는 값이 없습니다.',
+    'prefix.kid': 'a부터 z 순서로 돌다가 {c} 칸을 만나 "{s}"로 내려갑니다.',
+    'prefix.done': '이 접두사로 시작하는 키 {n}개를 사전 순으로 모았습니다.',
+    'delete.call': 'DeleteHelper({s}, {i}): 이 노드에서 시작합니다.',
+    'delete.arrive': '키를 다 읽었습니다. 이 노드가 키의 끝입니다.',
+    'delete.noValue': '값이 없습니다. 없는 키입니다. false를 돌려줍니다.',
+    'delete.clear': '값을 지웁니다.',
+    'delete.retKids': '자식이 {k}개입니다. {r}를 돌려줍니다.',
+    'delete.child': '{i}번째 글자 {c}의 칸을 봅니다.',
+    'delete.noChild': '{c} 칸이 NULL입니다. 없는 키입니다. false를 돌려줍니다.',
+    'delete.recurse': '{c} 아래를 지우러 내려갑니다.',
+    'delete.back': '{s}로 돌아왔습니다. 아래에서 {r}를 받았습니다.',
+    'delete.free': '"{c}" 노드를 떼어 내고 {c} 칸을 NULL로 둡니다.',
+    'delete.retNode': '값이 {hv}, 남은 자식이 {k}개입니다. {r}를 돌려줍니다.',
+    'delete.retFalse': '아래를 지우지 않았으니 false를 돌려줍니다.',
+    'delete.yes': '있고',
+    'delete.no': '없고',
+    'delete.done': '노드 {n}개를 떼어 냈습니다. 노드 {a}개가 {b}개가 되었습니다.',
+    'delete.none': '없는 키라서 트라이는 그대로입니다.',
+    'delete.keep': '노드는 하나도 떼어 내지 않았습니다. 값만 지웠습니다.',
+  },
+  en: {
+    sep: ' ',
+    title: 'One line of code at a time',
+    insert: 'Insert',
+    search: 'Search',
+    prefix: 'Prefix',
+    delete: 'Delete',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    restore: 'Starting keys',
+    clear: 'Empty',
+    root: 'root',
+    wordLabel: 'Key',
+    prefixLabel: 'Prefix',
+    valueLabel: 'Value',
+    visited: 'nodes visited',
+    nodes: 'nodes',
+    links: 'links',
+    results: 'collected',
+    empty: 'Type a key. Only lowercase letters a to z are used.',
+    full: 'There are already {n} keys, so no more go in. Delete or empty first.',
+    'insert.start': 'Insert("{w}", {v}): start at the root.',
+    'insert.index': 'Character {i} is {c}, which is slot {x}.',
+    'insert.null': 'Slot {x} is NULL.',
+    'insert.linked': 'Slot {x} already has a link. Nothing to create.',
+    'insert.make': 'Create a new node and hang it on slot {c}.',
+    'insert.move': 'Follow the {c} link down.',
+    'insert.flag': 'This is the node of the key’s last character. Mark that it holds a value.',
+    'insert.value': 'Store the value {v}.',
+    'insert.replace': 'It already held {o}. Replace it with {v}.',
+    'insert.done': 'Created {m} nodes and passed {k}. An insertion run to the end stays in the trie.',
+    'search.start': 'Search("{w}"): start at the root.',
+    'search.index': 'Character {i} is {c}, which is slot {x}.',
+    'search.null': 'Slot {x} is NULL. No link, so it is a miss.',
+    'search.linked': 'Slot {x} has a link.',
+    'search.move': 'Follow the {c} link down.',
+    'search.check': 'The whole key is read. See whether this node holds a value.',
+    'search.hit': 'It holds {v}. A hit.',
+    'search.noValue': 'This node holds no value. "{w}" is only a prefix of another key, not a key.',
+    'prefix.start': 'GetWordsWithPrefix("{w}"): first walk down the prefix.',
+    'prefix.index': 'Character {i} is {c}, which is slot {x}.',
+    'prefix.null': 'Slot {x} is NULL. No key starts with this prefix.',
+    'prefix.move': 'Follow the {c} link down.',
+    'prefix.reach': 'This is the prefix’s node. Go through everything below it.',
+    'prefix.take': '"{s}" holds {v}. Add it to the results.',
+    'prefix.pass': '"{s}" holds no value.',
+    'prefix.kid': 'Scanning from a to z, slot {c} is filled, so go down to "{s}".',
+    'prefix.done': 'Collected {n} keys starting with "{w}", in alphabetical order.',
+    'delete.call': 'DeleteHelper({s}, {i}): start at this node.',
+    'delete.arrive': 'The whole key is read. This node ends the key.',
+    'delete.noValue': 'It holds no value, so there is no key "{w}". Return false.',
+    'delete.clear': 'Clear the value.',
+    'delete.retKids': 'It has {k} children. Return {r}.',
+    'delete.child': 'Look at the slot of character {i}, {c}.',
+    'delete.noChild': 'Slot {c} is NULL, so there is no key "{w}". Return false.',
+    'delete.recurse': 'Go down below {c} to delete there.',
+    'delete.back': 'Back at {s} with {r} from below.',
+    'delete.free': 'Detach node "{c}" and set slot {c} to NULL.',
+    'delete.retNode': 'It has {hv} and {k} children left. Return {r}.',
+    'delete.retFalse': 'Nothing was detached below, so return false.',
+    'delete.yes': 'a value',
+    'delete.no': 'no value',
+    'delete.done': 'Detached {n} nodes. {a} nodes became {b}.',
+    'delete.none': 'There is no key "{w}", so the trie stays as it was.',
+    'delete.keep': 'No node was detached. Only the value is gone.',
+  },
+  zh: {
+    sep: '',
+    title: '逐行看代码',
+    insert: '插入',
+    search: '查找',
+    prefix: '前缀',
+    delete: '删除',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    restore: '初始键',
+    clear: '清空',
+    root: '根',
+    wordLabel: '键',
+    prefixLabel: '前缀',
+    valueLabel: '值',
+    visited: '经过的节点',
+    nodes: '节点',
+    links: '链接',
+    results: '收集的键',
+    empty: '请输入键。只用小写字母 a 到 z。',
+    full: '已经有 {n} 个键，不再插入。请先删除或清空。',
+    'insert.start': 'Insert("{w}", {v})：从根开始。',
+    'insert.index': '第 {i} 个字符 {c} 对应第 {x} 格。',
+    'insert.null': '第 {x} 格是 NULL。',
+    'insert.linked': '第 {x} 格已有链接，不用新建。',
+    'insert.make': '新建节点，挂到 {c} 格上。',
+    'insert.move': '沿 {c} 的链接往下走。',
+    'insert.flag': '到了键的最后一个字符的节点。标记它存有值。',
+    'insert.value': '存入值 {v}。',
+    'insert.replace': '原来已有值 {o}，换成 {v}。',
+    'insert.done': '新建了 {m} 个节点，经过了 {k} 个。运行到底的插入会留在字典树里。',
+    'search.start': 'Search("{w}")：从根开始。',
+    'search.index': '第 {i} 个字符 {c} 对应第 {x} 格。',
+    'search.null': '第 {x} 格是 NULL。没有链接，查找失败。',
+    'search.linked': '第 {x} 格有链接。',
+    'search.move': '沿 {c} 的链接往下走。',
+    'search.check': '键读完了。看这个节点有没有值。',
+    'search.hit': '有值 {v}。查找成功。',
+    'search.noValue': '这个节点没有值。"{w}" 只是别的键的前缀，不是键。',
+    'prefix.start': 'GetWordsWithPrefix("{w}")：先沿前缀往下走。',
+    'prefix.index': '第 {i} 个字符 {c} 对应第 {x} 格。',
+    'prefix.null': '第 {x} 格是 NULL。没有以这个前缀开头的键。',
+    'prefix.move': '沿 {c} 的链接往下走。',
+    'prefix.reach': '到了前缀的节点。遍历它下面的全部节点。',
+    'prefix.take': '"{s}" 存有值 {v}。放进结果。',
+    'prefix.pass': '"{s}" 没有值。',
+    'prefix.kid': '从 a 到 z 扫描，{c} 格有链接，走到 "{s}"。',
+    'prefix.done': '按字典序收集到 {n} 个以 "{w}" 开头的键。',
+    'delete.call': 'DeleteHelper({s}, {i})：从这个节点开始。',
+    'delete.arrive': '键读完了。这个节点是键的结尾。',
+    'delete.noValue': '没有值，所以键 "{w}" 不存在。返回 false。',
+    'delete.clear': '清除值。',
+    'delete.retKids': '有 {k} 个子节点。返回 {r}。',
+    'delete.child': '看第 {i} 个字符 {c} 的格子。',
+    'delete.noChild': '{c} 格是 NULL，所以键 "{w}" 不存在。返回 false。',
+    'delete.recurse': '往 {c} 下面走，去那里删除。',
+    'delete.back': '回到 {s}，从下面收到 {r}。',
+    'delete.free': '摘下 "{c}" 节点，把 {c} 格设为 NULL。',
+    'delete.retNode': '{hv}，还剩 {k} 个子节点。返回 {r}。',
+    'delete.retFalse': '下面没有摘下节点，返回 false。',
+    'delete.yes': '有值',
+    'delete.no': '没有值',
+    'delete.done': '摘下了 {n} 个节点。节点从 {a} 个变成 {b} 个。',
+    'delete.none': '键 "{w}" 不存在，字典树不变。',
+    'delete.keep': '没有摘下任何节点，只清除了值。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const code = CODE[lang] ?? CODE.ko;
+const ops: Op[] = ['insert', 'search', 'prefix', 'delete'];
+const start: [string, number][] = op === 'prefix' || op === 'delete' ? [...WORDS, ['shore', 7]] : WORDS;
+const config = { op, word: word ?? SAMPLES[op][0], words: start, samples: SAMPLES, code };
+---
+
+<script is:inline set:html={algos} />
+<div class:list={['aas-trie-walk-demo', slide && 'is-slide']} id={id} data-tw-config={JSON.stringify(config)} data-tw-strings={JSON.stringify(t)}>
+  <div class="tw-bar">
+    <div class="tw-tabs">
+      <span class="tw-head"><strong>{t.title}</strong></span>
+      {ops.map((o) => <button type="button" class="tw-tab" data-tw-op={o}>{t[o]}</button>)}
+    </div>
+    <div class="tw-controls">
+      <button type="button" data-act="back" class="tw-btn">{t.back}</button>
+      <button type="button" data-act="step" class="tw-btn">{t.step}</button>
+      <button type="button" data-act="play" class="tw-btn tw-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="tw-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="tw-inputs">
+    <label class="tw-field"><span data-tw-wordlabel></span><input type="text" data-tw-word maxlength="10" autocomplete="off" spellcheck="false" /></label>
+    <label class="tw-field" data-tw-valuebox>{t.valueLabel}<input type="text" inputmode="numeric" data-tw-value value="7" maxlength="3" autocomplete="off" /></label>
+    <span class="tw-samples" data-tw-samples></span>
+    <span class="tw-gap"></span>
+    <button type="button" class="tw-tab" data-tw-keys="restore">{t.restore}</button>
+    <button type="button" class="tw-tab" data-tw-keys="clear">{t.clear}</button>
+  </div>
+
+  <div class="tw-body">
+    <div class="tw-left">
+      <div class="tw-code" data-tw-code></div>
+      <div class="tw-state">
+        <TrieKeyTape />
+        <span class="tw-vars" data-tw-vars></span>
+      </div>
+    </div>
+    <div class="tw-right">
+      <TrieKeyTable />
+      <svg class="tw-svg" data-tw-svg role="img" aria-label={t.title}></svg>
+    </div>
+  </div>
+
+  <TrieLinkStrip />
+
+  <div class="tw-foot">
+    <p class="tw-note" data-tw-note></p>
+    <span class="tw-count" data-tw-count></span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const cfg = JSON.parse(root.dataset.twConfig);
+    const S = JSON.parse(root.dataset.twStrings);
+    const { buildTrie, trieInsert, layoutTrie } = globalThis.aasTrieAlgos;
+    const R = 26;
+    const MAX_KEYS = 10;
+
+    /* 트라이에 남아 있는 키. 끝까지 돌린 삽입과 삭제만 여기에 반영한다. */
+    let keys = new Map(cfg.words);
+    let op = cfg.op;
+    let word = cfg.word;
+    let steps = [];
+    let at = 0;
+    let finalKeys = null;
+    let timer = null;
+
+    const clean = (raw) => raw.toLowerCase().replace(/[^a-z]/g, '');
+    const parseValue = (raw) => {
+      const v = parseInt(raw, 10);
+      return Number.isFinite(v) && v >= 0 ? v : 0;
+    };
+
+    /* plan:start (의사코드와 같은 절차를 돌려 단계를 만든다) */
+    function plan(theOp, w, value) {
+      const out = [];
+      const pairs = [...keys.entries()];
+      const trie = buildTrie(pairs);
+      /* 그림은 삽입 뒤의 트라이까지 담는 자리로 한 번 정한다. */
+      const layoutT = buildTrie(pairs);
+      if (theOp === 'insert' && w) trieInsert(layoutT, w, value);
+      const present = new Set(trie.keys());
+      const vals = {};
+      for (const [nid, n] of trie) if (n.value !== null) vals[nid] = n.value;
+      const nextKeys = new Map(keys);
+
+      const kidsOf = (nid) => layoutT.get(nid).kids.filter((k) => present.has(k)).map((k) => layoutT.get(k).ch);
+      const snapKeys = () => Object.entries(vals).sort(([a], [b]) => (a < b ? -1 : 1));
+      const push = (o) =>
+        out.push({
+          present: [...present],
+          values: { ...vals },
+          keyList: snapKeys(),
+          mark: {},
+          vars: [],
+          ...o,
+        });
+      const marks = (path, last, kind = 'cur') => {
+        const m = {};
+        path.forEach((n) => (m[n] = 'path'));
+        m[last] = kind;
+        return m;
+      };
+
+      if (!w) return { steps: [{ present: [...present], values: { ...vals }, keyList: snapKeys(), mark: {}, vars: [], lines: [], note: S.empty, nodeCount: present.size, visited: 0 }], layoutT, next: keys };
+
+      if (theOp === 'insert') {
+        if (!keys.has(w) && keys.size >= MAX_KEYS) {
+          return { steps: [{ present: [...present], values: { ...vals }, keyList: snapKeys(), mark: {}, vars: [], lines: [], note: fill(S.full, { n: keys.size }), nodeCount: present.size, visited: 0 }], layoutT: buildTrie(pairs), next: keys };
+        }
+        let cur = '';
+        const path = [];
+        let made = 0;
+        let passed = 0;
+        const base = () => ({ keyNow: w });
+        push({ ...base(), lines: [0, 1], mark: { '': 'cur' }, note: fill(S['insert.start'], { w, v: value }), vars: [['current', S.root]], tape: { w, i: 0 }, link: { node: '', kids: kidsOf('') } });
+        [...w].forEach((c, i) => {
+          const x = c.charCodeAt(0) - 97;
+          const curName = cur === '' ? S.root : `"${cur}"`;
+          const vars = [['i', i], ['word[i]', `'${c}'`], ['index', x], ['current', curName]];
+          push({ ...base(), lines: [2, 3], mark: marks(path, cur), note: fill(S['insert.index'], { i, c, x }), vars, tape: { w, i }, link: { node: cur, kids: kidsOf(cur), look: c } });
+          const next = cur + c;
+          const has = present.has(next);
+          push({ ...base(), lines: [4], mark: marks(path, cur), note: fill(S[has ? 'insert.linked' : 'insert.null'], { x }), vars, tape: { w, i }, link: { node: cur, kids: kidsOf(cur), look: c, miss: !has } });
+          if (!has) {
+            present.add(next);
+            made += 1;
+            push({ ...base(), lines: [5], mark: { ...marks(path, cur), [next]: 'new' }, note: fill(S['insert.make'], { c }), vars, tape: { w, i }, link: { node: cur, kids: kidsOf(cur), look: c }, nodeDelta: true });
+          } else {
+            passed += 1;
+          }
+          path.push(cur);
+          cur = next;
+          push({ ...base(), lines: [6], mark: marks(path, cur), note: fill(S['insert.move'], { c }), vars: [['i', i], ['word[i]', `'${c}'`], ['index', x], ['current', `"${cur}"`]], tape: { w, i }, link: { node: path[path.length - 1], kids: kidsOf(path[path.length - 1]), look: c } });
+        });
+        const vars = [['current', `"${cur}"`]];
+        const old = vals[w];
+        push({ ...base(), lines: [7], mark: marks(path, cur), note: S['insert.flag'], vars, tape: { w, i: w.length }, link: { node: cur, kids: kidsOf(cur) } });
+        vals[w] = value;
+        nextKeys.set(w, value);
+        push({
+          ...base(),
+          lines: [8],
+          mark: marks(path, cur, 'hit'),
+          note: old === undefined ? fill(S['insert.value'], { v: value }) : fill(S['insert.replace'], { o: old, v: value }),
+          vars,
+          tape: { w, i: w.length },
+          link: { node: cur, kids: kidsOf(cur) },
+        });
+        push({ ...base(), lines: [], mark: marks(path, cur, 'hit'), note: fill(S['insert.done'], { m: made, k: passed }), vars, tape: { w, i: w.length }, link: { node: cur, kids: kidsOf(cur) }, done: true });
+        return { steps: out, layoutT, next: nextKeys };
+      }
+
+      if (theOp === 'search') {
+        let cur = '';
+        const path = [];
+        const base = () => ({ keyNow: w });
+        push({ ...base(), lines: [0, 1], mark: { '': 'cur' }, note: fill(S['search.start'], { w }), vars: [['current', S.root]], tape: { w, i: 0 }, link: { node: '', kids: kidsOf('') }, visited: 1 });
+        for (let i = 0; i < w.length; i++) {
+          const c = w[i];
+          const x = c.charCodeAt(0) - 97;
+          const curName = cur === '' ? S.root : `"${cur}"`;
+          const vars = [['i', i], ['word[i]', `'${c}'`], ['index', x], ['current', curName]];
+          const vis = path.length + 1;
+          push({ ...base(), lines: [2, 3], mark: marks(path, cur), note: fill(S['search.index'], { i, c, x }), vars, tape: { w, i }, link: { node: cur, kids: kidsOf(cur), look: c }, visited: vis });
+          const next = cur + c;
+          if (!present.has(next)) {
+            push({ ...base(), lines: [4], mark: marks(path, cur), note: fill(S['search.null'], { x }), vars, tape: { w, i, st: 'miss' }, link: { node: cur, kids: kidsOf(cur), look: c, miss: true }, visited: vis });
+            push({ ...base(), lines: [5], mark: marks(path, cur, 'miss'), note: fill(S['search.null'], { x }), vars: [...vars, ['return', '-1']], tape: { w, i, st: 'miss' }, link: { node: cur, kids: kidsOf(cur), look: c, miss: true }, visited: vis, done: true });
+            return { steps: out, layoutT, next: keys };
+          }
+          push({ ...base(), lines: [4], mark: marks(path, cur), note: fill(S['search.linked'], { x }), vars, tape: { w, i }, link: { node: cur, kids: kidsOf(cur), look: c }, visited: vis });
+          path.push(cur);
+          const from = cur;
+          cur = next;
+          push({ ...base(), lines: [6], mark: marks(path, cur), note: fill(S['search.move'], { c }), vars: [['i', i], ['word[i]', `'${c}'`], ['index', x], ['current', `"${cur}"`]], tape: { w, i }, link: { node: from, kids: kidsOf(from), look: c }, visited: path.length + 1 });
+        }
+        const vis = path.length + 1;
+        const vars = [['current', `"${cur}"`], ['hasValue', vals[cur] !== undefined ? 'true' : 'false']];
+        push({ ...base(), lines: [7], mark: marks(path, cur), note: S['search.check'], vars, tape: { w, i: w.length }, link: { node: cur, kids: kidsOf(cur) }, visited: vis });
+        if (vals[cur] !== undefined) {
+          push({ ...base(), lines: [8], mark: marks(path, cur, 'hit'), note: fill(S['search.hit'], { v: vals[cur] }), vars: [...vars, ['return', vals[cur]]], tape: { w, i: w.length - 1, st: 'hit' }, link: { node: cur, kids: kidsOf(cur) }, visited: vis, done: true });
+        } else {
+          push({ ...base(), lines: [9], mark: marks(path, cur, 'miss'), note: fill(S['search.noValue'], { w }), vars: [...vars, ['return', '-1']], tape: { w, i: w.length - 1, st: 'miss' }, link: { node: cur, kids: kidsOf(cur) }, visited: vis, done: true });
+        }
+        return { steps: out, layoutT, next: keys };
+      }
+
+      if (theOp === 'prefix') {
+        let cur = '';
+        const path = [];
+        const results = [];
+        const resVars = () => ['results', results.length ? results.join(' ') : '∅'];
+        push({ lines: [0, 1], mark: { '': 'cur' }, note: fill(S['prefix.start'], { w }), vars: [['current', S.root]], tape: { w, i: 0 }, link: { node: '', kids: kidsOf('') }, visited: 1 });
+        for (let i = 0; i < w.length; i++) {
+          const c = w[i];
+          const x = c.charCodeAt(0) - 97;
+          const curName = cur === '' ? S.root : `"${cur}"`;
+          const vars = [['i', i], ['prefix[i]', `'${c}'`], ['index', x], ['current', curName]];
+          push({ lines: [2, 3], mark: marks(path, cur), note: fill(S['prefix.index'], { i, c, x }), vars, tape: { w, i }, link: { node: cur, kids: kidsOf(cur), look: c }, visited: path.length + 1 });
+          const next = cur + c;
+          if (!present.has(next)) {
+            push({ lines: [4], mark: marks(path, cur, 'miss'), note: fill(S['prefix.null'], { x }), vars: [...vars, resVars()], tape: { w, i, st: 'miss' }, link: { node: cur, kids: kidsOf(cur), look: c, miss: true }, visited: path.length + 1, done: true });
+            return { steps: out, layoutT, next: keys };
+          }
+          path.push(cur);
+          const from = cur;
+          cur = next;
+          push({ lines: [4, 5], mark: marks(path, cur), note: fill(S['prefix.move'], { c }), vars, tape: { w, i }, link: { node: from, kids: kidsOf(from), look: c }, visited: path.length + 1 });
+        }
+        const top = path.length + 1;
+        push({ lines: [6], mark: marks(path, cur), note: S['prefix.reach'], vars: [['current', `"${cur}"`], resVars()], tape: { w, i: w.length }, link: { node: cur, kids: kidsOf(cur) }, visited: top });
+        const seen = {};
+        const take = {};
+        const mk = (nid) => {
+          const m = marks(path, cur);
+          Object.assign(m, seen, take);
+          if (nid !== undefined && !take[nid]) m[nid] = 'cur';
+          return m;
+        };
+        (function collect(nid) {
+          const n = layoutT.get(nid);
+          seen[nid] = 'seen';
+          if (vals[nid] !== undefined) {
+            take[nid] = 'take';
+            results.push(nid);
+            push({ lines: [7, 9], mark: mk(nid), note: fill(S['prefix.take'], { s: nid, v: vals[nid] }), vars: [['node', `"${nid}"`], resVars()], tape: { w, i: w.length }, link: { node: nid, kids: kidsOf(nid) }, visited: top, found: [...results] });
+          } else {
+            push({ lines: [7, 9], mark: mk(nid), note: fill(S['prefix.pass'], { s: nid }), vars: [['node', `"${nid}"`], resVars()], tape: { w, i: w.length }, link: { node: nid, kids: kidsOf(nid) }, visited: top, found: [...results] });
+          }
+          n.kids.forEach((k) => {
+            const ch = layoutT.get(k).ch;
+            push({ lines: [10, 11, 12], mark: mk(nid), note: fill(S['prefix.kid'], { c: ch, s: k }), vars: [['i', ch.charCodeAt(0) - 97], ['node', `"${nid}"`], resVars()], tape: { w, i: w.length }, link: { node: nid, kids: kidsOf(nid), look: ch }, visited: top, found: [...results] });
+            collect(k);
+          });
+        })(cur);
+        push({ lines: [], mark: mk(), note: fill(S['prefix.done'], { n: results.length, w }), vars: [resVars()], tape: { w, i: w.length }, link: { node: cur, kids: kidsOf(cur) }, visited: top, found: [...results], done: true });
+        return { steps: out, layoutT, next: keys };
+      }
+
+      /* delete: 실습 코드의 deleteHelper를 그대로 돈다. */
+      const before = present.size;
+      let removed = 0;
+      let foundKey = false;
+      const stack = [];
+      const name = (n) => (n === '' ? S.root : `"${n}"`);
+      const dv = (n, i, more = []) => [['node', name(n)], ['index', i], ...more];
+      const base = () => ({ keyNow: w });
+      (function helper(nid, index) {
+        stack.push(nid);
+        const pathNow = stack.slice(0, -1);
+        push({ ...base(), lines: [0], mark: marks(pathNow, nid), note: fill(S['delete.call'], { s: name(nid), i: index }), vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid) } });
+        let ret;
+        if (index === w.length) {
+          push({ ...base(), lines: [1], mark: marks(pathNow, nid), note: S['delete.arrive'], vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid) } });
+          if (vals[nid] === undefined) {
+            push({ ...base(), lines: [2], mark: marks(pathNow, nid, 'miss'), note: fill(S['delete.noValue'], { w }), vars: dv(nid, index, [['return', 'false']]), tape: { w, i: w.length - 1, st: 'miss' }, link: { node: nid, kids: kidsOf(nid) } });
+            ret = false;
+          } else {
+            foundKey = true;
+            delete vals[nid];
+            nextKeys.delete(w);
+            push({ ...base(), lines: [3], mark: marks(pathNow, nid), note: S['delete.clear'], vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid) } });
+            const k = kidsOf(nid).length;
+            ret = k === 0;
+            push({ ...base(), lines: [4], mark: marks(pathNow, nid), note: fill(S['delete.retKids'], { k, r: String(ret) }), vars: dv(nid, index, [['return', String(ret)]]), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid) } });
+          }
+        } else {
+          const c = w[index];
+          push({ ...base(), lines: [5], mark: marks(pathNow, nid), note: fill(S['delete.child'], { i: index, c }), vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid), look: c } });
+          const child = nid + c;
+          if (!present.has(child)) {
+            push({ ...base(), lines: [6], mark: marks(pathNow, nid, 'miss'), note: fill(S['delete.noChild'], { c, w }), vars: dv(nid, index, [['return', 'false']]), tape: { w, i: index, st: 'miss' }, link: { node: nid, kids: kidsOf(nid), look: c, miss: true } });
+            ret = false;
+          } else {
+            push({ ...base(), lines: [7], mark: marks(pathNow, nid), note: fill(S['delete.recurse'], { c }), vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid), look: c } });
+            const sub = helper(child, index + 1);
+            if (sub) {
+              push({ ...base(), lines: [7], mark: { ...marks(pathNow, nid), [child]: 'del' }, note: fill(S['delete.back'], { s: name(nid), r: 'true' }), vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid), look: c } });
+              present.delete(child);
+              removed += 1;
+              push({ ...base(), lines: [8], mark: marks(pathNow, nid), note: fill(S['delete.free'], { c }), vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid), look: c, miss: true } });
+              const k = kidsOf(nid).length;
+              const hv = vals[nid] !== undefined;
+              ret = !hv && k === 0;
+              push({ ...base(), lines: [9], mark: marks(pathNow, nid, ret ? 'cur' : 'keep'), note: fill(S['delete.retNode'], { hv: S[hv ? 'delete.yes' : 'delete.no'], k, r: String(ret) }), vars: dv(nid, index, [['return', String(ret)]]), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid) } });
+            } else {
+              push({ ...base(), lines: [7], mark: marks(pathNow, nid), note: fill(S['delete.back'], { s: name(nid), r: 'false' }), vars: dv(nid, index), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid), look: c } });
+              ret = false;
+              push({ ...base(), lines: [10], mark: marks(pathNow, nid), note: S['delete.retFalse'], vars: dv(nid, index, [['return', 'false']]), tape: { w, i: index }, link: { node: nid, kids: kidsOf(nid) } });
+            }
+          }
+        }
+        stack.pop();
+        return ret;
+      })('', 0);
+      const doneNote = !foundKey ? fill(S['delete.none'], { w }) : removed === 0 ? S['delete.keep'] : fill(S['delete.done'], { n: removed, a: before, b: present.size });
+      push({ lines: [], note: doneNote, vars: [], keyNow: w, done: true, link: { node: '', kids: kidsOf('') } });
+      return { steps: out, layoutT, next: nextKeys };
+    }
+    /* plan:end */
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (name, attrs, text) => {
+      const node = document.createElementNS(NS, name);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const svg = root.querySelector('[data-tw-svg]');
+    const codeBox = root.querySelector('[data-tw-code]');
+    const varsBox = root.querySelector('[data-tw-vars]');
+    const noteBox = root.querySelector('[data-tw-note]');
+    const countBox = root.querySelector('[data-tw-count]');
+    const wordInput = root.querySelector('[data-tw-word]');
+    const valueInput = root.querySelector('[data-tw-value]');
+    const valueBox = root.querySelector('[data-tw-valuebox]');
+    const wordLabel = root.querySelector('[data-tw-wordlabel]');
+    const samplesBox = root.querySelector('[data-tw-samples]');
+    const keyList = root.querySelector('[data-tk-list]');
+    const tapeBox = root.querySelector('[data-tape]');
+    const linkCells = [...root.querySelectorAll('[data-ls]')];
+    const linkName = root.querySelector('[data-ls-name]');
+    const playBtn = root.querySelector('[data-act="play"]');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let nodeEls = new Map();
+    let edgeEls = new Map();
+    function drawTree(t) {
+      const UNIT = 44;
+      const LEVEL = 44;
+      const RAD = 15;
+      const { pos, slots, depth } = layoutTrie(t, UNIT, LEVEL);
+      const PAD = 30;
+      const W = Math.max(1, slots - 1) * UNIT;
+      svg.setAttribute('viewBox', `${-PAD} ${-RAD - 16} ${W + 2 * PAD} ${Math.max(depth, 3) * LEVEL + 2 * RAD + 24}`);
+      svg.replaceChildren();
+      const edges = el('g', {});
+      const nodes = el('g', {});
+      svg.append(edges, nodes);
+      nodeEls = new Map();
+      edgeEls = new Map();
+      for (const [nid, n] of t) {
+        const p = pos.get(nid);
+        if (n.parent !== null) {
+          const q = pos.get(n.parent);
+          const line = el('line', { class: 'tw-edge', x1: q.x, y1: q.y, x2: p.x, y2: p.y });
+          edges.appendChild(line);
+          edgeEls.set(nid, line);
+        }
+        const g = el('g', { class: 'tw-nd', transform: `translate(${p.x} ${p.y})` });
+        if (nid === '') {
+          g.classList.add('is-root');
+          g.append(el('circle', { r: RAD * 0.8 }), el('text', { class: 'tw-root', y: -RAD - 3 }, S.root));
+        } else {
+          g.append(el('circle', { r: RAD }), el('text', { class: 'tw-ch' }, n.ch), el('text', { class: 'tw-val', x: RAD + 3, y: RAD * 0.55 }));
+        }
+        nodes.appendChild(g);
+        nodeEls.set(nid, g);
+      }
+    }
+
+    const MARKS = ['path', 'cur', 'new', 'hit', 'miss', 'take', 'seen', 'del', 'keep'];
+    function render() {
+      const st = steps[at];
+      const present = new Set(st.present);
+      for (const [nid, g] of nodeEls) {
+        const mark = st.mark[nid];
+        g.classList.toggle('is-off', !present.has(nid));
+        for (const m of MARKS) g.classList.toggle(`is-${m}`, mark === m);
+        const vt = g.querySelector('.tw-val');
+        if (vt) vt.textContent = st.values[nid] === undefined ? '' : String(st.values[nid]);
+        const line = edgeEls.get(nid);
+        if (line) {
+          line.classList.toggle('is-off', !present.has(nid));
+          line.classList.toggle('is-path', ['path', 'cur', 'hit', 'miss', 'del', 'keep'].includes(mark));
+          line.classList.toggle('is-new', mark === 'new');
+          line.classList.toggle('is-take', ['take', 'seen'].includes(mark));
+        }
+      }
+      /* 코드: 지금 줄 칠하기 */
+      [...codeBox.children].forEach((ln, i) => ln.classList.toggle('is-now', st.lines.includes(i)));
+      varsBox.replaceChildren(
+        ...st.vars.map(([k, v]) => {
+          const s = document.createElement('span');
+          s.append(`${k} = `, Object.assign(document.createElement('b'), { textContent: String(v) }));
+          return s;
+        }),
+      );
+      /* 글자 띠 */
+      tapeBox.replaceChildren(
+        ...(st.tape
+          ? [...st.tape.w].map((c, i) => {
+              const b = document.createElement('b');
+              b.textContent = c;
+              b.className = i < st.tape.i ? 'is-past' : i === st.tape.i ? `is-${st.tape.st || 'now'}` : '';
+              return b;
+            })
+          : []),
+      );
+      /* 링크 배열 */
+      const l = st.link;
+      linkCells.forEach((c) => {
+        const ch = c.dataset.ls;
+        c.classList.toggle('is-on', !!l && l.kids.includes(ch));
+        c.classList.toggle('is-now', !!l && l.look === ch && !l.miss);
+        c.classList.toggle('is-miss', !!l && l.look === ch && !!l.miss);
+      });
+      linkName.textContent = !l ? '' : l.node === '' ? S.root : `"${l.node}"`;
+      /* 든 키 */
+      const list = st.keyList;
+      keyList.replaceChildren(
+        ...list.map(([w, v]) => {
+          const cell = document.createElement('span');
+          cell.className = 'tk-cell';
+          cell.dataset.tkKey = w;
+          cell.append(Object.assign(document.createElement('b'), { textContent: w }), Object.assign(document.createElement('i'), { textContent: String(v) }));
+          if (w === st.keyNow) cell.classList.add('is-now');
+          if (st.found && st.found.includes(w)) cell.classList.add('is-take');
+          return cell;
+        }),
+      );
+      setLines(noteBox, st.note);
+      const nodes = present.size;
+      countBox.replaceChildren();
+      const pairs = [];
+      if (st.visited !== undefined && op !== 'insert' && op !== 'delete') pairs.push([S.visited, st.visited]);
+      pairs.push([S.nodes, nodes], [S.links, nodes * R]);
+      pairs.forEach(([k, v], i) => {
+        if (i) countBox.append(' · ');
+        countBox.append(`${k} `, Object.assign(document.createElement('strong'), { textContent: String(v) }));
+      });
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    /* 끝까지 돌린 삽입·삭제를 트라이에 남긴다. */
+    function commit() {
+      if (at === steps.length - 1 && finalKeys) keys = new Map(finalKeys);
+    }
+    function replan() {
+      stop();
+      commit();
+      const p = plan(op, word, parseValue(valueInput.value));
+      steps = p.steps;
+      finalKeys = p.next;
+      at = 0;
+      drawTree(p.layoutT);
+      render();
+    }
+    function setOp(o) {
+      stop();
+      commit();
+      finalKeys = null;
+      op = o;
+      word = cfg.samples[o][0];
+      wordInput.value = word;
+      syncChrome();
+      replan();
+    }
+    function syncChrome() {
+      root.querySelectorAll('[data-tw-op]').forEach((b) => b.classList.toggle('is-on', b.dataset.twOp === op));
+      wordLabel.textContent = op === 'prefix' ? S.prefixLabel : S.wordLabel;
+      valueBox.style.visibility = op === 'insert' ? 'visible' : 'hidden';
+      root.querySelector('.aas-key-tape .kt2-label').textContent = op === 'prefix' ? 'prefix' : 'word';
+      codeBox.replaceChildren(
+        ...cfg.code[op].map((ln) => Object.assign(document.createElement('div'), { className: 'tw-line', textContent: ln })),
+      );
+      samplesBox.replaceChildren(
+        ...cfg.samples[op].map((s) => {
+          const b = Object.assign(document.createElement('button'), { type: 'button', className: 'tw-sample', textContent: s });
+          b.addEventListener('click', () => {
+            wordInput.value = s;
+            word = s;
+            replan();
+          });
+          return b;
+        }),
+      );
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelectorAll('[data-tw-op]').forEach((b) => b.addEventListener('click', () => setOp(b.dataset.twOp)));
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > 0) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = 0;
+      render();
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = 0;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, reduceMotion ? 1400 : 900);
+    });
+    wordInput.addEventListener('input', () => {
+      const w = clean(wordInput.value);
+      if (w !== wordInput.value) wordInput.value = w;
+      word = w;
+      replan();
+    });
+    valueInput.addEventListener('input', () => {
+      if (op === 'insert') {
+        const keep = at;
+        const p = plan(op, word, parseValue(valueInput.value));
+        steps = p.steps;
+        finalKeys = p.next;
+        at = Math.min(keep, steps.length - 1);
+        render();
+      }
+    });
+    root.querySelectorAll('[data-tw-keys]').forEach((b) =>
+      b.addEventListener('click', () => {
+        stop();
+        finalKeys = null;
+        keys = new Map(b.dataset.twKeys === 'restore' ? cfg.words : []);
+        replan();
+      }),
+    );
+    wordInput.value = word;
+    syncChrome();
+    replan();
+  })();
+</script>
+
+<!-- 노드·가지·코드 줄은 스크립트가 만들므로 is:global로 두고 .aas-trie-walk-demo 아래로 한정한다. -->
+<style is:global>
+  .aas-trie-walk-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-trie-walk-demo .tw-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-trie-walk-demo .tw-head {
+    margin-right: 0.4em;
+    font-size: 0.95em;
+  }
+  .aas-trie-walk-demo .tw-tabs,
+  .aas-trie-walk-demo .tw-controls,
+  .aas-trie-walk-demo .tw-samples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-trie-walk-demo .tw-tab,
+  .aas-trie-walk-demo .tw-sample {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-walk-demo .tw-sample {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-walk-demo .tw-tab:hover,
+  .aas-trie-walk-demo .tw-sample:hover,
+  .aas-trie-walk-demo .tw-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-trie-walk-demo .tw-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-trie-walk-demo .tw-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-trie-walk-demo .tw-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-trie-walk-demo .tw-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.7em;
+    align-items: center;
+    margin: 0.4em 0 0.3em;
+  }
+  .aas-trie-walk-demo .tw-gap {
+    flex: 1 1 auto;
+  }
+  .aas-trie-walk-demo .tw-field {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-walk-demo .tw-field input {
+    width: 8.5em;
+    padding: 0.15em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    font-size: 1.05em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--aas-role-model);
+    border-radius: 0.45em;
+  }
+  .aas-trie-walk-demo .tw-field input[data-tw-value] {
+    width: 3em;
+  }
+  .aas-trie-walk-demo .tw-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: stretch;
+    margin: 0.4em 0;
+  }
+  .aas-trie-walk-demo .tw-left {
+    flex: 1 1 26em;
+    min-width: 0;
+  }
+  .aas-trie-walk-demo .tw-code {
+    margin: 0;
+    padding: 0.35em 0;
+    overflow: hidden;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.64em;
+    line-height: 1.32;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+  }
+  .aas-trie-walk-demo .tw-line {
+    padding: 0 0.7em;
+    min-height: 1.32em;
+    white-space: pre;
+    border-left: 3px solid transparent;
+  }
+  .aas-trie-walk-demo .tw-line.is-now {
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    border-left-color: var(--aas-role-focus);
+  }
+  .aas-trie-walk-demo .tw-state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em 0.8em;
+    align-items: center;
+    margin-top: 0.35em;
+    min-height: 2.6em;
+    align-content: flex-start;
+  }
+  .aas-trie-walk-demo .tw-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 0.7em;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-walk-demo .tw-vars span {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-walk-demo .tw-vars b {
+    color: var(--aas-text);
+  }
+  .aas-trie-walk-demo .tw-right {
+    display: flex;
+    flex: 1 1 18em;
+    flex-direction: column;
+    gap: 0.3em;
+    min-width: 0;
+  }
+  .aas-trie-walk-demo .tw-svg {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    max-height: 22em;
+  }
+  .aas-trie-walk-demo .aas-link-strip {
+    font-size: 0.66em;
+  }
+  .aas-trie-walk-demo .aas-link-strip .ls-name {
+    display: none;
+  }
+  .aas-trie-walk-demo .tw-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 0.4em;
+  }
+  .aas-trie-walk-demo .tw-note {
+    flex: 1 1 22em;
+    margin: 0;
+    min-height: 2.5em;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+  .aas-trie-walk-demo .tw-count {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-trie-walk-demo .tw-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 가지와 노드: 트라이 데모와 같은 색 */
+  .aas-trie-walk-demo .tw-edge {
+    stroke: var(--aas-muted);
+    stroke-width: 1.5;
+    transition:
+      opacity 0.25s,
+      stroke 0.2s;
+  }
+  .aas-trie-walk-demo .tw-edge.is-path {
+    stroke: var(--aas-role-model);
+    stroke-width: 3;
+  }
+  .aas-trie-walk-demo .tw-edge.is-new,
+  .aas-trie-walk-demo .tw-edge.is-take {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-trie-walk-demo .tw-edge.is-off,
+  .aas-trie-walk-demo .tw-nd.is-off {
+    opacity: 0;
+  }
+  .aas-trie-walk-demo .tw-nd {
+    transition: opacity 0.25s;
+  }
+  .aas-trie-walk-demo .tw-nd circle {
+    fill: var(--aas-text);
+    stroke: var(--aas-text);
+    stroke-width: 2;
+    transition:
+      fill 0.2s,
+      stroke 0.2s;
+  }
+  .aas-trie-walk-demo .tw-nd.is-root circle {
+    fill: var(--aas-role-trace);
+    stroke: var(--aas-role-trace);
+  }
+  .aas-trie-walk-demo .tw-ch {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--aas-bg);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-walk-demo .tw-root {
+    font-size: 11px;
+    fill: var(--aas-muted);
+    text-anchor: middle;
+  }
+  .aas-trie-walk-demo .tw-val {
+    font-size: 13px;
+    font-weight: 700;
+    fill: var(--aas-role-model);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-trie-walk-demo .tw-nd.is-path circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-model);
+  }
+  .aas-trie-walk-demo .tw-nd.is-cur circle {
+    fill: var(--aas-role-focus);
+    stroke: var(--aas-role-focus);
+  }
+  .aas-trie-walk-demo .tw-nd.is-root.is-cur circle {
+    stroke: var(--aas-text);
+    stroke-width: 3;
+  }
+  .aas-trie-walk-demo .tw-nd.is-new circle,
+  .aas-trie-walk-demo .tw-nd.is-take circle,
+  .aas-trie-walk-demo .tw-nd.is-hit circle {
+    fill: var(--aas-role-eval);
+    stroke: var(--aas-role-eval);
+  }
+  .aas-trie-walk-demo .tw-nd.is-seen circle {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3;
+  }
+  .aas-trie-walk-demo .tw-nd.is-miss circle,
+  .aas-trie-walk-demo .tw-nd.is-del circle {
+    fill: var(--aas-role-guard);
+    stroke: var(--aas-role-guard);
+  }
+  .aas-trie-walk-demo .tw-nd.is-del circle {
+    stroke-dasharray: 4 3;
+    fill: color-mix(in srgb, var(--aas-role-guard) 60%, var(--aas-bg));
+  }
+  .aas-trie-walk-demo .tw-nd.is-keep circle {
+    fill: var(--aas-role-model);
+    stroke: var(--aas-role-eval);
+    stroke-width: 4;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-trie-walk-demo.is-slide {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+    margin: 0.5rem 0;
+    padding: 0.8em 1em;
+  }
+  .aas-trie-walk-demo.is-slide .tw-body {
+    flex-wrap: nowrap;
+  }
+  .aas-trie-walk-demo.is-slide .tw-left {
+    flex: 0 0 54%;
+  }
+  .aas-trie-walk-demo.is-slide .tw-right {
+    flex: 1 1 auto;
+  }
+  .aas-trie-walk-demo.is-slide .tw-svg {
+    height: 30vh;
+    max-height: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-trie-walk-demo .tw-edge,
+    .aas-trie-walk-demo .tw-nd,
+    .aas-trie-walk-demo .tw-nd circle {
+      transition: none;
+    }
+  }
+</style>
