@@ -15,7 +15,13 @@
 // 움직이지 않는다.
 //
 // 절차와 숫자는 algorithm-code의 topic-10-trie/02_tst와 같다.
+//
+// 비교 한 번이 한 걸음인 때(검색, 접두사, detail 삽입)는 글자 띠에 지금 몇 번째 글자를
+// 보는지 칠한다. 왼쪽·오른쪽으로 가면 칸이 그대로이고 가운데로 가면 다음 칸이다.
+// search·prefix는 TST에 든 키 표도 데모 안에 함께 보인다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import TrieKeyTable from './TrieKeyTable.astro';
+import TrieKeyTape from './TrieKeyTape.astro';
 
 type Mode = 'insert' | 'search' | 'prefix';
 interface Props {
@@ -229,12 +235,16 @@ const chip =
 
   <div class="ts-body">
     <svg class="ts-svg" data-ts-svg role="img" aria-label={t[`title.${mode}`]}></svg>
-    <table class="ts-table">
-      <thead>
-        <tr data-ts-head></tr>
-      </thead>
-      <tbody data-ts-rows></tbody>
-    </table>
+    <div class:list={['ts-side', mode !== 'insert' && 'has-keys']}>
+      <table class="ts-table">
+        <thead>
+          <tr data-ts-head></tr>
+        </thead>
+        <tbody data-ts-rows></tbody>
+      </table>
+      {(mode !== 'insert' || detail) && <TrieKeyTape label={mode === 'prefix' ? 'prefix' : 'word'} />}
+      {mode !== 'insert' && <TrieKeyTable words={words} />}
+    </div>
   </div>
 
   <div class="ts-foot">
@@ -272,17 +282,17 @@ const chip =
         const n = tst.get(nid);
         const c = word[index];
         if (c < n.ch) {
-          log.push({ nid, kind: 'less', c, d: n.ch });
+          log.push({ nid, kind: 'less', c, d: n.ch, index });
           nid += 'L';
         } else if (c > n.ch) {
-          log.push({ nid, kind: 'greater', c, d: n.ch });
+          log.push({ nid, kind: 'greater', c, d: n.ch, index });
           nid += 'R';
         } else if (index < word.length - 1) {
-          log.push({ nid, kind: 'equal', c, d: n.ch });
+          log.push({ nid, kind: 'equal', c, d: n.ch, index });
           nid += 'M';
           index += 1;
         } else {
-          log.push({ nid, kind: 'last', c, d: n.ch });
+          log.push({ nid, kind: 'last', c, d: n.ch, index });
           n.value = value;
           return { log, made: [] };
         }
@@ -306,16 +316,16 @@ const chip =
         const n = tst.get(nid);
         const c = word[index];
         if (c < n.ch) {
-          log.push({ nid, kind: 'less', c, d: n.ch });
+          log.push({ nid, kind: 'less', c, d: n.ch, index });
           nid += 'L';
         } else if (c > n.ch) {
-          log.push({ nid, kind: 'greater', c, d: n.ch });
+          log.push({ nid, kind: 'greater', c, d: n.ch, index });
           nid += 'R';
         } else if (index === word.length - 1) {
-          log.push({ nid, kind: 'last', c, d: n.ch });
+          log.push({ nid, kind: 'last', c, d: n.ch, index });
           return { log, node: nid };
         } else {
-          log.push({ nid, kind: 'equal', c, d: n.ch });
+          log.push({ nid, kind: 'equal', c, d: n.ch, index });
           nid += 'M';
           index += 1;
         }
@@ -370,6 +380,7 @@ const chip =
           steps.push({
             present, mark: {}, values: valsBefore,
             note: fill(S['insert.start'], { w, v, c: w[0] }), rows: rowState(i), counters: partial(present.length),
+            tape: { w, i: 0 },
           });
           log.forEach((e, k) => {
             const m = {};
@@ -379,6 +390,7 @@ const chip =
             steps.push({
               present, mark: m, values: vals, note: fill(S[`insert.${e.kind}`], e),
               rows: rowState(i), counters: partial(present.length),
+              tape: { w, i: e.index, st: e.kind === 'last' ? 'hit' : undefined },
             });
           });
           if (made.length) {
@@ -388,6 +400,7 @@ const chip =
               present: [...tst.keys()], mark, values: values(tst), fresh: made,
               note: fill(S['insert.new'], { rest: rest.split('').join(' ') }),
               rows: rowState(i), counters: counters(tst),
+              tape: { w, i: w.length - rest.length, st: 'hit' },
             });
           }
         }
@@ -417,27 +430,31 @@ const chip =
           steps.push({
             present: all, mark: {}, values: vals, note: fill(S['search.start'], { w: q, c: q[0] }),
             rows: rowState(i), results: results.slice(), counters: [[S.visited, 0]],
+            keyNow: q, tape: { w: q, i: 0 },
           });
           log.forEach((e, k) => {
             const m = {};
             log.slice(0, k).forEach((p) => (m[p.nid] = 'path'));
             m[e.nid] = 'cur';
             let note = fill(S[`search.${e.kind}`] || '', e);
+            let st;
             if (e.kind === 'last') {
               const v = tst.get(e.nid).value;
               if (v !== null) {
                 m[e.nid] = 'hit';
                 note = fill(S['search.hit'], { ...e, v });
                 results[i] = String(v);
+                st = 'hit';
               } else {
                 m[e.nid] = 'miss';
                 note = fill(S['search.noValue'], e);
                 results[i] = S.none;
+                st = 'miss';
               }
             }
             steps.push({
               present: all, mark: m, values: vals, note, rows: rowState(i), results: results.slice(),
-              counters: [[S.visited, k + 1]],
+              counters: [[S.visited, k + 1]], keyNow: q, tape: { w: q, i: e.index, st },
             });
           });
           if (node === null) {
@@ -448,6 +465,7 @@ const chip =
             steps.push({
               present: all, mark: m, values: vals, note: S['search.noLink'], rows: rowState(i),
               results: results.slice(), counters: [[S.visited, log.length]],
+              keyNow: q, tape: { w: q, i: log[log.length - 1].index, st: 'miss' },
             });
           }
         });
@@ -472,7 +490,7 @@ const chip =
         found.forEach(([, k]) => (m[k] = 'take'));
         return {
           present: all, mark: m, values: vals, note, found: found.map(([w]) => w),
-          counters: [[S.keys, found.length]], done,
+          counters: [[S.keys, found.length]], done, tape: { w: p, i: node === null ? 0 : p.length },
         };
       };
       steps.push(snap({}, fill(S['prefix.idle'], { p })));
@@ -480,10 +498,10 @@ const chip =
         const m = {};
         log.slice(0, k).forEach((q) => (m[q.nid] = 'path'));
         m[e.nid] = 'cur';
-        steps.push({ ...snap({}, fill(S[`search.${e.kind === 'last' ? 'equal' : e.kind}`], e)), mark: m });
+        steps.push({ ...snap({}, fill(S[`search.${e.kind === 'last' ? 'equal' : e.kind}`], e)), mark: m, tape: { w: p, i: e.index } });
       });
       if (node === null) {
-        steps.push(snap({ [log[log.length - 1].nid]: 'miss' }, S['prefix.noLink']));
+        steps.push({ ...snap({ [log[log.length - 1].nid]: 'miss' }, S['prefix.noLink']), tape: { w: p, i: log[log.length - 1].index, st: 'miss' } });
         steps.push(snap({}, fill(S['prefix.done'], { p, n: 0 }), true));
       } else {
         steps[steps.length - 1] = snap({ [node]: 'cur' }, fill(S['prefix.reach'], { p }));
@@ -598,6 +616,23 @@ const chip =
       return tr;
     });
 
+    /* 데모 안의 참고 자료: 지금 키의 글자 띠, 지금 노드의 링크 배열, 든 키 표 */
+    const tapeBox = root.querySelector('[data-tape]');
+    const setTape = (tp) => {
+      if (!tapeBox) return;
+      tapeBox.replaceChildren(
+        ...(tp
+          ? [...tp.w].map((c, i) => {
+              const b = document.createElement('b');
+              b.textContent = c;
+              b.className = i < tp.i ? 'is-past' : i === tp.i ? `is-${tp.st || 'now'}` : '';
+              return b;
+            })
+          : []),
+      );
+    };
+    const keyCells = [...root.querySelectorAll('[data-tk-key]')];
+
     const MARKS = ['path', 'cur', 'new', 'hit', 'miss', 'take', 'seen'];
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -634,6 +669,11 @@ const chip =
       rowEls.forEach((tr, j) => {
         tr.className = `is-${step.rows[j]}`;
         if (step.results) tr.querySelector('.ts-v').textContent = step.results[j];
+      });
+      setTape(step.tape);
+      keyCells.forEach((c) => {
+        c.classList.toggle('is-now', c.dataset.tkKey === step.keyNow);
+        c.classList.toggle('is-take', !!step.found && step.found.includes(c.dataset.tkKey));
       });
       setLines(root.querySelector('[data-ts-note]'), step.note);
       const count = root.querySelector('[data-ts-count]');
@@ -855,6 +895,18 @@ const chip =
     fill: #fff;
   }
 
+  .aas-tst-demo .ts-side {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 0.6em;
+    align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .aas-tst-demo .ts-side .aas-trie-keys {
+    max-width: 30em;
+  }
   .aas-tst-demo .ts-table {
     flex: 0 0 auto;
     width: auto !important;
@@ -918,7 +970,7 @@ const chip =
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
   .aas-tst-demo.is-slide {
-    font-size: clamp(1rem, 3.2vh, 2.1rem);
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
     margin: 0.5rem 0;
   }
   .aas-tst-demo.is-slide .ts-body {
@@ -927,7 +979,7 @@ const chip =
   .aas-tst-demo.is-slide .ts-svg {
     flex: 1 1 auto;
     /* 가로는 남으므로 세로를 정해 두고, 그 높이에 맞춰 트리를 키운다. */
-    height: 58vh;
+    height: 43vh;
     max-height: none;
   }
   .aas-tst-demo.is-slide .ts-ch {
@@ -935,6 +987,12 @@ const chip =
   }
   .aas-tst-demo.is-slide .ts-val {
     font-size: 12px;
+  }
+  .aas-tst-demo.is-slide .ts-side.has-keys {
+    flex: 0 0 22em;
+  }
+  .aas-tst-demo.is-slide .ts-side.has-keys .ts-table {
+    align-self: center;
   }
   .aas-tst-demo.is-slide .ts-table {
     font-size: 0.7em;
