@@ -12,8 +12,10 @@
 // 버린다(목록에서 흐리게 보인다). 같은 값이면 먼저 넣은 항목이 먼저다.
 //
 // 절차와 결과는 algorithm-code의 05_mst_prim, 06_dijkstra, 07_a_star와 같다.
+// 오른쪽 인접 목록(GraphAdjTable)에 꺼낸 정점의 줄과 값을 고친 이웃을 칠한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 import GraphFigure from './GraphFigure.astro';
+import GraphAdjTable from './GraphAdjTable.astro';
 import { getGraph } from './GraphSamples';
 
 interface Props {
@@ -280,15 +282,18 @@ const rows = Array.from({ length: n }, (_, v) => v);
     <div class="hg-panel">
       <div class="hg-label">{mode === 'astar' ? t.pqOpen : t.pq}</div>
       <div class="hg-pq" data-hg-pq></div>
-      <div class="hg-table" role="table">
-        <div class="hg-tr hg-th" role="row">
-          {cols.map((c) => <span role="columnheader">{c}</span>)}
-        </div>
-        {rows.map((v) => (
-          <div class="hg-tr" role="row" data-hg-row={v}>
-            {cols.map((_, k) => <span role="cell" data-hg-cell={k}>{k === 0 ? v : ''}</span>)}
+      <div class="hg-tables">
+        <div class="hg-table" role="table">
+          <div class="hg-tr hg-th" role="row">
+            {cols.map((c) => <span role="columnheader">{c}</span>)}
           </div>
-        ))}
+          {rows.map((v) => (
+            <div class="hg-tr" role="row" data-hg-row={v}>
+              {cols.map((_, k) => <span role="cell" data-hg-cell={k}>{k === 0 ? v : ''}</span>)}
+            </div>
+          ))}
+        </div>
+        <GraphAdjTable graph={graph} />
       </div>
     </div>
   </div>
@@ -382,6 +387,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
           .sort(byKey)
           .map((it) => ({ text: `${fmt(it.key)}:${it.v}`, stale: o.isStale(it) })),
         rows: o.rows,
+        look: o.look ?? [],
         note: o.note,
         count: o.count,
         end: !!o.end,
@@ -412,6 +418,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
           badge: key.map((k, v) => (inTree[v] || k === INF ? '' : fmt(k))),
           isStale: (it) => inTree[it.v] || it.key !== key[it.v],
           rows: key.map((k, v) => [String(v), show(k), via[v] < 0 ? '-' : String(via[v]), inTree[v] ? '✓' : '']),
+          look: look.map(([, v]) => v),
           note,
           count: fmt(total),
           end,
@@ -471,6 +478,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
           badge: dist.map((d) => (d === INF ? '' : fmt(d))),
           isStale: (it) => done[it.v] || it.key !== dist[it.v],
           rows: dist.map((d, v) => [String(v), show(d), from[v] < 0 ? '-' : String(from[v]), done[v] ? '✓' : '']),
+          look: look.map(([, v]) => v),
           note,
           count: `${order.length} / ${n}`,
           end,
@@ -550,6 +558,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
             from[v] < 0 ? '-' : String(from[v]),
             closed[v] ? '✓' : '',
           ]),
+          look: look.map(([, v]) => v),
           note,
           count: String(closedCount),
           end,
@@ -633,6 +642,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
     const rowEls = [...root.querySelectorAll('[data-hg-row]')];
     const note = root.querySelector('[data-hg-note]');
     const countEl = root.querySelector('[data-hg-count]');
+    const adjRows = [...root.querySelectorAll('[data-at-row]')];
 
     function setTones(el, tones) {
       const want = new Set(tones.split(' ').filter(Boolean));
@@ -678,6 +688,14 @@ const rows = Array.from({ length: n }, (_, v) => v);
         });
         row.classList.toggle('is-now', !!st && st.node[v].includes('focus'));
         row.classList.toggle('is-done', !!st && st.node[v].includes('done'));
+      });
+      /* 인접 목록: 꺼낸 정점의 줄, 그 줄에서 값을 고친 이웃 */
+      adjRows.forEach((row, v) => {
+        const now = !!st && st.node[v].includes('focus');
+        row.classList.toggle('is-now', now);
+        row.querySelectorAll('[data-at-to]').forEach((c) =>
+          c.classList.toggle('is-look', now && st.look.includes(Number(c.dataset.atTo))),
+        );
       });
       setLines(note, st ? st.note : fill(S.idle, { s }));
       countEl.textContent = st ? st.count : '';
@@ -896,6 +914,12 @@ const rows = Array.from({ length: n }, (_, v) => v);
   .aas-heap-graph-demo .hg-empty {
     color: var(--aas-muted);
   }
+  .aas-heap-graph-demo .hg-tables {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.4em;
+    align-items: flex-start;
+  }
   /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
   .aas-heap-graph-demo .hg-table {
     display: grid;
@@ -976,6 +1000,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
   }
   .aas-heap-graph-demo.is-slide .hg-bar {
     grid-area: bar;
+    margin-bottom: 0.45em;
   }
   .aas-heap-graph-demo.is-slide .hg-hbar {
     grid-area: hbar;
@@ -995,13 +1020,19 @@ const rows = Array.from({ length: n }, (_, v) => v);
   }
   /* 휴리스틱 칩이 있으면 그 줄만큼 그래프를 줄인다. */
   .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .hg-graph {
-    --gf-slide-h: 35vh;
+    --gf-slide-h: 33vh;
+  }
+  .aas-heap-graph-demo.is-slide .hg-table {
+    font-size: 0.72em;
   }
   .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .hg-table {
-    font-size: 0.66em;
+    font-size: 0.64em;
   }
   .aas-heap-graph-demo.is-slide .hg-hbar {
-    margin-bottom: 0.4em;
+    margin-bottom: 0.2em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .hg-panel {
+    gap: 0.15em;
   }
   /* 슬라이드에서는 휴리스틱 설명을 칩 오른쪽에 둬서 줄 하나를 아낀다. */
   .aas-heap-graph-demo.is-slide .hg-hbar {
@@ -1015,8 +1046,35 @@ const rows = Array.from({ length: n }, (_, v) => v);
     margin: 0 0 0 0.8em;
     font-size: 0.75em;
   }
-  .aas-heap-graph-demo.is-slide .hg-table {
+  .aas-heap-graph-demo.is-slide .aas-adj-table {
     font-size: 0.72em;
+  }
+  /* 인접 목록이 표 아래로 내려가면 슬라이드 높이를 넘는다. 표 오른쪽에 붙들어 둔다. */
+  .aas-heap-graph-demo.is-slide .hg-tables {
+    flex-wrap: nowrap;
+    column-gap: 0.8em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-table {
+    flex: 0 0 auto;
+  }
+  /* Prim은 정점마다 이웃이 많고 가중치도 소수라서 조금 더 줄인다. */
+  .aas-heap-graph-demo.is-slide[data-hg-mode='prim'] .aas-adj-table {
+    font-size: 0.6em;
+  }
+  .aas-heap-graph-demo.is-slide[data-hg-mode='prim'] .hg-graph {
+    --gf-slide-h: 43vh;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .aas-adj-table {
+    font-size: 0.64em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-body .hg-pq {
+    margin-bottom: 0.1em;
+    min-height: 1.5em;
+    font-size: 0.7em;
+  }
+  .aas-heap-graph-demo.is-slide .hg-hbar ~ .hg-foot .hg-note {
+    font-size: 0.7em;
+    min-height: 1.6em;
   }
   .aas-heap-graph-demo.is-slide .hg-tr > span {
     padding: 0 0.7em;
