@@ -1,7 +1,7 @@
 ---
 title: "主题 15. 推荐系统（附加）"
 description: "填补评分矩阵空格的协同过滤（基于用户、基于物品），按物品特征挑选的基于内容的过滤，两种方式的局限与混合方式。考试范围之外的附加材料"
-date: "主题 15 · v1"
+date: "主题 15 · v2"
 order: 15
 transition: none
 toc_level: 4
@@ -15,6 +15,14 @@ import CollabFilterDemo from '@components/CollabFilterDemo.astro';
 import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
 import HybridDemo from '@components/HybridDemo.astro';
+import OverlapDemo from '@components/OverlapDemo.astro';
+import CosineTableDemo from '@components/CosineTableDemo.astro';
+import OriginShiftDemo from '@components/OriginShiftDemo.astro';
+import WeightedAvgDemo from '@components/WeightedAvgDemo.astro';
+import MeanCenterDemo from '@components/MeanCenterDemo.astro';
+import ItemTableDemo from '@components/ItemTableDemo.astro';
+import SparsityDemo from '@components/SparsityDemo.astro';
+import ProfileLabDemo from '@components/ProfileLabDemo.astro';
 
 {/* 幻灯片写作规则遵循 docs/writing-rules.md 的"幻灯片规则"。
     数字与实验代码（topic-15-recommendation）的运行结果一致。 */}
@@ -72,14 +80,7 @@ import HybridDemo from '@components/HybridDemo.astro';
 #### 把《首尔之春》推荐给用户 A 会怎样？
 ::sub[和我喜欢同样电影的其他用户所喜欢的电影]
 
-| 用户 A | 用户 B | 用户 C | 用户 D |
-| --- | --- | --- | --- |
-| 犯罪都市3 | 疯狂元素城 | **首尔之春** | 极限逃生 |
-| 壮志凌云：独行侠 | 阿拉丁 | 闲山：龙的出现 | 寄生虫 |
-| *阿凡达：水之道* | 阿凡达：水之道 | *阿凡达：水之道* | 犯罪都市2 |
-| *蜘蛛侠：英雄无归* | | *蜘蛛侠：英雄无归* | 复仇者联盟4：终局之战 |
-
-A 和 C 有两部重合。C 喜欢的《首尔之春》，A 大概也会喜欢吧。
+<OverlapDemo slide />
 
 </Slide>
 
@@ -118,35 +119,10 @@ $$
 
 <Slide class="compact">
 
-#### 小评分矩阵
-::sub[`01_collaborative_filtering/` · 0 表示还没看过]
+### 动手试试：小评分矩阵
+::sub[`01_collaborative_filtering/` · 点击评分格子，余弦表会重新计算]
 
-<div class="aas-split">
-<div>
-
-| | 物品 1 | 物品 2 | 物品 3 | 物品 4 |
-| --- | --- | --- | --- | --- |
-| A | 5 | 3 | 0 | 0 |
-| B | 4 | 0 | 0 | 0 |
-| C | 0 | 0 | 5 | 4 |
-| D | 0 | 0 | 4 | 0 |
-
-</div>
-<div>
-
-```console
-cosine        A      B      C      D
-  A       1.000  0.857  0.000  0.000
-  B       0.857  1.000  0.000  0.000
-  C       0.000  0.000  1.000  0.781
-  D       0.000  0.000  0.781  1.000
-```
-
-</div>
-</div>
-
-**A 和 B 相似，C 和 D 相似。** 互相推荐对方喜欢的就行。  
-不过没看过的格子是**按 0 分**放进去的，"没看过"和"不喜欢"分不出来。
+<CosineTableDemo slide />
 
 </Slide>
 
@@ -232,6 +208,15 @@ $$
 
 <Slide>
 
+### 动手试试：减去同一个值
+::sub[把 c 调到 3，在 M1·M5 平面上 A 和 D 指向正好相反的方向]
+
+<OriginShiftDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 皮尔逊相关系数
 ::sub[Pearson Correlation · 只用两人都看过的电影，减去各自的均值再算]
 
@@ -307,6 +292,15 @@ predict A (k = 3, similarity > 0)
 
 <Slide>
 
+### 动手试试：加权平均就是重心
+::sub[相似度就是重量 · 余弦 k = 3 时把 E 调到 0，M6 降到 1.495]
+
+<WeightedAvgDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 动手试试：评分与邻居数
 ::sub[点击格子即可改评分 · 用余弦时把 k 减到 2，M6 降到 1.495]
 
@@ -328,6 +322,15 @@ $$
 <br/>
 
 实验代码用的是简单的加权平均，这个公式留作练习。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：两种预测公式
+::sub[提高 C 的尺度 · 简单加权平均跟着动，以均值为中心的公式不动]
+
+<MeanCenterDemo slide />
 
 </Slide>
 
@@ -359,6 +362,15 @@ item-based: movies A rated, by cosine to the blank (k = 2)
 
 </Slide>
 
+<Slide>
+
+### 动手试试：物品相似度表
+::sub[改 A 的评分，再增加其他用户 · 只有表的晃动变小]
+
+<ItemTableDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 协同过滤的局限
@@ -381,18 +393,19 @@ item-based: movies A rated, by cosine to the blank (k = 2)
 
 <Slide>
 
+### 动手试试：擦掉格子
+::sub[空格超过 80% 后，能预测的格子迅速减少，误差变大]
+
+<SparsityDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 缺点 2. 冷启动
 ::sub[Cold Start · 没有记录就什么也做不了]
 
-| 用户 A | 用户 B | 用户 C | 用户 E（新来） |
-| --- | --- | --- | --- |
-| 犯罪都市3 | 疯狂元素城 | 首尔之春 | 极限逃生 |
-| 壮志凌云：独行侠 | 阿拉丁 | 闲山：龙的出现 | |
-| 阿凡达：水之道 | 阿凡达：水之道 | 阿凡达：水之道 | |
-| 蜘蛛侠：英雄无归 | | 蜘蛛侠：英雄无归 | |
-
-- **新用户**：没人和 E 重合，没有邻居也没有推荐。
-- **新物品**：新的复仇者联盟还没人看过，无法推荐给任何人。
+<OverlapDemo cold slide />
 
 </Slide>
 
@@ -482,6 +495,15 @@ score = cosine(profile, genres), movies A has not rated
 - 没用别人的评分，却得到与例 1 **相同的结论**。
 - **新电影 M7** 只凭类型就排到了第二。
   - 这是协同过滤做不到的。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：画像实验室
+::sub[改类型和评分，排名就会变 · 基准分取 0 时，M7 超过 M3]
+
+<ProfileLabDemo slide />
 
 </Slide>
 
