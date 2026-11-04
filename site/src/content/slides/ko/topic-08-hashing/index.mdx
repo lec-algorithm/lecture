@@ -27,6 +27,10 @@ import HashKindsDemo from '@components/HashKindsDemo.astro';
 import AvalancheDemo from '@components/AvalancheDemo.astro';
 import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
 import HashFloodDemo from '@components/HashFloodDemo.astro';
+import KeyPathDemo from '@components/KeyPathDemo.astro';
+import RsaDemo from '@components/RsaDemo.astro';
+import FactorDemo from '@components/FactorDemo.astro';
+import SignDemo from '@components/SignDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-08-hashing)의 실행 결과와 같습니다. */}
@@ -1004,6 +1008,101 @@ $$
 ::sub[Aa와 BB는 호너 값이 같습니다. 탭을 바꿔 공격 키와 비밀 키를 견줍니다]
 
 <HashFloodDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 참고: 공개키 암호화
+::sub[Public-Key Encryption]
+
+</Slide>
+
+<Slide>
+
+#### 해시와 암호화
+::sub[해시는 되돌리지 못하고, 암호화는 키가 있으면 되돌립니다]
+
+- **해시는 한 방향입니다.**
+  - 키가 없고, 결과에서 입력을 되찾을 수 없습니다.
+- **대칭키 암호는 같은 키로 잠그고 풉니다.**
+  - AES처럼 빠르지만, 키를 먼저 안전하게 건네야 합니다.
+- **공개키 암호는 키가 둘입니다.**
+  - 공개키로 잠근 것은 개인키로만 풀립니다.
+  - 공개키는 모두에게 알려도 됩니다.
+
+</Slide>
+
+<Slide>
+
+### 키를 건네는 길
+::sub[이브는 통신로의 모든 것을 복사합니다. 탭으로 두 방식을 견줍니다]
+
+<KeyPathDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### RSA의 절차
+::sub[1977년 Rivest, Shamir, Adleman. 여기서도 나머지 연산이 주인공입니다]
+
+```plaintext
+ALGORITHM KeyGen()
+    서로 다른 큰 소수 p, q를 고른다
+    n <- p × q
+    φ <- (p - 1) × (q - 1)
+    e <- φ와 서로소인 수                 // 흔히 65537
+    d <- e × d mod φ = 1 인 수           // 확장 유클리드 호제법
+    공개키는 (e, n), 개인키는 (d, n)
+```
+
+$$
+c = m^e \bmod n \qquad m = c^d \bmod n
+$$
+
+</Slide>
+
+<Slide>
+
+### 직접 잠그고 풀기
+::sub[p, q, e를 고르고 메시지를 바꿔 봅니다. 글자를 누르면 그 글자의 계산이 나옵니다]
+
+<RsaDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 곱하기와 되돌리기
+::sub[n을 공개해도 되는 것은 p와 q로 되돌리기가 어렵기 때문입니다]
+
+<FactorDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 전자서명: 해시와 개인키
+::sub[메시지의 해시를 개인키로 잠그면, 누구나 공개키로 확인합니다]
+
+<SignDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 실제로는
+::sub[이 데모의 RSA를 그대로 쓰면 안 됩니다]
+
+- **키와 패딩**
+  - 키는 2048비트 이상이고, 무작위 패딩(OAEP, PSS)을 섞습니다.
+- **본문은 대칭키로**
+  - 공개키 연산은 느려서 대칭키를 정하는 데만 씁니다. HTTPS가 이 구조입니다.
+- **공개키가 진짜인지**
+  - 이브가 바꿔치기하지 못하게, 인증 기관이 서명한 인증서로 확인합니다.
+- **양자 컴퓨터**
+  - Shor 알고리즘이 RSA를 위협해, 양자내성 암호로 옮겨 가고 있습니다.
 
 </Slide>
 
