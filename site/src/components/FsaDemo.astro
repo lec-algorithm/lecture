@@ -8,15 +8,21 @@
 //
 // 절차와 결과는 algorithm-code의 fsaSimple.c · fsa_simple.py와 같다.
 // "abbbbc"는 S0 S1 S2 S3 S3 S3 S3 S4로 수락, "abd"는 S3에서 'd'를 만나 거부한다.
+//
+// 그림 옆에 전이표와 상태의 뜻을 두어 앞 슬라이드의 표를 찾아가지 않게 한다. 지금
+// 상태의 열과 지금 쓰는 칸을 칠한다. 입력 칸에 문자열을 적으면 처음부터 다시 돈다.
+// cases를 주면 그 문자열들의 수락·거부를 미리 계산해 단추로 늘어놓는다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
   /** 읽을 문자열 */
   input?: string;
+  /** 눌러 볼 문자열들. 수락과 거부를 칠해 함께 보인다. */
+  cases?: string[];
   /** 슬라이드용: 글자와 그림을 키운다. */
   slide?: boolean;
 }
-const { input = 'abbbbc', slide = false } = Astro.props;
+const { input = 'abbbbc', cases = [], slide = false } = Astro.props;
 const id = `fd-${Math.random().toString(36).slice(2, 9)}`;
 
 const STRINGS: Record<string, Record<string, string>> = {
@@ -37,6 +43,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     stuck: "{from}에는 '{c}'로 가는 전이가 없습니다. 거부합니다.",
     yes: '입력이 끝났고 수락 상태 S4에 있습니다. 수락합니다.',
     no: '입력이 끝났는데 {from}은 수락 상태가 아닙니다. 거부합니다.',
+    inputLabel: '입력',
+    now: '지금',
+    S0: '시작 상태',
+    S1: 'a를 읽은 상태',
+    S2: 'b* 시작 상태 (b 0개 허용)',
+    S3: 'b를 1개 이상 읽은 상태',
+    S4: 'c를 읽어 매칭 완료 (수락 상태)',
   },
   en: {
     title: 'Finite state automaton · ab*c',
@@ -55,6 +68,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     stuck: "{from} has no transition on '{c}'. Reject.",
     yes: 'The input is over and we are in the accept state S4. Accept.',
     no: 'The input is over but {from} is not an accept state. Reject.',
+    inputLabel: 'input',
+    now: 'now',
+    S0: 'start state',
+    S1: 'has read a',
+    S2: 'start of b* (zero b allowed)',
+    S3: 'has read one or more b',
+    S4: 'has read c, match complete (accept)',
   },
   zh: {
     title: '有限状态自动机 · ab*c',
@@ -73,6 +93,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     stuck: "{from} 没有读 '{c}' 的转移。拒绝。",
     yes: '输入结束，处于接受状态 S4。接受。',
     no: '输入结束，但 {from} 不是接受状态。拒绝。',
+    inputLabel: '输入',
+    now: '当前',
+    S0: '开始状态',
+    S1: '读到 a 的状态',
+    S2: 'b* 开始状态（允许 0 个 b）',
+    S3: '读到 1 个以上 b 的状态',
+    S4: '读到 c，模式匹配完成（接受状态）',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -108,17 +135,27 @@ const edges: Edge[] = [
     ly: Y + 106,
   },
 ];
-const chars = [...input];
+const TABLE: [string, (string | null)[]][] = [
+  ['a', ['S1', null, null, null, null]],
+  ['b', [null, null, 'S3', 'S3', null]],
+  ['c', [null, null, 'S4', 'S4', null]],
+  ['ε', [null, 'S2', null, null, null]],
+];
 ---
 
 <div
   class:list={['aas-fsa-demo', slide && 'is-slide']}
   id={id}
   data-fd-input={input}
+  data-fd-cases={JSON.stringify(cases)}
   data-fd-strings={JSON.stringify(t)}
 >
   <div class="fd-bar">
     <span class="fd-head"><strong>{t.title}</strong></span>
+    <label class="fd-input">
+      {t.inputLabel}
+      <input type="text" maxlength="14" spellcheck="false" autocomplete="off" value={input} data-fd-text />
+    </label>
     <div class="fd-controls">
       <button type="button" data-act="back" class="fd-btn">{t.back}</button>
       <button type="button" data-act="step" class="fd-btn">{t.step}</button>
@@ -127,6 +164,9 @@ const chars = [...input];
     </div>
   </div>
 
+  {cases.length > 0 && <div class="fd-cases" data-fd-chips></div>}
+
+  <div class="fd-main">
   <svg class="fd-graph" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.title}>
     <defs>
       <marker id={`${id}-arrow`} class="fd-head-normal" viewBox="0 0 10 10" refX="9" refY="5"
@@ -156,17 +196,27 @@ const chars = [...input];
     ))}
     <text class="fd-accept-label" x={X(4) + R + 10} y={Y}>{t.accept}</text>
   </svg>
-
-  <div class="fd-tape">
-    {chars.map((c, i) => (
-      <span class="fd-cell" data-fd-cell={i}>{c}</span>
-    ))}
+  <div class="fd-key">
+    <div class="fd-table">
+      <span></span>
+      {[0, 1, 2, 3, 4].map((i) => <b class="fd-th" data-fd-col={i}>S{i}</b>)}
+      {TABLE.map(([ch, row]) => (
+        <>
+          <b class="fd-rowhead">{ch}</b>
+          {row.map((to, i) => <span class="fd-td" data-fd-col={i} data-fd-at={`${i}${ch}`}>{to ?? '·'}</span>)}
+        </>
+      ))}
+    </div>
+    <p class="fd-meaning" data-fd-meaning>&nbsp;</p>
   </div>
+  </div>
+
+  <div class="fd-tape" data-fd-tape></div>
 
   <div class="fd-foot">
     <p class="fd-note" data-fd-note></p>
     <span class="fd-count">
-      {t.read}<strong data-fd-count>0</strong> / {chars.length}
+      {t.read}<strong data-fd-count>0</strong> / <span data-fd-len></span>
     </span>
   </div>
 </div>
@@ -182,20 +232,20 @@ const chars = [...input];
       node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
     };
 
-    const input = [...root.dataset.fdInput];
+    let input = [...root.dataset.fdInput];
     const S = JSON.parse(root.dataset.fdStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
 
     /* 전체 과정을 미리 단계 배열로 만든다. 절차는 fsaSimple.pseudo의 Accept와 같다. */
-    function plan() {
+    function plan(input) {
       const steps = [{ state: 0, pos: 0, edge: null, note: S.start }];
       let st = 0;
       for (let k = 0; k < input.length; k++) {
         const c = input[k];
         if (st === 0 && c === 'a') {
-          steps.push({ state: 1, pos: k + 1, edge: '01', note: fill(S.move, { c, from: 'S0', to: 'S1' }) });
+          steps.push({ state: 1, pos: k + 1, edge: '01', cell: '0a', note: fill(S.move, { c, from: 'S0', to: 'S1' }) });
           st = 2;
-          steps.push({ state: 2, pos: k + 1, edge: '12', note: S.eps });
+          steps.push({ state: 2, pos: k + 1, edge: '12', cell: '1ε', note: S.eps });
           continue;
         }
         if ((st === 2 || st === 3) && (c === 'b' || c === 'c')) {
@@ -203,7 +253,7 @@ const chars = [...input];
           const note = to === st
             ? fill(S.loop, { c, from: `S${st}` })
             : fill(S.move, { c, from: `S${st}`, to: `S${to}` });
-          steps.push({ state: to, pos: k + 1, edge: `${st}${to}`, note });
+          steps.push({ state: to, pos: k + 1, edge: `${st}${to}`, cell: `${st}${c}`, note });
           st = to;
           continue;
         }
@@ -218,10 +268,28 @@ const chars = [...input];
       return steps;
     }
 
-    const steps = plan();
+    let steps = plan(input);
     const states = [...root.querySelectorAll('[data-fd-state]')];
     const edgeEls = [...root.querySelectorAll('[data-fd-edge]')];
-    const cells = [...root.querySelectorAll('[data-fd-cell]')];
+    const tape = root.querySelector('[data-fd-tape]');
+    const lenEl = root.querySelector('[data-fd-len]');
+    const textIn = root.querySelector('[data-fd-text]');
+    const chipBox = root.querySelector('[data-fd-chips]');
+    const meaning = root.querySelector('[data-fd-meaning]');
+    const cols = [...root.querySelectorAll('[data-fd-col]')];
+    const tds = [...root.querySelectorAll('[data-fd-at]')];
+    let cells = [];
+    function buildTape() {
+      cells = input.map((c) => {
+        const cell = document.createElement('span');
+        cell.className = 'fd-cell';
+        cell.textContent = c;
+        return cell;
+      });
+      tape.replaceChildren(...cells);
+      lenEl.textContent = String(input.length);
+    }
+    buildTape();
     const note = root.querySelector('[data-fd-note]');
     const countEl = root.querySelector('[data-fd-count]');
 
@@ -246,6 +314,9 @@ const chars = [...input];
         cell.classList.toggle('is-next', !!step && !step.done && i === pos);
         cell.classList.toggle('is-bad', !!step && step.bad === i);
       });
+      cols.forEach((c) => c.classList.toggle('is-now', !!step && Number(c.dataset.fdCol) === step.state));
+      tds.forEach((c) => c.classList.toggle('is-on', !!step && step.cell === c.dataset.fdAt));
+      meaning.textContent = step ? `${S.now} S${step.state}: ${S[`S${step.state}`]}` : '\u00a0';
       countEl.textContent = String(pos);
       setLines(note, step ? step.note : fill(S.idle, { w: input.join('') }));
       root.classList.toggle('is-done', !!(step && step.done));
@@ -291,6 +362,38 @@ const chars = [...input];
       playBtn.textContent = S.stop;
       timer = setInterval(step, 900);
     });
+
+    /* 입력을 바꾸면 처음부터 다시 돈다. */
+    function load(word) {
+      stop();
+      input = [...word];
+      steps = plan(input);
+      at = -1;
+      buildTape();
+      render(-1);
+      markChips();
+    }
+    textIn.addEventListener('input', () => load(textIn.value));
+
+    /* cases: 문자열마다 끝까지 돌려 본 결과를 단추에 칠한다. */
+    const chips = JSON.parse(root.dataset.fdCases).map((word) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      const last = plan([...word]).at(-1);
+      b.className = `fd-chip ${last.done === 'accept' ? 'is-yes' : 'is-no'}`;
+      b.textContent = word;
+      b.dataset.fdWord = word;
+      b.addEventListener('click', () => {
+        textIn.value = word;
+        load(word);
+      });
+      return b;
+    });
+    if (chipBox) chipBox.replaceChildren(...chips);
+    function markChips() {
+      chips.forEach((b) => b.classList.toggle('is-picked', b.dataset.fdWord === input.join('')));
+    }
+    markChips();
 
     render(-1);
   })();
@@ -338,12 +441,110 @@ const chars = [...input];
     color: #fff;
   }
 
+  .aas-fsa-demo .fd-input {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-right: auto;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-fsa-demo .fd-input input {
+    width: 8em;
+    padding: 0.15em 0.4em;
+    font: inherit;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+  }
+  .aas-fsa-demo .fd-cases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    justify-content: center;
+    margin-bottom: 0.3em;
+  }
+  .aas-fsa-demo .fd-chip {
+    padding: 0.12em 0.6em;
+    font-size: 0.85em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-fsa-demo .fd-chip.is-yes {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 20%, var(--aas-bg));
+  }
+  .aas-fsa-demo .fd-chip.is-no {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 12%, var(--aas-bg));
+  }
+  .aas-fsa-demo .fd-chip.is-picked {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-fsa-demo .fd-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: center;
+    justify-content: center;
+  }
   .aas-fsa-demo .fd-graph {
     display: block;
-    width: 100%;
+    flex: 1 1 22em;
+    min-width: 0;
     max-width: 40em;
     height: auto;
-    margin: 0 auto;
+  }
+  .aas-fsa-demo .fd-key {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .aas-fsa-demo .fd-table {
+    display: grid;
+    grid-template-columns: auto repeat(5, minmax(2.3em, 1fr));
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.4;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-fsa-demo .fd-th,
+  .aas-fsa-demo .fd-td {
+    text-align: center;
+    transition: background-color 0.2s;
+  }
+  .aas-fsa-demo .fd-td {
+    color: var(--aas-muted);
+  }
+  .aas-fsa-demo .fd-rowhead {
+    padding: 0 0.7em;
+    text-align: center;
+  }
+  .aas-fsa-demo .fd-th.is-now,
+  .aas-fsa-demo .fd-td.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, var(--aas-bg));
+  }
+  .aas-fsa-demo .fd-td.is-on {
+    background: var(--aas-role-focus);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-fsa-demo .fd-meaning {
+    margin: 0.3em 0 0;
+    font-size: 0.72em;
+    color: var(--aas-text);
+    text-align: center;
+    min-height: 1.4em;
   }
   .aas-fsa-demo .fd-head-normal path {
     fill: var(--aas-muted);
@@ -480,10 +681,22 @@ const chars = [...input];
     font-size: clamp(1rem, 3.2vh, 2.1rem);
     margin: 0.5rem 0;
   }
+  .aas-fsa-demo.is-slide .fd-main {
+    flex-wrap: nowrap;
+  }
   .aas-fsa-demo.is-slide .fd-graph {
+    flex: 1 1 0;
     max-width: none;
-    width: auto;
-    height: 34vh;
+    max-height: 29vh;
+  }
+  .aas-fsa-demo.is-slide .fd-key {
+    flex: 0 0 13em;
+  }
+  .aas-fsa-demo.is-slide .fd-meaning {
+    min-height: 2.8em;
+  }
+  .aas-fsa-demo.is-slide .fd-cases + .fd-main .fd-graph {
+    max-height: 25vh;
   }
   .aas-fsa-demo.is-slide .fd-note {
     min-height: 1.6em;
@@ -492,6 +705,8 @@ const chars = [...input];
   @media (prefers-reduced-motion: reduce) {
     .aas-fsa-demo .fd-edge path,
     .aas-fsa-demo .fd-state circle,
+    .aas-fsa-demo .fd-th,
+    .aas-fsa-demo .fd-td,
     .aas-fsa-demo .fd-cell {
       transition: none;
     }
