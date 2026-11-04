@@ -1,0 +1,458 @@
+---
+// 간선 수가 표현의 비용을 어떻게 가르는지 슬라이더로 보는 데모.
+//
+// 정점 수 n과 간선 수 m을 고르면 원 위에 그 그래프를 그린다. 먼저 한 줄로
+// 이어 연결을 지키고(n-1개), 그다음 가까운 쌍부터 간선을 더한다. m의 범위는
+// 연결된 무방향 그래프의 범위인 n-1 이상 n(n-1)/2 이하다.
+// 오른쪽 표는 같은 그래프를 두 표현으로 둘 때 드는 칸 수와 보는 칸 수다.
+//   공간: 인접 목록 n + 2m칸, 인접 행렬 n²칸
+//   이웃 찾기(정점 하나): 목록은 평균 2m/n칸, 행렬은 n칸
+//   간선 확인(한 쌍): 목록은 평균 2m/n칸까지, 행렬은 1칸
+// 서울-부산 예(n = 4, m = 3)는 목록 4 + 6칸, 행렬 16칸이 나온다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음 정점 수 (2에서 12 사이) */
+  n?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { n = 5, slide = false } = Astro.props;
+const id = `dn-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '정점과 간선 수 고르기',
+    n: '정점 n',
+    m: '간선 m',
+    min: '최소로',
+    max: '최대로',
+    density: '채운 정도',
+    possible: '가능한 m',
+    rep: '인접 목록과 인접 행렬',
+    op: '하는 일',
+    list: '인접 목록',
+    matrix: '인접 행렬',
+    space: '공간(칸)',
+    nbr: '정점 하나의 이웃 찾기(칸)',
+    check: '간선 하나 확인(칸)',
+    noteMin: '간선이 n-1 = {m}개인 최소입니다. 하나라도 빼면 덩어리가 둘로 갈라집니다.',
+    noteMax: '모든 쌍을 이은 최대입니다. n(n-1)/2 = {m}개입니다. 이때만 목록의 칸 수가 행렬과 같아집니다.',
+    noteMid: '가능한 간선의 {p}%를 채웠습니다. 목록은 {l}칸, 행렬은 {x}칸입니다.',
+    outro: 'n을 늘려 보면 m이 n에 비례하는 희소 그래프에서 행렬이 얼마나 낭비인지 보입니다.',
+  },
+  en: {
+    title: 'Choose the vertices and edges',
+    n: 'vertices n',
+    m: 'edges m',
+    min: 'Fewest',
+    max: 'Most',
+    density: 'filled',
+    possible: 'possible m',
+    rep: 'Adjacency lists and matrix',
+    op: 'Operation',
+    list: 'Adjacency list',
+    matrix: 'Adjacency matrix',
+    space: 'Space (cells)',
+    nbr: 'Neighbours of one vertex (cells)',
+    check: 'Check one edge (cells)',
+    noteMin: 'This is the minimum, n-1 = {m} edges. Remove any one and the graph splits in two.',
+    noteMax: 'This is the maximum, every pair joined: n(n-1)/2 = {m} edges. Only here does the list take as many cells as the matrix.',
+    noteMid: '{p}% of the possible edges are in. The list takes {l} cells, the matrix {x}.',
+    outro: 'Raise n to see how wasteful the matrix is on a sparse graph, where m grows with n.',
+  },
+  zh: {
+    title: '选择顶点数和边数',
+    n: '顶点 n',
+    m: '边 m',
+    min: '最少',
+    max: '最多',
+    density: '填充',
+    possible: '可能的 m',
+    rep: '邻接表和邻接矩阵',
+    op: '操作',
+    list: '邻接表',
+    matrix: '邻接矩阵',
+    space: '空间（格）',
+    nbr: '找一个顶点的邻居（格）',
+    check: '检查一条边（格）',
+    noteMin: '这是最少的情况，n-1 = {m} 条边。少任何一条，图就分成两块。',
+    noteMax: '这是最多的情况，所有顶点对都相连：n(n-1)/2 = {m} 条边。只有这时邻接表的格数才与矩阵相同。',
+    noteMid: '可能的边已填上 {p}%。邻接表 {l} 格，矩阵 {x} 格。',
+    outro: '增大 n，就能看到在 m 与 n 成正比的稀疏图上矩阵有多浪费。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-density-demo', slide && 'is-slide']} id={id} data-dn-n={n} data-dn-strings={JSON.stringify(t)}>
+  <div class="dn-bar">
+    <span class="dn-head"><strong>{t.title}</strong></span>
+    <label class="dn-range">
+      {t.n} <strong data-dn-nval></strong>
+      <input type="range" min="2" max="12" step="1" data-dn-n-range />
+    </label>
+    <label class="dn-range">
+      {t.m} <strong data-dn-mval></strong>
+      <input type="range" min="1" max="66" step="1" data-dn-m-range />
+    </label>
+    <div class="dn-controls">
+      <button type="button" class="dn-btn" data-dn-act="min">{t.min}</button>
+      <button type="button" class="dn-btn" data-dn-act="max">{t.max}</button>
+    </div>
+  </div>
+
+  <div class="dn-body">
+    <svg class="dn-svg" viewBox="0 0 320 320" role="img" aria-label={t.title} data-dn-svg></svg>
+    <div class="dn-panel">
+      <div class="dn-stats">
+        <span class="dn-big"><span>{t.possible}</span><strong data-dn-range-text class="is-plain"></strong></span>
+        <span class="dn-big"><span>{t.density}</span><strong data-dn-p></strong></span>
+      </div>
+      <div class="dn-table" role="table" aria-label={t.rep}>
+        <span class="dn-th">{t.op}</span><span class="dn-th">{t.list}</span><span class="dn-th">{t.matrix}</span>
+        <span>{t.space}</span><b data-dn-c="l-space"></b><b data-dn-c="x-space"></b>
+        <span>{t.nbr}</span><b data-dn-c="l-nbr"></b><b data-dn-c="x-nbr"></b>
+        <span>{t.check}</span><b data-dn-c="l-check"></b><b data-dn-c="x-check"></b>
+      </div>
+      <div class="dn-bars">
+        <div class="dn-row"><span>{t.list}</span><i><u data-dn-bar="l"></u></i><b data-dn-c="l-bar"></b></div>
+        <div class="dn-row"><span>{t.matrix}</span><i><u data-dn-bar="x" class="is-x"></u></i><b data-dn-c="x-bar"></b></div>
+      </div>
+      <p class="dn-note" data-dn-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.dnStrings);
+
+    const nRange = root.querySelector('[data-dn-n-range]');
+    const mRange = root.querySelector('[data-dn-m-range]');
+    const svg = root.querySelector('[data-dn-svg]');
+    const note = root.querySelector('[data-dn-note]');
+    const cell = (k) => root.querySelector(`[data-dn-c="${k}"]`);
+    const NS = 'http://www.w3.org/2000/svg';
+
+    let n = Math.max(2, Math.min(12, Number(root.dataset.dnN)));
+    let m = n - 1;
+    const maxM = (x) => (x * (x - 1)) / 2;
+
+    /* 한 줄로 이은 뒤 원 위에서 가까운 쌍부터 더한다. 그래서 언제나 연결되어 있다. */
+    function edgeOrder(x) {
+      const path = [];
+      for (let i = 0; i + 1 < x; i++) path.push([i, i + 1]);
+      const rest = [];
+      for (let u = 0; u < x; u++)
+        for (let v = u + 2; v < x; v++) {
+          rest.push([u, v, Math.min(v - u, x - (v - u))]);
+        }
+      rest.sort((a, b) => a[2] - b[2] || a[0] - b[0] || a[1] - b[1]);
+      return [...path, ...rest.map(([u, v]) => [u, v])];
+    }
+
+    function draw() {
+      const R = 128;
+      const C = 160;
+      const pos = Array.from({ length: n }, (_, i) => {
+        const a = (2 * Math.PI * i) / n - Math.PI / 2;
+        return [C + R * Math.cos(a), C + R * Math.sin(a)];
+      });
+      const parts = [];
+      edgeOrder(n)
+        .slice(0, m)
+        .forEach(([u, v]) => {
+          const l = document.createElementNS(NS, 'line');
+          l.setAttribute('x1', pos[u][0]);
+          l.setAttribute('y1', pos[u][1]);
+          l.setAttribute('x2', pos[v][0]);
+          l.setAttribute('y2', pos[v][1]);
+          parts.push(l);
+        });
+      pos.forEach(([x, y], v) => {
+        const g = document.createElementNS(NS, 'g');
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', x);
+        c.setAttribute('cy', y);
+        c.setAttribute('r', 15);
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('x', x);
+        tx.setAttribute('y', y);
+        tx.textContent = String(v);
+        g.append(c, tx);
+        parts.push(g);
+      });
+      svg.replaceChildren(...parts);
+    }
+
+    const round = (x) => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+    function render() {
+      const lo = n - 1;
+      const hi = maxM(n);
+      m = Math.max(lo, Math.min(hi, m));
+      mRange.min = String(lo);
+      mRange.max = String(hi);
+      mRange.value = String(m);
+      nRange.value = String(n);
+      root.querySelector('[data-dn-nval]').textContent = String(n);
+      root.querySelector('[data-dn-mval]').textContent = String(m);
+      root.querySelector('[data-dn-range-text]').textContent = lo === hi ? String(lo) : `${lo} ~ ${hi}`;
+      const pct = Math.round((100 * m) / hi);
+      root.querySelector('[data-dn-p]').textContent = `${pct}%`;
+      const l = n + 2 * m;
+      const x = n * n;
+      const deg = (2 * m) / n;
+      cell('l-space').textContent = `${n} + ${2 * m} = ${l}`;
+      cell('x-space').textContent = `${n}² = ${x}`;
+      cell('l-nbr').textContent = round(deg);
+      cell('x-nbr').textContent = String(n);
+      cell('l-check').textContent = round(deg);
+      cell('x-check').textContent = '1';
+      cell('l-bar').textContent = String(l);
+      cell('x-bar').textContent = String(x);
+      root.querySelector('[data-dn-bar="l"]').style.width = `${(100 * l) / x}%`;
+      root.querySelector('[data-dn-bar="x"]').style.width = '100%';
+      const first = m === hi ? fill(S.noteMax, { m }) : m === lo ? fill(S.noteMin, { m }) : fill(S.noteMid, { p: pct, l, x });
+      setLines(note, join(first, S.outro));
+      draw();
+    }
+
+    nRange.addEventListener('input', () => {
+      n = Number(nRange.value);
+      render();
+    });
+    mRange.addEventListener('input', () => {
+      m = Number(mRange.value);
+      render();
+    });
+    root.querySelector('[data-dn-act="min"]').addEventListener('click', () => {
+      m = n - 1;
+      render();
+    });
+    root.querySelector('[data-dn-act="max"]').addEventListener('click', () => {
+      m = maxM(n);
+      render();
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-density-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-density-demo .dn-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.2em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-density-demo .dn-head {
+    font-size: 0.95em;
+  }
+  .aas-density-demo .dn-range {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-density-demo .dn-range strong {
+    min-width: 1.6em;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.2em;
+  }
+  .aas-density-demo .dn-range input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-density-demo .dn-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-density-demo .dn-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-density-demo .dn-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-density-demo .dn-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-density-demo .dn-svg {
+    flex: 0 1 18em;
+    width: 18em;
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .aas-density-demo .dn-svg line {
+    stroke: var(--aas-muted);
+    stroke-width: 1.6;
+  }
+  .aas-density-demo .dn-svg circle {
+    fill: var(--aas-text);
+  }
+  .aas-density-demo .dn-svg text {
+    fill: var(--aas-bg);
+    font-size: 14px;
+    font-weight: 700;
+    font-family: var(--aas-mono, monospace);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-density-demo .dn-panel {
+    flex: 1 1 18em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 0;
+  }
+  .aas-density-demo .dn-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.6em;
+  }
+  .aas-density-demo .dn-big {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-density-demo .dn-big strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 2em;
+    line-height: 1.1;
+    color: var(--aas-role-focus);
+  }
+  .aas-density-demo .dn-big strong.is-plain {
+    color: var(--aas-text);
+  }
+  .aas-density-demo .dn-big small {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+  }
+  /* 표는 table 요소 대신 grid로 그린다. 테마의 문서 표 스타일이 덮지 않게 */
+  .aas-density-demo .dn-table {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0 1.2em;
+    font-size: 0.8em;
+    line-height: 1.5;
+  }
+  .aas-density-demo .dn-table > * {
+    padding: 0.1em 0;
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-density-demo .dn-table > b {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    text-align: right;
+  }
+  .aas-density-demo .dn-th {
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-density-demo .dn-th:not(:first-child) {
+    text-align: right;
+  }
+  .aas-density-demo .dn-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    font-size: 0.8em;
+  }
+  .aas-density-demo .dn-row {
+    display: grid;
+    grid-template-columns: 7.5em minmax(0, 1fr) 2.5em;
+    gap: 0.6em;
+    align-items: center;
+  }
+  .aas-density-demo .dn-row > span {
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-density-demo .dn-row > i {
+    display: block;
+    height: 0.9em;
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  .aas-density-demo .dn-row u {
+    display: block;
+    height: 100%;
+    border-radius: 0.25em;
+    background: var(--aas-role-focus);
+    transition: width 0.25s;
+  }
+  .aas-density-demo .dn-row u.is-x {
+    background: var(--aas-role-model);
+  }
+  .aas-density-demo .dn-row > b {
+    font-family: var(--aas-mono, monospace);
+    text-align: right;
+  }
+  .aas-density-demo .dn-note {
+    margin: 0.2em 0 0;
+    font-size: 0.85em;
+    min-height: 2.4em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-density-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-density-demo.is-slide .dn-range input {
+    width: 7em;
+  }
+  .aas-density-demo.is-slide .dn-body {
+    flex-wrap: nowrap;
+  }
+  .aas-density-demo.is-slide .dn-svg {
+    flex: 0 0 auto;
+    width: auto;
+    height: 47vh;
+    max-height: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-density-demo .dn-row u {
+      transition: none;
+    }
+  }
+</style>
