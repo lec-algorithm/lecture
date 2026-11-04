@@ -10,6 +10,7 @@
 // 합은 17, 새 배열의 합은 12다. algorithm-code의 hashTableLP.c ·
 // hash_table_lp.py에서 resize(wide, 32)와 print_hits가 찍는 값과 같다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import HashKeyTable from './HashKeyTable.astro';
 
 interface Props {
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
@@ -105,6 +106,7 @@ const newRows = [0, 1].map((r) => Array.from({ length: m }, (_, i) => r * m + i)
       <strong data-rz-hits>0</strong>
     </span>
     <span class="rz-formula" data-rz-formula>&nbsp;</span>
+    <HashKeyTable keys="ACEHLMPRSX" moduli={[16, 32]} />
   </div>
 
   <div class="rz-scroll">
@@ -227,8 +229,13 @@ const newRows = [0, 1].map((r) => Array.from({ length: m }, (_, i) => r * m + i)
       cell.classList.toggle('is-slow', k !== null && cost > 1);
     }
 
+    /* 예제 키 표에서 지금 다루는 키의 열을 칠한다. */
+    const keyCells = [...root.querySelectorAll('[data-kt-key]')];
+    const markKey = (k) => keyCells.forEach((c) => c.classList.toggle('is-now', c.dataset.ktKey === k));
+
     function render(s) {
       const st = s >= 0 ? steps[s] : null;
+      markKey(st && !st.final && st.from >= 0 ? old.keys[st.from] : null);
       const doneUpto = st ? (st.final ? m : st.from) : -1;
       oldCells.forEach((cell, i) => {
         paint(cell, old.keys[i], old.vals[i], oldCost[i]);
@@ -487,11 +494,11 @@ const newRows = [0, 1].map((r) => Array.from({ length: m }, (_, i) => r * m + i)
 
   /* 슬라이드용. 다른 데모와 같은 크기. vh 단위인 이유는 SearchDemo 참고 */
   .aas-resize-demo.is-slide {
-    font-size: clamp(1rem, 3vh, 2rem);
+    font-size: clamp(1rem, 2.5vh, 1.7rem);
     margin: 0.5rem 0;
   }
   .aas-resize-demo.is-slide .rz-cell {
-    height: 2.05em;
+    height: 1.95em;
   }
   .aas-resize-demo.is-slide .rz-label {
     margin: 0;

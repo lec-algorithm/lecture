@@ -1,0 +1,101 @@
+---
+// 주제 08의 예제 키 표. 키마다 코드와 해시값을 데모 안에서 바로 보게 한다.
+//
+// 데모가 [data-kt-key]에 is-now를 달면 그 키의 열이 칠해진다. 코드 표는
+// algorithm-code의 해시 코드와 같다. keys를 비우면 칸 없이 자리만 두고, 데모의
+// 스크립트가 내용을 채운다(놀이터처럼 키가 바뀌는 경우).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 보일 키. 글자를 이어 쓴다. */
+  keys?: string;
+  /** 해시 줄마다의 M */
+  moduli?: number[];
+}
+const { keys = 'ACEHLMPRSXY', moduli = [] } = Astro.props;
+const CODES: Record<string, number> = { A: 20, C: 69, E: 10, H: 4, L: 38, M: 49, P: 78, R: 14, S: 22, X: 47, Y: 52 };
+const LABELS: Record<string, { key: string; code: string }> = {
+  ko: { key: '키', code: '코드' },
+  en: { key: 'key', code: 'code' },
+  zh: { key: '键', code: '编码' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const l = LABELS[lang] ?? LABELS.ko;
+const list = [...keys];
+---
+
+<div
+  class="aas-key-table"
+  data-kt
+  data-kt-key-label={l.key}
+  data-kt-code-label={l.code}
+  style={`--kt-cols: ${list.length}`}
+>
+  {
+    list.length > 0 && (
+      <>
+        <span class="kt-label">{l.key}</span>
+        {list.map((k) => <b class="kt-cell" data-kt-key={k}>{k}</b>)}
+        <span class="kt-label">{l.code}</span>
+        {list.map((k) => <span class="kt-cell" data-kt-key={k}>{CODES[k]}</span>)}
+        {moduli.map((m) => (
+          <>
+            <span class="kt-label" data-kt-modlabel>mod {m}</span>
+            {list.map((k) => (
+              <b class="kt-cell kt-hash" data-kt-key={k} data-kt-code={CODES[k]}>
+                {CODES[k] % m}
+              </b>
+            ))}
+          </>
+        ))}
+      </>
+    )
+  }
+</div>
+
+<style is:global>
+  .aas-key-table {
+    display: grid;
+    grid-template-columns: auto repeat(var(--kt-cols), minmax(0, 1fr));
+    margin: 0.35em 0;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    line-height: 1.25;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    overflow: hidden;
+  }
+  /* 데모의 숫자 줄 오른쪽에 놓일 때. 자리가 모자라면 다음 줄로 내려간다. */
+  [class$='-stats'] > .aas-key-table {
+    flex: 1 1 21em;
+    max-width: 30em;
+    margin: 0 0 0 auto;
+  }
+  .aas-key-table .kt-label {
+    padding: 0 0.7em;
+    font-family: var(--aas-sans, inherit);
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-key-table .kt-cell {
+    min-width: 0;
+    text-align: center;
+    font-weight: 400;
+    transition: background-color 0.2s;
+  }
+  .aas-key-table b.kt-cell {
+    font-weight: 700;
+  }
+  .aas-key-table .kt-hash {
+    color: var(--aas-role-focus);
+  }
+  .aas-key-table .kt-cell.is-now {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-key-table .kt-cell {
+      transition: none;
+    }
+  }
+</style>
