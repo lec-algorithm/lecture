@@ -1,0 +1,636 @@
+---
+// 수열을 바꿔 가며 최장 증가 부분수열을 직접 만져 보는 데모. 두 모드가 있다.
+//
+// - pick: 숫자를 눌러 증가 부분수열을 직접 고른다. 순증가가 깨지면 그 자리가 붉어지고,
+//   가장 긴 답을 찾을 때마다 답 목록의 가림막이 벗겨진다. "답은 하나가 아닐 수 있다"를
+//   찾아내며 확인한다.
+// - dp: dp와 prev를 다 채운 표에서 칸을 누르면 그 원소로 끝나는 가장 긴 수열을 되살린다.
+//   동점 처리를 바꾸면 복원되는 수열이 달라지고, 끝이 작은 수열에서는 답이 dp[n-1]이
+//   아니라 dp의 최댓값임을 본다.
+//
+// 표와 동점 처리(앞의 것)는 algorithm-code topic-14 03_lis의 lis_tab과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpRef from './DpRef.astro';
+
+interface Props {
+  mode?: 'pick' | 'dp';
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { mode = 'pick', slide = false } = Astro.props;
+const id = `lp-${Math.random().toString(36).slice(2, 9)}`;
+const PRESETS: number[][] = [
+  [10, 9, 2, 5, 3, 7, 101, 18],
+  [10, 9, 2, 5, 3, 7, 101, 18, 1],
+  [2, 10, 5, 7, 3],
+  [5, 5, 5, 5],
+];
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    titlePick: '직접 골라 보기',
+    titleDp: '칸을 눌러 되살리기',
+    p0: '예제',
+    p1: '끝이 작은 수',
+    p2: '다섯 개',
+    p3: '모두 같은 수',
+    input: '수열',
+    apply: '적용',
+    clear: '지우기',
+    reveal: '답 모두 보기',
+    answers: '가장 긴 답',
+    more: '외 {n}개',
+    length: '고른 길이',
+    best: '최장',
+    tieFirst: '동점이면 앞의 것',
+    tieLast: '동점이면 뒤의 것',
+    idle: '숫자를 눌러 증가하는 수열을 골라 보세요.',
+    broken: '{a} 뒤의 {b}: 순증가가 깨졌습니다.',
+    going: '길이 {k}까지 왔습니다. 가장 긴 답의 길이는 {L}입니다.',
+    found: '길이 {L}, 가장 긴 답입니다. 답은 모두 {n}가지입니다.',
+    allFound: '{n}가지를 모두 찾았습니다. 길이는 같고 고른 원소만 다릅니다.',
+    bad: '정수를 1개에서 12개까지, 쉼표나 공백으로 나누어 적습니다.',
+    ends: '{x}에서 끝나는 가장 긴 수열은 {seq}, 길이 {d}입니다.',
+    maxLine: 'dp의 최댓값 {m}, 마지막 칸 dp[{n}] = {last}',
+    differ: '마지막 칸이 답이 아닙니다. 답은 dp의 최댓값입니다.',
+    tieNote: '이 동점 처리로 끝까지 따라가면 {seq}입니다.',
+  },
+  en: {
+    titlePick: 'Pick your own',
+    titleDp: 'Click a cell to restore',
+    p0: 'Example',
+    p1: 'Small last value',
+    p2: 'Five',
+    p3: 'All equal',
+    input: 'sequence',
+    apply: 'Apply',
+    clear: 'Clear',
+    reveal: 'Show all answers',
+    answers: 'longest answers',
+    more: '+{n} more',
+    length: 'picked',
+    best: 'longest',
+    tieFirst: 'On a tie, the earlier',
+    tieLast: 'On a tie, the later',
+    idle: 'Click numbers to pick an increasing sequence.',
+    broken: '{b} after {a}: no longer strictly increasing.',
+    going: 'You reached length {k}. The longest answer has length {L}.',
+    found: 'Length {L}, a longest answer. There are {n} answers in all.',
+    allFound: 'You found all {n}. They have the same length and differ only in the elements picked.',
+    bad: 'Enter 1 to 12 integers separated by commas or spaces.',
+    ends: 'The longest sequence ending at {x} is {seq}, length {d}.',
+    maxLine: 'largest dp {m}, last cell dp[{n}] = {last}',
+    differ: 'The last cell is not the answer. The answer is the largest dp.',
+    tieNote: 'Following this tie rule from the best end gives {seq}.',
+  },
+  zh: {
+    titlePick: '自己选一选',
+    titleDp: '点格子来还原',
+    p0: '例题',
+    p1: '末尾较小',
+    p2: '五个',
+    p3: '全部相同',
+    input: '序列',
+    apply: '应用',
+    clear: '清除',
+    reveal: '显示全部答案',
+    answers: '最长的答案',
+    more: '另有 {n} 个',
+    length: '已选长度',
+    best: '最长',
+    tieFirst: '相同时取前者',
+    tieLast: '相同时取后者',
+    idle: '点击数字，选出一个递增序列。',
+    broken: '{a} 后面的 {b}：不再严格递增。',
+    going: '已到长度 {k}。最长答案的长度是 {L}。',
+    found: '长度 {L}，是最长的答案。答案共有 {n} 个。',
+    allFound: '{n} 个全部找到了。长度相同，只是所选元素不同。',
+    bad: '请输入 1 到 12 个整数，用逗号或空格分隔。',
+    ends: '以 {x} 结尾的最长序列是 {seq}，长度 {d}。',
+    maxLine: 'dp 的最大值 {m}，最后一格 dp[{n}] = {last}',
+    differ: '最后一格不是答案。答案是 dp 的最大值。',
+    tieNote: '按这个规则一路跟下来是 {seq}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-lis-play-demo', slide && 'is-slide', `is-${mode}`]}
+  id={id}
+  data-lp-strings={JSON.stringify(t)}
+  data-lp-presets={JSON.stringify(PRESETS)}
+  data-lp-mode={mode}
+>
+  <div class="lp-bar">
+    <span class="lp-head"><strong>{mode === 'pick' ? t.titlePick : t.titleDp}</strong></span>
+    {mode === 'dp' && <DpRef kind="lis" />}
+    <div class="lp-tabs">
+      {
+        PRESETS.map((_, i) => (
+          <button type="button" class="lp-tab" data-lp-preset={i}>
+            {t[`p${i}`]}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+  <div class="lp-row">
+    <label class="lp-input">
+      <span>{t.input}</span>
+      <input type="text" data-lp-input spellcheck="false" autocomplete="off" />
+    </label>
+    <button type="button" class="lp-btn" data-lp-apply>{t.apply}</button>
+    {
+      mode === 'pick' ? (
+        <>
+          <button type="button" class="lp-btn" data-lp-clear>{t.clear}</button>
+          <button type="button" class="lp-btn" data-lp-reveal>{t.reveal}</button>
+        </>
+      ) : (
+        <div class="lp-tabs">
+          <button type="button" class="lp-tab" data-lp-tie="first">{t.tieFirst}</button>
+          <button type="button" class="lp-tab" data-lp-tie="last">{t.tieLast}</button>
+        </div>
+      )
+    }
+  </div>
+
+  <div class="lp-scroll"><div class="lp-table" data-lp-table></div></div>
+
+  {
+    mode === 'pick' && (
+      <div class="lp-answers">
+        <span class="lp-ans-label">{t.answers}</span>
+        <span class="lp-chips" data-lp-chips />
+      </div>
+    )
+  }
+
+  <p class="lp-note" data-lp-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.lpStrings);
+    const PRESETS = JSON.parse(root.dataset.lpPresets);
+    const mode = root.dataset.lpMode;
+    const MAX_CHIPS = 6;
+
+    const tableEl = root.querySelector('[data-lp-table]');
+    const note = root.querySelector('[data-lp-note]');
+    const input = root.querySelector('[data-lp-input]');
+    const tabs = [...root.querySelectorAll('[data-lp-preset]')];
+    const chipsEl = root.querySelector('[data-lp-chips]');
+
+    let arr = [];
+    let cols = [];
+    let picked = new Set();
+    let found = new Set();
+    let reveal = false;
+    let tie = 'first';
+    let dp = [];
+    let prev = [];
+    let selected = 0;
+    let answers = [];
+    let best = 1;
+    let message = '';
+
+    /* lis_tab과 같은 표. tie가 last면 같은 길이에서 뒤의 j를 고른다. */
+    function solve() {
+      const n = arr.length;
+      dp = new Array(n).fill(1);
+      prev = new Array(n).fill(-1);
+      for (let i = 1; i < n; i++) {
+        for (let j = 0; j < i; j++) {
+          if (arr[j] >= arr[i]) continue;
+          if (dp[j] + 1 > dp[i] || (tie === 'last' && dp[j] + 1 === dp[i])) {
+            dp[i] = dp[j] + 1;
+            prev[i] = j;
+          }
+        }
+      }
+      best = Math.max(...dp);
+    }
+    const bestEnd = () => {
+      let end = 0;
+      for (let i = 1; i < arr.length; i++) {
+        if (dp[i] > dp[end] || (tie === 'last' && dp[i] === dp[end])) end = i;
+      }
+      return end;
+    };
+    const walk = (i) => {
+      const out = [];
+      for (let a = i; a !== -1; a = prev[a]) out.push(a);
+      return out.reverse();
+    };
+    /* 가장 긴 답을 값 기준으로 모두 모은다(같은 값이 여러 자리에 있어도 한 번만). */
+    function allAnswers() {
+      const out = new Set();
+      const go = (i, tail) => {
+        const seq = [arr[i], ...tail];
+        if (dp[i] === 1) {
+          out.add(seq.join(' '));
+          return;
+        }
+        for (let j = 0; j < i; j++) if (arr[j] < arr[i] && dp[j] === dp[i] - 1) go(j, seq);
+      };
+      arr.forEach((_, i) => {
+        if (dp[i] === best) go(i, []);
+      });
+      return [...out];
+    }
+
+    function buildTable() {
+      const n = arr.length;
+      tableEl.style.setProperty('--lp-cols', String(n));
+      let html = '';
+      if (mode === 'pick') {
+        html = arr
+          .map((x, i) => `<button type="button" class="lp-num" data-lp-col="${i}">${x}</button>`)
+          .join('');
+      } else {
+        const row = (label, key) =>
+          `<span class="lp-label">${label}</span>` +
+          arr.map((_, i) => `<button type="button" class="lp-cell lp-${key}" data-lp-col="${i}" data-lp-row="${key}"></button>`).join('');
+        html =
+          `<span class="lp-label">i</span>` +
+          arr.map((_, i) => `<span class="lp-idx">${i}</span>`).join('') +
+          row('arr', 'arr') +
+          row('dp', 'dp') +
+          row('prev', 'prev');
+      }
+      tableEl.innerHTML = html;
+      cols = [...tableEl.querySelectorAll('[data-lp-col]')];
+      cols.forEach((el) =>
+        el.addEventListener('click', () => {
+          const i = +el.dataset.lpCol;
+          if (mode === 'pick') {
+            if (picked.has(i)) picked.delete(i);
+            else picked.add(i);
+          } else {
+            selected = i;
+          }
+          draw();
+        }),
+      );
+    }
+
+    function load(list, presetIdx) {
+      arr = list;
+      picked = new Set();
+      found = new Set();
+      reveal = false;
+      message = '';
+      solve();
+      answers = allAnswers();
+      selected = bestEnd();
+      input.value = arr.join(', ');
+      tabs.forEach((b) => b.classList.toggle('is-on', +b.dataset.lpPreset === presetIdx));
+      buildTable();
+      draw();
+    }
+
+    function drawPick() {
+      const seq = [...picked].sort((a, b) => a - b);
+      const brokenAt = seq.findIndex((v, k) => k > 0 && arr[seq[k - 1]] >= arr[v]);
+      const valid = brokenAt === -1;
+      cols.forEach((el) => {
+        const i = +el.dataset.lpCol;
+        el.classList.toggle('is-picked', picked.has(i));
+        el.classList.toggle('is-broken', !valid && seq.indexOf(i) >= brokenAt);
+      });
+      const text = seq.map((i) => arr[i]).join(' ');
+      if (valid && seq.length === best && answers.includes(text)) found.add(text);
+
+      const shown = answers.slice(0, MAX_CHIPS);
+      chipsEl.innerHTML =
+        shown
+          .map((a) => {
+            const open = reveal || found.has(a);
+            const label = open ? a : a.split(' ').map(() => '?').join(' ');
+            return `<b class="lp-chip${open ? ' is-open' : ''}${a === text ? ' is-now' : ''}">${label}</b>`;
+          })
+          .join('') +
+        (answers.length > MAX_CHIPS
+          ? `<span class="lp-more">${fill(S.more, { n: answers.length - MAX_CHIPS })}</span>`
+          : '');
+
+      let msg = S.idle;
+      if (seq.length) {
+        if (!valid) msg = fill(S.broken, { a: arr[seq[brokenAt - 1]], b: arr[seq[brokenAt]] });
+        else if (seq.length === best) {
+          msg = found.size === answers.length ? fill(S.allFound, { n: answers.length }) : fill(S.found, { L: best, n: answers.length });
+        } else msg = fill(S.going, { k: seq.length, L: best });
+      }
+      setLines(note, message || msg);
+    }
+
+    function drawDp() {
+      const path = walk(selected);
+      cols.forEach((el) => {
+        const i = +el.dataset.lpCol;
+        const row = el.dataset.lpRow;
+        el.textContent = String(row === 'arr' ? arr[i] : row === 'dp' ? dp[i] : prev[i]);
+        el.classList.toggle('is-path', row !== 'prev' && path.includes(i));
+        el.classList.toggle('is-cur', row !== 'prev' && i === selected);
+        el.classList.toggle('is-top', row === 'dp' && dp[i] === best);
+      });
+      root.querySelectorAll('[data-lp-tie]').forEach((b) => b.classList.toggle('is-on', b.dataset.lpTie === tie));
+      const n = arr.length - 1;
+      const seqOf = (p) => `[${p.map((i) => arr[i]).join(', ')}]`;
+      setLines(
+        note,
+        message ||
+          join(
+            fill(S.ends, { x: arr[selected], seq: seqOf(path), d: dp[selected] }),
+            fill(S.tieNote, { seq: seqOf(walk(bestEnd())) }),
+            dp[n] !== best ? S.differ : '',
+            fill(S.maxLine, { m: best, n, last: dp[n] }),
+          ),
+      );
+    }
+
+    function draw() {
+      if (mode === 'pick') drawPick();
+      else drawDp();
+    }
+
+    tabs.forEach((b) =>
+      b.addEventListener('click', () => {
+        tie = 'first';
+        load(PRESETS[+b.dataset.lpPreset], +b.dataset.lpPreset);
+      }),
+    );
+    const apply = () => {
+      const parts = input.value.split(/[^0-9-]+/).filter(Boolean);
+      const list = parts.map(Number);
+      if (!parts.length || parts.length > 12 || list.some((x) => !Number.isInteger(x) || Math.abs(x) > 9999)) {
+        message = S.bad;
+        draw();
+        return;
+      }
+      load(list, -1);
+    };
+    root.querySelector('[data-lp-apply]').addEventListener('click', apply);
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') apply();
+    });
+    if (mode === 'pick') {
+      root.querySelector('[data-lp-clear]').addEventListener('click', () => {
+        picked = new Set();
+        draw();
+      });
+      root.querySelector('[data-lp-reveal]').addEventListener('click', () => {
+        reveal = true;
+        draw();
+      });
+    } else {
+      root.querySelectorAll('[data-lp-tie]').forEach((b) =>
+        b.addEventListener('click', () => {
+          tie = b.dataset.lpTie;
+          solve();
+          selected = bestEnd();
+          draw();
+        }),
+      );
+    }
+    load(PRESETS[0], 0);
+  })();
+</script>
+
+<style is:global>
+  .aas-lis-play-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lis-play-demo .lp-bar,
+  .aas-lis-play-demo .lp-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-lis-play-demo .lp-row {
+    justify-content: flex-start;
+    margin-top: 0.5em;
+  }
+  .aas-lis-play-demo .lp-head {
+    font-size: 0.95em;
+  }
+  .aas-lis-play-demo .lp-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    align-items: center;
+  }
+  .aas-lis-play-demo .lp-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lis-play-demo .lp-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lis-play-demo .lp-tab:hover,
+  .aas-lis-play-demo .lp-btn:hover,
+  .aas-lis-play-demo .lp-num:hover,
+  .aas-lis-play-demo .lp-cell:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lis-play-demo .lp-btn {
+    padding: 0.3em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lis-play-demo .lp-input {
+    display: flex;
+    flex: 1 1 14em;
+    gap: 0.5em;
+    align-items: center;
+    max-width: 24em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-lis-play-demo .lp-input input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.25em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-lis-play-demo .lp-scroll {
+    overflow-x: auto;
+    margin-top: 0.6em;
+  }
+  .aas-lis-play-demo.is-pick .lp-table {
+    display: grid;
+    grid-template-columns: repeat(var(--lp-cols), minmax(2.8em, 4.4em));
+    justify-content: center;
+    gap: 0.35em;
+    padding: 0.8em 0;
+  }
+  .aas-lis-play-demo.is-dp .lp-table {
+    display: grid;
+    grid-template-columns: 3.2em repeat(var(--lp-cols), minmax(2.8em, 3.6em));
+    justify-content: center;
+    gap: 0.2em;
+  }
+  .aas-lis-play-demo .lp-label,
+  .aas-lis-play-demo .lp-idx {
+    align-self: center;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    text-align: center;
+    color: var(--aas-muted);
+  }
+  .aas-lis-play-demo .lp-num,
+  .aas-lis-play-demo .lp-cell {
+    padding: 0;
+    font-family: var(--aas-mono, monospace);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-lis-play-demo .lp-num {
+    height: 2.6em;
+    font-size: 1em;
+  }
+  .aas-lis-play-demo .lp-cell {
+    height: 2.1em;
+    font-size: 0.9em;
+  }
+  .aas-lis-play-demo .lp-num.is-picked {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 28%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-lis-play-demo .lp-num.is-broken {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 24%, var(--aas-bg));
+  }
+  .aas-lis-play-demo .lp-cell.lp-prev {
+    border-style: dotted;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-lis-play-demo .lp-cell.lp-arr {
+    border-style: dashed;
+    background: transparent;
+  }
+  .aas-lis-play-demo .lp-cell.lp-dp {
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+  }
+  .aas-lis-play-demo .lp-cell.is-top {
+    font-weight: 700;
+    text-decoration: underline;
+  }
+  .aas-lis-play-demo .lp-cell.is-path {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+  }
+  .aas-lis-play-demo .lp-cell.is-cur {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    font-weight: 700;
+  }
+  .aas-lis-play-demo .lp-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.7em;
+    align-items: center;
+    font-size: 0.85em;
+    min-height: 1.9em;
+  }
+  .aas-lis-play-demo .lp-ans-label {
+    color: var(--aas-muted);
+  }
+  .aas-lis-play-demo .lp-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-lis-play-demo .lp-chip {
+    padding: 0.1em 0.55em;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 400;
+    color: var(--aas-muted);
+    border: 1px dashed var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+  }
+  .aas-lis-play-demo .lp-chip.is-open {
+    border-style: solid;
+    color: var(--aas-text);
+    font-weight: 700;
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-lis-play-demo .lp-chip.is-now {
+    border-color: var(--aas-role-focus);
+  }
+  .aas-lis-play-demo .lp-more {
+    color: var(--aas-muted);
+  }
+  .aas-lis-play-demo .lp-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 2.8em;
+  }
+  .aas-lis-play-demo.is-dp .lp-note {
+    min-height: 5.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-lis-play-demo.is-slide {
+    font-size: clamp(1rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-lis-play-demo.is-slide.is-dp {
+    font-size: clamp(1rem, 2.6vh, 1.8rem);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-lis-play-demo .lp-num,
+    .aas-lis-play-demo .lp-cell {
+      transition: none;
+    }
+  }
+</style>
