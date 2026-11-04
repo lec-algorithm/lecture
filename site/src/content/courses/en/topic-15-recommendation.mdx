@@ -16,6 +16,14 @@ import CollabFilterDemo from '@components/CollabFilterDemo.astro';
 import ColdStartDemo from '@components/ColdStartDemo.astro';
 import ContentFilterDemo from '@components/ContentFilterDemo.astro';
 import HybridDemo from '@components/HybridDemo.astro';
+import OverlapDemo from '@components/OverlapDemo.astro';
+import CosineTableDemo from '@components/CosineTableDemo.astro';
+import OriginShiftDemo from '@components/OriginShiftDemo.astro';
+import WeightedAvgDemo from '@components/WeightedAvgDemo.astro';
+import MeanCenterDemo from '@components/MeanCenterDemo.astro';
+import ItemTableDemo from '@components/ItemTableDemo.astro';
+import SparsityDemo from '@components/SparsityDemo.astro';
+import ProfileLabDemo from '@components/ProfileLabDemo.astro';
 
 > Bonus material that is not in the syllabus. It is not on the exam.  
 > When Netflix picks your next movie or Spotify your next song, the job is
@@ -70,6 +78,17 @@ A and C share two movies, *Avatar: The Way of Water* and *Spider-Man: No
 Way Home*. A shares one with B and none with D. So **if we recommend C's
 favorite *12.12: The Day* to A**, won't A probably like it? That is the
 whole idea of user-based collaborative filtering.
+
+Try it. Use the buttons above to choose who gets the recommendation, and click
+a movie to add it to or remove it from what that person likes. Filled cells are
+shared movies, and dashed cells are candidates.
+
+<OverlapDemo />
+
+A shares 2 movies with C, 1 with B and 0 with D. The number beside a candidate is
+the sum of overlaps of the people who like it, so C's *12.12: The Day* and
+*Hansan: Rising Dragon* lead with 2, and B's two movies follow with 1. Pick D
+and nobody overlaps, so there are no candidates.
 
 This approach does not need to know what a movie is. It looks at neither
 genre nor director, only at who liked what. **Needing no domain knowledge**
@@ -145,6 +164,17 @@ simplification that cannot tell "not seen" from "disliked". The example
 below shows where
 this simplification causes trouble.
 
+Measure it yourself on the table. Click a rating on the left and the cosine table
+on the right is recomputed; click a cosine cell to see that pair's dot product and
+lengths. Now click **If A dislikes item 3**.
+
+<CosineTableDemo />
+
+When A gives item 3 a rating of 1, it multiplies C's 5, the dot product becomes 5,
+and the cosine of A and C **rises** from 0 to 0.132. A and D become 0.169 too. A
+said "I dislike this" and came out more similar. As long as unrated cells go in as
+0, even a low rating looks closer than "not seen".
+
 ## Example 1. User-based collaborative filtering \{#user-based}
 
 Now a slightly bigger matrix, all the way to a prediction. 5 users, 6
@@ -197,6 +227,18 @@ comes out 4.354 and M6 **2.542**. But these numbers are a little odd.
 Ratings run from 1 to 5, so they are **all positive**. Positive vectors can
 never be more than 90 degrees apart, so the cosine can never go below 0,
 and even opposite tastes look fairly similar.
+
+See it in a picture. On the left is a plane made of two movies A rated, and the
+bars on the right are the cosine over all six cells, with unrated cells left at 0.
+Use the slider to subtract c from every rated cell.
+
+<OriginShiftDemo />
+
+At $$c = 0$$ every arrow is stuck in the upper-right quadrant and every bar is
+above 0. In the M1·M5 plane at $$c = 3$$, A is $$(2, -1)$$ and D is $$(-2, 1)$$,
+**exactly opposite (180 degrees)**, and D's six-cell cosine falls to -0.671.
+People use different scales, so subtracting one value from everyone is still crude.
+Click **Each one’s mean** and you get the Pearson of the next section.
 
 ### Pearson correlation \{#pearson}
 
@@ -323,6 +365,17 @@ Day*). Cosine lets E in and gets **2.542**; Pearson leaves E out and gets
 **1.536**. Given that A rates dramas low, Pearson's answer is the more
 plausible one.
 
+See the difference on a balance. Put the neighbors' ratings on a number line and
+draw each as a weight as heavy as its similarity: the weighted mean is their center
+of mass. Switch presets or move the weights with the sliders.
+
+<WeightedAvgDemo />
+
+For M6 with cosine $$k = 3$$, there are weights at 1 and 2, yet E's 5 pulls the
+result to 2.542. Set E to 0 and it is **1.495**; Pearson gives 1.536, and equal
+weights give 3.250. Whatever you do, the prediction cannot leave the range between
+the lowest and highest neighbor rating.
+
 Now change things yourself. Clicking a cell cycles its rating 0→1→…→5→0, and
 the chips above pick the similarity and $$k$$. Every change recomputes the
 similarities, neighbors and predictions and shows the final step; click
@@ -350,6 +403,19 @@ $$
 
 The practice code uses the plain weighted average and leaves this formula
 as an exercise.
+
+Run the two formulas side by side. The neighbors are C and B, picked by Pearson,
+and each mean is taken over all the movies that person rated (A 4, B 3.667, C 3).
+**Step** walks through the mean-centered formula, and the slider raises all of C's
+ratings.
+
+<MeanCenterDemo />
+
+The mean-centered formula gives M3 **5.155** and M6 **2.226**; the simple weighted
+mean gives 4.464 and 1.536. Raise C by +1 and Pearson stays 1.000, while the simple
+weighted mean moves to M3 5.000 and M6 2.072 and the mean-centered value does not
+move. **Getting the same answer on a different scale** is the point of this formula.
+A value off the scale, like 5.155, is cut to 5 when used.
 
 ### Item-based \{#item-based}
 
@@ -388,6 +454,20 @@ similarities good to precompute, and Amazon's "customers who bought this
 also bought" is known for working this way. Precomputing costs
 $$O(n^2 m)$$.
 
+Measure whether it really moves less. The table holds the cosines of the six movies,
+and the top row is A's ratings. Click a question mark and the values used for that
+blank light up in its row. Click a number to change A's rating, and use the slider
+to multiply the other four people.
+
+<ItemTableDemo />
+
+M1, M2 and M4 cluster above 0.97, and M5 and M6 pair up at 0.909. Change A's M1 from
+5 to 1 and the table moves by at most 0.156, the user cosines by at most 0.112. With
+100 times as many other users the table's movement shrinks to 0.002, while the user
+cosines, which look only at A and one other person, still move 0.112. Copying the
+same people is a simple experiment, but it shows why the relationship between
+well-rated movies hardly changes.
+
 ## Where collaborative filtering falls short \{#cf-limits}
 
 ### Data sparsity \{#sparsity}
@@ -399,6 +479,26 @@ of users. This is the **data sparsity** problem.
   Netflix once released was close to 99% empty.
 - So pairs that share only one or two rated movies are common, and their
   similarity is hard to trust.
+
+Erase cells yourself. This is synthetic data with three taste groups (60 movies),
+and 10% of the cells are held back as test cells whose answers are known. Every
+slider move really recomputes all pairs' Pearson and the test-cell predictions
+(Pearson, $$k = 5$$).
+
+<SparsityDemo />
+
+With 40 users at 59.8% blank, every test cell can be predicted, with an error of
+0.588. At 81.1% blank, pairs share 2.1 movies on average, predictable cells fall to
+68.8%, and the error of 1.206 is worse even than guessing the overall mean (1.178).
+At 95.7% blank, no cell can be predicted.
+
+- **Pearson over two shared movies cannot be trusted.** Two points always fit a
+  line, so the result is +1 or -1, or else the mean-subtracted values are all 0 and
+  it cannot be measured. At 81.1% blank, counting those 216 pairs gives 96 at ±1 and
+  120 unmeasurable, and no other value.
+- **Many users can hold up.** At the same 80% or so, 320 users make 99.9% of cells
+  predictable with an error of 0.823. That is why collaborative filtering needs many
+  users.
 
 ### Cold start \{#cold-start}
 
@@ -419,6 +519,13 @@ and it happens on both sides, people and items.
 - **New item**: a new Avengers movie has just opened. Nobody has seen it,
   so its column is all blank, and neither user-based nor item-based
   filtering can recommend it to anyone.
+
+Try it on that table. Click movies to add to what E likes. Add just *Avatar: The
+Way of Water* and A, B and C each share 1, so candidates appear; *Spider-Man: No Way
+Home* leads with 2 because both A and C like it. Even if E likes the new Avengers,
+nobody else does, so it never becomes a candidate.
+
+<OverlapDemo cold />
 
 Let us create both cases in the Example 1 matrix. **New movie M7** adds a
 column nobody has rated, and **New user F** adds a row with no ratings. Click
@@ -564,6 +671,18 @@ score = cosine(profile, genres), movies A has not rated
 scoring are each $$O(ng)$$, and sorting is $$O(n \log n)$$. The number of
 other users does not matter.
 
+Change the ingredients yourself. Click genre cells and rating cells and the profile
+and ranking change at once. The baseline chips change the 3 in (rating - 3).
+
+<ProfileLabDemo />
+
+Baseline 3 matches the practice code. At baseline 0 the profile becomes
+$$(14, 7, 7, 4)$$, *Elemental*'s rating of 2 now adds positively, and the ranking
+flips to **M7 0.820, M3 0.723, M6 0.398**. At baseline 4 the profile is
+$$(2, -1, -1, 0)$$ and M6 falls to -0.408. Lower A's M2 (a movie with drama) to 1 and
+drama becomes -3, so M6 is -0.866. Subtracting 3 is a choice to read low ratings as
+dislike.
+
 ### Strengths and limits of content-based filtering \{#content-limits}
 
 - **It needs analysis up front.** Someone has to decide first whether a
@@ -698,8 +817,9 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v1**, shown at the bottom left of the slides.
+**v2**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
+| v2 | 2026-11-04 | Added eight demos (overlap of liked movies, cosine table, subtracting a value, weighted-mean balance, two prediction formulas, item similarity table, a matrix going empty, profile lab). Existing demos now carry the movie table and the scores being mixed, so there is no need to page back |
