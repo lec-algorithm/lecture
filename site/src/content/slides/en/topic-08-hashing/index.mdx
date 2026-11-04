@@ -23,6 +23,10 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
 
 {/* Slide rules follow the slide rules section of docs/writing-rules.md.
     Numbers match the practice code (topic-08-hashing) exactly. */}
@@ -930,9 +934,16 @@ It gets worse **sharply** as it nears 1. So $$\alpha$$ is kept near 1/2.
 
 </Slide>
 
+<Slide class="center">
+
+## Aside: hash functions outside hash tables
+::sub[Non-cryptographic and cryptographic hashes]
+
+</Slide>
+
 <Slide>
 
-#### Aside: hash functions outside hash tables
+#### Three families of hash functions
 ::sub[All turn an input into a value in a fixed range. What they must guarantee differs]
 
 | | For hash tables | Non-cryptographic | Cryptographic |
@@ -944,36 +955,27 @@ It gets worse **sharply** as it nears 1. So $$\alpha$$ is kept near 1/2.
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### Aside: one letter apart
-::sub[Computed with Python `hashlib`. Middle: sum of letter codes mod 97. Right: first 16 digits of SHA-256]
+### Four hashes compared
+::sub[The same 3,200 keys go into M slots. The dashed line is the average; time is relative to Horner]
 
-- Run
-
-```python
-import hashlib
-
-for w in ["stop", "pots", "stoq"]:
-    print(w, sum(map(ord, w)) % 97, hashlib.sha256(w.encode()).hexdigest()[:16])
-```
-
-- Output
-
-```console
-stop 66 6c45cb72a36e63d5
-pots 66 d4714f5c6b2efd1a
-stoq 67 63bc07d74b91d2ee
-```
-
-Adding letter codes gives `stop` and `pots` the same value, and `stoq` lands next door.  
-With SHA-256, changing one letter flips 135 of the 256 bits.
+<HashKindsDemo slide />
 
 </Slide>
 
 <Slide>
 
-#### Aside: how each treats collisions
+### One letter apart
+::sub[Compare the hash values of two inputs bit by bit. Red cells are the bits that differ]
+
+<AvalancheDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### How each treats collisions
 ::sub[The pigeonhole principle applies to cryptographic hashes too]
 
 - **Hash tables: collisions are routine.**
@@ -984,6 +986,24 @@ With SHA-256, changing one letter flips 135 of the 256 bits.
 - **Hash tables get attacked too.**
   - Sending only keys that pile into one slot makes operations $$O(N)$$ (hash flooding).
   - So Python strings and Rust's `HashMap` mix in a secret key.
+
+</Slide>
+
+<Slide>
+
+### Hunting a collision yourself
+::sub[Keep only the first bits of SHA-256 and search for real. The table scales the same math up to 256 bits]
+
+<CollisionHuntDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Attacking a hash table
+::sub[Aa and BB share a Horner value. Switch tabs to compare attack keys and a secret key]
+
+<HashFloodDemo slide />
 
 </Slide>
 

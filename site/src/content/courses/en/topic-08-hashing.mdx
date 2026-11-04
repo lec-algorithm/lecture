@@ -23,6 +23,10 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
 
 > The binary search tree of Topic 07 found keys by **comparing** them. Even
 > when it is well balanced, it needs $$O(\log n)$$ comparisons.  
@@ -953,6 +957,19 @@ use, so they are usually split into three groups.
   input with the same result as a given one (second-preimage resistance), or
   find any two inputs with the same result (collision resistance).
 
+Put the same 3,200 keys into $$M$$ slots with four hashes and compare. The dashed
+line is the average per slot, and bars above twice the average turn red. Times
+are really measured on JavaScript code in this browser, so they vary between runs,
+languages and implementations; read only the order of magnitude. Use the tabs to change the keys and $$M$$.
+
+<HashKindsDemo />
+
+The sum of codes has a narrow range, so a large $$M$$ leaves many slots empty, and
+with reordered letters all 3,200 keys land in one slot. Horner's method is excellent at $$M = 97$$ but collapses at
+$$M = 31$$, where it sees only the last letter. That is why $$M$$ has to be chosen
+so that it does not line up with $$R$$. MurmurHash3 and SHA-256 are even for any
+$$M$$, and Murmur is much faster. That is why non-cryptographic hashes exist.
+
 ### One letter apart \{#avalanche}
 
 Compute the sum of letter codes and SHA-256 side by side for the words from
@@ -981,6 +998,13 @@ different, lands next door at 67. The three SHA-256 results look nothing alike:
 change in the input flips about half of the output, is called the avalanche
 effect.
 
+Change the inputs yourself. Red cells are the bits that differ.
+
+<AvalancheDemo />
+
+When the inputs are equal, as with `abc` and `abc`, no cell is red. A hash is
+deterministic: the same input always gives the same value.
+
 ### How each treats collisions \{#collision-attitude}
 
 The pigeonhole principle applies to cryptographic hashes too. Inputs are
@@ -993,6 +1017,18 @@ handle them comes built in. For a cryptographic hash, being able to find a
 collision means the function is broken. MD5 and SHA-1 have known real collisions
 and are no longer used for security.
 
+Hunt one yourself. Keeping only the first $$k$$ bits of SHA-256 makes a hash
+function with $$2^k$$ slots. Keys really go in until a value repeats, and the
+tries are counted.
+
+<CollisionHuntDemo />
+
+Even at $$k = 32$$, with about 4.3 billion slots, a collision takes only about
+82,000 tries on average. The table scales up the same math, with times assuming
+1 billion tries per second. At 256 bits that is about $$10^{22}$$ years, hundreds of
+billions of times the age of the universe. MD5 and SHA-1 fell not because this math
+is wrong but because structural flaws allowed collisions with far fewer tries.
+
 The two worlds are connected.
 
 - SHA-256 could serve a hash table by taking `mod M`, but it is usually slower
@@ -1003,6 +1039,16 @@ The two worlds are connected.
   use the SipHash family, which mixes in a randomly chosen secret key.
 - A cryptographic hash is not right for everything. For storing passwords, speed
   is a weakness, so deliberately slow functions like bcrypt and Argon2 are used.
+
+Try the attack yourself. `Aa` and `BB` have the same Horner value
+($$65 \times 31 + 97 = 66 \times 31 + 66$$). However they are joined the value stays
+equal, so keys like `AaAa`, `AaBB`, `BBAa` and `BBBB` can be made in any number.
+
+<HashFloodDemo />
+
+Inserting 1,024 attack keys under Horner takes 523,776 compares, 105 times what
+normal keys take. Switch the tab to SipHash and the same keys spread evenly: without
+the secret key, nobody can prepare keys that pile into one slot.
 
 ## Comparing the two methods \{#comparison}
 
@@ -1138,4 +1184,4 @@ The slides and this note are versioned together. The current version is
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-10-30 | Six new demos: the café card rack, slot count against compares, M and the key step, chaining array size, where the next key lands after a cluster, a playground for both methods |
-| v3 | 2026-11-04 | New aside: hash functions outside hash tables (non-cryptographic and cryptographic) |
+| v3 | 2026-11-04 | New aside section: hash functions outside hash tables (non-cryptographic and cryptographic), with four demos |

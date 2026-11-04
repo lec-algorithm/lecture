@@ -23,6 +23,10 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
 
 > 主题 07 的二叉搜索树是**一边比较一边**找键。即使平衡得很好，也要比较
 > $$O(\log n)$$ 次。  
@@ -855,6 +859,16 @@ MD5、SHA-256 这些在别处听到的哈希算法也是哈希函数。和 `k mo
 - **加密哈希**要能抵御攻击者。不能只凭结果找出输入（抗原像），不能找到与给定输入
   结果相同的另一个输入（抗第二原像），也不能找到结果相同的两个输入（抗冲突）。
 
+把同样的 3200 个键用四种哈希放进 $$M$$ 格比一比。虚线是每格的平均值，超过平均值两倍的
+柱子变红。时间是在这个浏览器里实测 JavaScript 实现得到的，每次不同，也随语言和实现而变，只看数量级即可。用标签改变键的种类和 $$M$$。
+
+<HashKindsDemo />
+
+字母编码之和的范围很窄，$$M$$ 大时空格很多，同样字母重排的键 3200 个全挤在一格。霍纳法在
+$$M = 97$$ 时很好，但 $$M = 31$$ 时只看最后一个字母，就垮了。所以选 $$M$$ 时不能和 $$R$$
+相互抵消。MurmurHash3 和 SHA-256 对任何 $$M$$ 都均匀，而 Murmur 快得多。这就是非加密通用
+哈希存在的原因。
+
 ### 只差一个字母 \{#avalanche}
 
 把前面见过的单词用字母编码之和与 SHA-256 并排算一遍。SHA-256 只打印前 16 位。
@@ -880,6 +894,13 @@ stoq 67 63bc07d74b91d2ee
 SHA-256 的三个结果毫无相似之处，`stop` 和 `stoq` 在 256 位中有 135 位不同。输入
 稍有变化，输出就有大约一半翻转，这种性质叫雪崩效应（avalanche effect）。
 
+亲手改改输入。红格是不同的位。
+
+<AvalancheDemo />
+
+像 `abc` 和 `abc` 这样输入相同时，一个红格也没有。哈希是确定性的，相同的输入总是得到
+相同的值。
+
 ### 如何看待冲突 \{#collision-attitude}
 
 鸽巢原理对加密哈希同样成立。输入无限而输出有限，所以冲突一定存在。不同之处在于
@@ -888,6 +909,15 @@ SHA-256 的三个结果毫无相似之处，`stop` 和 `stoq` 在 256 位中有 
 $$M$$ 很小，冲突是家常便饭，所以要同时准备处理办法；而加密哈希一旦能被找到冲突，
 这个函数就算被攻破了。MD5 和 SHA-1 已被找到实际冲突，不再用于安全用途。
 
+亲手找一找。只保留 SHA-256 的前 $$k$$ 位，就成了有 $$2^k$$ 格的哈希函数。真的不断放入键，
+直到出现相同的值，并统计尝试次数。
+
+<CollisionHuntDemo />
+
+即使 $$k = 32$$、约有 43 亿格，平均也只要约 8 万 2 千次就会出现冲突。下面的表格把同样的
+计算放大，时间按每秒 10 亿次假设。256 位时约 $$10^{22}$$ 年，是宇宙年龄的几千亿倍。MD5 和
+SHA-1 被攻破不是因为这个计算有误，而是利用结构缺陷，用少得多的尝试就能找到冲突。
+
 两个世界是相通的。
 
 - SHA-256 取 `mod M` 也能用于哈希表，但通常慢得没有必要。
@@ -895,6 +925,14 @@ $$M$$ 很小，冲突是家常便饭，所以要同时准备处理办法；而�
   $$O(N)$$。这叫哈希冲突攻击（hash flooding）。所以 Python 的字符串哈希和 Rust
   `HashMap` 的默认哈希使用 SipHash 系列，混入随机选定的秘密密钥。
 - 加密哈希并非万能。存储密码时，快反而是弱点，所以要用故意做慢的 bcrypt 或 Argon2。
+
+亲手试试攻击。`Aa` 和 `BB` 的霍纳值相同（$$65 \times 31 + 97 = 66 \times 31 + 66$$）。无论
+怎样拼接值都相同，所以 `AaAa`、`AaBB`、`BBAa`、`BBBB` 这样的键要多少有多少。
+
+<HashFloodDemo />
+
+把 1024 个攻击键用霍纳法插入，比较 523776 次，是普通键的 105 倍。把标签换成 SipHash，
+同样的键就均匀散开。不知道秘密密钥，就无法事先造出挤进同一格的键。
 
 ## 两种方式的比较 \{#comparison}
 
@@ -1011,4 +1049,4 @@ src/topic-08-hashing/
 | --- | --- | --- |
 | v1 | 2026-10-28 | 首次公开 |
 | v2 | 2026-10-30 | 新增六个演示：咖啡店集点卡格子、格子数与比较次数、M 与键的间隔、拉链法数组大小、簇后空格的概率、两种方式的游乐场 |
-| v3 | 2026-11-04 | 新增参考一节：哈希表之外的哈希函数（非加密通用、加密） |
+| v3 | 2026-11-04 | 新增参考单元：哈希表之外的哈希函数（非加密通用、加密）和四个演示 |

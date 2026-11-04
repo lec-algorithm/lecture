@@ -23,6 +23,10 @@ import PrimeModDemo from '@components/PrimeModDemo.astro';
 import ChainSizeDemo from '@components/ChainSizeDemo.astro';
 import ClusterGrowDemo from '@components/ClusterGrowDemo.astro';
 import HashPlayDemo from '@components/HashPlayDemo.astro';
+import HashKindsDemo from '@components/HashKindsDemo.astro';
+import AvalancheDemo from '@components/AvalancheDemo.astro';
+import CollisionHuntDemo from '@components/CollisionHuntDemo.astro';
+import HashFloodDemo from '@components/HashFloodDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 中的幻灯片规则一节。
     数字与实践代码（topic-08-hashing）的运行结果一致。 */}
@@ -930,9 +934,16 @@ $$
 
 </Slide>
 
+<Slide class="center">
+
+## 参考：哈希表之外的哈希函数
+::sub[Hash Functions Beyond Hash Tables]
+
+</Slide>
+
 <Slide>
 
-#### 参考：哈希表之外的哈希函数
+#### 哈希函数的三个分支
 ::sub[都是把输入变成固定范围内的值，要求却不同]
 
 | | 哈希表用 | 非加密通用 | 加密 |
@@ -944,36 +955,27 @@ $$
 
 </Slide>
 
-<Slide class="compact">
+<Slide>
 
-#### 参考：只差一个字母
-::sub[用 Python `hashlib` 计算。中间是字母编码之和 mod 97，右边是 SHA-256 的前 16 位]
+### 四种哈希比一比
+::sub[同样的 3200 个键放进 M 格。虚线是平均值，时间是相对霍纳法的倍数]
 
-- 运行
-
-```python
-import hashlib
-
-for w in ["stop", "pots", "stoq"]:
-    print(w, sum(map(ord, w)) % 97, hashlib.sha256(w.encode()).hexdigest()[:16])
-```
-
-- 结果
-
-```console
-stop 66 6c45cb72a36e63d5
-pots 66 d4714f5c6b2efd1a
-stoq 67 63bc07d74b91d2ee
-```
-
-把字母编码相加，`stop` 和 `pots` 的值相同，`stoq` 就在隔壁一格。  
-用 SHA-256，只改一个字母，256 位中就有 135 位不同。
+<HashKindsDemo slide />
 
 </Slide>
 
 <Slide>
 
-#### 参考：如何看待冲突
+### 只差一个字母
+::sub[按位比较两个输入的哈希值。红格是不同的位]
+
+<AvalancheDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 如何看待冲突
 ::sub[鸽巢原理对加密哈希同样成立]
 
 - **哈希表：冲突是家常便饭。**
@@ -984,6 +986,24 @@ stoq 67 63bc07d74b91d2ee
 - **哈希表也会被攻击。**
   - 只发送挤进同一格的键，操作就变成 $$O(N)$$（hash flooding）。
   - 所以 Python 字符串和 Rust 的 `HashMap` 会混入秘密密钥。
+
+</Slide>
+
+<Slide>
+
+### 亲手找冲突
+::sub[只保留 SHA-256 的前几位，真的去找。表格把同样的计算放大到 256 位]
+
+<CollisionHuntDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 攻击哈希表
+::sub[Aa 和 BB 的霍纳值相同。切换标签，比较攻击键和秘密密钥]
+
+<HashFloodDemo slide />
 
 </Slide>
 
