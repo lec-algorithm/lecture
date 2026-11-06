@@ -110,7 +110,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     <div class="mr-scroll">
       <div class="mr-stage">
         <span class="mr-range" data-mr-range><span class="mr-range-label" data-mr-range-label></span></span>
-        {values.map((_, i) => <span class="mr-index" style={`--mr-at: ${i}`}>{i}</span>)}
+        {values.map((_, i) => <span class="mr-index" style={`--mr-at: ${i}`}><span>{i}</span></span>)}
         {values.map((v, i) => (
           <span class="mr-cell" data-mr-cell={i} style={`--mr-at: ${i}`}>
             {pad(v).split('').map((ch, k) => (
@@ -320,7 +320,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     --mr-col: 3.3em;
     --mr-cell-w: 2.9em;
     --mr-cell-h: 1.75em;
-    --mr-cell-top: 2.6em;
+    --mr-cell-top: 3.05em;
     font-size: 1rem;
     margin: 1.5rem 0;
     padding: 1em;
@@ -375,12 +375,12 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-msd-demo .mr-stage {
     position: relative;
     width: calc(var(--mr-n) * var(--mr-col));
-    height: calc(var(--mr-cell-top) + var(--mr-cell-h) + 2.4em);
+    height: calc(var(--mr-cell-top) + var(--mr-cell-h) + 1.95em);
   }
   /* 지금 호출이 맡은 구간: 칸 위의 괄호 */
   .aas-msd-demo .mr-range {
     position: absolute;
-    top: 0.2em;
+    top: 0.65em;
     height: 0.9em;
     left: calc(var(--mr-lo, 0) * var(--mr-col) + 0.1em);
     width: calc(var(--mr-len, 1) * var(--mr-col) - 0.2em);
@@ -396,6 +396,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   .aas-msd-demo .mr-range.is-on {
     opacity: 1;
   }
+  /* .mr-scroll의 overflow가 무대 밖을 자르므로 라벨 높이만큼 괄호를 내려 둔다. */
   .aas-msd-demo .mr-range-label {
     position: absolute;
     top: -0.9em;
@@ -408,15 +409,19 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     color: var(--aas-role-focus);
     white-space: nowrap;
   }
+  /* --mr-col은 em 단위라 쓰는 요소의 글자 크기를 따른다. 칸과 같은 간격을
+     유지하도록 글자 크기는 바깥이 아니라 안쪽 span에서 줄인다. */
   .aas-msd-demo .mr-index {
     position: absolute;
-    top: calc(var(--mr-cell-top) - 1.15em);
+    top: calc(var(--mr-cell-top) - 1.5em);
     left: calc(var(--mr-at) * var(--mr-col));
     width: var(--mr-col);
     text-align: center;
+    color: var(--aas-muted);
+  }
+  .aas-msd-demo .mr-index span {
     font-family: var(--aas-mono, monospace);
     font-size: 0.65em;
-    color: var(--aas-muted);
   }
   .aas-msd-demo .mr-cell {
     position: absolute;
