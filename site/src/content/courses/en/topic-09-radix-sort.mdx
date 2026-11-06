@@ -765,6 +765,30 @@ comparing two integers is enough. If $$i + h$$ runs past the string, that
 piece is empty, so it is set to $$-1$$. The initial rank is the character
 code of the first character.
 
+#### Walking through banana$ \{#suffix-doubling-example}
+
+First sort by the first 2 characters and assign ranks. Up to here, we read the characters directly.
+
+| First 2 characters | Start positions | Rank |
+| --- | --- | --- |
+| `$` | 6 | 0 |
+| `a$` | 5 | 1 |
+| `an` | 1, 3 | 2 |
+| `ba` | 0 | 3 |
+| `na` | 2, 4 | 4 |
+
+`an` and `na` still overlap, so we are not done. Now compare the first 4 characters. They are the
+first 2 characters plus the next 2, and **the next 2 are the first 2 characters of the suffix starting
+2 positions later**. We just computed that rank, so no character is read again.
+
+| Suffix | First 2 | Next 2 | Pair |
+| --- | --- | --- | --- |
+| `ana$` (position 3) | `an`, rank 2 | `a$`, rank 1 at position 5 | (2, 1) |
+| `anana$` (position 1) | `an`, rank 2 | `an`, rank 2 at position 3 | (2, 2) |
+
+The two that shared a rank now differ in the pair's second value. Once all seven suffixes have
+different ranks in this way, we are done, and that order is the suffix array `6 5 3 1 0 4 2`.
+
 In the demo, each row is one suffix. When the pairs are built, the first
 $$k$$ characters of each suffix are colored, to show that the pair stands
 in for those $$k$$ characters. Sorting by the pairs moves the rows and
