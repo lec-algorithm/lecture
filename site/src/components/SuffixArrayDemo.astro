@@ -404,14 +404,16 @@ const rows = Array.from({ length: n }, (_, i) => i);
     align-items: flex-start;
     justify-content: center;
   }
+  /* 표는 줄어들지 않고, 공간이 모자라면 오른쪽 띠와 설명이 먼저 줄어든다. 표의 가로 스크롤은
+     표 자체가 칸보다 넓은 좁은 화면에서만 생긴다. */
   .aas-suffix-demo .sa-scroll {
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: 0 0 auto;
+    max-width: 100%;
     overflow-x: auto;
   }
   .aas-suffix-demo .sa-side {
     flex: 0 1 24em;
-    min-width: 0;
+    min-width: 11em;
     margin-top: 1.3em;
   }
   .aas-suffix-demo .sa-pick {
@@ -436,9 +438,11 @@ const rows = Array.from({ length: n }, (_, i) => i);
     text-align: center;
     white-space: pre;
   }
+  /* pre로 두면 마크업의 앞뒤 공백까지 그려져 글자 한 칸만큼 넘친다. */
   .aas-suffix-demo .sa-row > .sa-suf {
     text-align: left;
     padding-left: 0.6em;
+    white-space: nowrap;
   }
   .aas-suffix-demo .sa-th {
     font-family: var(--aas-sans, inherit);
@@ -538,8 +542,9 @@ const rows = Array.from({ length: n }, (_, i) => i);
     font-family: var(--aas-mono, monospace);
   }
 
+  /* 세로로 긴 창에서는 높이만 보면 글자가 커져 표와 띠가 한 줄에 안 들어가므로 너비도 본다. */
   .aas-suffix-demo.is-slide {
-    font-size: clamp(1rem, 2.75vh, 1.85rem);
+    font-size: clamp(1rem, min(2.75vh, 2.05vw), 1.85rem);
     margin: 0.5rem 0;
   }
   /* 슬라이드에서는 띠가 표 아래로 내려가면 높이가 넘친다. */
