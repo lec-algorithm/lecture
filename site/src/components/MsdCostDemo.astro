@@ -5,6 +5,9 @@
 // 정렬을 정말 돌려 자리 읽기, 호출 수, 카운팅 칸 훑기(호출 × k), 삽입 정렬 비교를 센다.
 // 자리 읽기는 02_msd_radix_sort의 examined와 같은 규칙이라 교안 입력에서 14와 24, 111…은
 // 12, 100…은 4가 나온다. 무작위 입력은 시드를 고정해 같은 값이 다시 나온다.
+//
+// 입력은 정수이고, k = 256은 값을 바이트로 쪼갠다. 기수를 바꾸면 자리 자체가 바뀌므로
+// 입력 아래 줄에 각 값의 자리를 보여 준다. 한 줄로 고정해 슬라이드 높이가 변하지 않게 한다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -38,6 +41,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     scanBad: '다만 MSD는 호출이 {c}번이라 빈 칸을 포함해 {s}칸을 훑습니다. 합계는 LSD보다 많습니다.',
     scanOk: '합계도 MSD가 적습니다.',
     cutoffGood: '크기 {c} 이하의 버킷을 삽입 정렬로 넘기면 호출이 {calls}번으로 줄고 합계가 {sum}이 됩니다.',
+    digits10: '10진수 {d}자리',
+    digits256: '값을 바이트로 쪼갠 {d}자리',
+    splitNote: 'k = 10에서는 첫 자리에서 갈렸지만, 256진법의 첫 자리는 {f}입니다.',
     bad: '0 이상의 정수를 하나 이상 입력하세요.',
   },
   en: {
@@ -63,6 +69,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     scanBad: 'But MSD makes {c} calls and scans {s} cells, empty ones included. Its total is above LSD.',
     scanOk: 'MSD is lower in total as well.',
     cutoffGood: 'Handing buckets of size {c} or less to insertion sort cuts the calls to {calls} and the total to {sum}.',
+    digits10: '{d} decimal digits',
+    digits256: '{d} digits, value split into bytes',
+    splitNote: 'At k = 10 the first digit split them, but the first base-256 digits are {f}.',
     bad: 'Enter at least one non-negative integer.',
   },
   zh: {
@@ -88,6 +97,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     scanBad: '但 MSD 调用了 {c} 次，连空格子一起扫描了 {s} 格。合计比 LSD 多。',
     scanOk: '合计也是 MSD 更少。',
     cutoffGood: '把大小不超过 {c} 的桶交给插入排序，调用减到 {calls} 次，合计变为 {sum}。',
+    digits10: '十进制 {d} 位',
+    digits256: '把值拆成字节，共 {d} 位',
+    splitNote: 'k = 10 时第一位就分开了，但 256 进制的第一位是 {f}。',
     bad: '请至少输入一个非负整数。',
   },
 };
@@ -126,6 +138,8 @@ const presets = [
       <input type="range" min="0" max="32" value="0" data-mc-cut aria-label={t.cutoff} />
     </label>
   </div>
+
+  <p class="mc-digits" data-mc-digits></p>
 
   <table class="mc-table">
     <thead>
@@ -166,6 +180,7 @@ const presets = [
     const input = root.querySelector('[data-mc-in]');
     const cutIn = root.querySelector('[data-mc-cut]');
     const note = root.querySelector('[data-mc-note]');
+    const digitsEl = root.querySelector('[data-mc-digits]');
     let k = 10;
     let randomMode = false;
 
@@ -180,15 +195,39 @@ const presets = [
       });
     }
 
-    const widthOf = (max) => {
+    const widthOf = (max, b = k) => {
       let d = 1;
-      let e = k;
+      let e = b;
       while (max >= e) {
-        e *= k;
+        e *= b;
         d += 1;
       }
       return d;
     };
+
+    /* 값을 기수 b의 자리들로 쪼갠다. 가장 큰 값의 자릿수에 맞춰 높은 자리부터 낸다. */
+    const digitsOf = (v, width, b = k) =>
+      Array.from({ length: width }, (_, i) => Math.floor(v / b ** (width - 1 - i)) % b);
+    const firstDigits = (values, b) => {
+      const width = widthOf(Math.max(...values), b);
+      return values.map((v) => digitsOf(v, width, b)[0]);
+    };
+    const allDistinct = (xs) => new Set(xs).size === xs.length;
+
+    function renderDigits(values) {
+      const width = widthOf(Math.max(...values));
+      const label = document.createElement('span');
+      label.textContent = fill(k === 10 ? S.digits10 : S.digits256, { d: width });
+      const items = values.slice(0, 16).map((v) => {
+        const item = document.createElement('code');
+        const [first, ...rest] = digitsOf(v, width);
+        const head = document.createElement('b');
+        head.textContent = String(first);
+        item.append('(', head, rest.map((x) => `, ${x}`).join(''), ')');
+        return item;
+      });
+      digitsEl.replaceChildren(label, ...items);
+    }
 
     function runLsd(a) {
       const d = widthOf(Math.max(...a));
@@ -262,9 +301,11 @@ const presets = [
         b.classList.toggle('is-on', randomMode ? b.dataset.mcPreset === 'random' : b.dataset.mcPreset === input.value.trim()),
       );
       if (!values.length) {
+        digitsEl.replaceChildren();
         setLines(note, S.bad);
         return;
       }
+      renderDigits(values);
       const lsd = runLsd(values);
       const msd = runMsd(values, cut);
       const base = cut > 1 ? runMsd(values, 0) : msd;
@@ -274,6 +315,10 @@ const presets = [
       setBar('lsd', lsd, top);
       setBar('msd', msd, top);
       const lines = [fill(S.sumNote, { m: num(msd.reads), l: num(lsd.reads) })];
+      /* 10진수로는 첫 자리에서 갈리던 입력이 256진법에서는 안 갈리는 경우를 짚어 준다. */
+      if (k === 256 && cut <= 1 && allDistinct(firstDigits(values, 10)) && !allDistinct(firstDigits(values, 256))) {
+        lines.push(fill(S.splitNote, { f: firstDigits(values, 256).join(', ') }));
+      }
       if (cut > 1) lines.push(fill(S.cutoffGood, { c: cut, calls: num(msd.calls), sum: num(sum(msd)) }));
       else if (sum(base) > sum(lsd)) lines.push(fill(S.scanBad, { c: num(base.calls), s: num(base.scan) }));
       else if (sum(base) < sum(lsd)) lines.push(S.scanOk);
@@ -466,6 +511,27 @@ const presets = [
     height: 0.8em;
     margin-left: 0.5em;
     border-radius: 0.15em;
+  }
+  /* 입력이 길어도 한 줄로 두어 슬라이드 높이가 변하지 않게 한다. */
+  .aas-msd-cost-demo .mc-digits {
+    display: flex;
+    gap: 0.6em;
+    align-items: baseline;
+    margin: 0.35em 0 0;
+    min-height: 1.5em;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-msd-cost-demo .mc-digits code {
+    padding: 0;
+    background: none;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-msd-cost-demo .mc-digits b {
+    color: var(--aas-role-focus);
   }
   .aas-msd-cost-demo .mc-note {
     margin: 0.45em 0 0;
