@@ -591,6 +591,26 @@ compares that the total climbs back to 8,544.
 | Locality | each pass scans the whole array | works inside one bucket |
 | Implementation | simple | complex, buckets and recursion to manage |
 
+### When each one wins \{#lsd-msd-when}
+
+| Situation | Better | Why |
+| --- | --- | --- |
+| Keys of equal length (integers, dates) | LSD | simple, with calls fixed at the digit count |
+| Same leading digits or many equal keys | LSD | MSD reads to the end too, with more calls |
+| Large radix and many small buckets | LSD | MSD scans $$k$$ cells per call and needs a cutoff |
+| Strings of different lengths | MSD | no need to pad to equal length |
+| Keys that split on leading digits | MSD | stops reading once keys split |
+| Only the front part is needed | MSD | recurses only into the buckets it needs |
+
+Here is what the earlier demos show.
+
+- **MSD when keys split early:** the strings `ant bee cat dog elk fox` read only 6 of 18 characters.
+  The integers `100 200 300 400` at $$k = 10$$ total MSD 14 and LSD 42.
+- **No gain when keys never split:** `sea sea sea sea` reads all 12 characters.
+  `111 112 113 114` at $$k = 10$$ totals 42 for both sorts.
+- **LSD when calls pile up:** 1,000 random values at $$k = 256$$ total MSD 63,953 and LSD 5,024.
+  A cutoff brings MSD down to 2,764.
+
 ### Measure it yourself \{#msd-race}
 
 This is the [demo from LSD](#lsd-runtime) with two MSD rows added. Both use radix 256, and the

@@ -603,6 +603,26 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 
 <Slide>
 
+#### When each one wins
+::sub[LSD for integers of equal length, MSD for keys that vary in length or split early]
+
+| Situation | Better | Why |
+| --- | --- | --- |
+| Keys of equal length (integers, dates) | LSD | simple, with calls fixed at the digit count |
+| Same leading digits or many equal keys | LSD | MSD reads to the end too, with more calls |
+| Large radix and many small buckets | LSD | MSD scans $$k$$ cells per call and needs a cutoff |
+| Strings of different lengths | MSD | no need to pad to equal length |
+| Keys that split on leading digits | MSD | stops reading once keys split |
+| Only the front part is needed | MSD | recurses only into the buckets it needs |
+
+<br/>
+
+`ant bee cat dog elk fox` reads 6 of 18 characters, while `sea sea sea sea` reads all 12.
+
+</Slide>
+
+<Slide>
+
 ### Try it: measure MSD too
 ::sub[Runs all six in this browser · the tabs change the input order]
 
