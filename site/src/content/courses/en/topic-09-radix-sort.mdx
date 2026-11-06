@@ -548,6 +548,8 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
     // the rest is the same as the procedure above
 ```
 
+The procedure is in `08_msd_cost/msdCost.pseudo`.
+
 Now count what was just described. The input is integers, and the line below it shows each value's digits. The line under the table shows where the call counts come from: LSD calls once per digit, and MSD once per range of two or more elements. The demo really runs both sorts and counts digit reads, counting-cell
 scans (calls × $$k$$), and insertion sort's compares. The total adds the three counts; it shows scale,
 not actual time.
@@ -579,6 +581,39 @@ LSD's total is 10,100 at $$k = 10$$ and 5,024 at $$k = 256$$.
 A larger cutoff does not keep helping. Insertion sort is $$O(n^2)$$, so it only
 wins on small ranges. At $$k = 10$$, handing off up to size 32 adds so many
 compares that the total climbs back to 8,544.
+
+The table's values are the output of `08_msd_cost`. The numbers in `[ ]` are calls per digit, and C and Python
+print the same values.
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- Result
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+
+1000 random values, 965354 to 4290781594
+k = 10
+  LSD      reads 10000  calls  10  scans    100  ins     0  total  10100
+  MSD      reads  4158  calls 453  scans   4530  ins     0  total   8688  [1 + 5 + 43 + 282 + 103 + 15 + 4]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+
+strings
+  ant bee cat dog elk fox: read 6 of 18, calls 1
+  sea sea sea sea: read 12 of 12, calls 4
+```
 
 ### LSD and MSD \{#lsd-vs-msd}
 
@@ -613,14 +648,35 @@ Here is what the earlier demos show.
 
 ### Measure it yourself \{#msd-race}
 
-This is the [demo from LSD](#lsd-runtime) with two MSD rows added. Both use radix 256, and the
+These are the three sorts timed in C with `09_radix_timing`. Values are in ms, measured on a different computer
+from the [earlier table](#lsd-runtime), so look at the ratios. `MSD (≤ 16)` hands ranges of size 16 or less to
+insertion sort.
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+At a million values, MSD takes about 3 times as long as LSD, and about 1.6 times with the handoff. At 1,000
+values, MSD with the handoff beats LSD.
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/09_radix_timing
+make -f /work/Makefile radixTiming.out && ./radixTiming.out
+```
+
+Now run the same three sorts in this browser. This is the [demo from LSD](#lsd-runtime) with two MSD rows added. Both use radix 256, and the
 last row hands ranges of size 16 or less to insertion sort.
 
 <RuntimeRaceDemo msd />
 
 Values depend on the computer, so look at the ratios. On integers of equal length, scanning 256
-cells per call usually costs more than the saved digit reads gain, so LSD is usually faster.
-Handing off to insertion sort cuts MSD's time. MSD's strength shows on keys like
+cells per call costs more than the saved digit reads gain, so LSD is faster when $$n$$ is large.
+Handing off to insertion sort cuts MSD's time, and it can beat LSD when $$n$$ is small. MSD's strength shows on keys like
 [strings](#msd-strings), which differ in length and split early.
 
 ## Eight sorts side by side \{#comparison}
@@ -1504,7 +1560,10 @@ src/topic-09-radix-sort/
 ├── 04_lcp/              # Kasai, LCP = - 0 1 3 0 0 2, char compares 9 vs 12
 ├── 05_lrs/              # ana in banana$, acaag in the base sequence
 ├── 06_lcs/              # iss in mississippi and kiss
-└── 07_stack_queue/      # queue buckets sort correctly, stack buckets do not
+├── 07_stack_queue/      # queue buckets sort correctly, stack buckets do not
+├── 08_msd_cost/         # LSD and MSD cost by radix and cutoff
+├── 09_radix_timing/     # timing LSD, MSD, and MSD with a cutoff
+└── 10_suffix_radix/     # doubling pairs sorted with LSD radix sort
 ```
 
 Open a file and press the **▶ button** at the top right of the editor

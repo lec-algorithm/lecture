@@ -476,6 +476,8 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
     // 其余与前面的过程相同
 ```
 
+过程在 `08_msd_cost/msdCost.pseudo` 里。
+
 把上面说的数一数。输入是整数，输入框下面一行显示每个值的各位。表格下面一行显示调用次数的来历：LSD 按位数调用，MSD 对每个不少于两个元素的区间调用一次。演示真的运行两种排序，统计读取位数、扫描计数格（调用次数 × $$k$$）和插入排序
 的比较。合计是这三个次数相加，看的是规模，不是实际时间。
 
@@ -504,6 +506,38 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 
 截断值并不是越大越好。插入排序是 $$O(n^2)$$，只在小区间上划算。$$k = 10$$ 时交到大小
 32，插入比较增多，合计又回到 8,544。
+
+表中的值是 `08_msd_cost` 的输出。`[ ]` 里是每一位的调用次数，C 和 Python 输出相同的值。
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- 结果
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+
+1000 random values, 965354 to 4290781594
+k = 10
+  LSD      reads 10000  calls  10  scans    100  ins     0  total  10100
+  MSD      reads  4158  calls 453  scans   4530  ins     0  total   8688  [1 + 5 + 43 + 282 + 103 + 15 + 4]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+
+strings
+  ant bee cat dog elk fox: read 6 of 18, calls 1
+  sea sea sea sea: read 12 of 12, calls 4
+```
 
 ### LSD 与 MSD \{#lsd-vs-msd}
 
@@ -538,13 +572,32 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 
 ### 亲手测一测 \{#msd-race}
 
-这是 [LSD 里测过的演示](#lsd-runtime)，加上了两行 MSD。基数都是 256，最后一行把大小不超过 16
+这是用 `09_radix_timing` 以 C 测三种排序得到的值。单位是 ms，和[前面的表](#lsd-runtime)不是同一台电脑测的，所以看比例。
+`MSD (≤ 16)` 把大小不超过 16 的区间交给插入排序。
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+一百万个时，MSD 约是 LSD 的 3 倍，交给插入排序后约是 1.6 倍。1,000 个时，交出去的 MSD 比 LSD 快。
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/09_radix_timing
+make -f /work/Makefile radixTiming.out && ./radixTiming.out
+```
+
+同样的三种排序也可以在这个浏览器里运行。这是 [LSD 里测过的演示](#lsd-runtime)，加上了两行 MSD。基数都是 256，最后一行把大小不超过 16
 的区间交给插入排序。
 
 <RuntimeRaceDemo msd />
 
-数值因电脑而异，要看的是比例。对长度相同的整数，每次调用扫描 256 格的代价通常超过少读几位的
-收益，所以通常是 LSD 更快。交给插入排序能缩短 MSD 的时间。MSD 的长处体现在
+数值因电脑而异，要看的是比例。对长度相同的整数，每次调用扫描 256 格的代价超过少读几位的
+收益，所以 $$n$$ 大时 LSD 更快。交给插入排序能缩短 MSD 的时间，$$n$$ 小时还可能超过 LSD。MSD 的长处体现在
 [字符串](#msd-strings)这种长度不一、前面就能分开的键上。
 
 ## 八种排序并排比较 \{#comparison}
@@ -1335,7 +1388,10 @@ src/topic-09-radix-sort/
 ├── 04_lcp/              # Kasai，LCP = - 0 1 3 0 0 2，字符比较 9 vs 12
 ├── 05_lrs/              # banana$ 的 ana，碱基序列的 acaag
 ├── 06_lcs/              # mississippi 与 kiss 的 iss
-└── 07_stack_queue/      # 队列桶能排好，栈桶会出错
+├── 07_stack_queue/      # 队列桶能排好，栈桶会出错
+├── 08_msd_cost/         # 按基数和截断值统计 LSD 与 MSD 的开销
+├── 09_radix_timing/     # 测 LSD、MSD、带截断值的 MSD 的时间
+└── 10_suffix_radix/     # 用 LSD 基数排序排倍增的数对
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见

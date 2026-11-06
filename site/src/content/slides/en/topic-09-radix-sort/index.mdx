@@ -558,7 +558,7 @@ So real implementations hand small buckets to insertion sort.
 <Slide class="compact">
 
 #### Insertion sort for small buckets
-::sub[At or below a chosen size, stop recursing]
+::sub[`08_msd_cost/msdCost.pseudo` · at or below a chosen size, stop recursing]
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -582,6 +582,34 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 ::sub[Counts digit reads and cell scans · try the random input at k = 256]
 
 <MsdCostDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Output
+::sub[`08_msd_cost/msdCost.c` · the numbers in `[ ]` are calls per digit]
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- Result
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+1000 random values, k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+```
+
+These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort.
 
 </Slide>
 
@@ -618,6 +646,26 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 <br/>
 
 `ant bee cat dog elk fox` reads 6 of 18 characters, while `sea sea sea sea` reads all 12.
+
+</Slide>
+
+<Slide>
+
+#### Running time: measured in C
+::sub[`09_radix_timing/radixTiming.c` · in ms, R = 256]
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+<br/>
+
+- At a million values, MSD takes about 3 times as long as LSD, and about 1.6 times with the handoff.
+- At 1,000 values, MSD with the handoff beats LSD.
+- Values depend on the computer, so look at the ratios.
 
 </Slide>
 

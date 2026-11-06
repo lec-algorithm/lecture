@@ -558,7 +558,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 <Slide class="compact">
 
 #### 小桶交给插入排序
-::sub[大小不超过定值就不再递归]
+::sub[`08_msd_cost/msdCost.pseudo` · 大小不超过定值就不再递归]
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -582,6 +582,34 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 ::sub[统计读取位数和扫描格子 · 在 k = 256 时选随机输入试试]
 
 <MsdCostDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行结果
+::sub[`08_msd_cost/msdCost.c` · `[ ]` 里是每一位的调用次数]
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- 结果
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+1000 random values, k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+```
+
+与演示的表相同。`MSD <=16` 把大小不超过 16 的区间交给插入排序。
 
 </Slide>
 
@@ -618,6 +646,26 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 <br/>
 
 `ant bee cat dog elk fox` 的 18 个字符只读 6 个，`sea sea sea sea` 的 12 个字符全部要读。
+
+</Slide>
+
+<Slide>
+
+#### 运行时间：用 C 测的值
+::sub[`09_radix_timing/radixTiming.c` · 单位 ms，R = 256]
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+<br/>
+
+- 一百万个时，MSD 约是 LSD 的 3 倍，交给插入排序后约是 1.6 倍。
+- 1,000 个时，交出去的 MSD 比 LSD 快。
+- 数值因电脑而异，要看的是比例。
 
 </Slide>
 

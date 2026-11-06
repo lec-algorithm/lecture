@@ -508,6 +508,8 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
     // 이후는 앞의 절차와 같다
 ```
 
+절차는 `08_msd_cost/msdCost.pseudo`에 있습니다.
+
 위의 설명을 세어서 확인합니다. 입력은 정수이고, 입력 아래 줄에서 각 값의 자리를 볼 수 있습니다. 표 아래 줄은 호출 수가 나온 과정을 보여 줍니다. LSD는 자릿수만큼, MSD는 원소가 둘 이상인 구간마다 한 번 호출합니다. 데모가 두 정렬을 정말 돌려 자리 읽기, 카운팅 칸 훑기(호출 수
 × $$k$$), 삽입 정렬의 비교를 셉니다. 합계는 세 횟수를 더한 값으로, 실제 시간이 아니라 규모를
 보는 값입니다.
@@ -538,6 +540,38 @@ $$k = 10$$이면 10,100, $$k = 256$$이면 5,024입니다.
 
 컷오프를 키운다고 계속 좋아지지는 않습니다. 삽입 정렬은 $$O(n^2)$$이라 작은 구간에서만
 유리합니다. $$k = 10$$에서 크기 32까지 넘기면 삽입 비교가 늘어 합계가 8,544로 돌아옵니다.
+
+표의 값은 `08_msd_cost`의 출력입니다. `[ ]` 안은 자리별 호출 수이고, C와 Python이 같은 값을 냅니다.
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- 결과
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+
+1000 random values, 965354 to 4290781594
+k = 10
+  LSD      reads 10000  calls  10  scans    100  ins     0  total  10100
+  MSD      reads  4158  calls 453  scans   4530  ins     0  total   8688  [1 + 5 + 43 + 282 + 103 + 15 + 4]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+
+strings
+  ant bee cat dog elk fox: read 6 of 18, calls 1
+  sea sea sea sea: read 12 of 12, calls 4
+```
 
 ### LSD와 MSD \{#lsd-vs-msd}
 
@@ -572,14 +606,34 @@ $$k = 10$$이면 10,100, $$k = 256$$이면 5,024입니다.
 
 ### 직접 재 보기 \{#msd-race}
 
-[LSD에서 재 본 데모](#lsd-runtime)에 MSD 두 줄을 더했습니다. 모두 기수 256이고, 마지막 줄은
+`09_radix_timing`으로 세 정렬을 C로 잰 값입니다. 단위는 ms이고, [앞의 표](#lsd-runtime)와 다른 컴퓨터에서 쟀으므로 비율을
+봅니다. `MSD (≤ 16)`은 크기 16 이하의 구간을 삽입 정렬로 넘긴 것입니다.
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+백만 개에서 MSD는 LSD의 약 3배, 삽입 정렬로 넘기면 약 1.6배입니다. 1,000개에서는 넘긴 MSD가
+LSD보다 빠릅니다.
+
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/09_radix_timing
+make -f /work/Makefile radixTiming.out && ./radixTiming.out
+```
+
+같은 세 정렬을 지금 이 브라우저에서도 돌려 봅니다. [LSD에서 재 본 데모](#lsd-runtime)에 MSD 두 줄을 더했습니다. 모두 기수 256이고, 마지막 줄은
 크기 16 이하의 구간을 삽입 정렬로 넘깁니다.
 
 <RuntimeRaceDemo msd />
 
 값은 컴퓨터마다 다르므로 비율을 봅니다. 길이가 같은 정수에서는 읽는 자리를 아끼는
-이득보다 호출마다 256칸을 훑는 비용이 커서 보통 LSD가 더 빠릅니다. 삽입 정렬로 넘기면
-MSD의 시간이 줄어듭니다. MSD의 강점은 [문자열](#msd-strings)처럼 길이가 다르고 앞에서 갈리는 키에서 나옵니다.
+이득보다 호출마다 256칸을 훑는 비용이 커서, $$n$$이 크면 LSD가 더 빠릅니다. 삽입 정렬로
+넘기면 MSD의 시간이 줄어들고, $$n$$이 작으면 LSD를 앞서기도 합니다. MSD의 강점은 [문자열](#msd-strings)처럼 길이가 다르고 앞에서 갈리는 키에서 나옵니다.
 
 ## 여덟 정렬을 나란히 \{#comparison}
 
@@ -1405,7 +1459,10 @@ src/topic-09-radix-sort/
 ├── 04_lcp/              # Kasai, LCP = - 0 1 3 0 0 2, 글자 비교 9 vs 12
 ├── 05_lrs/              # banana$의 ana, 염기 서열의 acaag
 ├── 06_lcs/              # mississippi와 kiss의 iss
-└── 07_stack_queue/      # 큐 버킷은 정렬되고 스택 버킷은 틀린다
+├── 07_stack_queue/      # 큐 버킷은 정렬되고 스택 버킷은 틀린다
+├── 08_msd_cost/         # 기수와 컷오프에 따른 LSD와 MSD의 비용
+├── 09_radix_timing/     # LSD, MSD, 컷오프를 쓴 MSD의 시간
+└── 10_suffix_radix/     # 더블링의 짝을 LSD 기수 정렬로
 ```
 
 파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다. 실행 방법은
