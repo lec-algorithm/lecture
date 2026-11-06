@@ -12,7 +12,6 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
-import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
@@ -24,7 +23,6 @@ import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
 import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
@@ -787,161 +785,34 @@ void buildSuffixArrayNaive(const char *text, int sa[], int n) {
 
 </Slide>
 
-<Slide>
-
-#### 더블링
-::sub[비교할 길이를 1 → 2 → 4 → 8글자로 두 배씩]
-
-접미사 $$i$$의 앞 $$2h$$글자는 두 토막입니다.
-
-- 앞 $$h$$글자: 접미사 $$i$$의 앞 $$h$$글자, 순위 $$rank[i]$$
-- 뒤 $$h$$글자: 접미사 $$i + h$$의 앞 $$h$$글자, 순위 $$rank[i + h]$$
-
-<br/>
-
-**짝 $$(rank[i], rank[i + h])$$를 비교하면 앞 $$2h$$글자를 비교한 것과 같습니다.**  
-글자를 다시 읽지 않고 정수 두 개만 비교합니다. 넘어가면 $$-1$$입니다.
-
-</Slide>
-
-<Slide>
-
-#### 더블링 따라가기: 앞 2글자
-::sub[banana$ · 여기까지는 글자를 직접 봅니다]
-
-| 앞 2글자 | 시작 위치 | 순위 |
-| --- | --- | --- |
-| `$` | 6 | 0 |
-| `a$` | 5 | 1 |
-| `an` | 1, 3 | 2 |
-| `ba` | 0 | 3 |
-| `na` | 2, 4 | 4 |
-
-<br/>
-
-`an`과 `na`가 겹치므로 아직 끝나지 않았습니다.
-
-</Slide>
-
-<Slide>
-
-#### 더블링 따라가기: 앞 4글자
-::sub[다음 2글자는 2칸 뒤 접미사의 앞 2글자이고, 그 순위는 이미 있습니다]
-
-| 접미사 | 앞 2글자 | 다음 2글자 | 짝 |
-| --- | --- | --- | --- |
-| `ana$` (위치 3) | `an`, 순위 2 | `a$`, 위치 5의 순위 1 | (2, 1) |
-| `anana$` (위치 1) | `an`, 순위 2 | `an`, 위치 3의 순위 2 | (2, 2) |
-
-<br/>
-
-- 순위가 겹치던 둘이 짝의 둘째 값에서 갈립니다.
-- 글자를 다시 읽지 않고 정수 두 개만 비교합니다.
-- 순위가 모두 달라지면 끝입니다. `SA = 6 5 3 1 0 4 2`
-
-</Slide>
-
-<Slide>
-
-### 한 걸음씩: banana$
-::sub[칠한 앞 k글자를 짝 하나가 대신하고, 같은 순위는 주황입니다 · 줄을 누르면 짝의 두 칸이 칠해집니다]
-
-<SuffixArrayDemo slide />
-
-</Slide>
-
 <Slide class="compact">
 
-#### 절차로 적으면
-::sub[`03_suffix_array/suffixArray.pseudo`]
+#### 실행 결과
+::sub[`03_suffix_array/suffixArray.c`]
 
-```plaintext
-ALGORITHM BuildSuffixArrayDoubling(T, n)
-    for i <- 0 to n-1 do
-        rank[i] <- T[i]                // 처음 순위: 첫 글자의 문자 코드
-        SA[i] <- i
-    k <- 2
-    loop
-        for i <- 0 to n-1 do
-            key[i] <- (rank[i], i + k/2 < n이면 rank[i + k/2], 아니면 -1)
-        SA를 key[SA[j]] 순으로 정렬한다
-        정렬 순서대로 새 순위를 매긴다 (key가 같으면 같은 순위)
-        if 순위가 모두 다르면 then break
-        k <- k * 2
-    return SA
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/03_suffix_array
+make -f /work/Makefile suffixArray.out && ./suffixArray.out
 ```
 
-C 구현은 `qsort`의 비교 함수가 짝을 봅니다.  
-짝이 같으면 시작 위치 순으로 두어 Python과 같은 순서를 냅니다.
-
-</Slide>
-
-<Slide class="compact">
-
-#### 실행 결과: k = 2
-::sub[`03_suffix_array` · 짝이 같은 두 쌍은 순위도 같습니다]
+- 결과 (앞부분)
 
 ```console
-k = 2
-   j  SA[j]  key         rank  suffix
-   0      6  ( 36,  -1)     0  $
-   1      5  ( 97,  36)     1  a$
-   2      1  ( 97, 110)     2  anana$
-   3      3  ( 97, 110)     2  ana$
-   4      0  ( 98,  97)     3  banana$
-   5      2  (110,  97)     4  nana$
-   6      4  (110,  97)     4  na$
-  distinct ranks = 5 of 7
+text = banana$ (n = 7)
+  0 banana$
+  1 anana$
+  2 nana$
+  3 ana$
+  4 na$
+  5 a$
+  6 $
+
+naive    SA = 6 5 3 1 0 4 2
 ```
 
-`anana$`가 `ana$` 앞에 있는 것은 짝이 같아 시작 위치 순(1 < 3)으로 둔 것뿐입니다.
-
-</Slide>
-
-<Slide class="compact">
-
-#### 실행 결과: k = 4
-::sub[`03_suffix_array` · 순위 일곱 개가 모두 다릅니다]
-
-```console
-k = 4
-   j  SA[j]  key         rank  suffix
-   0      6  (  0,  -1)     0  $
-   1      5  (  1,  -1)     1  a$
-   2      3  (  2,   1)     2  ana$
-   3      1  (  2,   2)     3  anana$
-   4      0  (  3,   4)     4  banana$
-   5      4  (  4,   0)     5  na$
-   6      2  (  4,   4)     6  nana$
-  distinct ranks = 7 of 7
-
-doubling SA = 6 5 3 1 0 4 2
-same = yes
-```
-
-단순한 방법과 같은 접미사 배열입니다.
-
-</Slide>
-
-<Slide>
-
-#### 분석
-::sub[여기서 기수 정렬이 다시 쓰입니다]
-
-- 라운드는 많아야 $$\lceil \log_2 n \rceil$$번입니다.
-- 라운드마다 짝 $$n$$개를 비교 정렬하면 $$O(n \log n)$$, 전체 $$O(n \log^2 n)$$
-- **짝은 두 자리 수입니다.** 한 자리의 값은 $$-1$$부터 $$n - 1$$까지
-  - LSD 기수 정렬 두 패스로 정렬하면 라운드가 $$O(n)$$
-  - 전체 $$O(n \log n)$$, 더 나아가 $$O(n)$$ 알고리즘(SA-IS, DC3)도 있습니다.
-
-</Slide>
-
-<Slide>
-
-### 한 걸음씩: 짝을 기수 정렬로
-::sub[뒷자리로 한 번, 앞자리로 한 번 · 줄을 누르면 짝을 만든 두 칸이 칠해집니다]
-
-<DoublingRadixDemo slide />
+`naive SA`가 단순한 방법의 결과입니다. 뒤이어 나오는 더블링은 이 강의에서 다루지 않습니다.
 
 </Slide>
 
@@ -1215,7 +1086,7 @@ brute force: "acaag", 120 pairs, 161 char compares
 <br/>
 
 접미사 정렬을 $$O(n \log n)$$ 이하로 해야 합니다.  
-가변 길이 키에 맞는 MSD 계열 정렬이나, 기수 정렬을 쓰는 더블링이 그 길입니다.
+가변 길이 키에 맞는 MSD 계열 정렬 같은 방법이 그 길입니다.
 
 </Slide>
 
@@ -1464,7 +1335,7 @@ queue sorted = yes, stack sorted = no
 2. **LSD는 낮은 자리부터, 패스마다 안정해야 합니다.**
    - MSD는 높은 자리부터 버킷으로 나누고, 갈리면 더 읽지 않습니다.
 3. **접미사 배열은 모든 접미사를 정렬한 시작 위치의 배열입니다.**
-   - 더블링은 앞 $$2h$$글자의 순서를 앞 $$h$$글자의 순위 짝으로 구합니다.
+   - 단순한 방법은 접미사를 문자열로 비교해 정렬합니다.
 4. **LCP 배열은 Kasai로 $$O(n)$$에 만듭니다.**
    - LRS는 LCP의 최댓값, LCS는 서로 다른 문자열의 이웃만 봅니다.
 5. **스택은 LIFO, 큐는 FIFO입니다.**

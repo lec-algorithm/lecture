@@ -12,7 +12,6 @@ import Slide from 'stack-site-builder/components/Slide.astro';
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
-import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
@@ -24,7 +23,6 @@ import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
 import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
@@ -787,161 +785,34 @@ void buildSuffixArrayNaive(const char *text, int sa[], int n) {
 
 </Slide>
 
-<Slide>
-
-#### 倍增
-::sub[比较的长度 1 → 2 → 4 → 8 个字符，每次翻倍]
-
-后缀 $$i$$ 的前 $$2h$$ 个字符分成两段。
-
-- 前 $$h$$ 个字符：后缀 $$i$$ 的前 $$h$$ 个字符，排名 $$rank[i]$$
-- 后 $$h$$ 个字符：后缀 $$i + h$$ 的前 $$h$$ 个字符，排名 $$rank[i + h]$$
-
-<br/>
-
-**比较数对 $$(rank[i], rank[i + h])$$ 就等于比较了前 $$2h$$ 个字符**。  
-不用重新读字符，只比较两个整数。越界则记为 $$-1$$。
-
-</Slide>
-
-<Slide>
-
-#### 走一遍倍增：前 2 个字符
-::sub[banana$ · 到这里为止都是直接读字符]
-
-| 前 2 个字符 | 起始位置 | 排名 |
-| --- | --- | --- |
-| `$` | 6 | 0 |
-| `a$` | 5 | 1 |
-| `an` | 1, 3 | 2 |
-| `ba` | 0 | 3 |
-| `na` | 2, 4 | 4 |
-
-<br/>
-
-`an` 和 `na` 还有重复，所以没有结束。
-
-</Slide>
-
-<Slide>
-
-#### 走一遍倍增：前 4 个字符
-::sub[后 2 个字符就是往后 2 格的后缀的前 2 个字符，它的排名已经有了]
-
-| 后缀 | 前 2 个字符 | 后 2 个字符 | 对 |
-| --- | --- | --- | --- |
-| `ana$`（位置 3） | `an`，排名 2 | `a$`，位置 5 的排名 1 | (2, 1) |
-| `anana$`（位置 1） | `an`，排名 2 | `an`，位置 3 的排名 2 | (2, 2) |
-
-<br/>
-
-- 排名相同的两个后缀在对的第二个值上分开了。
-- 不再读字符，只比较两个整数。
-- 排名全都不同就结束。`SA = 6 5 3 1 0 4 2`
-
-</Slide>
-
-<Slide>
-
-### 一步一步：banana$
-::sub[一个数对代替涂色的前 k 个字符，排名相同为橙色 · 点击一行，构成数对的两格会涂色]
-
-<SuffixArrayDemo slide />
-
-</Slide>
-
 <Slide class="compact">
 
-#### 写成过程
-::sub[`03_suffix_array/suffixArray.pseudo`]
+#### 运行结果
+::sub[`03_suffix_array/suffixArray.c`]
 
-```plaintext
-ALGORITHM BuildSuffixArrayDoubling(T, n)
-    for i <- 0 to n-1 do
-        rank[i] <- T[i]                // 最初的排名：首字符的字符编码
-        SA[i] <- i
-    k <- 2
-    loop
-        for i <- 0 to n-1 do
-            key[i] <- (rank[i], 若 i + k/2 < n 则 rank[i + k/2] 否则 -1)
-        按 key[SA[j]] 对 SA 排序
-        按排好的顺序赋予新排名（key 相同则排名相同）
-        if 排名全都不同 then break
-        k <- k * 2
-    return SA
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/03_suffix_array
+make -f /work/Makefile suffixArray.out && ./suffixArray.out
 ```
 
-C 实现让 `qsort` 的比较函数去看数对。  
-数对相同时按起始位置排，得到与 Python 相同的顺序。
-
-</Slide>
-
-<Slide class="compact">
-
-#### 运行结果：k = 2
-::sub[`03_suffix_array` · 数对相同的两组，排名也相同]
+- 结果（前面部分）
 
 ```console
-k = 2
-   j  SA[j]  key         rank  suffix
-   0      6  ( 36,  -1)     0  $
-   1      5  ( 97,  36)     1  a$
-   2      1  ( 97, 110)     2  anana$
-   3      3  ( 97, 110)     2  ana$
-   4      0  ( 98,  97)     3  banana$
-   5      2  (110,  97)     4  nana$
-   6      4  (110,  97)     4  na$
-  distinct ranks = 5 of 7
+text = banana$ (n = 7)
+  0 banana$
+  1 anana$
+  2 nana$
+  3 ana$
+  4 na$
+  5 a$
+  6 $
+
+naive    SA = 6 5 3 1 0 4 2
 ```
 
-`anana$` 排在 `ana$` 前面，只是因为数对相同而按起始位置（1 < 3）排了。
-
-</Slide>
-
-<Slide class="compact">
-
-#### 运行结果：k = 4
-::sub[`03_suffix_array` · 七个排名全都不同]
-
-```console
-k = 4
-   j  SA[j]  key         rank  suffix
-   0      6  (  0,  -1)     0  $
-   1      5  (  1,  -1)     1  a$
-   2      3  (  2,   1)     2  ana$
-   3      1  (  2,   2)     3  anana$
-   4      0  (  3,   4)     4  banana$
-   5      4  (  4,   0)     5  na$
-   6      2  (  4,   4)     6  nana$
-  distinct ranks = 7 of 7
-
-doubling SA = 6 5 3 1 0 4 2
-same = yes
-```
-
-与朴素方法得到相同的后缀数组。
-
-</Slide>
-
-<Slide>
-
-#### 分析
-::sub[基数排序在这里又派上用场]
-
-- 轮数最多 $$\lceil \log_2 n \rceil$$ 轮。
-- 每轮对 $$n$$ 个数对做比较排序是 $$O(n \log n)$$，总共 $$O(n \log^2 n)$$
-- **数对是两位数**。每一位的取值从 $$-1$$ 到 $$n - 1$$
-  - 用 LSD 基数排序两趟来排，一轮就是 $$O(n)$$
-  - 总共 $$O(n \log n)$$，更进一步还有 $$O(n)$$ 的算法（SA-IS、DC3）。
-
-</Slide>
-
-<Slide>
-
-### 一步一步：对数对做基数排序
-::sub[按低位一次，按高位一次 · 点击一行，构成数对的两格会涂色]
-
-<DoublingRadixDemo slide />
+`naive SA` 是朴素方法的结果。后面出现的倍增本课程不讲。
 
 </Slide>
 
@@ -1215,7 +1086,7 @@ brute force: "acaag", 120 pairs, 161 char compares
 <br/>
 
 后缀排序必须做到 $$O(n \log n)$$ 以下。  
-适合变长键的 MSD 一类排序，或者用上基数排序的倍增，才是出路。
+适合变长键的 MSD 一类排序这样的方法，才是出路。
 
 </Slide>
 
@@ -1464,7 +1335,7 @@ queue sorted = yes, stack sorted = no
 2. **LSD 从低位开始，每一趟都必须稳定**。
    - MSD 从高位开始分桶，分开了就不再往下读。
 3. **后缀数组是把所有后缀排好序后的起始位置数组**。
-   - 倍增用前 $$h$$ 个字符的排名对求出前 $$2h$$ 个字符的顺序。
+   - 朴素方法把后缀当作字符串比较来排序。
 4. **LCP 数组用 Kasai 在 $$O(n)$$ 内构造**。
    - LRS 是 LCP 的最大值，LCS 只看来自不同字符串的邻居。
 5. **栈是 LIFO，队列是 FIFO**。

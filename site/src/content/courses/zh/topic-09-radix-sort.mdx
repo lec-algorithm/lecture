@@ -12,7 +12,6 @@ slides: ["topic-09-radix-sort"]
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
-import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
@@ -24,7 +23,6 @@ import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
 import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
@@ -707,96 +705,6 @@ void buildSuffixArrayNaive(const char *text, int sa[], int n) {
 比较最多要看 $$n$$ 个字符，所以最坏是 $$O(n^2 \log n)$$。像 `aaaa...a$` 这样
 同一个字符连着出现，每次比较几乎都要读到末尾。
 
-### 倍增 \{#suffix-doubling}
-
-**倍增**（doubling，prefix doubling）把比较的长度每次翻一倍。按前 1 个字符、
-2 个字符、4 个字符、8 个字符……给后缀排名，关键在于：**前 $$2h$$ 个字符的
-顺序，可以由前 $$h$$ 个字符的两个排名得出**。
-
-后缀 $$i$$ 的前 $$2h$$ 个字符分成两段。
-
-- 前 $$h$$ 个字符：后缀 $$i$$ 的前 $$h$$ 个字符。排名 $$rank[i]$$
-- 后 $$h$$ 个字符：后缀 $$i + h$$ 的前 $$h$$ 个字符。排名 $$rank[i + h]$$
-
-所以比较数对 $$(rank[i], rank[i + h])$$，就等于比较了前 $$2h$$ 个字符。不用
-重新读字符，只比较两个整数就行。$$i + h$$ 超出字符串时，那一段是空的，记为
-$$-1$$。最初的排名是首字符的字符编码。
-
-#### 用 banana$ 走一遍 \{#suffix-doubling-example}
-
-先按前 2 个字符排序并排名。到这里为止都是直接读字符。
-
-| 前 2 个字符 | 起始位置 | 排名 |
-| --- | --- | --- |
-| `$` | 6 | 0 |
-| `a$` | 5 | 1 |
-| `an` | 1, 3 | 2 |
-| `ba` | 0 | 3 |
-| `na` | 2, 4 | 4 |
-
-`an` 和 `na` 还有重复，所以没有结束。接下来比较前 4 个字符。它们是前 2 个字符加上后 2 个字符，而**后 2 个字符
-就是往后 2 格开始的后缀的前 2 个字符**。这个排名刚刚算过，所以不用再读字符。
-
-| 后缀 | 前 2 个字符 | 后 2 个字符 | 对 |
-| --- | --- | --- | --- |
-| `ana$`（位置 3） | `an`，排名 2 | `a$`，位置 5 的排名 1 | (2, 1) |
-| `anana$`（位置 1） | `an`，排名 2 | `an`，位置 3 的排名 2 | (2, 2) |
-
-排名相同的两个后缀在对的第二个值上分开了。这样直到七个后缀的排名全都不同就结束，这个顺序就是后缀数组
-`6 5 3 1 0 4 2`。
-
-演示中一行就是一个后缀。构造数对时，把后缀的前 $$k$$ 个字符涂上颜色，表示
-数对代替的就是这 $$k$$ 个字符。按数对排序后，各行交换位置并得到新的排名。
-排名相同的行（还没有分开的后缀）用橙色框在一起。
-
-右边的条带是数对的原料：字符编码（k = 2）或上一轮的排名。点击一行，构成该数对的两格会涂色。
-
-<SuffixArrayDemo />
-
-- **k = 2**：数对是（首字符，第二个字符）。`anana$` 和 `ana$` 都以 `an` 开头，
-  数对 (97, 110) 相同。`nana$` 和 `na$` 也都是 (110, 97)。排名只有五种。
-- **k = 4**：数对是（前 2 个字符的排名，往后 2 格的后缀的排名）。`ana$` 在
-  位置 3，往后 2 格是位置 5 的 `a$`，排名 1，所以数对是 (2, 1)。
-  `anana$` 在位置 1，往后 2 格是位置 3 的 `ana$`，排名 2，所以数对是 (2, 2)。
-  现在分开了。七个排名全都不同，就结束。
-
-```plaintext
-ALGORITHM BuildSuffixArrayDoubling(T, n)
-    for i <- 0 to n-1 do
-        rank[i] <- T[i]                // 最初的排名：首字符的字符编码
-        SA[i] <- i
-    k <- 2
-    loop
-        for i <- 0 to n-1 do           // 数对：前 k/2 个字符与后 k/2 个字符的排名
-            key[i] <- (rank[i], 若 i + k/2 < n 则 rank[i + k/2] 否则 -1)
-        按 key[SA[j]] 对 SA 排序
-        newRank[SA[0]] <- 0            // 按排好的顺序赋予新排名
-        for j <- 1 to n-1 do           // key 相同则排名相同
-            same <- (key[SA[j]] = key[SA[j-1]])
-            newRank[SA[j]] <- newRank[SA[j-1]] + (same 则 0，否则 1)
-        rank <- newRank
-        if rank[SA[n-1]] = n-1 then break   // 排名全都不同就结束
-        k <- k * 2
-    return SA
-```
-
-C 实现让 `qsort` 的比较函数去看数对。数对相同时按起始位置排，得到与 Python
-实现相同的顺序。
-
-```c
-static int compareKey(const void *a, const void *b) {
-    int i = *(const int *)a;
-    int j = *(const int *)b;
-    if (gKey0[i] != gKey0[j]) {
-        return gKey0[i] - gKey0[j];
-    }
-    if (gKey1[i] != gKey1[j]) {
-        return gKey1[i] - gKey1[j];
-    }
-    return i - j;
-}
-```
-
 - 运行
 
 ```sh
@@ -804,7 +712,7 @@ cd src/topic-09-radix-sort/03_suffix_array
 make -f /work/Makefile suffixArray.out && ./suffixArray.out
 ```
 
-- 结果
+- 结果（前面部分）
 
 ```console
 text = banana$ (n = 7)
@@ -817,56 +725,9 @@ text = banana$ (n = 7)
   6 $
 
 naive    SA = 6 5 3 1 0 4 2
-
-k = 2
-   j  SA[j]  key         rank  suffix
-   0      6  ( 36,  -1)     0  $
-   1      5  ( 97,  36)     1  a$
-   2      1  ( 97, 110)     2  anana$
-   3      3  ( 97, 110)     2  ana$
-   4      0  ( 98,  97)     3  banana$
-   5      2  (110,  97)     4  nana$
-   6      4  (110,  97)     4  na$
-  distinct ranks = 5 of 7
-k = 4
-   j  SA[j]  key         rank  suffix
-   0      6  (  0,  -1)     0  $
-   1      5  (  1,  -1)     1  a$
-   2      3  (  2,   1)     2  ana$
-   3      1  (  2,   2)     3  anana$
-   4      0  (  3,   4)     4  banana$
-   5      4  (  4,   0)     5  na$
-   6      2  (  4,   4)     6  nana$
-  distinct ranks = 7 of 7
-
-doubling SA = 6 5 3 1 0 4 2
-same = yes
 ```
 
-两种方法得出相同的后缀数组。`k = 2` 的表里 `anana$` 排在 `ana$` 前面，只是
-因为数对相同而按起始位置（1 < 3）排了。排名相同，说明两者的顺序还没有定，
-到 `k = 4` 就被纠正过来。
-
-### 分析 \{#suffix-analysis}
-
-- 比较的长度每一轮翻一倍，所以轮数最多是
-  $$\lceil \log_2 n \rceil$$ 轮。
-- 每一轮对 $$n$$ 个整数对做比较排序，是 $$O(n \log n)$$。
-- 所以**总共** $$O(n \log^2 n)$$。
-
-这里本主题的前半部分又派上了用场。数对 $$(rank[i], rank[i + h])$$ 是一个
-**两位数**，每一位的取值从 $$-1$$ 到 $$n - 1$$。所以可以不用比较排序，而用
-**LSD 基数排序的两趟**（按后一位一次，按前一位一次）来排，一轮就成了
-$$O(n)$$。这样总共就是 $$O(n \log n)$$。更进一步，还有 $$O(n)$$ 就能构造出来的
-算法（SA-IS、DC3）。
-
-亲手运行这两趟。一轮有四步：按起始位置构造数对，按低位稳定排序，按高位稳定排序，赋予新排名。字符串
-可以改，点击一行时右边的条带会标出构成该数对的两格。
-
-<DoublingRadixDemo />
-
-`banana$` 用 2 轮、4 趟结束，行的顺序与上面的输出相同。不同的排名在 `mississippi$` 中增加为
-9、11、12 种，在 `aaaaaaaa$` 中增加为 3、5、9 种。
+`naive SA` 是朴素方法的结果。程序接着还会输出一种更快的方法（倍增）的过程，本课程不讲。
 
 ## 例 4. LCP 数组 \{#lcp}
 
@@ -1156,15 +1017,14 @@ B 是 $$Dn^2$$，按上表的趋势要几百年。C 的插入排序光比较就�
 有陷阱。LSD 以**长度相同的键**为前提，而后缀的长度从 1 到 $$n$$ 各不相同。把
 长度补齐到 $$n$$，就要 $$n$$ 趟，每趟 $$O(n)$$，共 $$O(n^2)$$。对 10 亿个字符来说，
 $$O(n^2)$$ 的话四个人都完不成。要得出答案，后缀排序必须做到 $$O(n \log n)$$
-以下。适合变长键的 MSD 一类排序，或者本主题的倍增（配合基数排序是
-$$O(n \log n)$$），才是出路。
+以下。适合变长键的 MSD 一类排序这样的方法，才是出路。
 
-换成数字看看。用滑块改变 $$n$$、$$D$$ 和每秒运算数，由公式估算 B、C、D 和倍增的时间。这是估算，不是测量。
+换成数字看看。用滑块改变 $$n$$、$$D$$ 和每秒运算数，由公式估算 B、C、D 和 $$O(n \log n)$$ 排序的时间。这是估算，不是测量。
 
 <GenomeScaleDemo />
 
 $$n = 10^9$$、$$D = 20$$、每秒 $$10^9$$ 次时，暴力法约 317 年，插入排序约 7.9 年，补齐长度的 LSD
-约 31.7 年。同样条件下，倍增与基数排序是 2 分钟。机器快 1000 倍，暴力法也要约 116 天。
+约 31.7 年。同样条件下，$$O(n \log n)$$ 排序是 2 分钟。机器快 1000 倍，暴力法也要约 116 天。
 
 ## 例 6. 最长公共子串 \{#lcs}
 
@@ -1239,7 +1099,7 @@ LCS = "iss" (length 3) at j = 5
 `*` 是候选对。整个 LCP 的最大值是 j = 6 处的 4（`issi`），但两个后缀都在
 `mississippi` 一侧，所以不是公共子串。那是 `mississippi` 的 LRS。候选中的最大值
 是 j = 5 处的 3，是 `kiss` 的 `iss` 与 `mississippi` 的 `iss` 相遇的地方。时间是
-后缀数组的 $$O(n \log n)$$ 加上 LCP 与扫描的 $$O(n)$$，其中
+构造后缀数组的代价加上 LCP 与扫描的 $$O(n)$$，其中
 $$n = |S_1| + |S_2| + 2$$。
 
 亲手关掉规则。输入两个字符串，开关分隔符和"只看来自不同字符串的邻居"这条规则。演示会把答案与用动态
@@ -1365,9 +1225,8 @@ queue sorted = yes, stack sorted = no
   所以适合变长键，但每次调用要花 $$O(k)$$。把值排对并不要求稳定。
 - 基数排序不做比较，所以处在 $$\Omega(n \log n)$$ 下界的**前提之外**。位数固定
   时是 $$O(n)$$。
-- **后缀数组**：把所有后缀排好序后的起始位置数组。倍增用前 $$h$$ 个字符的排名
-  对求出前 $$2h$$ 个字符的顺序。$$O(n \log^2 n)$$，对数对做基数排序则是
-  $$O(n \log n)$$
+- **后缀数组**：把所有后缀排好序后的起始位置数组。朴素方法把后缀当作字符串比较来排序，
+  最坏 $$O(n^2 \log n)$$
 - **LCP 数组**：相邻后缀的公共前缀长度。Kasai 按文本位置顺序处理，$$h$$ 每次
   只减 1，所以是 $$O(n)$$。
 - **LRS** 是 LCP 的最大值；**LCS** 是用 `#` 连起两个字符串后，从不同字符串
@@ -1384,14 +1243,14 @@ Python 实现组成。
 src/topic-09-radix-sort/
 ├── 01_lsd_radix_sort/   # 437 42 531 8 74 分三趟，12 个三字母单词
 ├── 02_msd_radix_sort/   # 读位 14 次（LSD 是 24 次）
-├── 03_suffix_array/     # banana$ 的 SA = 6 5 3 1 0 4 2，朴素排序与倍增
+├── 03_suffix_array/     # banana$ 的 SA = 6 5 3 1 0 4 2，朴素排序（倍增仅供参考）
 ├── 04_lcp/              # Kasai，LCP = - 0 1 3 0 0 2，字符比较 9 vs 12
 ├── 05_lrs/              # banana$ 的 ana，碱基序列的 acaag
 ├── 06_lcs/              # mississippi 与 kiss 的 iss
 ├── 07_stack_queue/      # 队列桶能排好，栈桶会出错
 ├── 08_msd_cost/         # 按基数和截断值统计 LSD 与 MSD 的开销
 ├── 09_radix_timing/     # 测 LSD、MSD、带截断值的 MSD 的时间
-└── 10_suffix_radix/     # 用 LSD 基数排序排倍增的数对
+└── 10_suffix_radix/     # 参考：用 LSD 基数排序排倍增的数对
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
@@ -1403,8 +1262,8 @@ src/topic-09-radix-sort/
   `074 042 008 437 531` 这样与栈桶相同的错误结果。
 - 把 MSD 的输入换成 `{111, 112, 113, 114}` 和 `{100, 200, 300, 400}`，比较读位
   的次数。分别是 12 次和 4 次。
-- 把后缀数组的 `text` 换成 `mississippi$`，倍增会一直进行到 `k = 8`。看看每一轮
-  排名增加到几种。
+- 把后缀数组的 `text` 换成 `mississippi$`。`naive SA` 是
+  `11 10 7 4 1 0 9 8 6 3 5 2`。
 - 给 LRS 加上 `report("mississippi$")`。答案是有重叠的重复 `issi`。
 - 把 LCS 的 `s2` 换成 `"sip"`。确认它不会被同一字符串内部的重复（`issi`）
   骗到，而是找出 `sip`。

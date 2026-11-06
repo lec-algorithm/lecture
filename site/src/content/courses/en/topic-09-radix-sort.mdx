@@ -12,7 +12,6 @@ slides: ["topic-09-radix-sort"]
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
-import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
 import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
@@ -24,7 +23,6 @@ import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
 import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
@@ -801,108 +799,6 @@ $$n$$ characters, so the worst case is $$O(n^2 \log n)$$. When the same
 character repeats, as in `aaaa...a$`, every comparison reads almost to the
 end.
 
-### Doubling \{#suffix-doubling}
-
-**Doubling** (prefix doubling) doubles the compared length each round. It
-ranks the suffixes by their first 1, 2, 4, 8, ... characters, and the key
-point is that **the order of the first $$2h$$ characters can be read off
-two ranks of the first $$h$$ characters**.
-
-The first $$2h$$ characters of suffix $$i$$ come in two pieces.
-
-- The first $$h$$ characters: the first $$h$$ characters of suffix $$i$$,
-  rank $$rank[i]$$
-- The next $$h$$ characters: the first $$h$$ characters of suffix
-  $$i + h$$, rank $$rank[i + h]$$
-
-So comparing the pair $$(rank[i], rank[i + h])$$ is the same as comparing
-the first $$2h$$ characters. There is no need to read the characters again;
-comparing two integers is enough. If $$i + h$$ runs past the string, that
-piece is empty, so it is set to $$-1$$. The initial rank is the character
-code of the first character.
-
-#### Walking through banana$ \{#suffix-doubling-example}
-
-First sort by the first 2 characters and assign ranks. Up to here, we read the characters directly.
-
-| First 2 characters | Start positions | Rank |
-| --- | --- | --- |
-| `$` | 6 | 0 |
-| `a$` | 5 | 1 |
-| `an` | 1, 3 | 2 |
-| `ba` | 0 | 3 |
-| `na` | 2, 4 | 4 |
-
-`an` and `na` still overlap, so we are not done. Now compare the first 4 characters. They are the
-first 2 characters plus the next 2, and **the next 2 are the first 2 characters of the suffix starting
-2 positions later**. We just computed that rank, so no character is read again.
-
-| Suffix | First 2 | Next 2 | Pair |
-| --- | --- | --- | --- |
-| `ana$` (position 3) | `an`, rank 2 | `a$`, rank 1 at position 5 | (2, 1) |
-| `anana$` (position 1) | `an`, rank 2 | `an`, rank 2 at position 3 | (2, 2) |
-
-The two that shared a rank now differ in the pair's second value. Once all seven suffixes have
-different ranks in this way, we are done, and that order is the suffix array `6 5 3 1 0 4 2`.
-
-In the demo, each row is one suffix. When the pairs are built, the first
-$$k$$ characters of each suffix are colored, to show that the pair stands
-in for those $$k$$ characters. Sorting by the pairs moves the rows and
-assigns new ranks. Rows with the same rank (suffixes not yet told apart)
-are grouped in orange.
-
-The strip on the right holds the ingredients of the keys: character codes (k = 2) or the previous round's
-ranks. Click a row to mark the two cells behind its key.
-
-<SuffixArrayDemo />
-
-- **k = 2**: the pair is (first character, second character). `anana$` and
-  `ana$` both start with `an`, so their pairs (97, 110) are equal. `nana$`
-  and `na$` are equal too, at (110, 97). There are only five distinct ranks.
-- **k = 4**: the pair is (rank of the first 2 characters, rank of the suffix
-  2 positions later). `ana$` is at position 3, and 2 positions later is `a$`
-  at position 5 with rank 1, so its pair is (2, 1). `anana$` is at position
-  1, and 2 positions later is `ana$` at position 3 with rank 2, so its pair
-  is (2, 2). Now they split. Once all seven ranks are distinct, it stops.
-
-```plaintext
-ALGORITHM BuildSuffixArrayDoubling(T, n)
-    for i <- 0 to n-1 do
-        rank[i] <- T[i]                // initial rank: code of the first character
-        SA[i] <- i
-    k <- 2
-    loop
-        for i <- 0 to n-1 do           // pair: ranks of the first k/2 and next k/2 characters
-            key[i] <- (rank[i], rank[i + k/2] if i + k/2 < n, else -1)
-        sort SA by key[SA[j]]
-        newRank[SA[0]] <- 0            // assign new ranks in sorted order
-        for j <- 1 to n-1 do           // equal keys get equal ranks
-            same <- (key[SA[j]] = key[SA[j-1]])
-            newRank[SA[j]] <- newRank[SA[j-1]] + (0 if same, else 1)
-        rank <- newRank
-        if rank[SA[n-1]] = n-1 then break   // stop when all ranks are distinct
-        k <- k * 2
-    return SA
-```
-
-In the C implementation, the `qsort` comparison function looks at the pairs.
-When the pairs are equal, it orders by starting position, which gives the
-same order as the Python implementation.
-
-```c
-static int compareKey(const void *a, const void *b) {
-    int i = *(const int *)a;
-    int j = *(const int *)b;
-    if (gKey0[i] != gKey0[j]) {
-        return gKey0[i] - gKey0[j];
-    }
-    if (gKey1[i] != gKey1[j]) {
-        return gKey1[i] - gKey1[j];
-    }
-    return i - j;
-}
-```
-
 - Run
 
 ```sh
@@ -910,7 +806,7 @@ cd src/topic-09-radix-sort/03_suffix_array
 make -f /work/Makefile suffixArray.out && ./suffixArray.out
 ```
 
-- Result
+- Result (first part)
 
 ```console
 text = banana$ (n = 7)
@@ -923,60 +819,10 @@ text = banana$ (n = 7)
   6 $
 
 naive    SA = 6 5 3 1 0 4 2
-
-k = 2
-   j  SA[j]  key         rank  suffix
-   0      6  ( 36,  -1)     0  $
-   1      5  ( 97,  36)     1  a$
-   2      1  ( 97, 110)     2  anana$
-   3      3  ( 97, 110)     2  ana$
-   4      0  ( 98,  97)     3  banana$
-   5      2  (110,  97)     4  nana$
-   6      4  (110,  97)     4  na$
-  distinct ranks = 5 of 7
-k = 4
-   j  SA[j]  key         rank  suffix
-   0      6  (  0,  -1)     0  $
-   1      5  (  1,  -1)     1  a$
-   2      3  (  2,   1)     2  ana$
-   3      1  (  2,   2)     3  anana$
-   4      0  (  3,   4)     4  banana$
-   5      4  (  4,   0)     5  na$
-   6      2  (  4,   4)     6  nana$
-  distinct ranks = 7 of 7
-
-doubling SA = 6 5 3 1 0 4 2
-same = yes
 ```
 
-Both methods produce the same suffix array. In the `k = 2` table, `anana$`
-sits before `ana$` only because their pairs are equal and they were put in
-starting-position order (1 < 3). Their ranks are equal, so their order is
-not yet decided; `k = 4` sets it right.
-
-### Analysis \{#suffix-analysis}
-
-- The compared length doubles each round, so there are at most
-  $$\lceil \log_2 n \rceil$$ rounds.
-- Comparison-sorting $$n$$ integer pairs each round is $$O(n \log n)$$.
-- So the **total** is $$O(n \log^2 n)$$.
-
-This is where the first half of this topic comes back. The pair
-$$(rank[i], rank[i + h])$$ is a **two-digit number**, and each digit ranges
-from $$-1$$ to $$n - 1$$. So instead of a comparison sort, it can be sorted
-with **two passes of LSD radix sort** (once by the second digit, once by
-the first), and a round becomes $$O(n)$$. The total is then
-$$O(n \log n)$$. Going further, there are algorithms that build it in
-$$O(n)$$ (SA-IS, DC3).
-
-Run the two passes yourself. One round is four steps: make the pairs in start-position order, stable-sort
-by the second digit, stable-sort by the first digit, and assign new ranks. You can change the string,
-and clicking a row marks the two cells behind its pair in the strip on the right.
-
-<DoublingRadixDemo />
-
-`banana$` finishes in 2 rounds and 4 passes, and the row order matches the output above. Distinct ranks
-grow 9, 11, 12 for `mississippi$` and 3, 5, 9 for `aaaaaaaa$`.
+`naive SA` is the result of the plain method. The program goes on to print the steps of a faster method (doubling),
+which this course does not cover.
 
 ## Example 4. The LCP array \{#lcp}
 
@@ -1298,17 +1144,16 @@ assumes **keys of equal length**, but suffixes have lengths anywhere from 1
 to $$n$$. Padding them to length $$n$$ means $$n$$ passes of $$O(n)$$ each,
 so $$O(n^2)$$. At a billion characters, $$O(n^2)$$ finishes for none of
 the four. To get an answer, the suffix sort has to be $$O(n \log n)$$ or
-better. An MSD-style sort, which suits keys of varying length, or this
-topic's doubling (with radix sort, $$O(n \log n)$$) is the way.
+better. An MSD-style sort, which suits keys of varying length, is one such way.
 
 Put it in numbers. Change $$n$$, $$D$$, and the operations per second with the sliders, and the time for
-B, C, D and doubling is estimated from the formulas. These are estimates, not measurements.
+B, C, D and an $$O(n \log n)$$ sort is estimated from the formulas. These are estimates, not measurements.
 
 <GenomeScaleDemo />
 
 With $$n = 10^9$$, $$D = 20$$ and $$10^9$$ operations per second, brute force takes about 317 years,
-insertion sort about 7.9 years, and length-padded LSD about 31.7 years. Under the same conditions, doubling
-with radix sort takes 2 minutes. Even a machine 1000 times faster leaves brute force at about 116 days.
+insertion sort about 7.9 years, and length-padded LSD about 31.7 years. Under the same conditions, an
+$$O(n \log n)$$ sort takes 2 minutes. Even a machine 1000 times faster leaves brute force at about 116 days.
 
 ## Example 6. Longest common substring \{#lcs}
 
@@ -1388,7 +1233,7 @@ LCS = "iss" (length 3) at j = 5
 but both suffixes are on the `mississippi` side, so it is not a common
 substring. It is the LRS of `mississippi`. The largest candidate is 3 at
 j = 5, where `iss` from `kiss` meets `iss` from `mississippi`. The time is
-$$O(n \log n)$$ for the suffix array plus $$O(n)$$ for the LCP and the scan,
+the cost of building the suffix array plus $$O(n)$$ for the LCP and the scan,
 with $$n = |S_1| + |S_2| + 2$$.
 
 Turn the rules off yourself. Enter two strings and toggle the separator and the rule "only pairs from
@@ -1534,9 +1379,8 @@ last finishes first: LIFO. To write MSD without recursion, push and pop the
 - Radix sort never compares, so it lies **outside the premise** of the
   $$\Omega(n \log n)$$ lower bound. With a fixed digit count it is $$O(n)$$.
 - **Suffix array**: the array of starting positions of all suffixes, sorted.
-  Doubling gets the order of the first $$2h$$ characters from pairs of ranks
-  of the first $$h$$ characters. $$O(n \log^2 n)$$, or $$O(n \log n)$$ when
-  the pairs are radix-sorted
+  The plain method sorts suffixes by comparing them as strings. Worst case
+  $$O(n^2 \log n)$$
 - **LCP array**: the common prefix lengths of neighboring suffixes. Kasai
   works in text-position order and lowers $$h$$ only by 1 at a time, so it is
   $$O(n)$$.
@@ -1556,14 +1400,14 @@ pseudocode file with a C and a Python implementation.
 src/topic-09-radix-sort/
 ├── 01_lsd_radix_sort/   # 437 42 531 8 74 in three passes; twelve three-letter words
 ├── 02_msd_radix_sort/   # 14 digit reads (LSD takes 24)
-├── 03_suffix_array/     # SA of banana$ = 6 5 3 1 0 4 2, naive sort and doubling
+├── 03_suffix_array/     # SA of banana$ = 6 5 3 1 0 4 2, naive sort (doubling for reference)
 ├── 04_lcp/              # Kasai, LCP = - 0 1 3 0 0 2, char compares 9 vs 12
 ├── 05_lrs/              # ana in banana$, acaag in the base sequence
 ├── 06_lcs/              # iss in mississippi and kiss
 ├── 07_stack_queue/      # queue buckets sort correctly, stack buckets do not
 ├── 08_msd_cost/         # LSD and MSD cost by radix and cutoff
 ├── 09_radix_timing/     # timing LSD, MSD, and MSD with a cutoff
-└── 10_suffix_radix/     # doubling pairs sorted with LSD radix sort
+└── 10_suffix_radix/     # for reference: doubling pairs sorted with LSD radix sort
 ```
 
 Open a file and press the **▶ button** at the top right of the editor
@@ -1577,8 +1421,8 @@ run things.
   get the same wrong result as the stack buckets, `074 042 008 437 531`.
 - Change MSD's input to `{111, 112, 113, 114}` and to `{100, 200, 300, 400}`
   and compare the number of digit reads. They are 12 and 4.
-- Change the suffix array's `text` to `mississippi$` and doubling goes up to
-  `k = 8`. Watch how the number of distinct ranks grows each round.
+- Change the suffix array's `text` to `mississippi$`. `naive SA` becomes
+  `11 10 7 4 1 0 9 8 6 3 5 2`.
 - Add `report("mississippi$")` to LRS. The answer is the overlapping repeat
   `issi`.
 - Change LCS's `s2` to `"sip"`. Check that it finds `sip` without being
