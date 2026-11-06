@@ -477,6 +477,40 @@ elements themselves. It is worse for byte strings, where $$k = 256$$. So
 real implementations hand small buckets (say, 15 elements or fewer) to
 insertion sort.
 
+### Changing the radix k \{#msd-radix}
+
+The [radix](#from-counting) is the number of values a single digit can take,
+which is also the number of slots in the counting array. The same value has a
+different number of digits depending on the base. For integers below
+$$2^{32}$$:
+
+| Radix $$k$$ | Values of one digit | Digits $$d$$ | Cells one call scans |
+| --- | --- | --- | --- |
+| 10 | 0 through 9 | 10 | 10 |
+| 256 | one byte, 0 through 255 | 4 | 256 |
+
+A larger $$k$$ means fewer digits and so fewer reads, but each call costs more.
+LSD makes only $$d$$ passes, so it scans just $$d \times k$$ cells. MSD calls
+itself for each bucket, so calls can reach the hundreds and the scans grow with
+them.
+
+### Insertion sort for small buckets \{#msd-cutoff}
+
+A bucket at or below a chosen size is finished with insertion sort instead of
+another recursive call. That size is called the **cutoff**. Recursing on a
+bucket of just two elements still scans $$k$$ cells, while insertion sort needs
+no counting array and takes only a few compares. Insertion sort is stable, so
+MSD stays stable too.
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return
+    if hi - lo + 1 <= cutoff then         // finish a small range with insertion sort
+        InsertionSort(A, lo, hi)
+        return
+    // the rest is the same as the procedure above
+```
+
 Now count what was just described. The demo really runs both sorts and counts digit reads, counting-cell
 scans (calls × $$k$$), and insertion sort's compares. The total adds the three counts; it shows scale,
 not actual time.
@@ -488,6 +522,21 @@ not actual time.
 - With 1,000 random values at $$k = 256$$, MSD reads 2,001 digits, half of LSD's 4,000. But it makes
   242 calls and scans 61,952 cells, so the totals are MSD 63,953 and LSD 5,024.
 - Use the slider to hand buckets of size 16 or less to insertion sort, and MSD drops to 1 call and a total of 2,764.
+
+Here is what the slider gives on the 1,000 random values. On the same input,
+LSD's total is 10,100 at $$k = 10$$ and 5,024 at $$k = 256$$.
+
+| Setting | Digit reads | Calls | Cell scans | Insertion compares | Total |
+| --- | --- | --- | --- | --- | --- |
+| $$k = 10$$, off | 4,158 | 453 | 4,530 | 0 | 8,688 |
+| $$k = 10$$, size 9 or less | 3,000 | 49 | 490 | 991 | 4,481 |
+| $$k = 10$$, size 32 or less | 2,035 | 7 | 70 | 6,439 | 8,544 |
+| $$k = 256$$, off | 2,001 | 242 | 61,952 | 0 | 63,953 |
+| $$k = 256$$, size 16 or less | 1,000 | 1 | 256 | 1,508 | 2,764 |
+
+A larger cutoff does not keep helping. Insertion sort is $$O(n^2)$$, so it only
+wins on small ranges. At $$k = 10$$, handing off up to size 32 adds so many
+compares that the total climbs back to 8,544.
 
 ### LSD and MSD \{#lsd-vs-msd}
 

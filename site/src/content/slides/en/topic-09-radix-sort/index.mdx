@@ -518,6 +518,48 @@ So real implementations hand small buckets to insertion sort.
 
 <Slide>
 
+#### The radix k
+::sub[The number of values one digit can take, and the slots in the counting array]
+
+The same value has a different number of digits depending on the base.
+
+| Radix k | Values of one digit | Digits d, integers below $$2^{32}$$ | Cells one call scans |
+| --- | --- | --- | --- |
+| 10 | 0 through 9 | 10 | 10 |
+| 256 | one byte, 0 through 255 | 4 | 256 |
+
+<br/>
+
+- A larger $$k$$ means fewer digits, so **fewer reads**.
+- In exchange, **each call costs more**.
+  - LSD makes only $$d$$ passes, so the burden is small.
+  - MSD can reach hundreds of calls, so this cost shows.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Insertion sort for small buckets
+::sub[At or below a chosen size, stop recursing]
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return
+    if hi - lo + 1 <= cutoff then         // finish a small range with insertion sort
+        InsertionSort(A, lo, hi)
+        return
+    // the rest is the same as the procedure above
+```
+
+- Recursing on a bucket of just two elements still scans $$k$$ cells.
+  - Insertion sort needs no counting array and takes only a few compares.
+- On 1,000 random values at $$k = 256$$, size 16 cuts the total from 63,953 to 2,764.
+- Too large a size makes it grow again. At $$k = 10$$, size 9 gives 4,481 and size 32 gives 8,544.
+
+</Slide>
+
+<Slide>
+
 ### Try it: count the work
 ::sub[Counts digit reads and cell scans · try the random input at k = 256]
 
