@@ -521,19 +521,37 @@ So real implementations hand small buckets to insertion sort.
 #### The radix k
 ::sub[The number of values one digit can take, and the slots in the counting array]
 
-The same value has a different number of digits depending on the base.
+| Value | $$k = 10$$ | Digits | $$k = 256$$ | Digits |
+| --- | --- | --- | --- | --- |
+| 100 | 1×100 + 0×10 + 0×1 | 1, 0, 0 | 0×256 + 100×1 | 0, 100 |
+| 300 | 3×100 + 0×10 + 0×1 | 3, 0, 0 | 1×256 + 44×1 | 1, 44 |
+| 400 | 4×100 + 0×10 + 0×1 | 4, 0, 0 | 1×256 + 144×1 | 1, 144 |
 
-| Radix k | Values of one digit | Digits d, integers below $$2^{32}$$ | Cells one call scans |
-| --- | --- | --- | --- |
-| 10 | 0 through 9 | 10 | 10 |
-| 256 | one byte, 0 through 255 | 4 | 256 |
+- The value stays the same; only the writing changes. `1, 44` is **two base-256 digits**.
+- One digit holds 0 through 255, so there are fewer digits.
+  - Integers below $$2^{32}$$ take 10 digits at $$k = 10$$ and 4 at $$k = 256$$.
+- In exchange, **each call scans** $$k$$ cells.
+  - LSD makes only $$d$$ passes, but MSD can reach hundreds of calls.
+
+</Slide>
+
+<Slide>
+
+#### k = 256 on strings and on integers
+::sub[Either way, the key is read one byte at a time]
+
+| Key | Bytes, highest first | Digit values |
+| --- | --- | --- |
+| String `she` | `s`, `h`, `e` | 115, 104, 101 |
+| 16-bit integer 300 | hex `01`, `2C` | 1, 44 |
 
 <br/>
 
-- A larger $$k$$ means fewer digits, so **fewer reads**.
-- In exchange, **each call costs more**.
-  - LSD makes only $$d$$ passes, so the burden is small.
-  - MSD can reach hundreds of calls, so this cost shows.
+- A **string** is already a sequence of bytes, so each character is one digit.
+- An **integer** is split into bytes. The next cost demo's $$k = 256$$ works this way.
+- Treating an integer as text, like `"300"`, gains nothing from a larger $$k$$.
+  - It still has 3 digits, and 246 of the 256 slots stay empty.
+  - `"45"` lands after `"170"`, so lengths must be padded too, as in `045`.
 
 </Slide>
 
