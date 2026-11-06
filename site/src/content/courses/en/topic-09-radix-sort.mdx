@@ -591,6 +591,18 @@ compares that the total climbs back to 8,544.
 | Locality | each pass scans the whole array | works inside one bucket |
 | Implementation | simple | complex, buckets and recursion to manage |
 
+### Measure it yourself \{#msd-race}
+
+This is the [demo from LSD](#lsd-runtime) with two MSD rows added. Both use radix 256, and the
+last row hands ranges of size 16 or less to insertion sort.
+
+<RuntimeRaceDemo msd />
+
+Values depend on the computer, so look at the ratios. On integers of equal length, scanning 256
+cells per call usually costs more than the saved digit reads gain, so LSD is usually faster.
+Handing off to insertion sort cuts MSD's time. MSD's strength shows on keys like
+[strings](#msd-strings), which differ in length and split early.
+
 ## Eight sorts side by side \{#comparison}
 
 Add the two radix sorts to the table from Topic 03. $$d$$ is the number of

@@ -6,13 +6,18 @@
 // 짧게 끝나는 정렬은 여러 번 돌려 평균을 낸다. 삽입 정렬이 수십만 칸에서 탭을 멈추게
 // 하지 않도록, 오래 걸릴 칸은 재지 않고 앞 칸에서 n²에 비례한다고 어림해 †로 표시한다.
 // 값은 재는 환경마다 다르다. 강의 자료의 표는 C 측정이고 이 데모는 JavaScript다.
+//
+// msd를 주면 MSD 기수 정렬(R = 256)과, 크기 16 이하의 구간을 삽입 정렬로 넘기는 MSD를 더한다.
+// 분석에서 말한 호출당 O(k)와 그 해결책을 실제 시간으로 견주기 위해서다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
   slide?: boolean;
+  /** MSD 기수 정렬 두 줄을 더한다. */
+  msd?: boolean;
 }
-const { slide = false } = Astro.props;
+const { slide = false, msd = false } = Astro.props;
 const id = `rr-${Math.random().toString(36).slice(2, 9)}`;
 
 const STRINGS: Record<string, Record<string, string>> = {
@@ -33,6 +38,11 @@ const STRINGS: Record<string, Record<string, string>> = {
     idle: '재기를 누르면 이 브라우저에서 네 정렬을 돌립니다. 값은 컴퓨터마다 다르고, 볼 것은 비율입니다.',
     done: 'LSD는 10배마다 약 {r}배입니다.',
     order: '탭을 바꿔 입력의 순서를 바꿔 보세요. LSD는 입력과 상관없이 모든 자리를 읽습니다.',
+    msd: 'MSD 기수 정렬',
+    msdCut: 'MSD + 삽입 정렬 (≤ 16)',
+    idleMsd: '재기를 누르면 이 브라우저에서 여섯 가지를 돌립니다. 값은 컴퓨터마다 다르고, 볼 것은 비율입니다.',
+    doneMsd: 'n = 1,000,000에서 LSD {l}ms, MSD {m}ms, 삽입 정렬로 넘긴 MSD {c}ms입니다.',
+    orderMsd: '기수 256의 MSD는 호출마다 256칸을 훑으므로, 작은 구간을 삽입 정렬로 넘기면 호출이 줄어듭니다.',
     dagger: '†는 재지 않고 앞 칸에서 어림한 값입니다.',
   },
   en: {
@@ -52,6 +62,11 @@ const STRINGS: Record<string, Record<string, string>> = {
     idle: 'Measure runs the four sorts in this browser. Values depend on the computer; what matters is the ratio.',
     done: 'LSD grows about ×{r} for each ×10 in n.',
     order: 'Change the tab to change the input order. LSD reads every digit whatever the input.',
+    msd: 'MSD radix sort',
+    msdCut: 'MSD + insertion (≤ 16)',
+    idleMsd: 'Measure runs all six in this browser. Values depend on the computer; what matters is the ratio.',
+    doneMsd: 'At n = 1,000,000: LSD {l} ms, MSD {m} ms, MSD with insertion sort {c} ms.',
+    orderMsd: 'At radix 256, MSD scans 256 cells per call, so handing small ranges to insertion sort cuts the calls.',
     dagger: '† is an estimate from the previous cell, not a measurement.',
   },
   zh: {
@@ -71,16 +86,21 @@ const STRINGS: Record<string, Record<string, string>> = {
     idle: '按测量后，会在这个浏览器里运行四种排序。数值因电脑而异，要看的是比例。',
     done: 'n 每变 10 倍，LSD 大约变 {r} 倍。',
     order: '切换标签可以改变输入的顺序。无论输入如何，LSD 都读完所有的位。',
+    msd: 'MSD 基数排序',
+    msdCut: 'MSD + 插入排序 (≤ 16)',
+    idleMsd: '按测量后，会在这个浏览器里运行全部六种。数值因电脑而异，要看的是比例。',
+    doneMsd: 'n = 1,000,000 时，LSD {l} ms，MSD {m} ms，交给插入排序的 MSD {c} ms。',
+    orderMsd: '基数 256 的 MSD 每次调用要扫描 256 格，把小区间交给插入排序就能减少调用。',
     dagger: '† 不是测量值，而是由前一格估算的。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const sizes = [1000, 10000, 100000, 1000000];
-const algos = ['insertion', 'merge', 'quick', 'lsd'];
+const algos = ['insertion', 'merge', 'quick', 'lsd', ...(msd ? ['msd', 'msdCut'] : [])];
 ---
 
-<div class:list={['aas-runtime-race-demo', slide && 'is-slide']} id={id} data-rr-strings={JSON.stringify(t)}>
+<div class:list={['aas-runtime-race-demo', slide && 'is-slide', msd && 'has-msd']} id={id} data-rr-strings={JSON.stringify(t)}>
   <div class="rr-bar">
     <div class="rr-tabs">
       <span class="rr-head"><strong>{t.title}</strong></span>
@@ -220,7 +240,46 @@ const algos = ['insertion', 'merge', 'quick', 'lsd'];
       }
       /* 네 패스면 결과가 a로 돌아와 있다. */
     }
-    const SORTS = { insertion, merge, quick, lsd };
+    /* MSD, R = 256. 호출마다 256칸을 비우고 훑는다. 칸 배열은 재귀 깊이마다 하나씩이라
+       버킷을 도는 동안 아래 호출이 덮어쓰지 않는다. cut 이하의 구간은 삽입 정렬로 끝낸다. */
+    const msdWith = (cut) => (a) => {
+      const buf = new Int32Array(a.length);
+      const counts = Array.from({ length: 4 }, () => new Int32Array(256));
+      const starts = Array.from({ length: 4 }, () => new Int32Array(256));
+      const go = (lo, hi, shift, depth) => {
+        if (lo >= hi || shift < 0) return;
+        if (hi - lo + 1 <= cut) {
+          for (let i = lo + 1; i <= hi; i++) {
+            const v = a[i];
+            let j = i - 1;
+            while (j >= lo && a[j] > v) {
+              a[j + 1] = a[j];
+              j -= 1;
+            }
+            a[j + 1] = v;
+          }
+          return;
+        }
+        const count = counts[depth];
+        const pos = starts[depth];
+        count.fill(0);
+        for (let i = lo; i <= hi; i++) count[(a[i] >>> shift) & 255] += 1;
+        let s = lo;
+        for (let d = 0; d < 256; d++) {
+          pos[d] = s;
+          s += count[d];
+        }
+        for (let i = lo; i <= hi; i++) buf[pos[(a[i] >>> shift) & 255]++] = a[i];
+        for (let i = lo; i <= hi; i++) a[i] = buf[i];
+        let start = lo;
+        for (let d = 0; d < 256; d++) {
+          if (count[d] > 1) go(start, start + count[d] - 1, shift - 8, depth + 1);
+          start += count[d];
+        }
+      };
+      go(0, a.length - 1, 24, 0);
+    };
+    const SORTS = { insertion, merge, quick, lsd, msd: msdWith(0), msdCut: msdWith(16) };
 
     /* 시드가 있는 난수라 같은 입력으로 다시 잰다. */
     function makeInput(n, order) {
@@ -280,10 +339,15 @@ const algos = ['insertion', 'merge', 'quick', 'lsd'];
       }
       const lsdBig = res[`lsd:${sizes[3]}`];
       const lsdPrev = res[`lsd:${sizes[2]}`];
-      if (lsdBig && lsdPrev) {
+      const hasMsd = algos.includes('msd');
+      const msdBig = res[`msd:${sizes[3]}`];
+      const cutBig = res[`msdCut:${sizes[3]}`];
+      if (hasMsd && lsdBig && msdBig && cutBig) {
+        setLines(note, join(fill(S.doneMsd, { l: fmt(lsdBig.ms), m: fmt(msdBig.ms), c: fmt(cutBig.ms) }), S.orderMsd, hasDagger ? S.dagger : ''));
+      } else if (!hasMsd && lsdBig && lsdPrev) {
         setLines(note, join(fill(S.done, { r: (lsdBig.ms / lsdPrev.ms).toFixed(1) }), S.order, hasDagger ? S.dagger : ''));
       } else {
-        setLines(note, S.idle);
+        setLines(note, hasMsd ? S.idleMsd : S.idle);
       }
       root.querySelectorAll('[data-rr-order]').forEach((b) => b.classList.toggle('is-on', b.dataset.rrOrder === order));
     }
@@ -417,6 +481,10 @@ const algos = ['insertion', 'merge', 'quick', 'lsd'];
     background: color-mix(in srgb, var(--aas-role-eval) 14%, transparent);
     font-weight: 700;
   }
+  .aas-runtime-race-demo.aas-runtime-race-demo tr:is([data-rr-row='msd'], [data-rr-row='msdCut']) td {
+    background: color-mix(in srgb, var(--aas-role-focus) 12%, transparent);
+    font-weight: 700;
+  }
   .aas-runtime-race-demo .rr-chart {
     margin-top: 0.35em;
   }
@@ -435,6 +503,10 @@ const algos = ['insertion', 'merge', 'quick', 'lsd'];
   .aas-runtime-race-demo .rr-chartline span {
     color: var(--aas-muted);
   }
+  /* 이름이 길어져도 막대의 시작점이 줄마다 같도록 고정한다. */
+  .aas-runtime-race-demo.has-msd .rr-chartline {
+    grid-template-columns: 12em 1fr;
+  }
   .aas-runtime-race-demo .rr-track {
     height: 0.85em;
   }
@@ -448,6 +520,9 @@ const algos = ['insertion', 'merge', 'quick', 'lsd'];
   }
   .aas-runtime-race-demo .rr-track i[data-rr-bar='lsd'] {
     background: var(--aas-role-eval);
+  }
+  .aas-runtime-race-demo .rr-track i:is([data-rr-bar='msd'], [data-rr-bar='msdCut']) {
+    background: var(--aas-role-focus);
   }
   .aas-runtime-race-demo .rr-note {
     margin: 0.5em 0 0;
