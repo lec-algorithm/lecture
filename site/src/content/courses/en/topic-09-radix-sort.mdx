@@ -414,6 +414,28 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 The indentation is the recursion depth. There are only two calls, and the
 second looks at just six elements.
 
+### Is stability required? \{#msd-stable}
+
+[LSD has to be stable on every pass](#lsd-stable), because each pass inherits
+the order the previous one built. MSD is different. Buckets are already in
+their final order and never mix again, and the order inside a bucket is decided
+afresh by the next digit. Whether bucket 0 after the hundreds digit reads
+`045 075 090 002 024 066` or `066 002 090 024 075 045`, splitting by the tens
+digit gives the same result.
+
+So MSD still puts the values in order even if it splits into buckets with an
+unstable method. Keeping the original order of equal keys is another matter.
+When a key carries other data, as in `(score, name)`, every step must be stable
+for records with the same score to stay in input order.
+
+| | For the values to end up sorted | To also keep equal keys in order |
+| --- | --- | --- |
+| LSD | Stability required | Stability required |
+| MSD | Not needed | Stability required |
+
+The procedure above uses a stable counting sort, so it keeps equal keys in
+order as well.
+
 ### On strings \{#msd-strings}
 
 MSD suits strings of different lengths. Split by the first character, split
@@ -497,7 +519,9 @@ sort, the value range).
 
 The top five are comparison sorts, the bottom three non-comparison sorts.
 MSD's worst case counts only the cost of reading digits. As we saw in the
-[analysis](#msd-analysis), each recursive call adds another $$O(k)$$.
+[analysis](#msd-analysis), each recursive call adds another $$O(k)$$. MSD is listed as stable because this
+implementation uses a stable counting sort;
+[sorting the values does not require it](#msd-stable).
 
 ## Example 3. Suffix arrays \{#suffix-array}
 
@@ -1300,7 +1324,8 @@ last finishes first: LIFO. To write MSD without recursion, push and pop the
   implement.
 - **MSD**: split into buckets from the highest digit and recurse only on
   buckets with two or more elements. It stops reading once keys split, so it
-  suits variable-length keys, but each call costs $$O(k)$$.
+  suits variable-length keys, but each call costs $$O(k)$$. Sorting the values
+  does not require stability.
 - Radix sort never compares, so it lies **outside the premise** of the
   $$\Omega(n \log n)$$ lower bound. With a fixed digit count it is $$O(n)$$.
 - **Suffix array**: the array of starting positions of all suffixes, sorted.
