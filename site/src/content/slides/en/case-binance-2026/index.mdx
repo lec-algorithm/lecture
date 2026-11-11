@@ -1,0 +1,273 @@
+---
+title: "Case study · The Binance hack (2026)"
+description: "How $6.3 billion left through a path that began with a fake job interview, and what developers must protect"
+order: 200
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import AttackTimelineDemo from '@components/AttackTimelineDemo.astro';
+import RunWhereDemo from '@components/RunWhereDemo.astro';
+import NonceRaceDemo from '@components/NonceRaceDemo.astro';
+import DefenseChainDemo from '@components/DefenseChainDemo.astro';
+
+{/* Facts are limited to what reporting up to Nov 10, 2026 confirms. Sources are on the last slide. */}
+
+<Slide class="cover">
+
+# Case study · The Binance hack
+
+*October 29, 2026: $6.3 billion in 20 minutes*
+
+</Slide>
+
+<Slide>
+
+## At a glance
+::sub[Figures differ slightly between reports and analysts]
+
+| Item | Details |
+| --- | --- |
+| When | From 20:05 UTC on October 29, 2026, mostly within about 20 minutes |
+| Size | About $6.3 billion (TRM Labs $6.36B, Elliptic $6.43B) |
+| Where | Hot wallets on 10 blockchains |
+| Entry | A tampered installer in June, a fake job interview in September |
+| Attribution | The FBI named North Korea (TraderTraitor); North Korea denies it |
+| Recovery | About $2.85 billion frozen or blocked; Binance covers the losses |
+
+</Slide>
+
+<Slide>
+
+## The blockchain was not broken
+::sub[What failed was people, developer machines, and the links between permissions]
+
+- **Neither cryptography nor the blockchain protocol was broken.**
+  - There is no evidence that a private key leaked.
+- **It started on one developer's computer.**
+  - One installer and one interview task were the way in.
+- **Linked permissions led all the way to the signing system.**
+  - An internal AI tool, a deployment token, then the signing service.
+
+</Slide>
+
+<Slide>
+
+### Step by step: a five-month attack
+::sub[Press Next or click a cell in the strip · colors mark entry, expansion, theft, and response]
+
+<AttackTimelineDemo slide />
+
+</Slide>
+
+<Slide>
+
+## Stage 1: looking for an AI tool
+::sub[June 2026]
+
+- **A wallet development and operations engineer was looking for an AI coding tool.**
+  - The installer found through a search had been tampered with.
+- **The security team detected anomalies and replaced the device.**
+  - Detection itself worked.
+- **But the information had already left.**
+  - The work and roles of the engineer and colleagues were exposed to the attacker.
+  - In effect, it became the next target list.
+
+</Slide>
+
+<Slide>
+
+## Stage 2: a fake job interview
+::sub[September 2026]
+
+- **The target was an engineer who listed Binance on a job platform.**
+  - Someone posing as a project director at a well-known company reached out to them.
+- **There were two interviews, both with impersonators.**
+  - They posed as HR and the CEO, with photos on their accounts.
+- **The engineer ran the coding-test repository on a work computer.**
+  - Endpoint security did not detect the malware inside.
+
+</Slide>
+
+<Slide>
+
+## What "zero-day malware" means here
+::sub[Reading the reported wording carefully]
+
+- **A zero-day vulnerability is one the vendor does not know about yet, or has no patch for.**
+  - Zero days are left before a fix.
+- **In this case, "zero-day" means malware nobody had seen before.**
+  - It was not on any security product's detection list, so it passed straight through.
+  - No vulnerability ID (CVE) has been published.
+- **A person opened the door.**
+  - The victim ran the task code himself.
+  - That is why detection tools alone struggle to stop it.
+
+</Slide>
+
+<Slide>
+
+### Try it: where should I run code I was sent?
+::sub[Pick an environment; what malicious code could reach turns red]
+
+<RunWhereDemo slide />
+
+</Slide>
+
+<Slide>
+
+## Stage 3: sideways through an internal AI tool
+::sub[October 20 to 29]
+
+- **From the compromised computer, the attacker used an internal AI tool.**
+  - Through it, they took over two other engineers' computers.
+- **One of them held a container deployment token.**
+  - On October 29, the attacker deployed a container with these credentials.
+- **That reached the internal wallet signing service.**
+  - Signatures could now skip the normal withdrawal process.
+
+</Slide>
+
+<Slide>
+
+## EIP-7702: delegating code to a wallet
+::sub[A feature added in Ethereum's 2025 upgrade]
+
+- **An ordinary wallet (EOA) has no code.**
+  - It only sends transactions its key owner signs.
+- **EIP-7702 lets a wallet delegate to contract code that runs on its behalf.**
+  - It was built for conveniences such as batched payments and sponsored fees.
+- **The attacker delegated a hot wallet to a sweeper contract.**
+  - Even funds arriving later were swept to the attacker.
+- **Undoing a delegation takes another signature from the wallet key.**
+  - The wallet used multiparty computation (MPC), so no single key could revoke it; it took about 4 hours.
+
+</Slide>
+
+<Slide>
+
+### Try it: fifty delegations
+::sub[Raise the pre-signed delegations to 50 · in reality, of 50 starting at 18,914,775, only 18,914,809 applied]
+
+<NonceRaceDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 20 minutes, 10 chains
+::sub[From 20:05 UTC on October 29]
+
+- **Preparation was done the day before.**
+  - Three small Tornado Cash withdrawals paid for fees.
+  - The code was tested on two wallets and rehearsed on a third.
+- **Starting with XRP, most assets left in about 20 minutes.**
+  - About 233 million XRP, about 18,270 BTC, about 970,000 SOL
+  - About 1.875 billion USDT and 823 million USDC on Ethereum, among others
+- **The Ethereum hot wallet was emptied in under 4 minutes.**
+
+</Slide>
+
+<Slide>
+
+## Laundering versus freezing
+::sub[Swapping before the issuers can freeze]
+
+- **Stablecoin issuers can freeze tokens.**
+  - Tether froze about 1.77 billion USDT and Circle about 825 million USDC.
+- **The attacker tried to swap into ETH before the freezes.**
+  - About 150 tokens were sold for ETH on decentralized exchanges.
+  - USDT was deposited in the lending protocol Aave to borrow ETH.
+- **Funds were scattered across more than 800 addresses.**
+  - A path mixing them with funds from an earlier Bitget exploit was also found.
+
+</Slide>
+
+<Slide>
+
+## Response
+::sub[October 30 to November 3]
+
+- **About $2.85 billion was frozen or blocked.**
+  - That is about 44% of the loss.
+- **Binance absorbed the losses.**
+  - Its user protection fund (SAFU) and company funds replenished about 98%.
+- **Withdrawals reopened in phases from November 1.**
+  - In the 9 hours after reopening, net outflows were about $3.6 billion.
+- **The FBI named North Korea on October 31; North Korea denied it.**
+
+</Slide>
+
+<Slide>
+
+### Try it: where could the chain have been cut?
+::sub[Turn on defenses to see which stage breaks and which loses less · whether they would really have stopped it is unknown]
+
+<DefenseChainDemo slide />
+
+</Slide>
+
+<Slide>
+
+## What we must not do
+::sub[The same for students and employees]
+
+- **Do not do personal things on work devices.**
+  - Job hunting, interview tasks, and personal downloads stay off work devices.
+- **Do not stay signed in to work or school accounts on personal devices.**
+- **Do not run code of unknown origin directly on your machine.**
+  - Interview tasks, unfamiliar repositories, and files sent over chat all count.
+- **Do not download installers from search result links.**
+  - Check the official site and the official package name yourself.
+- **Do not leave tokens and keys in files, chats, or shell history.**
+
+</Slide>
+
+<Slide>
+
+## What we must do
+::sub[So that if one layer fails, the next one stops it]
+
+- **Separate work and personal.**
+  - If separate devices are hard, at least separate accounts and browser profiles.
+- **Run unknown code in a disposable environment.**
+  - This course's lab environment (Codespaces, containers) is exactly that.
+- **Sign in with phishing-resistant methods such as hardware security keys.**
+- **Give AI tools and tokens only the permissions they need.**
+  - Narrow the scope and keep expiry short.
+- **Report anything odd right away.**
+  - Like the June detection, reporting early is what lets the next stage be cut.
+
+</Slide>
+
+<Slide>
+
+## When a recruiter contacts you
+::sub[The situation that opened this case]
+
+- **Verify in reverse through the company's official careers page and email domain.**
+  - Do not trust a profile photo and work history alone.
+- **Be suspicious of tasks that say "run this code".**
+  - If it must run, run it only in a disposable environment.
+- **Do not share internal details about your current employer.**
+  - Team structure, systems you own, and tools you use are all information.
+- **Do not interview with work devices or accounts.**
+
+</Slide>
+
+<Slide>
+
+## Sources
+::sub[Reporting and analysis up to November 10, 2026]
+
+- [CoinDesk: Binance's $6.3 billion hack began with a fake job interview (Nov 3)](https://www.coindesk.com/business/2026/11/03/binance-s-usd6-3-billion-hack-began-with-a-fake-job-interview-exchange-says)
+- [CoinDesk: How one Ethereum permission let an attacker drain Binance (Oct 30)](https://www.coindesk.com/tech/2026/10/30/here-s-how-one-ethereum-permission-let-an-attacker-drain-usd2-5-billion-from-binance)
+- [ZDNet Korea: The Binance hack began with a fake job interview (Nov 4, Korean)](https://zdnet.co.kr/view/?no=20261104094357)
+- [Digital Daily: Binance says North Korean hackers ran a five-month attack (Nov 4, Korean)](https://www.ddaily.co.kr/page/view/2026110405435518640)
+- [TRM Labs: North Korea steals USD 6.36 billion from Binance](https://www.trmlabs.com/resources/blog/north-korea-steals-usd-6-36-billion-from-binance-in-the-largest-hack-in-history)
+- [Elliptic: The largest theft in history](https://www.elliptic.co/insights/binance-largest-hack-in-history/)
+- [Wikipedia: 2026 Binance hack](https://en.wikipedia.org/wiki/2026_Binance_hack)
+
+</Slide>

@@ -1,0 +1,191 @@
+---
+// 미리 서명한 위임이 몇 개 있어야 "맞는 순번"에 걸리는지 보는 데모.
+//
+// EIP-7702 위임 서명에는 지갑의 순번(nonce)이 들어가고, 체인에 반영되는 순간의 지갑 순번과 같을
+// 때만 적용된다. 맞지 않는 위임은 거래를 실패시키지 않고 건너뛴다. 핫월렛은 정상 출금으로 순번이
+// 계속 오르므로, 서명 하나는 제출할 즈음이면 이미 낡아 있다. 연속된 순번으로 여러 개를 미리 만들어
+// 한 거래에 넣으면 그중 하나가 맞는다. TRM Labs가 보고한 50개가 이 원리다.
+// 첫 순번 18,914,775는 보도된 실제 값이고, 블록마다 순번이 오르는 양은 정해 둔 수열로 흉내 낸 것이다.
+// 기본값에서 50개로 늘리면 실제 사건처럼 18,914,809가 맞는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `nr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '미리 서명한 위임과 지갑 순번',
+    count: '미리 서명한 위임 수',
+    delay: '서명한 뒤 제출까지 지난 블록 수',
+    start: '서명할 때 지갑 순번',
+    now: '제출할 때 지갑 순번',
+    hit: '순번 {n}의 위임이 맞아 적용됩니다. 나머지 {r}개는 건너뜁니다.',
+    miss: '맞는 순번이 없어 모두 건너뜁니다. 그사이 정상 출금이 순번을 {g}까지 올렸습니다.',
+    rule: '위임은 지갑 순번이 서명 속 순번과 같을 때만 적용되고, 맞지 않으면 실패하지 않고 건너뜁니다.',
+  },
+  en: {
+    title: 'Pre-signed delegations and the wallet nonce',
+    count: 'Pre-signed delegations',
+    delay: 'Blocks between signing and submitting',
+    start: 'Wallet nonce at signing',
+    now: 'Wallet nonce at submission',
+    hit: 'The delegation for nonce {n} matches and applies. The other {r} are skipped.',
+    miss: 'No nonce matches, so all are skipped. Normal withdrawals pushed the nonce to {g} in the meantime.',
+    rule: 'A delegation applies only when the wallet nonce equals the nonce inside it; otherwise it is skipped, not failed.',
+  },
+  zh: {
+    title: '预先签好的委托与钱包序号',
+    count: '预先签好的委托数',
+    delay: '签名后到提交经过的区块数',
+    start: '签名时的钱包序号',
+    now: '提交时的钱包序号',
+    hit: '序号 {n} 的委托匹配并生效，其余 {r} 个被跳过。',
+    miss: '没有匹配的序号，全部被跳过。这期间正常提现已把序号推到 {g}。',
+    rule: '只有钱包序号与委托里的序号相同时委托才生效；不相同时不会失败，而是被跳过。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-nonce-race-demo', slide && 'is-slide']} id={id} data-nr-strings={JSON.stringify(t)}>
+  <div class="nr-head"><strong>{t.title}</strong></div>
+  <div class="nr-sets">
+    <label><span>{t.count}: <b data-nr-kv></b></span><input type="range" min="1" max="60" value="1" data-nr-k /></label>
+    <label><span>{t.delay}: <b data-nr-dv></b></span><input type="range" min="0" max="30" value="19" data-nr-d /></label>
+  </div>
+  <div class="nr-line">
+    <span>{t.start} <strong data-nr-s></strong></span>
+    <span>{t.now} <strong data-nr-g></strong></span>
+  </div>
+  <div class="nr-strip" data-nr-strip></div>
+  <p class="nr-note" data-nr-note></p>
+  <p class="nr-rule">{t.rule}</p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.nrStrings);
+    const fill = (tpl, v) => tpl.replace(/\{(\w+)\}/g, (_, k) => v[k]);
+    const num = (x) => x.toLocaleString('en-US');
+    /* 서명 속 첫 순번은 보도된 실제 값(CoinDesk)이다. 18,914,775부터 50개 중 18,914,809가 적용됐다. */
+    const START = 18914775;
+    /* 블록마다 정상 출금이 순번을 올리는 양. 정해 둔 수열이다. */
+    const STEP = [2, 1, 3, 0, 2, 2, 1, 4, 1, 2, 3, 1, 0, 2, 3, 2, 1, 1, 3, 2, 2, 0, 1, 3, 2, 1, 2, 2, 3, 1];
+    const kIn = root.querySelector('[data-nr-k]');
+    const dIn = root.querySelector('[data-nr-d]');
+    const strip = root.querySelector('[data-nr-strip]');
+    function render() {
+      const k = Number(kIn.value);
+      const d = Number(dIn.value);
+      const now = START + STEP.slice(0, d).reduce((a, b) => a + b, 0);
+      root.querySelector('[data-nr-kv]').textContent = String(k);
+      root.querySelector('[data-nr-dv]').textContent = String(d);
+      root.querySelector('[data-nr-s]').textContent = num(START);
+      root.querySelector('[data-nr-g]').textContent = num(now);
+      strip.replaceChildren(
+        ...Array.from({ length: k }, (_, i) => {
+          const cell = document.createElement('span');
+          cell.className = 'nr-cell';
+          cell.textContent = num(START + i);
+          if (START + i === now) cell.classList.add('is-hit');
+          else if (START + i < now) cell.classList.add('is-old');
+          return cell;
+        }),
+      );
+      const hit = now < START + k;
+      root.querySelector('[data-nr-note]').textContent = hit ? fill(S.hit, { n: num(now), r: k - 1 }) : fill(S.miss, { g: num(now) });
+      root.classList.toggle('is-hit', hit);
+    }
+    kIn.addEventListener('input', render);
+    dIn.addEventListener('input', render);
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-nonce-race-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-nonce-race-demo .nr-head {
+    font-size: 0.95em;
+    margin-bottom: 0.6em;
+  }
+  .aas-nonce-race-demo .nr-sets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4em 1.5em;
+    font-size: 0.85em;
+  }
+  .aas-nonce-race-demo .nr-sets label {
+    display: grid;
+    gap: 0.2em;
+  }
+  .aas-nonce-race-demo .nr-sets b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-nonce-race-demo .nr-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 2em;
+    margin: 0.8em 0 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-nonce-race-demo .nr-line strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-nonce-race-demo .nr-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em;
+    min-height: 1.6em;
+  }
+  .aas-nonce-race-demo .nr-cell {
+    padding: 0.05em 0.3em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.62em;
+    border: 1px solid var(--aas-role-model);
+    border-radius: 0.25em;
+    background: var(--aas-bg);
+  }
+  .aas-nonce-race-demo .nr-cell.is-old {
+    border-color: var(--aas-border);
+    color: var(--aas-muted);
+    text-decoration: line-through;
+  }
+  .aas-nonce-race-demo .nr-cell.is-hit {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-nonce-race-demo .nr-note {
+    margin: 0.7em 0 0;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-nonce-race-demo.is-hit .nr-note {
+    color: var(--aas-role-guard);
+  }
+  .aas-nonce-race-demo .nr-rule {
+    margin: 0.3em 0 0;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-nonce-race-demo.is-slide {
+    font-size: clamp(1rem, min(2.75vh, 1.9vw), 1.85rem);
+    margin: 0.5rem 0;
+  }
+</style>

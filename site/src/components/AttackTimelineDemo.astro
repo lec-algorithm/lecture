@@ -1,0 +1,280 @@
+---
+// 2026년 10월 바이낸스 해킹을 시간순으로 한 단계씩 넘겨 보는 데모.
+//
+// 단계마다 언제, 무엇이 일어났는지, 공격자가 그 단계에서 얻은 것, 근거가 된 보도를 보인다. 위쪽 띠는
+// 전체 단계이고 지금 단계가 칠해진다. 내용은 바이낸스의 11월 3일 보고서를 전한 기사(CoinDesk, ZDNet
+// Korea, 디지털데일리)와 TRM Labs, Elliptic의 분석에서 확인한 것만 담았다. 출처마다 수치가 다른
+// 곳은 범위나 출처를 함께 적었다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `at-${Math.random().toString(36).slice(2, 9)}`;
+
+type Step = { when: string; title: string; body: string; gain: string; src: string; kind: 'in' | 'move' | 'hit' | 'after' };
+const STEPS: Record<string, Step[]> = {
+  ko: [
+    { kind: 'in', when: '2026년 6월', title: 'AI 도구를 찾다가 받은 설치 파일', body: '지갑 개발·운영 엔지니어가 AI 코딩 도구를 찾다가 변조된 설치 패키지를 실행했습니다. 보안팀이 이상을 탐지해 기기를 교체했습니다.', gain: '그와 동료들의 업무·역할 정보 (다음 표적의 목록)', src: 'CoinDesk, ZDNet Korea, 디지털데일리' },
+    { kind: 'in', when: '2026년 9월', title: '가짜 채용 면접과 코딩 과제', body: '구직 플랫폼에 바이낸스 경력을 올린 다른 엔지니어에게 프로젝트 디렉터를 사칭해 접근했습니다. 인사 담당자와 CEO를 사칭한 면접이 두 번 이어졌고, 코딩 과제로 받은 저장소를 업무용 PC에서 실행했습니다.', gain: '사내 PC 한 대. 엔드포인트 보안이 탐지하지 못했습니다', src: 'CoinDesk, ZDNet Korea, 디지털데일리' },
+    { kind: 'move', when: '10월 20일', title: '사내 AI 도구를 거쳐 옆으로', body: '장악한 PC에서 사내 AI 도구를 이용해 다른 엔지니어 두 명의 PC를 장악했습니다.', gain: '컨테이너 배포 권한 토큰', src: 'CoinDesk, 디지털데일리' },
+    { kind: 'move', when: '10월 28일', title: '작업 자금 준비', body: '토네이도 캐시(믹서)에서 소액을 세 번 인출해 작업용 지갑을 채웠습니다.', gain: '출처를 감춘 수수료 자금', src: 'TRM Labs (Phoenix Security 인용)' },
+    { kind: 'move', when: '10월 29일 오후', title: '리허설', body: '스위퍼 컨트랙트를 배포해 테스트 지갑 두 개에서 시험하고, 세 번째에서 최종 리허설을 했습니다. 약 16:00 UTC, 본 공격 약 4시간 전입니다.', gain: '검증된 공격 코드', src: 'CoinDesk, TRM Labs' },
+    { kind: 'move', when: '10월 29일', title: '서명 서비스 접근', body: '탈취한 자격 증명으로 컨테이너를 배포해 사내 지갑 서명 서비스에 접근했습니다. 개인 키가 유출된 증거는 없습니다.', gain: '정상 출금 절차를 거치지 않는 서명', src: 'CoinDesk, 디지털데일리, Phoenix Security' },
+    { kind: 'hit', when: '20:05 UTC', title: '20분, 10개 체인', body: 'XRP부터 시작해 약 20분 동안 10개 블록체인에서 대부분의 자산이 빠져나갔습니다.', gain: '약 63억 달러 (출처에 따라 63억\\~64억 달러)', src: 'TRM Labs, Elliptic, Wikipedia' },
+    { kind: 'hit', when: '20:20 UTC', title: '위임 50개, 하나만 적용', body: 'EIP-7702 위임 서명 50개를 한 거래에 넣었습니다. 순번 18,914,809 하나만 맞아 이더리움 핫월렛이 스위퍼 컨트랙트를 실행하게 됐고, 4분이 안 되어 비워졌습니다.', gain: '들어오는 자금까지 쓸어 가는 지갑', src: 'CoinDesk' },
+    { kind: 'hit', when: '30일 00:10 UTC', title: '위임 해제까지 약 4시간', body: '핫월렛이 다자간 연산(MPC)으로 관리되어 키 하나로 위임을 해제할 수 없었습니다. 그사이 새로 들어온 자금도 다시 쓸려 나갔습니다.', gain: '약 4시간의 추가 이동', src: 'CoinDesk' },
+    { kind: 'after', when: '10월 30일\\~11월 3일', title: '동결과 보전', body: '테더·서클 등이 스테이블코인을 동결해 약 28억 5천만 달러를 막았습니다. FBI가 북한을 지목했고(31일), 북한은 부인했습니다. 출금은 11월 1일부터 단계적으로 재개됐고, 바이낸스는 손실을 전액 부담한다고 밝혔습니다.', gain: '공격자에게 남은 것은 동결을 피한 자산', src: 'Elliptic, TRM Labs, Wikipedia, CoinDesk' },
+  ],
+  en: [
+    { kind: 'in', when: 'June 2026', title: 'An installer found while looking for an AI tool', body: 'A wallet development and operations engineer ran a tampered installer while looking for an AI coding tool. The security team detected anomalies and replaced the device.', gain: 'Work and role information about the engineer and colleagues (the next target list)', src: 'CoinDesk, ZDNet Korea, Digital Daily' },
+    { kind: 'in', when: 'September 2026', title: 'A fake job interview and coding test', body: 'Another engineer, who listed Binance on a job platform, was approached by someone posing as a project director. Two interviews with people posing as HR and the CEO followed, and the engineer ran the coding-test repository on a work computer.', gain: 'One company computer. Endpoint security did not detect it', src: 'CoinDesk, ZDNet Korea, Digital Daily' },
+    { kind: 'move', when: 'Oct 20', title: 'Sideways through an internal AI tool', body: 'From the compromised computer, the attacker used an internal AI tool to take over two other engineers\' computers.', gain: 'A container deployment token', src: 'CoinDesk, Digital Daily' },
+    { kind: 'move', when: 'Oct 28', title: 'Funding the operation', body: 'Three small withdrawals from Tornado Cash (a mixer) funded the operator wallet.', gain: 'Fee money with its origin hidden', src: 'TRM Labs (cited by Phoenix Security)' },
+    { kind: 'move', when: 'Oct 29, afternoon', title: 'Rehearsal', body: 'A sweeper contract was deployed, tested on two wallets, and rehearsed on a third. Around 16:00 UTC, about 4 hours before the main attack.', gain: 'Tested attack code', src: 'CoinDesk, TRM Labs' },
+    { kind: 'move', when: 'Oct 29', title: 'Reaching the signing service', body: 'With stolen credentials, the attacker deployed a container and reached the internal wallet signing service. There is no evidence that a private key leaked.', gain: 'Signatures that skip the normal withdrawal process', src: 'CoinDesk, Digital Daily, Phoenix Security' },
+    { kind: 'hit', when: '20:05 UTC', title: '20 minutes, 10 chains', body: 'Starting with XRP, most assets left from 10 blockchains in about 20 minutes.', gain: 'About $6.3 billion ($6.3B to $6.4B depending on the source)', src: 'TRM Labs, Elliptic, Wikipedia' },
+    { kind: 'hit', when: '20:20 UTC', title: '50 delegations, one applied', body: 'Fifty EIP-7702 delegation signatures went into one transaction. Only nonce 18,914,809 matched, so the Ethereum hot wallet began running the sweeper contract and was emptied in under 4 minutes.', gain: 'A wallet that sweeps even incoming funds', src: 'CoinDesk' },
+    { kind: 'hit', when: 'Oct 30, 00:10 UTC', title: 'About 4 hours to revoke', body: 'The hot wallet was managed with multiparty computation (MPC), so no single key could revoke the delegation. Funds that arrived meanwhile were swept again.', gain: 'About 4 more hours of movement', src: 'CoinDesk' },
+    { kind: 'after', when: 'Oct 30 to Nov 3', title: 'Freezes and compensation', body: 'Tether, Circle, and others froze stablecoins, blocking about $2.85 billion. The FBI attributed the attack to North Korea (Oct 31), which denied it. Withdrawals resumed in phases from Nov 1, and Binance said it would cover all losses.', gain: 'What the attacker kept is what escaped the freezes', src: 'Elliptic, TRM Labs, Wikipedia, CoinDesk' },
+  ],
+  zh: [
+    { kind: 'in', when: '2026 年 6 月', title: '找 AI 工具时下载的安装包', body: '一名钱包开发运维工程师在寻找 AI 编程工具时运行了被篡改的安装包。安全团队发现异常并更换了设备。', gain: '这名工程师和同事的工作与职责信息（下一批目标的名单）', src: 'CoinDesk、ZDNet Korea、数字日报' },
+    { kind: 'in', when: '2026 年 9 月', title: '假招聘面试与编程题', body: '另一名在求职平台上写了币安经历的工程师，被冒充项目总监的人接触。之后进行了两次由冒充人事和 CEO 的人主持的面试，这名工程师在工作电脑上运行了作为编程题收到的仓库。', gain: '公司电脑一台。终端安全没有检测到', src: 'CoinDesk、ZDNet Korea、数字日报' },
+    { kind: 'move', when: '10 月 20 日', title: '经由内部 AI 工具横向移动', body: '攻击者从已控制的电脑出发，利用内部 AI 工具控制了另外两名工程师的电脑。', gain: '容器部署权限令牌', src: 'CoinDesk、数字日报' },
+    { kind: 'move', when: '10 月 28 日', title: '准备作业资金', body: '从 Tornado Cash（混币器）分三次提取小额资金，充入作业用钱包。', gain: '隐藏了来源的手续费资金', src: 'TRM Labs（Phoenix Security 引用）' },
+    { kind: 'move', when: '10 月 29 日下午', title: '演练', body: '部署清扫（sweeper）合约，在两个测试钱包上试验，在第三个上做最终演练。约 16:00 UTC，正式攻击前约 4 小时。', gain: '验证过的攻击代码', src: 'CoinDesk、TRM Labs' },
+    { kind: 'move', when: '10 月 29 日', title: '进入签名服务', body: '用窃取的凭证部署容器，进入内部钱包签名服务。没有证据表明私钥泄露。', gain: '绕过正常提现流程的签名', src: 'CoinDesk、数字日报、Phoenix Security' },
+    { kind: 'hit', when: '20:05 UTC', title: '20 分钟，10 条链', body: '从 XRP 开始，约 20 分钟内大部分资产从 10 条区块链流出。', gain: '约 63 亿美元（依来源为 63 亿至 64 亿美元）', src: 'TRM Labs、Elliptic、Wikipedia' },
+    { kind: 'hit', when: '20:20 UTC', title: '50 个委托，只生效一个', body: '把 50 个 EIP-7702 委托签名放进一笔交易。只有序号 18,914,809 匹配，以太坊热钱包开始执行清扫合约，不到 4 分钟就被清空。', gain: '连转入的资金也一并扫走的钱包', src: 'CoinDesk' },
+    { kind: 'hit', when: '30 日 00:10 UTC', title: '解除委托用了约 4 小时', body: '热钱包用多方计算（MPC）管理，无法用单个密钥解除委托。这期间新转入的资金又被扫走。', gain: '约 4 小时的额外转移', src: 'CoinDesk' },
+    { kind: 'after', when: '10 月 30 日至 11 月 3 日', title: '冻结与赔付', body: 'Tether、Circle 等冻结稳定币，拦下约 28.5 亿美元。FBI 指认朝鲜（31 日），朝鲜否认。提现从 11 月 1 日起分阶段恢复，币安表示全额承担损失。', gain: '攻击者留下的是躲过冻结的资产', src: 'Elliptic、TRM Labs、Wikipedia、CoinDesk' },
+  ],
+};
+const UI: Record<string, Record<string, string>> = {
+  ko: { title: '바이낸스 해킹, 한 단계씩', back: '뒤로', step: '다음', reset: '처음으로', gain: '공격자가 얻은 것', src: '출처', in: '침투', move: '확장·준비', hit: '탈취', after: '수습' },
+  en: { title: 'The Binance hack, step by step', back: 'Back', step: 'Next', reset: 'Reset', gain: 'What the attacker gained', src: 'Sources', in: 'Entry', move: 'Expansion', hit: 'Theft', after: 'Response' },
+  zh: { title: '币安黑客事件，一步一步', back: '后退', step: '下一步', reset: '重置', gain: '攻击者得到的', src: '来源', in: '入侵', move: '扩展与准备', hit: '盗取', after: '善后' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const steps = (STEPS[lang] ?? STEPS.ko).map((s) => ({ ...s, when: s.when.replace(/\\~/g, '~'), gain: s.gain.replace(/\\~/g, '~') }));
+const u = UI[lang] ?? UI.ko;
+---
+
+<div class:list={['aas-attack-timeline-demo', slide && 'is-slide']} id={id} data-at-steps={JSON.stringify(steps)}>
+  <div class="at-bar">
+    <span class="at-head"><strong>{u.title}</strong></span>
+    <div class="at-controls">
+      <button type="button" data-act="back" class="at-btn">{u.back}</button>
+      <button type="button" data-act="step" class="at-btn at-btn-primary">{u.step}</button>
+      <button type="button" data-act="reset" class="at-btn">{u.reset}</button>
+    </div>
+  </div>
+  <ol class="at-strip">
+    {steps.map((s, i) => (
+      <li class:list={['at-dot', `is-${s.kind}`]} data-at-dot={i}>
+        <button type="button" aria-label={s.title}><span>{s.when}</span></button>
+      </li>
+    ))}
+  </ol>
+  <div class="at-legend">
+    {(['in', 'move', 'hit', 'after'] as const).map((k) => <span class:list={['at-key', `is-${k}`]}>{u[k]}</span>)}
+  </div>
+  <div class="at-card">
+    <p class="at-when" data-at-when></p>
+    <p class="at-title" data-at-title></p>
+    <p class="at-body" data-at-body></p>
+    <p class="at-gain"><b>{u.gain}</b> <span data-at-gain></span></p>
+    <p class="at-src">{u.src}: <span data-at-src></span></p>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const steps = JSON.parse(root.dataset.atSteps);
+    const dots = [...root.querySelectorAll('[data-at-dot]')];
+    let at = 0;
+    const set = (sel, text) => (root.querySelector(sel).textContent = text);
+    function render() {
+      const s = steps[at];
+      dots.forEach((d, i) => {
+        d.classList.toggle('is-now', i === at);
+        d.classList.toggle('is-past', i < at);
+      });
+      set('[data-at-when]', s.when);
+      set('[data-at-title]', s.title);
+      set('[data-at-body]', s.body);
+      set('[data-at-gain]', s.gain);
+      set('[data-at-src]', s.src);
+      root.dataset.kind = s.kind;
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      at = Math.max(0, at - 1);
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      at = Math.min(steps.length - 1, at + 1);
+      render();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      at = 0;
+      render();
+    });
+    dots.forEach((d, i) =>
+      d.querySelector('button').addEventListener('click', () => {
+        at = i;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-attack-timeline-demo {
+    --at-in: var(--aas-role-tool);
+    --at-move: var(--aas-role-trace);
+    --at-hit: var(--aas-role-guard);
+    --at-after: var(--aas-role-source);
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-attack-timeline-demo .at-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-attack-timeline-demo .at-head {
+    font-size: 0.95em;
+  }
+  .aas-attack-timeline-demo .at-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-attack-timeline-demo .at-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-attack-timeline-demo .at-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-attack-timeline-demo .at-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-attack-timeline-demo .at-strip {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 0.25em;
+    margin: 0.9em 0 0.3em;
+    padding: 0;
+    list-style: none;
+  }
+  .aas-attack-timeline-demo .at-dot {
+    margin: 0;
+  }
+  .aas-attack-timeline-demo .at-dot button {
+    width: 100%;
+    min-height: 2.6em;
+    padding: 0.2em 0.15em;
+    border: 1.5px solid var(--at-c, var(--aas-border));
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+    font-size: 0.6em;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  .aas-attack-timeline-demo .at-dot.is-in { --at-c: var(--at-in); }
+  .aas-attack-timeline-demo .at-dot.is-move { --at-c: var(--at-move); }
+  .aas-attack-timeline-demo .at-dot.is-hit { --at-c: var(--at-hit); }
+  .aas-attack-timeline-demo .at-dot.is-after { --at-c: var(--at-after); }
+  .aas-attack-timeline-demo .at-dot.is-past button {
+    background: color-mix(in srgb, var(--at-c) 12%, var(--aas-bg));
+  }
+  .aas-attack-timeline-demo .at-dot.is-now button {
+    background: color-mix(in srgb, var(--at-c) 32%, var(--aas-bg));
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-attack-timeline-demo .at-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 1em;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-attack-timeline-demo .at-key::before {
+    content: '';
+    display: inline-block;
+    width: 0.8em;
+    height: 0.8em;
+    margin-right: 0.35em;
+    vertical-align: -0.1em;
+    border-radius: 0.2em;
+    background: var(--at-c);
+  }
+  .aas-attack-timeline-demo .at-key.is-in { --at-c: var(--at-in); }
+  .aas-attack-timeline-demo .at-key.is-move { --at-c: var(--at-move); }
+  .aas-attack-timeline-demo .at-key.is-hit { --at-c: var(--at-hit); }
+  .aas-attack-timeline-demo .at-key.is-after { --at-c: var(--at-after); }
+  .aas-attack-timeline-demo .at-card {
+    margin-top: 0.8em;
+    padding: 0.7em 0.9em;
+    border-left: 0.3em solid var(--at-c, var(--aas-border));
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    min-height: 9.5em;
+  }
+  .aas-attack-timeline-demo[data-kind='in'] .at-card { --at-c: var(--at-in); }
+  .aas-attack-timeline-demo[data-kind='move'] .at-card { --at-c: var(--at-move); }
+  .aas-attack-timeline-demo[data-kind='hit'] .at-card { --at-c: var(--at-hit); }
+  .aas-attack-timeline-demo[data-kind='after'] .at-card { --at-c: var(--at-after); }
+  .aas-attack-timeline-demo .at-card p {
+    margin: 0;
+  }
+  .aas-attack-timeline-demo .at-when {
+    font-size: 0.75em;
+    font-weight: 700;
+    color: var(--at-c);
+  }
+  .aas-attack-timeline-demo .at-title {
+    font-size: 1.05em;
+    font-weight: 700;
+  }
+  .aas-attack-timeline-demo .at-body {
+    margin-top: 0.35em !important;
+    font-size: 0.85em;
+  }
+  .aas-attack-timeline-demo .at-gain {
+    margin-top: 0.45em !important;
+    font-size: 0.82em;
+  }
+  .aas-attack-timeline-demo .at-gain b {
+    color: var(--at-c);
+  }
+  .aas-attack-timeline-demo .at-src {
+    margin-top: 0.3em !important;
+    font-size: 0.68em;
+    color: var(--aas-muted);
+  }
+  .aas-attack-timeline-demo.is-slide {
+    font-size: clamp(1rem, min(2.6vh, 1.8vw), 1.75rem);
+    margin: 0.5rem 0;
+  }
+</style>
