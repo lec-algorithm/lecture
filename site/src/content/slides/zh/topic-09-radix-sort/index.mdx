@@ -19,7 +19,7 @@ import StackQueueDemo from '@components/StackQueueDemo.astro';
 import CountingPassDemo from '@components/CountingPassDemo.astro';
 import RadixCostDemo from '@components/RadixCostDemo.astro';
 import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
-import RadixLegend from '@components/RadixLegend.astro';
+import VarLegend from '@components/VarLegend.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
@@ -106,7 +106,7 @@ import KwicDemo from '@components/KwicDemo.astro';
 #### LSD 基数排序
 ::sub[从最低位开始，不做比较的排序]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - **核心思想**
   - 对每一位应用计数排序。
@@ -125,7 +125,7 @@ import KwicDemo from '@components/KwicDemo.astro';
 ### 一步一步：字符串也一样
 ::sub[12 个三字母单词，按第 2、1、0 位字符的顺序 · 点击单词可在每一行标出它]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <LsdStringDemo slide />
 
@@ -136,7 +136,7 @@ import KwicDemo from '@components/KwicDemo.astro';
 ### 一步一步：分配到桶里再收集
 ::sub[当前位是橙色，处理完的低位是绿色。从 0 号桶起按放入顺序取出]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <LsdRadixDemo slide />
 
@@ -147,7 +147,7 @@ import KwicDemo from '@components/KwicDemo.astro';
 #### 写成过程
 ::sub[`01_lsd_radix_sort/lsdRadixSort.pseudo`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```plaintext
 ALGORITHM LsdRadixSort(A, n)
@@ -176,7 +176,7 @@ ALGORITHM CountingSortByDigit(A, n, exp)   // 主题 03 的计数排序，键是
 #### 写成代码
 ::sub[`01_lsd_radix_sort/lsdRadixSort.c`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```c
 void countingSortByDigit(int a[], int n, int exp) {
@@ -205,7 +205,7 @@ void countingSortByDigit(int a[], int n, int exp) {
 ### 一步一步：计数、累加、放置
 ::sub[逐行跟随代码的四个阶段 · 切换标签会改变第 3 步的方向]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <CountingPassDemo slide />
 
@@ -216,7 +216,7 @@ void countingSortByDigit(int a[], int n, int exp) {
 #### 运行结果
 ::sub[数字前面补 0 打印]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 运行
 
@@ -244,7 +244,7 @@ sorted  : 008 042 074 437 531
 #### 为什么必须稳定
 ::sub[每一趟都保持的一条性质]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 > **第 $$p$$ 趟结束后，只看低 $$p$$ 位就是有序的**。
 
@@ -263,7 +263,7 @@ sorted  : 008 042 074 437 531
 ### 一步一步：从前往后放
 ::sub[计数排序第 3 步改为从前往后放，相同字符的顺序就会颠倒 · 用标签切换比较]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <LsdStringDemo placement="unstable" slide />
 
@@ -274,7 +274,7 @@ sorted  : 008 042 074 437 531
 #### 分析
 ::sub[d：位数，k：一位能取的值的个数]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - **时间** $$O(d(n + k))$$
   - 做 $$d$$ 次 $$O(n + k)$$ 的计数排序。
@@ -289,7 +289,7 @@ sorted  : 008 042 074 437 531
 #### 优缺点
 ::sub[LSD Radix Sort]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | 优点 | 缺点 |
 | --- | --- |
@@ -304,7 +304,7 @@ sorted  : 008 042 074 437 531
 #### 怎样避开比较排序的下界
 ::sub[不是违反了下界，而是处在下界的前提之外]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 决策树论证的前提是**只要靠比较元素来排序**。
 - 基数排序的元素之间一次也不比较。
@@ -318,7 +318,7 @@ sorted  : 008 042 074 437 531
 #### 并不是免费的
 ::sub[位数 d 随 n 一起增长时]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 要装下 $$n$$ 个互不相同的值，位数至少是 $$\log_k n$$。
 - 值的范围随 $$n$$ 增长时，$$O(d \cdot n)$$ 又回到 $$O(n \log n)$$ 的形状。
@@ -335,7 +335,7 @@ sorted  : 008 042 074 437 531
 ### 动手试试：键怎么拆成位
 ::sub[改变 n 和值的范围，每种基数的工作量都会变 · 绿色是最少的]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <RadixCostDemo slide />
 
@@ -346,7 +346,7 @@ sorted  : 008 042 074 437 531
 #### 运行时间
 ::sub[不同大小整数数组的排序时间 · LSD 的一位 = 一个字节（R = 256）]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | n | 插入排序 | 归并排序 | 快速排序 | LSD 基数排序 |
 | --- | --- | --- | --- | --- |
@@ -365,7 +365,7 @@ sorted  : 008 042 074 437 531
 ### 动手试试：亲手测一测
 ::sub[四种排序真的在这个浏览器里运行 · 用标签改变输入的顺序]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <RuntimeRaceDemo slide />
 
@@ -383,7 +383,7 @@ sorted  : 008 042 074 437 531
 #### MSD 基数排序
 ::sub[从最高位开始，分治]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 按最高位做计数排序，相同数字的元素聚在同一段里。
   - 这一段就是**桶**。桶与桶之间的顺序已经定了。
@@ -401,7 +401,7 @@ sorted  : 008 042 074 437 531
 ### 一步一步：一次一个递归调用
 ::sub[上方橙色括号是当前区间，下方括号是桶。只有橙色桶递归，绿色是处理完的元素]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <MsdRadixDemo slide />
 
@@ -412,7 +412,7 @@ sorted  : 008 042 074 437 531
 #### 写成过程
 ::sub[`02_msd_radix_sort/msdRadixSort.pseudo`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -439,7 +439,7 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 #### 写成代码
 ::sub[`02_msd_radix_sort/msdRadixSort.c`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```c
 void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
@@ -468,7 +468,7 @@ void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
 #### 运行结果
 ::sub[缩进表示递归深度]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 运行
 
@@ -498,7 +498,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 #### 稳定性是必需的吗
 ::sub[和 LSD 不同，把值排对并不需要]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 桶与桶之间的顺序已经确定，**不会再混在一起**。
   - 同一个桶内部的顺序由下一位重新决定。
@@ -523,7 +523,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 #### 用在字符串上
 ::sub[很适合长度各不相同的键]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 先按首字符分，再把每个桶按第二个字符分，……
   - 桶里只剩一个时，其余字符就不再看。
@@ -539,7 +539,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 ### 一步一步：字符串上的 MSD
 ::sub[涂色的格子才是读过的字符 · 橙色是正在读的字符，绿色是处理完的单词]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <MsdStringDemo slide />
 
@@ -550,7 +550,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 #### 分析
 ::sub[MSD Radix Sort]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - **最好** $$O(n + k)$$：在第一位上就全部分进了不同的桶。
 - **最坏**：一直分不开时，会像 LSD 那样读 $$n \times d$$ 次位。
@@ -569,7 +569,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 #### 基数 k
 ::sub[一位能取的值的个数，也是计数数组的格数]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | 值 | $$k = 10$$ | 各位 | $$k = 256$$ | 各位 |
 | --- | --- | --- | --- | --- |
@@ -590,7 +590,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 #### 字符串和整数上的 k = 256
 ::sub[无论哪种，都是按字节读键]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | 键 | 字节（从高位起） | 各位的值 |
 | --- | --- | --- |
@@ -612,7 +612,7 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 #### 小桶交给插入排序
 ::sub[`08_msd_cost/msdCost.pseudo` · 大小不超过定值就不再递归]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -635,7 +635,7 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 ### 动手试试：数一数开销
 ::sub[统计读取位数和扫描格子 · 在 k = 256 时选随机输入试试]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <MsdCostDemo slide />
 
@@ -646,7 +646,7 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 #### 运行结果
 ::sub[`08_msd_cost/msdCost.c` · `[ ]` 里是每一位的调用次数]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - 运行
 
@@ -676,7 +676,7 @@ make -f /work/Makefile msdCost.out && ./msdCost.out
 #### LSD 与 MSD
 ::sub[LSD vs. MSD]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | 特点 | LSD 基数排序 | MSD 基数排序 |
 | --- | --- | --- |
@@ -694,7 +694,7 @@ make -f /work/Makefile msdCost.out && ./msdCost.out
 #### 各在什么情况下有利
 ::sub[长度相同的整数用 LSD，长度不一或前面就能分开的键用 MSD]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | 情况 | 有利的一方 | 原因 |
 | --- | --- | --- |
@@ -716,7 +716,7 @@ make -f /work/Makefile msdCost.out && ./msdCost.out
 #### 运行时间：用 C 测的值
 ::sub[`09_radix_timing/radixTiming.c` · 单位 ms，R = 256]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | n | LSD | MSD | MSD (≤ 16) |
 | --- | --- | --- | --- |
@@ -738,7 +738,7 @@ make -f /work/Makefile msdCost.out && ./msdCost.out
 ### 动手试试：把 MSD 也测一测
 ::sub[在这个浏览器里实际运行全部六种 · 用标签改变输入的顺序]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <RuntimeRaceDemo slide msd />
 
@@ -749,7 +749,7 @@ make -f /work/Makefile msdCost.out && ./msdCost.out
 #### 八种排序并排比较
 ::sub[上面五种是比较排序，下面三种是不做比较的排序]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | 排序 | 最好 | 平均 | 最坏 | 空间 | 稳定性 |
 | --- | --- | --- | --- | --- | --- |
@@ -976,6 +976,8 @@ char compares = 12
 #### 最长重复子串
 ::sub[在一个字符串里出现两次以上的最长子串]
 
+<VarLegend set="lrs" />
+
 ```plaintext
 aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
 tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
@@ -995,6 +997,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ### 一步一步：暴力法
 ::sub[Brute-force · 右边每一格 (i, j) 是一对，数字是公共前缀长度 · 点击格子跳到该对]
 
+<VarLegend set="lrs" />
+
 <LrsBruteDemo slide />
 
 </Slide>
@@ -1003,6 +1007,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 #### 暴力法的代价
 ::sub[aacaagtttacaagc$ 共 16 个字符：120 对，字符比较 161 次]
+
+<VarLegend set="lrs" />
 
 - 位置对有 $$\dfrac{n(n-1)}{2}$$ 个，每对最多比较 $$D$$ 个字符
 - 运行时间 $$\le D n^2$$，$$D$$ 是最长匹配的长度
@@ -1014,6 +1020,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 #### 用排序来解
 ::sub[重复的子串 = 两个后缀的公共前缀]
+
+<VarLegend set="lrs" />
 
 - `acaag` 在位置 1 和 9 出现，意思是  
   后缀 `acaagtttacaagc$` 与 `acaagc$` 共享前 5 个字符。
@@ -1031,6 +1039,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ### 一步一步：banana$
 ::sub[一次一对邻居，把公共前缀（橙色）与目前的最大值比较]
 
+<VarLegend set="lrs" />
+
 <LcpScanDemo slide />
 
 </Slide>
@@ -1039,6 +1049,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 ### 一步一步：15 个字符的碱基序列
 ::sub[aacaagtttacaagc · 排好序后 acaagc$ 与 acaagtttacaagc$ 相邻]
+
+<VarLegend set="lrs" />
 
 <LcpScanDemo text="aacaagtttacaagc$" slide />
 
@@ -1049,6 +1061,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ### 动手试试：在 283 个字符里找
 ::sub[点击一行，原文中重复的两处会涂色 · 暴力法也跑到底并计数]
 
+<VarLegend set="lrs" />
+
 <LrsFindDemo slide />
 
 </Slide>
@@ -1057,6 +1071,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 #### 运行结果
 ::sub[`05_lrs` · 两个输入各自的最后两行]
+
+<VarLegend set="lrs" />
 
 - 运行
 
@@ -1084,6 +1100,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 #### 性能
 ::sub[Sedgewick·Wayne《Algorithms》 · † 是估计值]
 
+<VarLegend set="lrs" />
+
 | 输入文件 | 字符数 | 暴力法 | 后缀排序 |
 | --- | --- | --- | --- |
 | `LRS.java` | 2,162 | 0.6 秒 | 0.14 秒 |
@@ -1100,6 +1118,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 #### 思考题
 ::sub[在超过 10 亿个核苷酸中寻找很长的重复序列]
 
+<VarLegend set="lrs" />
+
 谁的方法更有可能得出答案？
 
 - **A**：让研究生用手去找。
@@ -1113,6 +1133,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 
 #### 四种都很难
 ::sub[n 为 10 亿时，O(n²) 完不成]
+
+<VarLegend set="lrs" />
 
 - **B**：$$Dn^2$$，按上表的趋势要几百年。
 - **C**：插入排序光比较就要 $$O(n^2)$$ 次。
@@ -1132,6 +1154,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 ### 动手试试：把 n 增大看看
 ::sub[用滑块估算四种方法的时间 · 机器再快，n² 也还是 n²]
 
+<VarLegend set="lrs" />
+
 <GenomeScaleDemo slide />
 
 </Slide>
@@ -1147,6 +1171,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 
 #### LRS 与 LCS
 ::sub[名字相似，却是不同的问题]
+
+<VarLegend set="lcs" />
 
 | | LRS | LCS |
 | --- | --- | --- |
@@ -1165,6 +1191,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 #### 把两个字符串连成一个
 ::sub[T = S1 + "#" + S2 + "$"]
 
+<VarLegend set="lcs" />
+
 1. **在两个字符串之间放一个两边都没有的分隔符 `#`**。
 2. **构造 $$T$$ 的后缀数组与 LCP 数组**。
 3. **只把从不同字符串开始的邻居当作候选**。
@@ -1182,6 +1210,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 ### 一步一步：mississippi 与 kiss
 ::sub[来源 1、2 是后缀开始的字符串 · 灰色行是同一字符串之间的对，跳过]
 
+<VarLegend set="lcs" />
+
 <LcpScanDemo mode="lcs" slide />
 
 </Slide>
@@ -1190,6 +1220,8 @@ brute force: "acaag", 120 pairs, 161 char compares
 
 #### 运行结果
 ::sub[`06_lcs` · * 是候选对]
+
+<VarLegend set="lcs" />
 
 ```console
    j  SA[j]  from  LCP[j]  suffix
@@ -1212,6 +1244,8 @@ LCS = "iss" (length 3) at j = 5
 ### 动手试试：关掉规则
 ::sub[关掉分隔符或来源规则，答案就会出错 · 也可以输入自己的字符串]
 
+<VarLegend set="lcs" />
+
 <LcsPlayDemo slide />
 
 </Slide>
@@ -1220,6 +1254,8 @@ LCS = "iss" (length 3) at j = 5
 
 #### 后缀数组的用途：KWIC
 ::sub[Keyword in context · 把查询词出现的所有位置连同上下文一起显示]
+
+<VarLegend set="kwic" />
 
 - **预处理**：先为文本构造一次后缀数组。
 - **查询**：以查询词开头的后缀，在排序中**聚在同一段里**。
@@ -1232,6 +1268,8 @@ LCS = "iss" (length 3) at j = 5
 
 #### KWIC：在《双城记》中找 search
 ::sub[前后 15 个字符的上下文 · Sedgewick·Wayne 的例子]
+
+<VarLegend set="kwic" />
 
 ```console
 % java KWIC tale.txt 15
@@ -1252,6 +1290,8 @@ n that bed and search the straw hold
 
 ### 一步一步：KWIC 二分查找
 ::sub[以查询词开头的后缀集中在一个区间 · 找到区间的开头和结尾]
+
+<VarLegend set="kwic" />
 
 <KwicDemo slide />
 

@@ -19,7 +19,7 @@ import StackQueueDemo from '@components/StackQueueDemo.astro';
 import CountingPassDemo from '@components/CountingPassDemo.astro';
 import RadixCostDemo from '@components/RadixCostDemo.astro';
 import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
-import RadixLegend from '@components/RadixLegend.astro';
+import VarLegend from '@components/VarLegend.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
@@ -106,7 +106,7 @@ Topic 09
 #### LSD radix sort
 ::sub[Lowest digit first, a non-comparison sort]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - **Key ideas**
   - Apply counting sort to each digit.
@@ -125,7 +125,7 @@ Sort three times: ones digit, tens digit, hundreds digit.
 ### One step at a time: strings work the same way
 ::sub[Twelve three-letter words, by last, middle, then first character · click a word to mark it in every row]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <LsdStringDemo slide />
 
@@ -136,7 +136,7 @@ Sort three times: ones digit, tens digit, hundreds digit.
 ### One step at a time: scatter into buckets, then gather
 ::sub[Current digit orange, finished lower digits green. Buckets empty from 0, in the order filled]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <LsdRadixDemo slide />
 
@@ -147,7 +147,7 @@ Sort three times: ones digit, tens digit, hundreds digit.
 #### As a procedure
 ::sub[`01_lsd_radix_sort/lsdRadixSort.pseudo`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```plaintext
 ALGORITHM LsdRadixSort(A, n)
@@ -176,7 +176,7 @@ ALGORITHM CountingSortByDigit(A, n, exp)   // Topic 03's counting sort, key = on
 #### In code
 ::sub[`01_lsd_radix_sort/lsdRadixSort.c`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```c
 void countingSortByDigit(int a[], int n, int exp) {
@@ -205,7 +205,7 @@ void countingSortByDigit(int a[], int n, int exp) {
 ### One step at a time: count, cumulate, place
 ::sub[Follow the four stages of the code line by line · the tabs change the direction of step 3]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <CountingPassDemo slide />
 
@@ -216,7 +216,7 @@ void countingSortByDigit(int a[], int n, int exp) {
 #### Run
 ::sub[Numbers are printed padded with leading zeros]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - Run
 
@@ -244,7 +244,7 @@ At `exp 10`, `531` and `437` share a tens digit and keep the previous pass's ord
 #### Why it must be stable
 ::sub[One property every pass preserves]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 > **After pass $$p$$, the array is sorted by its lowest $$p$$ digits.**
 
@@ -263,7 +263,7 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 ### One step at a time: placing from the front
 ::sub[Do step 3 of counting sort from the front and equal characters come out reversed · switch with the tabs]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <LsdStringDemo placement="unstable" slide />
 
@@ -274,7 +274,7 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 #### Analysis
 ::sub[d: number of digits, k: values one digit can take]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - **Time** $$O(d(n + k))$$
   - Counting sort, $$O(n + k)$$, done $$d$$ times.
@@ -289,7 +289,7 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 #### Strengths and weaknesses
 ::sub[LSD Radix Sort]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | Strengths | Weaknesses |
 | --- | --- |
@@ -304,7 +304,7 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 #### How it sidesteps the comparison lower bound
 ::sub[It does not break the bound; it lies outside the bound's premise]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - The decision-tree argument assumes **"as long as you sort by comparing."**
 - Radix sort never compares two elements.
@@ -318,7 +318,7 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 #### It is not free
 ::sub[When the digit count d grows with n]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - To hold $$n$$ distinct values, keys need at least $$\log_k n$$ digits.
 - If the value range grows with $$n$$, $$O(d \cdot n)$$ is back to $$O(n \log n)$$.
@@ -335,7 +335,7 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 ### Try it: how to split the key
 ::sub[Move n and the value range and the work changes for each radix · green is the cheapest]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <RadixCostDemo slide />
 
@@ -346,7 +346,7 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 #### Running time
 ::sub[Sorting integer arrays by size · LSD uses one byte per digit (R = 256)]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | n | Insertion sort | Merge sort | Quicksort | LSD radix sort |
 | --- | --- | --- | --- | --- |
@@ -365,7 +365,7 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 ### Try it: measure it yourself
 ::sub[The four sorts really run in this browser · the tabs change the input order]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <RuntimeRaceDemo slide />
 
@@ -383,7 +383,7 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 #### MSD radix sort
 ::sub[Highest digit first, divide and conquer]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - Counting-sorting by the highest digit gathers equal digits into one range.
   - That range is a **bucket**. The buckets are already in order.
@@ -401,7 +401,7 @@ Let us sort `170 45 75 90 2 802 24 66`.
 ### One step at a time: one recursive call each
 ::sub[Orange bracket on top: current range; brackets below: buckets. Only orange buckets recurse; green is done]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <MsdRadixDemo slide />
 
@@ -412,7 +412,7 @@ Let us sort `170 45 75 90 2 802 24 66`.
 #### As a procedure
 ::sub[`02_msd_radix_sort/msdRadixSort.pseudo`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -439,7 +439,7 @@ The first call is `MsdRecursive(A, 0, n-1, 100)`, since 802's highest digit is t
 #### In code
 ::sub[`02_msd_radix_sort/msdRadixSort.c`]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```c
 void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
@@ -468,7 +468,7 @@ void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
 #### Run
 ::sub[The indentation is the recursion depth]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - Run
 
@@ -498,7 +498,7 @@ The ones digit was never read. 14 digit reads; LSD takes 24.
 #### Is stability required?
 ::sub[Unlike LSD, not for sorting the values]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - Buckets are already in their final order and **never mix again**.
   - The next digit decides the order inside a bucket afresh.
@@ -523,7 +523,7 @@ The comparison table later lists MSD as stable because it uses a stable counting
 #### On strings
 ::sub[A good fit for keys of different lengths]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - Split by the first character, each bucket by the second, ...
   - Once a bucket holds one string, its remaining characters are never read.
@@ -539,7 +539,7 @@ The comparison table later lists MSD as stable because it uses a stable counting
 ### One step at a time: MSD on strings
 ::sub[Colored cells are the characters read · orange is being read, green is a finished word]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <MsdStringDemo slide />
 
@@ -550,7 +550,7 @@ The comparison table later lists MSD as stable because it uses a stable counting
 #### Analysis
 ::sub[MSD Radix Sort]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - **Best** $$O(n + k)$$: the first digit sends every element to a different bucket.
 - **Worst**: if keys never split, it reads $$n \times d$$ digits, like LSD.
@@ -569,7 +569,7 @@ So real implementations hand small buckets to insertion sort.
 #### The radix k
 ::sub[The number of values one digit can take, and the slots in the counting array]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | Value | $$k = 10$$ | Digits | $$k = 256$$ | Digits |
 | --- | --- | --- | --- | --- |
@@ -590,7 +590,7 @@ So real implementations hand small buckets to insertion sort.
 #### k = 256 on strings and on integers
 ::sub[Either way, the key is read one byte at a time]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | Key | Bytes, highest first | Digit values |
 | --- | --- | --- |
@@ -612,7 +612,7 @@ So real implementations hand small buckets to insertion sort.
 #### Insertion sort for small buckets
 ::sub[`08_msd_cost/msdCost.pseudo` · at or below a chosen size, stop recursing]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -635,7 +635,7 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 ### Try it: count the work
 ::sub[Counts digit reads and cell scans · try the random input at k = 256]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <MsdCostDemo slide />
 
@@ -646,7 +646,7 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 #### Output
 ::sub[`08_msd_cost/msdCost.c` · the numbers in `[ ]` are calls per digit]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 - Run
 
@@ -676,7 +676,7 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 #### LSD and MSD
 ::sub[LSD vs. MSD]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | Feature | LSD radix sort | MSD radix sort |
 | --- | --- | --- |
@@ -694,7 +694,7 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 #### When each one wins
 ::sub[LSD for integers of equal length, MSD for keys that vary in length or split early]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | Situation | Better | Why |
 | --- | --- | --- |
@@ -716,7 +716,7 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 #### Running time: measured in C
 ::sub[`09_radix_timing/radixTiming.c` · in ms, R = 256]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | n | LSD | MSD | MSD (≤ 16) |
 | --- | --- | --- | --- |
@@ -738,7 +738,7 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 ### Try it: measure MSD too
 ::sub[Runs all six in this browser · the tabs change the input order]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 <RuntimeRaceDemo slide msd />
 
@@ -749,7 +749,7 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 #### Eight sorts side by side
 ::sub[The top five are comparison sorts, the bottom three non-comparison sorts]
 
-<RadixLegend />
+<VarLegend set="radix" />
 
 | Sort | Best | Average | Worst | Space | Stability |
 | --- | --- | --- | --- | --- | --- |
@@ -976,6 +976,8 @@ That is 12 character compares. The Kasai part that follows is not covered in thi
 #### Longest repeated substring
 ::sub[The longest substring appearing at least twice in one string]
 
+<VarLegend set="lrs" />
+
 ```plaintext
 aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
 tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
@@ -995,6 +997,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ### One step at a time: brute force
 ::sub[Brute-force · each cell (i, j) is one pair, numbered with its common prefix · click to jump]
 
+<VarLegend set="lrs" />
+
 <LrsBruteDemo slide />
 
 </Slide>
@@ -1003,6 +1007,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 #### The cost of brute force
 ::sub[aacaagtttacaagc$: 16 characters, 120 pairs, 161 character compares]
+
+<VarLegend set="lrs" />
 
 - $$\dfrac{n(n-1)}{2}$$ position pairs, up to $$D$$ characters compared per pair
 - Running time $$\le D n^2$$, where $$D$$ is the length of the longest match
@@ -1014,6 +1020,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 #### Solving it by sorting
 ::sub[A repeated substring = a common prefix of two suffixes]
+
+<VarLegend set="lrs" />
 
 - That `acaag` appears at positions 1 and 9 means  
   suffixes `acaagtttacaagc$` and `acaagc$` share their first 5 characters.
@@ -1031,6 +1039,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ### One step at a time: banana$
 ::sub[One neighboring pair at a time, the common prefix (orange) against the best so far]
 
+<VarLegend set="lrs" />
+
 <LcpScanDemo slide />
 
 </Slide>
@@ -1039,6 +1049,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 ### One step at a time: a 15-character base sequence
 ::sub[aacaagtttacaagc · sorted, acaagc$ and acaagtttacaagc$ become neighbors]
+
+<VarLegend set="lrs" />
 
 <LcpScanDemo text="aacaagtttacaagc$" slide />
 
@@ -1049,6 +1061,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ### Try it: search 283 characters
 ::sub[Click a row to mark both occurrences in the text · brute force also runs to the end and is counted]
 
+<VarLegend set="lrs" />
+
 <LrsFindDemo slide />
 
 </Slide>
@@ -1057,6 +1071,8 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 
 #### Run
 ::sub[`05_lrs` · the last two lines for each input]
+
+<VarLegend set="lrs" />
 
 - Run
 
@@ -1084,6 +1100,8 @@ Sorting checks 15 neighboring pairs; brute force checks 120 position pairs.
 #### Performance
 ::sub[Sedgewick & Wayne, *Algorithms* · † marks an estimate]
 
+<VarLegend set="lrs" />
+
 | Input file | Characters | Brute force | Suffix sort |
 | --- | --- | --- | --- |
 | `LRS.java` | 2,162 | 0.6 sec | 0.14 sec |
@@ -1100,6 +1118,8 @@ Sorting checks 15 neighboring pairs; brute force checks 120 position pairs.
 #### Something to think about
 ::sub[Finding long repeats in over a billion nucleotides]
 
+<VarLegend set="lrs" />
+
 Whose method is likely to produce an answer?
 
 - **A**: a graduate student searches by hand.
@@ -1113,6 +1133,8 @@ Whose method is likely to produce an answer?
 
 #### All four are in trouble
 ::sub[With n at a billion, O(n²) never finishes]
+
+<VarLegend set="lrs" />
 
 - **B**: $$Dn^2$$; by the trend in the table, centuries.
 - **C**: insertion sort alone makes $$O(n^2)$$ comparisons.
@@ -1132,6 +1154,8 @@ An MSD-style sort for variable-length keys is one such way.
 ### Try it: what happens as n grows
 ::sub[Use the sliders to estimate the time of four methods · a faster machine does not fix n²]
 
+<VarLegend set="lrs" />
+
 <GenomeScaleDemo slide />
 
 </Slide>
@@ -1147,6 +1171,8 @@ An MSD-style sort for variable-length keys is one such way.
 
 #### LRS and LCS
 ::sub[Similar names, different problems]
+
+<VarLegend set="lcs" />
 
 | | LRS | LCS |
 | --- | --- | --- |
@@ -1165,6 +1191,8 @@ An MSD-style sort for variable-length keys is one such way.
 #### Joining two strings into one
 ::sub[T = S1 + "#" + S2 + "$"]
 
+<VarLegend set="lcs" />
+
 1. **Put a separator `#`, found in neither string, between them.**
 2. **Build the suffix array and LCP array of $$T$$.**
 3. **Take only neighbors that start in different strings as candidates.**
@@ -1182,6 +1210,8 @@ That makes the LCP exactly the length of a common substring.
 ### One step at a time: mississippi and kiss
 ::sub[Source 1 or 2 is where a suffix starts · gray rows are same-string pairs and are skipped]
 
+<VarLegend set="lcs" />
+
 <LcpScanDemo mode="lcs" slide />
 
 </Slide>
@@ -1190,6 +1220,8 @@ That makes the LCP exactly the length of a common substring.
 
 #### Output
 ::sub[`06_lcs` · * marks a candidate pair]
+
+<VarLegend set="lcs" />
 
 ```console
    j  SA[j]  from  LCP[j]  suffix
@@ -1212,6 +1244,8 @@ LCS = "iss" (length 3) at j = 5
 ### Try it: turn the rules off
 ::sub[Turn off the separator or the source rule and the answer goes wrong · try your own strings]
 
+<VarLegend set="lcs" />
+
 <LcsPlayDemo slide />
 
 </Slide>
@@ -1220,6 +1254,8 @@ LCS = "iss" (length 3) at j = 5
 
 #### Using suffix arrays: KWIC
 ::sub[Keyword in context · every occurrence of a query, with its context]
+
+<VarLegend set="kwic" />
 
 - **Preprocessing**: build the suffix array of the text once.
 - **Query**: suffixes starting with the query are **gathered in one range** of the sorted order.
@@ -1232,6 +1268,8 @@ LCS = "iss" (length 3) at j = 5
 
 #### KWIC: search in *A Tale of Two Cities*
 ::sub[15 characters of context on each side · an example from Sedgewick & Wayne]
+
+<VarLegend set="kwic" />
 
 ```console
 % java KWIC tale.txt 15
@@ -1252,6 +1290,8 @@ No matter how long the text, each query is one binary search over the suffix arr
 
 ### One step at a time: KWIC by binary search
 ::sub[Suffixes starting with the query sit in one range · find its start and its end]
+
+<VarLegend set="kwic" />
 
 <KwicDemo slide />
 
