@@ -13,7 +13,6 @@ import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
-import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
@@ -24,7 +23,6 @@ import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
 import LcsPlayDemo from '@components/LcsPlayDemo.astro';
@@ -756,80 +754,26 @@ naive    SA = 6 5 3 1 0 4 2
 | 5 | 4 | `na$` | 0 | `banana$` 与 `na$`：没有公共前缀 |
 | 6 | 2 | `nana$` | 2 | `na$` 与 `nana$`：公共前缀 `na` |
 
-$$LCP = [-, 0, 1, 3, 0, 0, 2]$$。对每对邻居从头比较很简单，但像 `aaaa...a$`
-这样公共前缀很长时，每一对都要读很长，就成了 $$O(n^2)$$。
+$$LCP = [-, 0, 1, 3, 0, 0, 2]$$。
 
 点击一行，与前一个邻居对照，公共前缀会涂色。改变字符串会重新计算 LCP 数组。`mississippi$` 的 LCP
 是 `- 0 1 1 4 0 0 1 0 2 1 3`。
 
 <SuffixTableDemo lcp />
 
-### Kasai 算法 \{#kasai}
+### 构造方法 \{#lcp-build}
 
-Kasai 算法**不按排序顺序，而按文本中的位置顺序** $$i = 0, 1, 2, \dots$$ 来处理
-后缀。理由是下面这一条观察。
+按定义直接构造：对排序中相邻的每两个后缀，从头数相同的字符。
 
-> 如果后缀 $$i$$ 与它在排序中紧挨着的前一个邻居的 LCP 是 $$h$$，那么后缀
-> $$i + 1$$ 与它的前一个邻居的 LCP **至少**是 $$h - 1$$。
-
-后缀 $$i + 1$$ 就是后缀 $$i$$ 去掉首字符。后缀 $$i$$ 的前一个邻居 $$j$$ 去掉首
-字符也变成后缀 $$j + 1$$，两者仍共享 $$h - 1$$ 个字符，排序顺序也不变。所以
-后缀 $$i + 1$$ 紧挨着的前一个邻居，要么是 $$j + 1$$，要么是排在 $$j + 1$$ 与
-$$i + 1$$ 之间的后缀。夹在中间的后缀，按排序顺序也与两者的前 $$h - 1$$ 个字符
-相同。因此这 $$h - 1$$ 个字符可以不比较、直接跳过。
-
-- **第 1 步**：由 $$rank[SA[j]] = j$$ 造出后缀数组的逆。
-  $$rank[i]$$ 是从位置 $$i$$ 开始的后缀在排序中排第几。
-- **第 2 步**：按 $$i = 0, 1, \dots$$ 的顺序，找出排序中紧挨着的前一个邻居
-  $$j = SA[rank[i] - 1]$$，从第 $$h$$ 个字符开始比较。去下一个位置之前，把
-  $$h$$ 减 1。
-
-上方的条带是文本与 $$rank[i]$$，下方的表是排好序的后缀。橙色是当前的后缀
-$$i$$，蓝色是它的前一个邻居 $$j$$。灰色字符是跳过的前 $$h$$ 个字符，绿色是新
-匹配上的字符，红色是不匹配。
-
-<KasaiDemo />
-
-在 `i = 1`（`anana$`）时，与前一个邻居 `ana$` 共享了 3 个字符。接下来的
-`i = 2`（`nana$`）是 `anana$` 去掉 `a` 得到的，所以与前一个邻居 `na$` 至少
-共享 2 个字符。于是跳过 2 个字符，从第三个字符开始比较，一次就结束。`i = 3`
-也出于同样的理由从第 1 个字符开始。
+- 伪代码（`04_lcp/lcp.pseudo`）
 
 ```plaintext
-ALGORITHM BuildLcpKasai(T, SA, n)
-    for j <- 0 to n-1 do
-        rank[SA[j]] <- j                    // 第 1 步：SA 的逆
-    h <- 0                                  // 目前已知的公共前缀长度
-    for i <- 0 to n-1 do                    // 第 2 步：按文本位置顺序
-        if rank[i] > 0 then
-            j <- SA[rank[i] - 1]            // 排序中紧挨着的前一个邻居
-            while i + h < n and j + h < n and T[i + h] = T[j + h] do
-                h <- h + 1                  // 跳过 h 个字符，从第 h 个开始比较
-            LCP[rank[i]] <- h
-            if h > 0 then h <- h - 1        // 下一个后缀至少共享 h-1 个字符
-        else
-            h <- 0                          // 最前面的后缀没有邻居
-```
-
-`rank[i] = 0` 时把 $$h$$ 设为 0 的那一行，是在代码里明确写出"最前面的后缀没有
-可比较的邻居"。按上面的观察推一推，这时 $$h$$ 总是已经为 0，所以没有这一行，
-结果也一样。
-
-```c
-for (int i = 0; i < n; i++) {
-    if (rank[i] == 0) {
-        h = 0;
-        continue;
-    }
-    int j = sa[rank[i] - 1];
-    while (i + h < n && j + h < n && text[i + h] == text[j + h]) {
-        h++;
-    }
-    lcp[rank[i]] = h;
-    if (h > 0) {
-        h--;
-    }
-}
+ALGORITHM BuildLcpNaive(T, SA, n)
+    for j <- 1 to n-1 do                  // 排序中相邻的每两个后缀
+        a <- SA[j-1], b <- SA[j], h <- 0
+        while a + h < n and b + h < n and T[a + h] = T[b + h] do
+            h <- h + 1                    // 从头数相同的字符
+        LCP[j] <- h
 ```
 
 - 运行
@@ -839,20 +783,11 @@ cd src/topic-09-radix-sort/04_lcp
 make -f /work/Makefile lcp.out && ./lcp.out
 ```
 
-- 结果
+- 结果（前面部分）
 
 ```console
 text = banana$
 SA   = 6 5 3 1 0 4 2
-
-   i  suffix    rank  j  start h  lcp  compares
-   0  banana$      4  1        0    0         1
-   1  anana$       3  3        0    3         4
-   2  nana$        6  4        2    2         1
-   3  ana$         2  5        1    1         1
-   4  na$          5  0        0    0         1
-   5  a$           1  6        0    0         1
-   6  $            0  -        -    -         -
 
    j  SA[j]  LCP[j]  suffix
    0      6       -  $
@@ -862,26 +797,11 @@ SA   = 6 5 3 1 0 4 2
    4      0       0  banana$
    5      4       0  na$
    6      2       2  nana$
-char compares: kasai 9, naive 12
+char compares = 12
 ```
 
-`start h` 列是跳过的字符数。Kasai 的字符比较是 9 次，而把每对邻居都从头比较
-是 12 次。换成 `aaaaaaaa$`，差距拉大到 15 次对 36 次。
-
-### 分析 \{#lcp-analysis}
-
-$$h$$ 每个位置最多减 1，而且不会超过 $$n$$。因此 while 循环里 $$h$$ 增加的次数
-加起来不超过 $$2n$$，不匹配的比较每个位置一次。**总共** $$O(n)$$。只要手里已经
-有后缀数组，LCP 数组几乎是白送的。
-
-把开销按位置画出来。一个条形对应一个位置 $$i$$。灰色是跳过的字符数，绿色是实际的字符比较数，虚线
-是与邻居从头比较时的字符比较数。点击条形，会显示该位置的后缀和前一个邻居。滑块把字符串换成只有 `a`。
-
-<KasaiCostDemo />
-
-- `banana$` 是 Kasai 9 次，从头比较 12 次。
-- 8 个 `a` 时是 15 次和 36 次，60 个时是 119 次和 1,830 次。只有从头比较的一方按平方增长。
-- 灰色越多，比较越少。上界 $$3n$$ 是上面分析的总和，即 $$h$$ 增加 $$2n$$ 次加上不匹配 $$n$$ 次。
+字符比较 12 次。因为每对邻居都从头比较，像 `aaaaaaaa$` 这样公共前缀很长时会增加到 1 + 2 + ... + 8 = 36 次，
+最坏 $$O(n^2)$$。程序接着还会作为参考输出 Kasai 算法的过程，它能在 $$O(n)$$ 内构造同一个数组，本课程不讲。
 
 ## 例 5. 最长重复子串 \{#lrs}
 
@@ -929,7 +849,7 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ```plaintext
 ALGORITHM LongestRepeatedSubstring(T, n)
     SA <- BuildSuffixArray(T, n)
-    LCP <- BuildLcpKasai(T, SA, n)
+    LCP <- BuildLcp(T, SA, n)
     best <- -1, at <- 0
     for j <- 1 to n-1 do                    // 只看相邻的对
         if LCP[j] > best then
@@ -998,7 +918,7 @@ brute force: "acaag", 120 pairs, 161 char compares
 <LrsFindDemo />
 
 - 答案是位置 31 和 217 的 15 个字符 `agagttatactggtc`。第二、三行是同一个重复去掉前面的字符。
-- 暴力法要看 40,186 个位置对，字符比较 54,888 次。排序后是 283 个相邻对，Kasai 字符比较 562 次。
+- 暴力法要看 40,186 个位置对，字符比较 54,888 次。排序后是 283 个相邻对，即使从头比较，字符比较也只有 1,416 次。
 - 抽一个随机序列，最长重复要短得多。这个序列里的 15 个字符很难说是巧合。
 
 ### 性能 \{#lrs-performance}
@@ -1062,7 +982,7 @@ LRS 是一个字符串内部的重复，LCS 是两个字符串之间的公共部
 ```plaintext
 ALGORITHM LongestCommonSubstring(S1, S2)
     T <- S1 + "#" + S2 + "$"
-    SA <- BuildSuffixArray(T, n), LCP <- BuildLcpKasai(T, SA, n)
+    SA <- BuildSuffixArray(T, n), LCP <- BuildLcp(T, SA, n)
     best <- 0, at <- 0
     for j <- 1 to n-1 do
         f <- Origin(SA[j]), g <- Origin(SA[j-1])   // 1、2，分隔符则为 0
@@ -1108,7 +1028,7 @@ LCS = "iss" (length 3) at j = 5
 `*` 是候选对。整个 LCP 的最大值是 j = 6 处的 4（`issi`），但两个后缀都在
 `mississippi` 一侧，所以不是公共子串。那是 `mississippi` 的 LRS。候选中的最大值
 是 j = 5 处的 3，是 `kiss` 的 `iss` 与 `mississippi` 的 `iss` 相遇的地方。时间是
-构造后缀数组的代价加上 LCP 与扫描的 $$O(n)$$，其中
+构造后缀数组与 LCP 数组的代价加上扫描的 $$O(n)$$，其中
 $$n = |S_1| + |S_2| + 2$$。
 
 亲手关掉规则。输入两个字符串，开关分隔符和"只看来自不同字符串的邻居"这条规则。演示会把答案与用动态
@@ -1236,8 +1156,8 @@ queue sorted = yes, stack sorted = no
   时是 $$O(n)$$。
 - **后缀数组**：把所有后缀排好序后的起始位置数组。朴素方法把后缀当作字符串比较来排序，
   最坏 $$O(n^2 \log n)$$
-- **LCP 数组**：相邻后缀的公共前缀长度。Kasai 按文本位置顺序处理，$$h$$ 每次
-  只减 1，所以是 $$O(n)$$。
+- **LCP 数组**：相邻后缀的公共前缀长度。对每对邻居从头比较来构造，公共前缀很长时
+  最坏 $$O(n^2)$$。
 - **LRS** 是 LCP 的最大值；**LCS** 是用 `#` 连起两个字符串后，从不同字符串
   开始的邻居之间 LCP 的最大值。
 - **栈**是 LIFO，**队列**是 FIFO。LSD 的桶必须是队列。
@@ -1253,7 +1173,7 @@ src/topic-09-radix-sort/
 ├── 01_lsd_radix_sort/   # 437 42 531 8 74 分三趟，12 个三字母单词
 ├── 02_msd_radix_sort/   # 读位 14 次（LSD 是 24 次）
 ├── 03_suffix_array/     # banana$ 的 SA = 6 5 3 1 0 4 2，朴素排序（倍增仅供参考）
-├── 04_lcp/              # Kasai，LCP = - 0 1 3 0 0 2，字符比较 9 vs 12
+├── 04_lcp/              # LCP = - 0 1 3 0 0 2，字符比较 12 次（Kasai 仅供参考）
 ├── 05_lrs/              # banana$ 的 ana，碱基序列的 acaag
 ├── 06_lcs/              # mississippi 与 kiss 的 iss
 ├── 07_stack_queue/      # 队列桶能排好，栈桶会出错

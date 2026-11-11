@@ -13,7 +13,6 @@ import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
-import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
@@ -25,7 +24,6 @@ import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
 import LcsPlayDemo from '@components/LcsPlayDemo.astro';
@@ -913,98 +911,56 @@ naive    SA = 6 5 3 1 0 4 2
 
 </Slide>
 
-<Slide>
-
-#### Kasai 알고리즘
-::sub[정렬 순서가 아니라 텍스트 위치 순서 i = 0, 1, 2, ...로]
-
-> 접미사 $$i$$와 그 앞 이웃의 LCP가 $$h$$이면,  
-> 접미사 $$i + 1$$과 그 앞 이웃의 LCP는 **적어도** $$h - 1$$이다.
-
-<br/>
-
-- 접미사 $$i + 1$$은 접미사 $$i$$에서 첫 글자를 뗀 것입니다.
-- 앞 이웃 $$j$$도 첫 글자를 떼면 $$j + 1$$, 둘은 여전히 $$h - 1$$글자를 공유합니다.
-- 그래서 $$h - 1$$글자는 **비교하지 않고 건너뜁니다.**
-
-</Slide>
-
-<Slide>
-
-### 한 걸음씩: Kasai
-::sub[주황이 접미사 i, 파랑이 앞 이웃 j · 회색은 건너뛴 글자, 초록은 일치, 빨강은 불일치]
-
-<KasaiDemo slide />
-
-</Slide>
-
 <Slide class="compact">
 
-#### 절차로 적으면
-::sub[`04_lcp/lcp.pseudo`]
+#### 만드는 법
+::sub[`04_lcp/lcp.pseudo` · 정의 그대로, 이웃 쌍마다 앞에서부터 셉니다]
 
 ```plaintext
-ALGORITHM BuildLcpKasai(T, SA, n)
-    for j <- 0 to n-1 do rank[SA[j]] <- j  // 1단계: SA의 역함수
-    h <- 0
-    for i <- 0 to n-1 do                   // 2단계: 텍스트 위치 순서로
-        if rank[i] > 0 then
-            j <- SA[rank[i] - 1]           // 정렬에서 바로 앞 이웃
-            while T[i + h] = T[j + h] do   // h글자는 건너뛰고 비교
-                h <- h + 1
-            LCP[rank[i]] <- h
-            if h > 0 then h <- h - 1       // 다음은 적어도 h-1글자 공유
-        else
-            h <- 0                         // 맨 앞 접미사는 이웃이 없다
+ALGORITHM BuildLcpNaive(T, SA, n)
+    for j <- 1 to n-1 do                  // 정렬에서 이웃한 두 접미사마다
+        a <- SA[j-1], b <- SA[j], h <- 0
+        while a + h < n and b + h < n and T[a + h] = T[b + h] do
+            h <- h + 1                    // 앞에서부터 같은 글자를 센다
+        LCP[j] <- h
 ```
 
-while의 범위 검사(`i + h < n and j + h < n`)는 줄였습니다.
+- 이웃 쌍마다 처음부터 비교합니다.
+- 공통 접두사가 길면 비교가 늘어 최악 $$O(n^2)$$입니다.
+  - `aaaaaaaa$`는 1 + 2 + ... + 8 = 36번입니다.
 
 </Slide>
 
 <Slide class="compact">
 
 #### 실행 결과
-::sub[`04_lcp` · start h가 건너뛴 글자 수]
+::sub[`04_lcp/lcp.c`]
 
-```console
-   i  suffix    rank  j  start h  lcp  compares
-   0  banana$      4  1        0    0         1
-   1  anana$       3  3        0    3         4
-   2  nana$        6  4        2    2         1
-   3  ana$         2  5        1    1         1
-   4  na$          5  0        0    0         1
-   5  a$           1  6        0    0         1
-   6  $            0  -        -    -         -
-char compares: kasai 9, naive 12
+- 실행
+
+```sh
+cd src/topic-09-radix-sort/04_lcp
+make -f /work/Makefile lcp.out && ./lcp.out
 ```
 
-- `i = 2`의 `nana$`는 `anana$`에서 `a`를 뗀 것이라 2글자를 건너뜁니다.
-- `aaaaaaaa$`로 바꾸면 Kasai 15번, 처음부터 비교하면 36번입니다.
+- 결과 (앞부분)
 
-</Slide>
+```console
+text = banana$
+SA   = 6 5 3 1 0 4 2
 
-<Slide>
+   j  SA[j]  LCP[j]  suffix
+   0      6       -  $
+   1      5       0  a$
+   2      3       1  ana$
+   3      1       3  anana$
+   4      0       0  banana$
+   5      4       0  na$
+   6      2       2  nana$
+char compares = 12
+```
 
-#### 분석
-::sub[Kasai는 O(n)]
-
-- $$h$$는 위치마다 많아야 1씩 줄고, $$n$$을 넘지 못합니다.
-- 그래서 while에서 $$h$$가 늘어나는 횟수는 모두 합쳐 $$2n$$ 이하입니다.
-- 불일치 비교는 위치마다 한 번입니다.
-
-<br/>
-
-접미사 배열이 있으면 LCP 배열은 $$O(n)$$에 **거의 공짜로** 따라옵니다.
-
-</Slide>
-
-<Slide>
-
-### 눌러 보기: Kasai의 비용
-::sub[a의 개수를 늘려 보세요 · 막대 하나가 위치 i 하나입니다]
-
-<KasaiCostDemo slide />
+글자 비교 12번입니다. 뒤이어 나오는 Kasai는 이 강의에서 다루지 않습니다.
 
 </Slide>
 
@@ -1417,7 +1373,7 @@ queue sorted = yes, stack sorted = no
    - MSD는 높은 자리부터 버킷으로 나누고, 갈리면 더 읽지 않습니다.
 3. **접미사 배열은 모든 접미사를 정렬한 시작 위치의 배열입니다.**
    - 단순한 방법은 접미사를 문자열로 비교해 정렬합니다.
-4. **LCP 배열은 Kasai로 $$O(n)$$에 만듭니다.**
+4. **LCP 배열은 이웃한 접미사의 공통 접두사 길이입니다.**
    - LRS는 LCP의 최댓값, LCS는 서로 다른 문자열의 이웃만 봅니다.
 5. **스택은 LIFO, 큐는 FIFO입니다.**
    - LSD의 버킷은 큐여야 합니다.

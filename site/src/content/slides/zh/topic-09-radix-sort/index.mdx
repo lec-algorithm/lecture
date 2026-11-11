@@ -13,7 +13,6 @@ import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
-import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
@@ -25,7 +24,6 @@ import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
 import LcsPlayDemo from '@components/LcsPlayDemo.astro';
@@ -913,98 +911,56 @@ naive    SA = 6 5 3 1 0 4 2
 
 </Slide>
 
-<Slide>
-
-#### Kasai 算法
-::sub[不按排序顺序，而按文本位置顺序 i = 0, 1, 2, ...]
-
-> 如果后缀 $$i$$ 与它前一个邻居的 LCP 是 $$h$$，  
-> 那么后缀 $$i + 1$$ 与它前一个邻居的 LCP **至少**是 $$h - 1$$。
-
-<br/>
-
-- 后缀 $$i + 1$$ 就是后缀 $$i$$ 去掉首字符。
-- 前一个邻居 $$j$$ 去掉首字符成为 $$j + 1$$，两者仍共享 $$h - 1$$ 个字符。
-- 所以这 $$h - 1$$ 个字符**不比较、直接跳过**。
-
-</Slide>
-
-<Slide>
-
-### 一步一步：Kasai
-::sub[橙色是后缀 i，蓝色是前一个邻居 j · 灰色是跳过的字符，绿色是匹配，红色是不匹配]
-
-<KasaiDemo slide />
-
-</Slide>
-
 <Slide class="compact">
 
-#### 写成过程
-::sub[`04_lcp/lcp.pseudo`]
+#### 构造方法
+::sub[`04_lcp/lcp.pseudo` · 按定义，每对邻居从头数]
 
 ```plaintext
-ALGORITHM BuildLcpKasai(T, SA, n)
-    for j <- 0 to n-1 do rank[SA[j]] <- j  // 第 1 步：SA 的逆
-    h <- 0
-    for i <- 0 to n-1 do                   // 第 2 步：按文本位置顺序
-        if rank[i] > 0 then
-            j <- SA[rank[i] - 1]           // 排序中紧挨着的前一个邻居
-            while T[i + h] = T[j + h] do   // 跳过 h 个字符后比较
-                h <- h + 1
-            LCP[rank[i]] <- h
-            if h > 0 then h <- h - 1       // 下一个至少共享 h-1 个字符
-        else
-            h <- 0                         // 最前面的后缀没有邻居
+ALGORITHM BuildLcpNaive(T, SA, n)
+    for j <- 1 to n-1 do                  // 排序中相邻的每两个后缀
+        a <- SA[j-1], b <- SA[j], h <- 0
+        while a + h < n and b + h < n and T[a + h] = T[b + h] do
+            h <- h + 1                    // 从头数相同的字符
+        LCP[j] <- h
 ```
 
-省略了 while 的范围检查（`i + h < n and j + h < n`）。
+- 每对邻居都从头比较。
+- 公共前缀很长时比较增多，最坏 $$O(n^2)$$。
+  - `aaaaaaaa$` 是 1 + 2 + ... + 8 = 36 次。
 
 </Slide>
 
 <Slide class="compact">
 
 #### 运行结果
-::sub[`04_lcp` · start h 是跳过的字符数]
+::sub[`04_lcp/lcp.c`]
 
-```console
-   i  suffix    rank  j  start h  lcp  compares
-   0  banana$      4  1        0    0         1
-   1  anana$       3  3        0    3         4
-   2  nana$        6  4        2    2         1
-   3  ana$         2  5        1    1         1
-   4  na$          5  0        0    0         1
-   5  a$           1  6        0    0         1
-   6  $            0  -        -    -         -
-char compares: kasai 9, naive 12
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/04_lcp
+make -f /work/Makefile lcp.out && ./lcp.out
 ```
 
-- `i = 2` 的 `nana$` 是 `anana$` 去掉 `a` 得到的，所以跳过 2 个字符。
-- 换成 `aaaaaaaa$`，Kasai 是 15 次，从头比较是 36 次。
+- 结果（前面部分）
 
-</Slide>
+```console
+text = banana$
+SA   = 6 5 3 1 0 4 2
 
-<Slide>
+   j  SA[j]  LCP[j]  suffix
+   0      6       -  $
+   1      5       0  a$
+   2      3       1  ana$
+   3      1       3  anana$
+   4      0       0  banana$
+   5      4       0  na$
+   6      2       2  nana$
+char compares = 12
+```
 
-#### 分析
-::sub[Kasai 是 O(n)]
-
-- $$h$$ 每个位置最多减 1，而且不会超过 $$n$$。
-- 所以 while 里 $$h$$ 增加的次数加起来不超过 $$2n$$。
-- 不匹配的比较每个位置一次。
-
-<br/>
-
-有了后缀数组，LCP 数组就能在 $$O(n)$$ 内**几乎白送**。
-
-</Slide>
-
-<Slide>
-
-### 动手试试：Kasai 的开销
-::sub[把 a 的个数增大试试 · 一个条形对应一个位置 i]
-
-<KasaiCostDemo slide />
+字符比较 12 次。后面出现的 Kasai 本课程不讲。
 
 </Slide>
 
@@ -1417,7 +1373,7 @@ queue sorted = yes, stack sorted = no
    - MSD 从高位开始分桶，分开了就不再往下读。
 3. **后缀数组是把所有后缀排好序后的起始位置数组**。
    - 朴素方法把后缀当作字符串比较来排序。
-4. **LCP 数组用 Kasai 在 $$O(n)$$ 内构造**。
+4. **LCP 数组是相邻后缀的公共前缀长度**。
    - LRS 是 LCP 的最大值，LCS 只看来自不同字符串的邻居。
 5. **栈是 LIFO，队列是 FIFO**。
    - LSD 的桶必须是队列。

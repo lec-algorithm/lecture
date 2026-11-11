@@ -13,7 +13,6 @@ import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
-import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
@@ -25,7 +24,6 @@ import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
 import LcsPlayDemo from '@components/LcsPlayDemo.astro';
@@ -913,98 +911,56 @@ naive    SA = 6 5 3 1 0 4 2
 
 </Slide>
 
-<Slide>
-
-#### Kasai's algorithm
-::sub[In text-position order i = 0, 1, 2, ..., not sorted order]
-
-> If suffix $$i$$ and its previous neighbor have LCP $$h$$,  
-> then suffix $$i + 1$$ and its previous neighbor have LCP **at least** $$h - 1$$.
-
-<br/>
-
-- Suffix $$i + 1$$ is suffix $$i$$ with its first character removed.
-- Remove the first character of neighbor $$j$$ too: $$j + 1$$ still shares $$h - 1$$ characters.
-- So those $$h - 1$$ characters are **skipped without comparing.**
-
-</Slide>
-
-<Slide>
-
-### One step at a time: Kasai
-::sub[Orange: suffix i, blue: previous neighbor j · gray skipped, green match, red mismatch]
-
-<KasaiDemo slide />
-
-</Slide>
-
 <Slide class="compact">
 
-#### As a procedure
-::sub[`04_lcp/lcp.pseudo`]
+#### Building it
+::sub[`04_lcp/lcp.pseudo` · straight from the definition, each neighboring pair from the front]
 
 ```plaintext
-ALGORITHM BuildLcpKasai(T, SA, n)
-    for j <- 0 to n-1 do rank[SA[j]] <- j  // step 1: inverse of SA
-    h <- 0
-    for i <- 0 to n-1 do                   // step 2: in text-position order
-        if rank[i] > 0 then
-            j <- SA[rank[i] - 1]           // previous neighbor in sorted order
-            while T[i + h] = T[j + h] do   // skip h characters, then compare
-                h <- h + 1
-            LCP[rank[i]] <- h
-            if h > 0 then h <- h - 1       // next shares at least h-1
-        else
-            h <- 0                         // the first suffix has no neighbor
+ALGORITHM BuildLcpNaive(T, SA, n)
+    for j <- 1 to n-1 do                  // each pair of neighbors in sorted order
+        a <- SA[j-1], b <- SA[j], h <- 0
+        while a + h < n and b + h < n and T[a + h] = T[b + h] do
+            h <- h + 1                    // count matching characters from the front
+        LCP[j] <- h
 ```
 
-The while loop's bounds check (`i + h < n and j + h < n`) is omitted.
+- Each neighboring pair is compared from the front.
+- Long common prefixes add compares, a worst case of $$O(n^2)$$.
+  - `aaaaaaaa$` takes 1 + 2 + ... + 8 = 36.
 
 </Slide>
 
 <Slide class="compact">
 
 #### Output
-::sub[`04_lcp` · start h is the number of characters skipped]
+::sub[`04_lcp/lcp.c`]
 
-```console
-   i  suffix    rank  j  start h  lcp  compares
-   0  banana$      4  1        0    0         1
-   1  anana$       3  3        0    3         4
-   2  nana$        6  4        2    2         1
-   3  ana$         2  5        1    1         1
-   4  na$          5  0        0    0         1
-   5  a$           1  6        0    0         1
-   6  $            0  -        -    -         -
-char compares: kasai 9, naive 12
+- Run
+
+```sh
+cd src/topic-09-radix-sort/04_lcp
+make -f /work/Makefile lcp.out && ./lcp.out
 ```
 
-- At `i = 2`, `nana$` is `anana$` minus its `a`, so 2 characters are skipped.
-- With `aaaaaaaa$`, Kasai makes 15 comparisons; comparing from the start, 36.
+- Result (first part)
 
-</Slide>
+```console
+text = banana$
+SA   = 6 5 3 1 0 4 2
 
-<Slide>
+   j  SA[j]  LCP[j]  suffix
+   0      6       -  $
+   1      5       0  a$
+   2      3       1  ana$
+   3      1       3  anana$
+   4      0       0  banana$
+   5      4       0  na$
+   6      2       2  nana$
+char compares = 12
+```
 
-#### Analysis
-::sub[Kasai is O(n)]
-
-- $$h$$ drops by at most 1 per position and can never exceed $$n$$.
-- So $$h$$ grows at most $$2n$$ times in total in the while loop.
-- There is one mismatching comparison per position.
-
-<br/>
-
-Given the suffix array, the LCP array comes **almost for free**, in $$O(n)$$.
-
-</Slide>
-
-<Slide>
-
-### Try it: what Kasai costs
-::sub[Increase the number of a · one bar is one position i]
-
-<KasaiCostDemo slide />
+That is 12 character compares. The Kasai part that follows is not covered in this course.
 
 </Slide>
 
@@ -1417,7 +1373,7 @@ Open a file and press the **▶ button** at the top right of the editor.
    - MSD splits into buckets from the highest digit and stops once keys split.
 3. **A suffix array is the sorted starting positions of all suffixes.**
    - The plain method sorts suffixes by comparing them as strings.
-4. **Kasai builds the LCP array in $$O(n)$$.**
+4. **The LCP array holds the common prefix lengths of neighboring suffixes.**
    - LRS is the LCP maximum; LCS looks only at neighbors from different strings.
 5. **A stack is LIFO, a queue is FIFO.**
    - LSD's buckets must be queues.
