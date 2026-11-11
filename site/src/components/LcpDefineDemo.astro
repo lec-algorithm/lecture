@@ -1,0 +1,541 @@
+---
+// LCP의 정의를 보는 데모. 두 문자열을 앞에서부터 한 글자씩 맞대어 비교한다.
+//
+// 같은 글자가 이어지는 동안 칸이 초록으로 칠해지고, 다른 글자나 문자열의 끝을 만나면 멈춘다.
+// 초록 칸의 수가 LCP, 그 글자들이 공통 접두사다. 문자열을 직접 넣거나 고를 수 있다.
+// 오른쪽 표는 정렬된 접미사다. 줄을 누르면 그 접미사와 바로 앞 이웃을 맞대고, 비교가 끝나면
+// LCP[j] 칸이 채워진다. 이웃끼리 잰 LCP를 모은 것이 LCP 배열이라는 것을 직접 채워 보게 한다.
+// banana$의 값은 04_lcp의 출력과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 오른쪽 표의 문자열 */
+  word?: string;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { word = 'banana$', slide = false } = Astro.props;
+const id = `ld-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LCP: 앞에서부터 맞대기',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    pos: '위치',
+    colSuffix: '접미사',
+    tableCap: '정렬된 접미사: 줄을 누르면 앞 이웃과 맞댑니다',
+    result: 'LCP',
+    compares: '비교',
+    idle: '앞에서부터 한 글자씩 비교합니다. 같은 글자가 이어지는 길이가 LCP입니다.',
+    same: '위치 {p}에서 {c} = {c}로 같습니다.',
+    diff: '위치 {p}에서 {a} ≠ {b}이므로 멈춥니다.',
+    end: '위치 {p}에서 한쪽 문자열이 끝나므로 멈춥니다.',
+    found: 'LCP = {h}, 공통 접두사는 {w}입니다.',
+    none: 'LCP = 0, 공통 접두사가 없습니다.',
+    neighbor: 'LCP[{j}]은 정렬에서 이웃한 두 접미사를 잰 값입니다.',
+    first: 'LCP[0]은 앞 이웃이 없어 정의하지 않습니다.',
+    filled: '표의 이웃을 모두 재면 LCP 배열이 완성됩니다.',
+  },
+  en: {
+    title: 'LCP: line up from the front',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    pos: 'pos',
+    colSuffix: 'suffix',
+    tableCap: 'Sorted suffixes: click a row to compare it with its previous neighbor',
+    result: 'LCP',
+    compares: 'compares',
+    idle: 'Compare one character at a time from the front. The length of the matching run is the LCP.',
+    same: 'At position {p}, {c} = {c}, so they match.',
+    diff: 'At position {p}, {a} ≠ {b}, so stop.',
+    end: 'At position {p}, one string has ended, so stop.',
+    found: 'LCP = {h}, and the common prefix is {w}.',
+    none: 'LCP = 0, with no common prefix.',
+    neighbor: 'LCP[{j}] is this measure for two suffixes that are neighbors in sorted order.',
+    first: 'LCP[0] is undefined: there is no previous neighbor.',
+    filled: 'Measuring every neighbor pair completes the LCP array.',
+  },
+  zh: {
+    title: 'LCP：从头对齐',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    pos: '位置',
+    colSuffix: '后缀',
+    tableCap: '排好序的后缀：点击一行，与前一个邻居对齐',
+    result: 'LCP',
+    compares: '比较',
+    idle: '从头开始一个字符一个字符地比较。相同字符连续的长度就是 LCP。',
+    same: '位置 {p}：{c} = {c}，相同。',
+    diff: '位置 {p}：{a} ≠ {b}，所以停止。',
+    end: '位置 {p}：有一个字符串结束了，所以停止。',
+    found: 'LCP = {h}，公共前缀是 {w}。',
+    none: 'LCP = 0，没有公共前缀。',
+    neighbor: 'LCP[{j}] 就是排序中相邻两个后缀的这个值。',
+    first: 'LCP[0] 没有前一个邻居，不作定义。',
+    filled: '把相邻的后缀都量完，LCP 数组就完成了。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const sa = [...word].map((_, i) => i).sort((x, y) => (word.slice(x) < word.slice(y) ? -1 : 1));
+const pairs = [
+  ['she', 'shells'],
+  ['banana', 'bandana'],
+  ['sea', 'sea'],
+  ['abc', 'xyz'],
+];
+---
+
+<div
+  class:list={['aas-lcp-define-demo', slide && 'is-slide']}
+  id={id}
+  data-ld-strings={JSON.stringify(t)}
+  data-ld-suffixes={JSON.stringify(sa.map((p) => word.slice(p)))}
+>
+  <div class="ld-bar">
+    <span class="ld-head"><strong>{t.title}</strong></span>
+    <div class="ld-controls">
+      <button type="button" data-act="back" class="ld-btn">{t.back}</button>
+      <button type="button" data-act="step" class="ld-btn">{t.step}</button>
+      <button type="button" data-act="play" class="ld-btn ld-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="ld-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="ld-inputs">
+    <input type="text" data-ld-a maxlength="14" spellcheck="false" autocomplete="off" aria-label="A" />
+    <input type="text" data-ld-b maxlength="14" spellcheck="false" autocomplete="off" aria-label="B" />
+    {pairs.map(([a, b]) => <button type="button" class="ld-chip" data-ld-pair={`${a} ${b}`}>{a} · {b}</button>)}
+  </div>
+
+  <div class="ld-main">
+    <div class="ld-stage">
+      <div class="ld-grid" data-ld-grid></div>
+      <div class="ld-result">
+        <span>{t.result} <strong data-ld-h>0</strong></span>
+        <span>{t.compares} <strong data-ld-c>0</strong></span>
+      </div>
+    </div>
+    <div class="ld-side">
+      <span class="ld-cap">{t.tableCap}</span>
+      <table class="ld-table">
+        <thead>
+          <tr><th>j</th><th class="ld-suf">{t.colSuffix}</th><th>LCP[j]</th></tr>
+        </thead>
+        <tbody>
+          {sa.map((p, j) => (
+            <tr data-ld-row={j}>
+              <td>{j}</td>
+              <td class="ld-suf">{word.slice(p)}</td>
+              <td data-ld-lcp>{j === 0 ? '-' : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="ld-note" data-ld-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.ldStrings);
+    const suffixes = JSON.parse(root.dataset.ldSuffixes);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+    const aIn = root.querySelector('[data-ld-a]');
+    const bIn = root.querySelector('[data-ld-b]');
+    const grid = root.querySelector('[data-ld-grid]');
+    const hEl = root.querySelector('[data-ld-h]');
+    const cEl = root.querySelector('[data-ld-c]');
+    const note = root.querySelector('[data-ld-note]');
+    const playBtn = root.querySelector('[data-act="play"]');
+    const rows = [...root.querySelectorAll('[data-ld-row]')];
+
+    let a = '';
+    let b = '';
+    let row = null;   // 표에서 고른 줄. 직접 넣은 문자열이면 null
+    let at = -1;      // 지금까지 끝낸 걸음. -1이면 아직 비교 전
+    let steps = [];
+    let timer = null;
+    const known = new Map();   // 줄 번호 -> 잰 LCP
+
+    /* 비교 걸음을 미리 만든다. 같은 글자마다 한 걸음, 멈추는 곳에서 한 걸음이다. */
+    function plan() {
+      steps = [];
+      for (let p = 0; ; p++) {
+        if (p >= a.length || p >= b.length) {
+          steps.push({ p, kind: 'end', h: p });
+          return;
+        }
+        if (a[p] !== b[p]) {
+          steps.push({ p, kind: 'diff', h: p });
+          return;
+        }
+        steps.push({ p, kind: 'same', h: p + 1 });
+      }
+    }
+
+    function drawGrid() {
+      const cols = Math.max(a.length, b.length, 1);
+      grid.style.setProperty('--ld-cols', String(cols));
+      const make = (label, text, cls) => [
+        Object.assign(document.createElement('span'), { className: 'ld-label', textContent: label }),
+        ...Array.from({ length: cols }, (_, i) => {
+          const cell = document.createElement('span');
+          cell.className = cls;
+          cell.dataset.ldAt = String(i);
+          cell.textContent = text === null ? String(i) : (text[i] ?? '');
+          if (text !== null && text[i] === undefined) cell.classList.add('is-none');
+          return cell;
+        }),
+      ];
+      grid.replaceChildren(...make(S.pos, null, 'ld-pos'), ...make('A', a, 'ld-cell'), ...make('B', b, 'ld-cell'));
+    }
+
+    function render() {
+      const st = at >= 0 ? steps[at] : null;
+      const finished = !!st && st.kind !== 'same';
+      grid.querySelectorAll('.ld-cell').forEach((cell) => {
+        const i = Number(cell.dataset.ldAt);
+        const matched = !!st && i < st.h;
+        cell.classList.toggle('is-same', matched);
+        cell.classList.toggle('is-diff', !!st && st.kind === 'diff' && i === st.p);
+        cell.classList.toggle('is-now', !!st && i === st.p);
+      });
+      hEl.textContent = String(st ? st.h : 0);
+      /* 문자열 끝에서 멈춘 걸음은 글자를 비교하지 않았다. */
+      cEl.textContent = String(st ? st.p + (st.kind === 'end' ? 0 : 1) : 0);
+
+      if (finished && row !== null) known.set(row, st.h);
+      rows.forEach((tr, j) => {
+        tr.classList.toggle('is-now', row === j);
+        tr.classList.toggle('is-prev', row !== null && row === j + 1);
+        if (j > 0) tr.querySelector('[data-ld-lcp]').textContent = known.has(j) ? String(known.get(j)) : '';
+      });
+
+      const lines = [];
+      if (!st) {
+        lines.push(row !== null ? fill(S.neighbor, { j: row }) : S.idle);
+      } else if (st.kind === 'same') {
+        lines.push(fill(S.same, { p: st.p, c: a[st.p] }));
+      } else {
+        lines.push(st.kind === 'diff' ? fill(S.diff, { p: st.p, a: a[st.p], b: b[st.p] }) : fill(S.end, { p: st.p }));
+        lines.push(st.h > 0 ? fill(S.found, { h: st.h, w: a.slice(0, st.h) }) : S.none);
+        if (row !== null) lines.push(known.size === rows.length - 1 ? S.filled : fill(S.neighbor, { j: row }));
+      }
+      setLines(note, lines.join(' '));
+      root.classList.toggle('is-done', finished);
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+
+    function load(nextA, nextB, nextRow) {
+      stop();
+      a = nextA;
+      b = nextB;
+      row = nextRow;
+      aIn.value = a;
+      bIn.value = b;
+      at = -1;
+      plan();
+      drawGrid();
+      root.querySelectorAll('[data-ld-pair]').forEach((c) => c.classList.toggle('is-on', c.dataset.ldPair === `${a} ${b}`));
+      render();
+    }
+
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render();
+      if (at >= steps.length - 1) stop();
+    }
+
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render();
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      known.clear();
+      load(suffixes[2], suffixes[3], 3);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render();
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 900);
+    });
+    rows.forEach((tr, j) =>
+      tr.addEventListener('click', () => {
+        if (j === 0) {
+          stop();
+          setLines(note, S.first);
+          return;
+        }
+        load(suffixes[j - 1], suffixes[j], j);
+      }),
+    );
+    root.querySelectorAll('[data-ld-pair]').forEach((chip) =>
+      chip.addEventListener('click', () => {
+        const [x, y] = chip.dataset.ldPair.split(' ');
+        load(x, y, null);
+      }),
+    );
+    [aIn, bIn].forEach((box) => box.addEventListener('input', () => load(aIn.value, bIn.value, null)));
+
+    load(suffixes[2], suffixes[3], 3);
+  })();
+</script>
+
+<style is:global>
+  .aas-lcp-define-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lcp-define-demo .ld-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-lcp-define-demo .ld-head {
+    font-size: 0.95em;
+  }
+  .aas-lcp-define-demo .ld-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-lcp-define-demo .ld-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lcp-define-demo .ld-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lcp-define-demo .ld-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-lcp-define-demo .ld-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+    margin-bottom: 0.7em;
+  }
+  .aas-lcp-define-demo .ld-inputs input {
+    width: 7.5em;
+    padding: 0.2em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-lcp-define-demo .ld-chip {
+    padding: 0.2em 0.65em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lcp-define-demo .ld-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lcp-define-demo .ld-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lcp-define-demo .ld-main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-lcp-define-demo .ld-stage {
+    flex: 1 1 18em;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .aas-lcp-define-demo .ld-side {
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+  .aas-lcp-define-demo .ld-grid {
+    display: grid;
+    grid-template-columns: auto repeat(var(--ld-cols, 1), 1.7em);
+    gap: 0.2em;
+    align-items: center;
+    width: max-content;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lcp-define-demo .ld-label {
+    padding-right: 0.5em;
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-lcp-define-demo .ld-pos {
+    text-align: center;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-lcp-define-demo .ld-cell {
+    height: 1.7em;
+    box-sizing: border-box;
+    line-height: calc(1.7em - 3px);
+    text-align: center;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+    transition: background-color 0.25s, border-color 0.25s;
+  }
+  .aas-lcp-define-demo .ld-cell.is-none {
+    border-style: dashed;
+    background: none;
+  }
+  .aas-lcp-define-demo .ld-cell.is-now {
+    border-color: var(--aas-role-focus);
+  }
+  .aas-lcp-define-demo .ld-cell.is-same {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-lcp-define-demo .ld-cell.is-diff {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-lcp-define-demo .ld-result {
+    display: flex;
+    gap: 1.2em;
+    margin-top: 0.7em;
+    font-size: 0.9em;
+    color: var(--aas-muted);
+  }
+  .aas-lcp-define-demo .ld-result strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-lcp-define-demo .ld-cap {
+    display: block;
+    max-width: 21em;
+    margin-bottom: 0.25em;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo table {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo :is(th, td) {
+    padding: 0.05em 0.6em;
+    border: none;
+    background: none;
+    text-align: center;
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo th {
+    font-family: var(--aas-sans, inherit);
+    font-size: 0.88em;
+    font-weight: 600;
+    color: var(--aas-muted);
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo .ld-suf {
+    min-width: 5.5em;
+    text-align: left;
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo tbody tr {
+    cursor: pointer;
+    background: none;
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo tbody tr:hover td {
+    background: color-mix(in srgb, var(--aas-accent) 8%, transparent);
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo tbody tr.is-now td {
+    background: color-mix(in srgb, var(--aas-role-focus) 18%, transparent);
+    font-weight: 700;
+  }
+  .aas-lcp-define-demo.aas-lcp-define-demo tbody tr.is-prev td {
+    background: color-mix(in srgb, var(--aas-role-model) 14%, transparent);
+  }
+  .aas-lcp-define-demo .ld-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    min-height: 3.2em;
+  }
+
+  /* 슬라이드용. 세로로 긴 창에서는 높이만 보면 글자가 너무 커지므로 너비도 본다. */
+  .aas-lcp-define-demo.is-slide {
+    font-size: clamp(1rem, min(2.75vh, 1.9vw), 1.85rem);
+    margin: 0.5rem 0;
+  }
+  .aas-lcp-define-demo.is-slide .ld-main {
+    flex-wrap: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-lcp-define-demo .ld-cell {
+      transition: none;
+    }
+  }
+</style>

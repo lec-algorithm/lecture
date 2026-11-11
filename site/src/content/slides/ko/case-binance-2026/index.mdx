@@ -1,0 +1,306 @@
+---
+title: "사례 연구 · 바이낸스 해킹 (2026)"
+description: "가짜 채용 면접에서 시작해 63억 달러가 빠져나간 경로와, 개발자가 지켜야 할 것"
+order: 200
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import AttackTimelineDemo from '@components/AttackTimelineDemo.astro';
+import RunWhereDemo from '@components/RunWhereDemo.astro';
+import NonceRaceDemo from '@components/NonceRaceDemo.astro';
+import DefenseChainDemo from '@components/DefenseChainDemo.astro';
+import StoryStrip from '@components/StoryStrip.astro';
+
+{/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
+    사실은 2026년 11월 10일까지의 보도로 확인한 것만 담았습니다. 출처는 마지막 슬라이드에 있습니다. */}
+
+<Slide class="cover">
+
+# 사례 연구 · 바이낸스 해킹
+
+*2026년 10월 29일, 63억 달러가 20분 만에*
+
+</Slide>
+
+<Slide>
+
+## 한눈에 보기
+::sub[보도마다 수치가 조금씩 다릅니다 · → 키로 한 칸씩 넘깁니다]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "coins", "head": "약 63억 달러", "label": "역대 최대 가상자산 탈취", "tone": "bad"},
+    {"icon": "clock", "head": "약 20분", "label": "대부분이 빠져나간 시간", "tone": "bad"},
+    {"icon": "link", "head": "10개 체인", "label": "동시에 털린 블록체인", "tone": "bad"},
+    {"icon": "calendar", "head": "약 5개월", "label": "6월 설치 파일부터 10월까지", "tone": "warn"},
+    {"icon": "snowflake", "head": "약 28.5억 달러", "label": "동결·차단한 금액", "tone": "good"},
+    {"icon": "eye", "head": "FBI: 북한", "label": "TraderTraitor 지목, 북한은 부인"},
+  ]}
+/>
+
+</Slide>
+
+<Slide>
+
+## 블록체인이 뚫린 것이 아닙니다
+::sub[무너진 것은 그 앞의 연결입니다]
+
+<StoryStrip
+  panels={[
+    {"icon": "laptop", "label": "개발자 PC", "tone": "bad"},
+    {"icon": "bot", "label": "사내 AI 도구", "tone": "bad"},
+    {"icon": "key", "label": "배포 토큰", "tone": "bad"},
+    {"icon": "server", "label": "서명 서비스", "tone": "bad"},
+    {"icon": "wallet", "label": "핫월렛", "tone": "bad"},
+  ]}
+  punch="암호도, 블록체인도, 개인 키도 깨지지 않았습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+### 한 단계씩: 5개월의 공격
+::sub[다음을 누르거나 띠의 칸을 눌러 단계를 옮깁니다 · 색은 침투, 확장, 탈취, 수습입니다]
+
+<AttackTimelineDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 1단계: AI 도구를 찾다가
+::sub[2026년 6월]
+
+<StoryStrip
+  panels={[
+    {"icon": "search", "label": "AI 코딩 도구를 검색"},
+    {"icon": "package", "label": "변조된 설치 파일 실행", "tone": "bad"},
+    {"icon": "shield", "label": "보안팀이 탐지해 기기 교체", "tone": "good"},
+    {"icon": "leak", "label": "팀·역할 정보는 이미 유출", "tone": "bad"},
+  ]}
+  punch="탐지는 성공했지만, 다음 표적의 목록이 이미 넘어갔습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+## 2단계: 가짜 채용 면접
+::sub[2026년 9월]
+
+<StoryStrip
+  panels={[
+    {"icon": "mail", "label": "프로젝트 디렉터 사칭 이직 제안", "tone": "warn"},
+    {"icon": "video", "label": "인사 담당자·CEO 사칭 면접 두 번", "tone": "warn"},
+    {"icon": "code", "label": "코딩 과제를 업무용 PC에서 실행", "tone": "bad"},
+    {"icon": "bug", "label": "엔드포인트 보안이 탐지 못함", "tone": "bad"},
+  ]}
+  punch="면접관도 과제도 모두 가짜였고, 회사 PC 한 대가 넘어갔습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+## "제로데이 악성코드"라는 말
+::sub[보도의 표현을 정확히 읽기]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "bug", "head": "제로데이 취약점", "label": "개발사가 모르거나 패치가 없는 결함"},
+    {"icon": "eye", "head": "이번 사건의 \"제로데이\"", "label": "보안 제품이 모르던 새 악성코드, CVE 없음", "tone": "warn"},
+    {"icon": "person", "head": "문을 연 것", "label": "피해자가 과제 코드를 직접 실행", "tone": "bad"},
+  ]}
+  punch="그래서 탐지 도구만으로는 막기 어렵습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+### 눌러 보기: 받은 코드를 어디서 돌릴까
+::sub[실행 환경을 고르면, 그 코드가 악성일 때 닿는 것이 빨갛게 표시됩니다]
+
+<RunWhereDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 3단계: 사내 AI 도구를 거쳐 옆으로
+::sub[10월 20일\~29일]
+
+<StoryStrip
+  panels={[
+    {"icon": "laptop", "label": "장악한 PC 한 대", "tone": "bad"},
+    {"icon": "bot", "label": "사내 AI 도구로 동료 PC 2대 장악", "tone": "bad"},
+    {"icon": "key", "label": "컨테이너 배포 토큰 발견", "tone": "bad"},
+    {"icon": "server", "label": "사내 지갑 서명 서비스 접근", "tone": "bad"},
+  ]}
+  punch="정상 출금 절차를 거치지 않는 서명이 가능해졌습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+## EIP-7702: 지갑에 코드를 위임하기
+::sub[2025년 이더리움 업그레이드로 들어온 편의 기능]
+
+<StoryStrip
+  panels={[
+    {"icon": "wallet", "label": "평소:\n코드 없는 지갑,\n키로 서명한 거래만"},
+    {"icon": "code", "label": "EIP-7702:\n컨트랙트에 실행을 위임", "tone": "warn"},
+    {"icon": "wallet", "label": "스위퍼에 위임:\n들어오는 자금까지\n공격자에게", "tone": "bad"},
+    {"icon": "clock", "label": "해제에 약 4시간:\nMPC라 키 하나로 못 함", "tone": "bad"},
+  ]}
+  punch="편의를 위한 기능이 정상 출금 절차 밖으로 나가는 길이 됐습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+### 눌러 보기: 위임 50개
+::sub[미리 서명한 위임 수를 50으로 늘려 보세요 · 실제로는 18,914,775부터 50개 중 18,914,809 하나가 적용됐습니다]
+
+<NonceRaceDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 20분, 10개 체인
+::sub[10월 28일 준비부터 29일 20:05 UTC까지]
+
+<StoryStrip
+  panels={[
+    {"icon": "mask", "label": "28일:\n토네이도 캐시에서 소액 3번", "tone": "warn"},
+    {"icon": "code", "label": "29일 오후:\n테스트 지갑 2개, 리허설 1개", "tone": "warn"},
+    {"icon": "clock", "label": "20:05 UTC부터 약 20분, 10개 체인", "tone": "bad"},
+    {"icon": "wallet", "label": "이더리움 핫월렛을 4분 안에 비움", "tone": "bad"},
+  ]}
+  punch="XRP 약 2억 3,300만 개, BTC 약 1만 8,270개, SOL 약 97만 개와 스테이블코인이 빠져나갔습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+## 세탁과 동결의 경주
+::sub[발행사가 막기 전에 바꿔 놓으려는 경주]
+
+<StoryStrip
+  panels={[
+    {"icon": "snowflake", "label": "테더·서클이\n스테이블코인 동결", "tone": "good"},
+    {"icon": "swap", "label": "동결 전에 ETH로:\nDEX에서 토큰 약 150종", "tone": "bad"},
+    {"icon": "bank", "label": "Aave에 맡기고\nETH 빌리기", "tone": "bad"},
+    {"icon": "users", "label": "800개 넘는 주소로 흩기", "tone": "bad"},
+  ]}
+  punch="이전 Bitget 사건의 자금과 섞인 경로도 확인됐습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+## 수습
+::sub[10월 30일\~11월 3일]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "snowflake", "head": "약 28.5억 달러", "label": "동결·차단\n(피해액의 약 44%)", "tone": "good"},
+    {"icon": "wallet", "head": "약 98%", "label": "SAFU와 회사 자금으로 보충", "tone": "good"},
+    {"icon": "calendar", "head": "11월 1일", "label": "출금 단계적 재개"},
+    {"icon": "leak", "head": "약 36억 달러", "label": "재개 후 9시간 순유출", "tone": "warn"},
+    {"icon": "eye", "head": "10월 31일", "label": "FBI 북한 지목, 북한은 부인"},
+  ]}
+  punch="이용자 손실은 바이낸스가 부담했습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+### 눌러 보기: 어디서 끊을 수 있었나
+::sub[방어책을 켜면 끊기는 단계와 피해가 줄어드는 단계가 표시됩니다 · 실제로 막았을지는 알 수 없는 가정입니다]
+
+<DefenseChainDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 우리가 하지 말아야 할 것
+::sub[학생이든 직장인이든 같습니다]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "laptop", "label": "업무 기기로 구직·과제·개인 다운로드", "tone": "bad"},
+    {"icon": "person", "label": "개인 기기에 회사·학교 계정 로그인 유지", "tone": "bad"},
+    {"icon": "code", "label": "출처 모를 코드를 내 기기에서 바로 실행", "tone": "bad"},
+    {"icon": "search", "label": "검색 결과 링크로 설치 파일 받기", "tone": "bad"},
+    {"icon": "key", "label": "토큰·키를 파일·채팅·셸 기록에 남기기", "tone": "bad"},
+  ]}
+/>
+
+</Slide>
+
+<Slide>
+
+## 꼭 해야 할 것
+::sub[한 겹이 뚫려도 다음 겹에서 멈추도록]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "users", "label": "업무용과 개인용 나누기\n(최소한 계정·브라우저 프로필)", "tone": "good"},
+    {"icon": "package", "label": "모르는 코드는 일회용 환경에서\n(이 수업의 Codespaces)", "tone": "good"},
+    {"icon": "key", "label": "하드웨어 보안 키로 로그인", "tone": "good"},
+    {"icon": "shield", "label": "AI 도구·토큰은 필요한 권한만,\n짧은 만료", "tone": "good"},
+    {"icon": "bell", "label": "이상하면 바로 알리기", "tone": "good"},
+  ]}
+/>
+
+</Slide>
+
+<Slide>
+
+## 채용 연락을 받았을 때
+::sub[이번 사건의 입구였던 상황]
+
+<StoryStrip
+  layout="grid" cols={4}
+  panels={[
+    {"icon": "search", "label": "공식 채용 페이지·메일 도메인으로 역확인", "tone": "good"},
+    {"icon": "package", "label": "\"실행해 보세요\" 과제는 일회용 환경에서만", "tone": "good"},
+    {"icon": "mask", "label": "지금 회사의 팀 구성·담당 시스템은 말하지 않기", "tone": "warn"},
+    {"icon": "laptop", "label": "업무 기기·계정으로 면접 보지 않기", "tone": "warn"},
+  ]}
+  punch="프로필 사진과 경력만으로는 믿지 않습니다."
+/>
+
+</Slide>
+
+<Slide>
+
+## 출처
+::sub[2026년 11월 10일까지의 보도와 분석]
+
+- [CoinDesk: Binance's $6.3 billion hack began with a fake job interview (11월 3일)](https://www.coindesk.com/business/2026/11/03/binance-s-usd6-3-billion-hack-began-with-a-fake-job-interview-exchange-says)
+- [CoinDesk: How one Ethereum permission let an attacker drain Binance (10월 30일)](https://www.coindesk.com/tech/2026/10/30/here-s-how-one-ethereum-permission-let-an-attacker-drain-usd2-5-billion-from-binance)
+- [ZDNet Korea: 바이낸스 해킹, 가짜 채용 면접서 시작 (11월 4일)](https://zdnet.co.kr/view/?no=20261104094357)
+- [디지털데일리: 바이낸스 "북한 해커, 5개월 다단계 공격" (11월 4일)](https://www.ddaily.co.kr/page/view/2026110405435518640)
+- [TRM Labs: North Korea steals USD 6.36 billion from Binance](https://www.trmlabs.com/resources/blog/north-korea-steals-usd-6-36-billion-from-binance-in-the-largest-hack-in-history)
+- [Elliptic: The largest theft in history](https://www.elliptic.co/insights/binance-largest-hack-in-history/)
+- [Wikipedia: 2026 Binance hack](https://en.wikipedia.org/wiki/2026_Binance_hack)
+
+</Slide>

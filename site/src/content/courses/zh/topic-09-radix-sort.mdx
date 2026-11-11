@@ -12,9 +12,7 @@ slides: ["topic-09-radix-sort"]
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
-import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
-import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
@@ -23,12 +21,13 @@ import RadixCostDemo from '@components/RadixCostDemo.astro';
 import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
+import LcpDefineDemo from '@components/LcpDefineDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
-import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
 import LcsPlayDemo from '@components/LcsPlayDemo.astro';
+import SeqMark from '@components/SeqMark.astro';
+import LcsIntroDemo from '@components/LcsIntroDemo.astro';
 import KwicDemo from '@components/KwicDemo.astro';
 
 > 主题 03 的计数排序不做比较，就能在 $$O(n + k)$$ 内排好序，可是值的范围
@@ -275,7 +274,8 @@ $$n$$ 变大时的比例。
 <RuntimeRaceDemo />
 
 数值因电脑而异，所以要看比例。无论输入如何，LSD 都读完所有的位，切换标签时间几乎不变。插入排序
-在已经有序的输入上最快，在倒序的输入上最慢。
+在已经有序的输入上最快，在倒序的输入上最慢。在几乎有序的输入上（有序数组中只有 1% 的位置与后一个元素交换），时间也几乎与
+$$n$$ 成正比，有时甚至比 LSD 还快。
 
 ## 例 2. MSD 基数排序 \{#msd}
 
@@ -368,6 +368,24 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 
 缩进表示递归深度。调用只有两次，第二次调用只看六个元素。
 
+### 稳定性是必需的吗 \{#msd-stable}
+
+[LSD 每一趟都必须稳定](#lsd-stable)，因为后一趟要继承前一趟排好的顺序。MSD
+不一样。桶与桶之间的顺序已经确定，不会再混在一起，而同一个桶内部的顺序会由
+下一位重新决定。按百位分出的 0 号桶无论是 `045 075 090 002 024 066` 还是
+`066 002 090 024 075 045`，按十位再分的结果都一样。
+
+所以 MSD 即使用不稳定的方法分桶，值也能排对。要连相同键的原有顺序也保住，
+情况就不同了。键上附带其他数据时，比如 `(分数, 姓名)`，每一步都必须稳定，
+相同分数的记录才能保持输入顺序。
+
+| | 要把值排对 | 还要保住相同键的顺序 |
+| --- | --- | --- |
+| LSD | 必须稳定 | 必须稳定 |
+| MSD | 不需要 | 必须稳定 |
+
+上面的过程用的是稳定的计数排序，所以相同键的顺序也能保住。
+
 ### 用在字符串上 \{#msd-strings}
 
 MSD 很适合长度各不相同的字符串。先按首字符分，再把每个桶按第二个字符分，……
@@ -398,7 +416,69 @@ MSD 很适合长度各不相同的字符串。先按首字符分，再把每个�
 计数格花的时间反而比处理元素还多。按字节处理的字符串 $$k = 256$$，更是如此。
 所以实际的实现会在桶变小时（比如元素不超过 15 个）改用插入排序。
 
-把上面说的数一数。演示真的运行两种排序，统计读取位数、扫描计数格（调用次数 × $$k$$）和插入排序
+### 改变基数 k \{#msd-radix}
+
+[基数](#from-counting)是一位能取的值的个数，也是计数数组的格数。同一个值按什么
+进制来写，各位就不一样。值不变，变的只是写法。
+
+| 值 | $$k = 10$$ | 各位 | $$k = 256$$ | 各位 |
+| --- | --- | --- | --- | --- |
+| 100 | 1×100 + 0×10 + 0×1 | 1, 0, 0 | 0×256 + 100×1 | 0, 100 |
+| 200 | 2×100 + 0×10 + 0×1 | 2, 0, 0 | 0×256 + 200×1 | 0, 200 |
+| 300 | 3×100 + 0×10 + 0×1 | 3, 0, 0 | 1×256 + 44×1 | 1, 44 |
+| 400 | 4×100 + 0×10 + 0×1 | 4, 0, 0 | 1×256 + 144×1 | 1, 144 |
+
+`1, 44` 不是两个数，而是 256 进制的两位。300 除以 256，商 1 余 44，就像 90 分钟写成
+1 小时 30 分钟。一位能放 0 到 255，所以 `100` 也只是一个数字，到 400 为止两位就够了。
+
+小于 $$2^{32}$$ 的整数，位数和调用开销是这样：
+
+| 基数 $$k$$ | 一位的取值 | 位数 $$d$$ | 一次调用扫描的格数 |
+| --- | --- | --- | --- |
+| 10 | 0 到 9 | 10 | 10 |
+| 256 | 一个字节，0 到 255 | 4 | 256 |
+
+$$k$$ 变大，位数变少，读取次数也变少，但一次调用的代价变大。LSD 只跑 $$d$$ 趟，
+扫描的格数不过 $$d \times k$$。MSD 每个桶都要调用，调用次数可以多到几百次，扫描的
+格数也随之增加。
+
+### 字符串和整数上的 k = 256 \{#msd-bytes}
+
+无论哪种，$$k = 256$$ 的意思都是**按字节读键**，只是键的样子不同。
+
+| 键 | 字节（从高位起） | 各位的值 |
+| --- | --- | --- |
+| 字符串 `she` | `s`, `h`, `e` | 115, 104, 101 |
+| 16 位整数 300 | 十六进制 `01`, `2C` | 1, 44 |
+
+- **字符串**本来就是字节的序列，一个字符就是一位。LSD 的单词排序和
+  [字符串上的 MSD](#msd-strings) 演示属于这一种。
+- **整数**要把值拆成字节。[运行时间](#lsd-runtime)表里的 R = 256 和下面开销演示的
+  $$k = 256$$ 属于这一种。
+
+也可以把整数当成 `"300"` 这样的文字来排序。但数字字符只有十种，256 格中有 246 格总是
+空的，位数也还是 3，增大 $$k$$ 没有好处。长度也要对齐。直接比较的话 `"45"` 会排在
+`"170"` 后面，所以要补零写成 `045`。对整数增大 $$k$$ 是为了减少位数，只有拆成字节才有
+这个效果。
+
+### 小桶交给插入排序 \{#msd-cutoff}
+
+大小不超过某个定值的桶不再递归，改用插入排序处理完。这个大小叫作**截断值**
+（cutoff）。只有两个元素的桶递归下去也要扫描 $$k$$ 格，而插入排序不需要计数数组，
+比较几次就结束。插入排序是稳定的，所以 MSD 的稳定性也不变。
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return
+    if hi - lo + 1 <= cutoff then         // 小区间用插入排序处理完
+        InsertionSort(A, lo, hi)
+        return
+    // 其余与前面的过程相同
+```
+
+过程在 `08_msd_cost/msdCost.pseudo` 里。
+
+把上面说的数一数。输入是整数，输入框下面一行显示每个值的各位。表格下面一行显示调用次数的来历：LSD 按位数调用，MSD 对每个不少于两个元素的区间调用一次。演示真的运行两种排序，统计读取位数、扫描计数格（调用次数 × $$k$$）和插入排序
 的比较。合计是这三个次数相加，看的是规模，不是实际时间。
 
 <MsdCostDemo />
@@ -408,6 +488,56 @@ MSD 很适合长度各不相同的字符串。先按首字符分，再把每个�
 - 随机 1,000 个、$$k = 256$$ 时，MSD 读 2,001 次，是 LSD 4,000 次的一半。但它调用 242 次，
   扫描 61,952 格，合计 MSD 63,953，LSD 5,024。
 - 用滑块把大小不超过 16 的桶交给插入排序，MSD 降到调用 1 次、合计 2,764。
+- `100 200 300 400` 在 $$k = 10$$ 时第一位就分开，合计 MSD 14、LSD 42。$$k = 256$$ 时第一位是
+  0, 0, 1, 1，两个桶都要递归，合计 MSD 776、LSD 520。`100 300 600 900` 的第一位是 0, 1, 2, 3，
+  合计 MSD 260、LSD 520。
+- `111 112 113 114` 在 $$k = 256$$ 时都小于 256，每个值只有一位，马上就分开了。两者都调用 1 次，合计 260。
+
+下面是对随机 1,000 个值拖动滑块的结果。同样的输入，LSD 的合计在 $$k = 10$$ 时是
+10,100，在 $$k = 256$$ 时是 5,024。
+
+| 设置 | 读取位数 | 调用 | 扫描格子 | 插入比较 | 合计 |
+| --- | --- | --- | --- | --- | --- |
+| $$k = 10$$，不交 | 4,158 | 453 | 4,530 | 0 | 8,688 |
+| $$k = 10$$，大小不超过 9 | 3,000 | 49 | 490 | 991 | 4,481 |
+| $$k = 10$$，大小不超过 32 | 2,035 | 7 | 70 | 6,439 | 8,544 |
+| $$k = 256$$，不交 | 2,001 | 242 | 61,952 | 0 | 63,953 |
+| $$k = 256$$，大小不超过 16 | 1,000 | 1 | 256 | 1,508 | 2,764 |
+
+截断值并不是越大越好。插入排序是 $$O(n^2)$$，只在小区间上划算。$$k = 10$$ 时交到大小
+32，插入比较增多，合计又回到 8,544。
+
+表中的值是 `08_msd_cost` 的输出。`[ ]` 里是每一位的调用次数，C 和 Python 输出相同的值。
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- 结果
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+
+1000 random values, 965354 to 4290781594
+k = 10
+  LSD      reads 10000  calls  10  scans    100  ins     0  total  10100
+  MSD      reads  4158  calls 453  scans   4530  ins     0  total   8688  [1 + 5 + 43 + 282 + 103 + 15 + 4]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+
+strings
+  ant bee cat dog elk fox: read 6 of 18, calls 1
+  sea sea sea sea: read 12 of 12, calls 4
+```
 
 ### LSD 与 MSD \{#lsd-vs-msd}
 
@@ -419,6 +549,56 @@ MSD 很适合长度各不相同的字符串。先按首字符分，再把每个�
 | 变长键 | 不利，需要对齐长度 | 有利 |
 | 局部性 | 每一趟扫描整个数组 | 只在一个桶内工作 |
 | 实现 | 简单 | 复杂，要管理桶和递归 |
+
+### 各在什么情况下有利 \{#lsd-msd-when}
+
+| 情况 | 有利的一方 | 原因 |
+| --- | --- | --- |
+| 长度相同的键（整数、日期） | LSD | 实现简单，调用次数固定为位数 |
+| 高位相同或相同的键很多 | LSD | MSD 也要读到最后，调用还更多 |
+| 基数大且小桶很多 | LSD | MSD 每次调用扫描 $$k$$ 格，需要截断值 |
+| 长度不一的字符串 | MSD | 不需要补齐长度 |
+| 高位就能分开的键 | MSD | 分开后就不再读 |
+| 只需要前面一部分 | MSD | 只递归需要的桶 |
+
+用前面演示得到的值来确认。
+
+- **前面就分开时用 MSD：**字符串 `ant bee cat dog elk fox` 的 18 个字符只读 6 个。
+  整数 `100 200 300 400` 在 $$k = 10$$ 时合计 MSD 14、LSD 42。
+- **一直分不开就没有好处：**`sea sea sea sea` 的 12 个字符全部要读。
+  `111 112 113 114` 在 $$k = 10$$ 时两种排序的合计都是 42。
+- **调用很多时用 LSD：**随机 1,000 个、$$k = 256$$ 时合计 MSD 63,953、LSD 5,024。
+  用截断值后 MSD 也降到 2,764。
+
+### 亲手测一测 \{#msd-race}
+
+这是用 `09_radix_timing` 以 C 测三种排序得到的值。单位是 ms，和[前面的表](#lsd-runtime)不是同一台电脑测的，所以看比例。
+`MSD (≤ 16)` 把大小不超过 16 的区间交给插入排序。
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+一百万个时，MSD 约是 LSD 的 3 倍，交给插入排序后约是 1.6 倍。1,000 个时，交出去的 MSD 比 LSD 快。
+
+- 运行
+
+```sh
+cd src/topic-09-radix-sort/09_radix_timing
+make -f /work/Makefile radixTiming.out && ./radixTiming.out
+```
+
+同样的三种排序也可以在这个浏览器里运行。这是 [LSD 里测过的演示](#lsd-runtime)，加上了两行 MSD。基数都是 256，最后一行把大小不超过 16
+的区间交给插入排序。
+
+<RuntimeRaceDemo msd />
+
+数值因电脑而异，要看的是比例。对长度相同的整数，每次调用扫描 256 格的代价超过少读几位的
+收益，所以 $$n$$ 大时 LSD 更快。交给插入排序能缩短 MSD 的时间，$$n$$ 小时还可能超过 LSD。MSD 的长处体现在
+[字符串](#msd-strings)这种长度不一、前面就能分开的键上。
 
 ## 八种排序并排比较 \{#comparison}
 
@@ -434,10 +614,13 @@ MSD 很适合长度各不相同的字符串。先按首字符分，再把每个�
 | 归并排序 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | 稳定 |
 | 计数排序 | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | 稳定 |
 | LSD 基数排序 | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + k)$$ | 稳定 |
-| MSD 基数排序 | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | 稳定 |
+| MSD 基数排序 | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | 稳定† |
 
 上面五种是比较排序，下面三种是不做比较的排序。MSD 的最坏情况只算了读位的
 代价。正如[分析](#msd-analysis)里所说，每次递归调用还要多出 $$O(k)$$。
+
+† MSD 也可以实现成不稳定的。本课程用稳定的计数排序，所以是稳定的。
+[把值排对并不需要这个条件](#msd-stable)。
 
 ## 例 3. 后缀数组 \{#suffix-array}
 
@@ -524,73 +707,6 @@ void buildSuffixArrayNaive(const char *text, int sa[], int n) {
 比较最多要看 $$n$$ 个字符，所以最坏是 $$O(n^2 \log n)$$。像 `aaaa...a$` 这样
 同一个字符连着出现，每次比较几乎都要读到末尾。
 
-### 倍增 \{#suffix-doubling}
-
-**倍增**（doubling，prefix doubling）把比较的长度每次翻一倍。按前 1 个字符、
-2 个字符、4 个字符、8 个字符……给后缀排名，关键在于：**前 $$2h$$ 个字符的
-顺序，可以由前 $$h$$ 个字符的两个排名得出**。
-
-后缀 $$i$$ 的前 $$2h$$ 个字符分成两段。
-
-- 前 $$h$$ 个字符：后缀 $$i$$ 的前 $$h$$ 个字符。排名 $$rank[i]$$
-- 后 $$h$$ 个字符：后缀 $$i + h$$ 的前 $$h$$ 个字符。排名 $$rank[i + h]$$
-
-所以比较数对 $$(rank[i], rank[i + h])$$，就等于比较了前 $$2h$$ 个字符。不用
-重新读字符，只比较两个整数就行。$$i + h$$ 超出字符串时，那一段是空的，记为
-$$-1$$。最初的排名是首字符的字符编码。
-
-演示中一行就是一个后缀。构造数对时，把后缀的前 $$k$$ 个字符涂上颜色，表示
-数对代替的就是这 $$k$$ 个字符。按数对排序后，各行交换位置并得到新的排名。
-排名相同的行（还没有分开的后缀）用橙色框在一起。
-
-右边的条带是数对的原料：字符编码（k = 2）或上一轮的排名。点击一行，构成该数对的两格会涂色。
-
-<SuffixArrayDemo />
-
-- **k = 2**：数对是（首字符，第二个字符）。`anana$` 和 `ana$` 都以 `an` 开头，
-  数对 (97, 110) 相同。`nana$` 和 `na$` 也都是 (110, 97)。排名只有五种。
-- **k = 4**：数对是（前 2 个字符的排名，往后 2 格的后缀的排名）。`ana$` 在
-  位置 3，往后 2 格是位置 5 的 `a$`，排名 1，所以数对是 (2, 1)。
-  `anana$` 在位置 1，往后 2 格是位置 3 的 `ana$`，排名 2，所以数对是 (2, 2)。
-  现在分开了。七个排名全都不同，就结束。
-
-```plaintext
-ALGORITHM BuildSuffixArrayDoubling(T, n)
-    for i <- 0 to n-1 do
-        rank[i] <- T[i]                // 最初的排名：首字符的字符编码
-        SA[i] <- i
-    k <- 2
-    loop
-        for i <- 0 to n-1 do           // 数对：前 k/2 个字符与后 k/2 个字符的排名
-            key[i] <- (rank[i], 若 i + k/2 < n 则 rank[i + k/2] 否则 -1)
-        按 key[SA[j]] 对 SA 排序
-        newRank[SA[0]] <- 0            // 按排好的顺序赋予新排名
-        for j <- 1 to n-1 do           // key 相同则排名相同
-            same <- (key[SA[j]] = key[SA[j-1]])
-            newRank[SA[j]] <- newRank[SA[j-1]] + (same 则 0，否则 1)
-        rank <- newRank
-        if rank[SA[n-1]] = n-1 then break   // 排名全都不同就结束
-        k <- k * 2
-    return SA
-```
-
-C 实现让 `qsort` 的比较函数去看数对。数对相同时按起始位置排，得到与 Python
-实现相同的顺序。
-
-```c
-static int compareKey(const void *a, const void *b) {
-    int i = *(const int *)a;
-    int j = *(const int *)b;
-    if (gKey0[i] != gKey0[j]) {
-        return gKey0[i] - gKey0[j];
-    }
-    if (gKey1[i] != gKey1[j]) {
-        return gKey1[i] - gKey1[j];
-    }
-    return i - j;
-}
-```
-
 - 运行
 
 ```sh
@@ -598,7 +714,7 @@ cd src/topic-09-radix-sort/03_suffix_array
 make -f /work/Makefile suffixArray.out && ./suffixArray.out
 ```
 
-- 结果
+- 结果（前面部分）
 
 ```console
 text = banana$ (n = 7)
@@ -611,58 +727,18 @@ text = banana$ (n = 7)
   6 $
 
 naive    SA = 6 5 3 1 0 4 2
-
-k = 2
-   j  SA[j]  key         rank  suffix
-   0      6  ( 36,  -1)     0  $
-   1      5  ( 97,  36)     1  a$
-   2      1  ( 97, 110)     2  anana$
-   3      3  ( 97, 110)     2  ana$
-   4      0  ( 98,  97)     3  banana$
-   5      2  (110,  97)     4  nana$
-   6      4  (110,  97)     4  na$
-  distinct ranks = 5 of 7
-k = 4
-   j  SA[j]  key         rank  suffix
-   0      6  (  0,  -1)     0  $
-   1      5  (  1,  -1)     1  a$
-   2      3  (  2,   1)     2  ana$
-   3      1  (  2,   2)     3  anana$
-   4      0  (  3,   4)     4  banana$
-   5      4  (  4,   0)     5  na$
-   6      2  (  4,   4)     6  nana$
-  distinct ranks = 7 of 7
-
-doubling SA = 6 5 3 1 0 4 2
-same = yes
 ```
 
-两种方法得出相同的后缀数组。`k = 2` 的表里 `anana$` 排在 `ana$` 前面，只是
-因为数对相同而按起始位置（1 < 3）排了。排名相同，说明两者的顺序还没有定，
-到 `k = 4` 就被纠正过来。
-
-### 分析 \{#suffix-analysis}
-
-- 比较的长度每一轮翻一倍，所以轮数最多是
-  $$\lceil \log_2 n \rceil$$ 轮。
-- 每一轮对 $$n$$ 个整数对做比较排序，是 $$O(n \log n)$$。
-- 所以**总共** $$O(n \log^2 n)$$。
-
-这里本主题的前半部分又派上了用场。数对 $$(rank[i], rank[i + h])$$ 是一个
-**两位数**，每一位的取值从 $$-1$$ 到 $$n - 1$$。所以可以不用比较排序，而用
-**LSD 基数排序的两趟**（按后一位一次，按前一位一次）来排，一轮就成了
-$$O(n)$$。这样总共就是 $$O(n \log n)$$。更进一步，还有 $$O(n)$$ 就能构造出来的
-算法（SA-IS、DC3）。
-
-亲手运行这两趟。一轮有四步：按起始位置构造数对，按低位稳定排序，按高位稳定排序，赋予新排名。字符串
-可以改，点击一行时右边的条带会标出构成该数对的两格。
-
-<DoublingRadixDemo />
-
-`banana$` 用 2 轮、4 趟结束，行的顺序与上面的输出相同。不同的排名在 `mississippi$` 中增加为
-9、11、12 种，在 `aaaaaaaa$` 中增加为 3、5、9 种。
+`naive SA` 是朴素方法的结果。程序接着还会输出一种更快的方法（倍增）的过程，本课程不讲。
 
 ## 例 4. LCP 数组 \{#lcp}
+
+两个字符串的**最长公共前缀**（longest common prefix，LCP）是从头起字符相同的那一段，它的长度就是 $$LCP$$ 值。`ana$`
+和 `anana$` 前面的 `ana` 相同，下一个字符不同，所以是 3。对齐比较时，遇到不同的字符或者有一个字符串结束就停止。
+
+输入或选择字符串，一步一步比较。点击右边表中的一行，会把该后缀与前一个邻居对齐，比较结束后 $$LCP[j]$$ 格就填上了。
+
+<LcpDefineDemo />
 
 **LCP 数组**（longest common prefix array）是与后缀数组搭配使用的伙伴。它记录
 排好序的后缀中**相邻两个从开头起共享几个字符**。
@@ -680,80 +756,26 @@ $$O(n)$$。这样总共就是 $$O(n \log n)$$。更进一步，还有 $$O(n)$$ �
 | 5 | 4 | `na$` | 0 | `banana$` 与 `na$`：没有公共前缀 |
 | 6 | 2 | `nana$` | 2 | `na$` 与 `nana$`：公共前缀 `na` |
 
-$$LCP = [-, 0, 1, 3, 0, 0, 2]$$。对每对邻居从头比较很简单，但像 `aaaa...a$`
-这样公共前缀很长时，每一对都要读很长，就成了 $$O(n^2)$$。
+$$LCP = [-, 0, 1, 3, 0, 0, 2]$$。
 
 点击一行，与前一个邻居对照，公共前缀会涂色。改变字符串会重新计算 LCP 数组。`mississippi$` 的 LCP
 是 `- 0 1 1 4 0 0 1 0 2 1 3`。
 
 <SuffixTableDemo lcp />
 
-### Kasai 算法 \{#kasai}
+### 构造方法 \{#lcp-build}
 
-Kasai 算法**不按排序顺序，而按文本中的位置顺序** $$i = 0, 1, 2, \dots$$ 来处理
-后缀。理由是下面这一条观察。
+按定义直接构造：对排序中相邻的每两个后缀，从头数相同的字符。
 
-> 如果后缀 $$i$$ 与它在排序中紧挨着的前一个邻居的 LCP 是 $$h$$，那么后缀
-> $$i + 1$$ 与它的前一个邻居的 LCP **至少**是 $$h - 1$$。
-
-后缀 $$i + 1$$ 就是后缀 $$i$$ 去掉首字符。后缀 $$i$$ 的前一个邻居 $$j$$ 去掉首
-字符也变成后缀 $$j + 1$$，两者仍共享 $$h - 1$$ 个字符，排序顺序也不变。所以
-后缀 $$i + 1$$ 紧挨着的前一个邻居，要么是 $$j + 1$$，要么是排在 $$j + 1$$ 与
-$$i + 1$$ 之间的后缀。夹在中间的后缀，按排序顺序也与两者的前 $$h - 1$$ 个字符
-相同。因此这 $$h - 1$$ 个字符可以不比较、直接跳过。
-
-- **第 1 步**：由 $$rank[SA[j]] = j$$ 造出后缀数组的逆。
-  $$rank[i]$$ 是从位置 $$i$$ 开始的后缀在排序中排第几。
-- **第 2 步**：按 $$i = 0, 1, \dots$$ 的顺序，找出排序中紧挨着的前一个邻居
-  $$j = SA[rank[i] - 1]$$，从第 $$h$$ 个字符开始比较。去下一个位置之前，把
-  $$h$$ 减 1。
-
-上方的条带是文本与 $$rank[i]$$，下方的表是排好序的后缀。橙色是当前的后缀
-$$i$$，蓝色是它的前一个邻居 $$j$$。灰色字符是跳过的前 $$h$$ 个字符，绿色是新
-匹配上的字符，红色是不匹配。
-
-<KasaiDemo />
-
-在 `i = 1`（`anana$`）时，与前一个邻居 `ana$` 共享了 3 个字符。接下来的
-`i = 2`（`nana$`）是 `anana$` 去掉 `a` 得到的，所以与前一个邻居 `na$` 至少
-共享 2 个字符。于是跳过 2 个字符，从第三个字符开始比较，一次就结束。`i = 3`
-也出于同样的理由从第 1 个字符开始。
+- 伪代码（`04_lcp/lcp.pseudo`）
 
 ```plaintext
-ALGORITHM BuildLcpKasai(T, SA, n)
-    for j <- 0 to n-1 do
-        rank[SA[j]] <- j                    // 第 1 步：SA 的逆
-    h <- 0                                  // 目前已知的公共前缀长度
-    for i <- 0 to n-1 do                    // 第 2 步：按文本位置顺序
-        if rank[i] > 0 then
-            j <- SA[rank[i] - 1]            // 排序中紧挨着的前一个邻居
-            while i + h < n and j + h < n and T[i + h] = T[j + h] do
-                h <- h + 1                  // 跳过 h 个字符，从第 h 个开始比较
-            LCP[rank[i]] <- h
-            if h > 0 then h <- h - 1        // 下一个后缀至少共享 h-1 个字符
-        else
-            h <- 0                          // 最前面的后缀没有邻居
-```
-
-`rank[i] = 0` 时把 $$h$$ 设为 0 的那一行，是在代码里明确写出"最前面的后缀没有
-可比较的邻居"。按上面的观察推一推，这时 $$h$$ 总是已经为 0，所以没有这一行，
-结果也一样。
-
-```c
-for (int i = 0; i < n; i++) {
-    if (rank[i] == 0) {
-        h = 0;
-        continue;
-    }
-    int j = sa[rank[i] - 1];
-    while (i + h < n && j + h < n && text[i + h] == text[j + h]) {
-        h++;
-    }
-    lcp[rank[i]] = h;
-    if (h > 0) {
-        h--;
-    }
-}
+ALGORITHM BuildLcpNaive(T, SA, n)
+    for j <- 1 to n-1 do                  // 排序中相邻的每两个后缀
+        a <- SA[j-1], b <- SA[j], h <- 0
+        while a + h < n and b + h < n and T[a + h] = T[b + h] do
+            h <- h + 1                    // 从头数相同的字符
+        LCP[j] <- h
 ```
 
 - 运行
@@ -763,20 +785,11 @@ cd src/topic-09-radix-sort/04_lcp
 make -f /work/Makefile lcp.out && ./lcp.out
 ```
 
-- 结果
+- 结果（前面部分）
 
 ```console
 text = banana$
 SA   = 6 5 3 1 0 4 2
-
-   i  suffix    rank  j  start h  lcp  compares
-   0  banana$      4  1        0    0         1
-   1  anana$       3  3        0    3         4
-   2  nana$        6  4        2    2         1
-   3  ana$         2  5        1    1         1
-   4  na$          5  0        0    0         1
-   5  a$           1  6        0    0         1
-   6  $            0  -        -    -         -
 
    j  SA[j]  LCP[j]  suffix
    0      6       -  $
@@ -786,26 +799,11 @@ SA   = 6 5 3 1 0 4 2
    4      0       0  banana$
    5      4       0  na$
    6      2       2  nana$
-char compares: kasai 9, naive 12
+char compares = 12
 ```
 
-`start h` 列是跳过的字符数。Kasai 的字符比较是 9 次，而把每对邻居都从头比较
-是 12 次。换成 `aaaaaaaa$`，差距拉大到 15 次对 36 次。
-
-### 分析 \{#lcp-analysis}
-
-$$h$$ 每个位置最多减 1，而且不会超过 $$n$$。因此 while 循环里 $$h$$ 增加的次数
-加起来不超过 $$2n$$，不匹配的比较每个位置一次。**总共** $$O(n)$$。只要手里已经
-有后缀数组，LCP 数组几乎是白送的。
-
-把开销按位置画出来。一个条形对应一个位置 $$i$$。灰色是跳过的字符数，绿色是实际的字符比较数，虚线
-是与邻居从头比较时的字符比较数。点击条形，会显示该位置的后缀和前一个邻居。滑块把字符串换成只有 `a`。
-
-<KasaiCostDemo />
-
-- `banana$` 是 Kasai 9 次，从头比较 12 次。
-- 8 个 `a` 时是 15 次和 36 次，60 个时是 119 次和 1,830 次。只有从头比较的一方按平方增长。
-- 灰色越多，比较越少。上界 $$3n$$ 是上面分析的总和，即 $$h$$ 增加 $$2n$$ 次加上不匹配 $$n$$ 次。
+字符比较 12 次。因为每对邻居都从头比较，像 `aaaaaaaa$` 这样公共前缀很长时会增加到 1 + 2 + ... + 8 = 36 次，
+最坏 $$O(n^2)$$。程序接着还会作为参考输出 Kasai 算法的过程，它能在 $$O(n)$$ 内构造同一个数组，本课程不讲。
 
 ## 例 5. 最长重复子串 \{#lrs}
 
@@ -813,14 +811,7 @@ $$h$$ 每个位置最多减 1，而且不会超过 $$n$$。因此 while 循环�
 两次以上**的最长子串。两次出现的位置可以重叠。在 DNA 序列中找重复片段，在
 文档中找抄袭或重复，在音乐中找反复出现的小节，都是这个问题。
 
-```plaintext
-aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
-tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
-cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg
-gtatagatagatagacccctagatacacatacatagatctagctagc
-tagctcatcgatacacactctcacactcaagagttatactggtcaac
-acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
-```
+<SeqMark lines={["aacaagtttacaagcatgatgctgtactaggagagttatactggtcg", "tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt", "cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg", "gtatagatagatagacccctagatacacatacatagatctagctagc", "tagctcatcgatacacactctcacactcaagagttatactggtcaac", "acactactacgacagacgaccaaccagacagaaaaaaaaactctatat"]} mark="agagttatactggtc" />
 
 这是一段 283 个字符的碱基序列。答案是从位置 31 和 217 开始的 15 个字符
 `agagttatactggtc`，分别在第一行末尾和第五行。用眼睛很难找，用下面的方法一下
@@ -853,7 +844,7 @@ acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
 ```plaintext
 ALGORITHM LongestRepeatedSubstring(T, n)
     SA <- BuildSuffixArray(T, n)
-    LCP <- BuildLcpKasai(T, SA, n)
+    LCP <- BuildLcp(T, SA, n)
     best <- -1, at <- 0
     for j <- 1 to n-1 do                    // 只看相邻的对
         if LCP[j] > best then
@@ -922,7 +913,7 @@ brute force: "acaag", 120 pairs, 161 char compares
 <LrsFindDemo />
 
 - 答案是位置 31 和 217 的 15 个字符 `agagttatactggtc`。第二、三行是同一个重复去掉前面的字符。
-- 暴力法要看 40,186 个位置对，字符比较 54,888 次。排序后是 283 个相邻对，Kasai 字符比较 562 次。
+- 暴力法要看 40,186 个位置对，字符比较 54,888 次。排序后是 283 个相邻对，即使从头比较，字符比较也只有 1,416 次。
 - 抽一个随机序列，最长重复要短得多。这个序列里的 15 个字符很难说是巧合。
 
 ### 性能 \{#lrs-performance}
@@ -950,15 +941,14 @@ B 是 $$Dn^2$$，按上表的趋势要几百年。C 的插入排序光比较就�
 有陷阱。LSD 以**长度相同的键**为前提，而后缀的长度从 1 到 $$n$$ 各不相同。把
 长度补齐到 $$n$$，就要 $$n$$ 趟，每趟 $$O(n)$$，共 $$O(n^2)$$。对 10 亿个字符来说，
 $$O(n^2)$$ 的话四个人都完不成。要得出答案，后缀排序必须做到 $$O(n \log n)$$
-以下。适合变长键的 MSD 一类排序，或者本主题的倍增（配合基数排序是
-$$O(n \log n)$$），才是出路。
+以下。适合变长键的 MSD 一类排序这样的方法，才是出路。
 
-换成数字看看。用滑块改变 $$n$$、$$D$$ 和每秒运算数，由公式估算 B、C、D 和倍增的时间。这是估算，不是测量。
+换成数字看看。用滑块改变 $$n$$、$$D$$ 和每秒运算数，由公式估算 B、C、D 和 $$O(n \log n)$$ 排序的时间。这是估算，不是测量。
 
 <GenomeScaleDemo />
 
 $$n = 10^9$$、$$D = 20$$、每秒 $$10^9$$ 次时，暴力法约 317 年，插入排序约 7.9 年，补齐长度的 LSD
-约 31.7 年。同样条件下，倍增与基数排序是 2 分钟。机器快 1000 倍，暴力法也要约 116 天。
+约 31.7 年。同样条件下，$$O(n \log n)$$ 排序是 2 分钟。机器快 1000 倍，暴力法也要约 116 天。
 
 ## 例 6. 最长公共子串 \{#lcs}
 
@@ -966,6 +956,10 @@ $$n = 10^9$$、$$D = 20$$、每秒 $$10^9$$ 次时，暴力法约 317 年，插�
 两个字符串里**都出现**的最长子串。它与 LRS 名字相似、解法也相似，但问题不同。
 LRS 是一个字符串内部的重复，LCS 是两个字符串之间的公共部分。**要注意的是**，
 有人会把一个字符串的 LCP 最大值叫作 LCS，这是混淆。那是 LRS。
+
+输入或选择两个字符串。两个字符串共同出现的最长子串会在两边都涂上颜色。
+
+<LcsIntroDemo />
 
 方法是把两个字符串连成一个。
 
@@ -987,7 +981,7 @@ LRS 是一个字符串内部的重复，LCS 是两个字符串之间的公共部
 ```plaintext
 ALGORITHM LongestCommonSubstring(S1, S2)
     T <- S1 + "#" + S2 + "$"
-    SA <- BuildSuffixArray(T, n), LCP <- BuildLcpKasai(T, SA, n)
+    SA <- BuildSuffixArray(T, n), LCP <- BuildLcp(T, SA, n)
     best <- 0, at <- 0
     for j <- 1 to n-1 do
         f <- Origin(SA[j]), g <- Origin(SA[j-1])   // 1、2，分隔符则为 0
@@ -1033,7 +1027,7 @@ LCS = "iss" (length 3) at j = 5
 `*` 是候选对。整个 LCP 的最大值是 j = 6 处的 4（`issi`），但两个后缀都在
 `mississippi` 一侧，所以不是公共子串。那是 `mississippi` 的 LRS。候选中的最大值
 是 j = 5 处的 3，是 `kiss` 的 `iss` 与 `mississippi` 的 `iss` 相遇的地方。时间是
-后缀数组的 $$O(n \log n)$$ 加上 LCP 与扫描的 $$O(n)$$，其中
+构造后缀数组与 LCP 数组的代价加上扫描的 $$O(n)$$，其中
 $$n = |S_1| + |S_2| + 2$$。
 
 亲手关掉规则。输入两个字符串，开关分隔符和"只看来自不同字符串的邻居"这条规则。演示会把答案与用动态
@@ -1156,14 +1150,13 @@ queue sorted = yes, stack sorted = no
 - **LSD**：从低位开始。每一趟都必须**稳定**，前一趟的顺序才能留下。
   适合定长键，实现简单。
 - **MSD**：从高位开始分桶，只对不少于两个元素的桶递归。分开了就不再往下读，
-  所以适合变长键，但每次调用要花 $$O(k)$$。
+  所以适合变长键，但每次调用要花 $$O(k)$$。把值排对并不要求稳定。
 - 基数排序不做比较，所以处在 $$\Omega(n \log n)$$ 下界的**前提之外**。位数固定
   时是 $$O(n)$$。
-- **后缀数组**：把所有后缀排好序后的起始位置数组。倍增用前 $$h$$ 个字符的排名
-  对求出前 $$2h$$ 个字符的顺序。$$O(n \log^2 n)$$，对数对做基数排序则是
-  $$O(n \log n)$$
-- **LCP 数组**：相邻后缀的公共前缀长度。Kasai 按文本位置顺序处理，$$h$$ 每次
-  只减 1，所以是 $$O(n)$$。
+- **后缀数组**：把所有后缀排好序后的起始位置数组。朴素方法把后缀当作字符串比较来排序，
+  最坏 $$O(n^2 \log n)$$
+- **LCP 数组**：相邻后缀的公共前缀长度。对每对邻居从头比较来构造，公共前缀很长时
+  最坏 $$O(n^2)$$。
 - **LRS** 是 LCP 的最大值；**LCS** 是用 `#` 连起两个字符串后，从不同字符串
   开始的邻居之间 LCP 的最大值。
 - **栈**是 LIFO，**队列**是 FIFO。LSD 的桶必须是队列。
@@ -1178,11 +1171,14 @@ Python 实现组成。
 src/topic-09-radix-sort/
 ├── 01_lsd_radix_sort/   # 437 42 531 8 74 分三趟，12 个三字母单词
 ├── 02_msd_radix_sort/   # 读位 14 次（LSD 是 24 次）
-├── 03_suffix_array/     # banana$ 的 SA = 6 5 3 1 0 4 2，朴素排序与倍增
-├── 04_lcp/              # Kasai，LCP = - 0 1 3 0 0 2，字符比较 9 vs 12
+├── 03_suffix_array/     # banana$ 的 SA = 6 5 3 1 0 4 2，朴素排序（倍增仅供参考）
+├── 04_lcp/              # LCP = - 0 1 3 0 0 2，字符比较 12 次（Kasai 仅供参考）
 ├── 05_lrs/              # banana$ 的 ana，碱基序列的 acaag
 ├── 06_lcs/              # mississippi 与 kiss 的 iss
-└── 07_stack_queue/      # 队列桶能排好，栈桶会出错
+├── 07_stack_queue/      # 队列桶能排好，栈桶会出错
+├── 08_msd_cost/         # 按基数和截断值统计 LSD 与 MSD 的开销
+├── 09_radix_timing/     # 测 LSD、MSD、带截断值的 MSD 的时间
+└── 10_suffix_radix/     # 参考：用 LSD 基数排序排倍增的数对
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
@@ -1194,18 +1190,19 @@ src/topic-09-radix-sort/
   `074 042 008 437 531` 这样与栈桶相同的错误结果。
 - 把 MSD 的输入换成 `{111, 112, 113, 114}` 和 `{100, 200, 300, 400}`，比较读位
   的次数。分别是 12 次和 4 次。
-- 把后缀数组的 `text` 换成 `mississippi$`，倍增会一直进行到 `k = 8`。看看每一轮
-  排名增加到几种。
+- 把后缀数组的 `text` 换成 `mississippi$`。`naive SA` 是
+  `11 10 7 4 1 0 9 8 6 3 5 2`。
 - 给 LRS 加上 `report("mississippi$")`。答案是有重叠的重复 `issi`。
 - 把 LCS 的 `s2` 换成 `"sip"`。确认它不会被同一字符串内部的重复（`issi`）
   骗到，而是找出 `sip`。
 
 ## 版本记录 \{#changelog}
 
-幻灯片与本资料一起升版。当前版本是 **v2**，幻灯片左下角
+幻灯片与本资料一起升版。当前版本是 **v3**，幻灯片左下角
 可以看到同一版本号。
 
 | 版本 | 日期 | 内容 |
 | --- | --- | --- |
 | v1 | 2026-10-28 | 首次公开 |
 | v2 | 2026-11-04 | 新增 12 个演示（计数排序一趟、选择基数、实际测量、字符串 MSD、MSD 开销、后缀表、数对基数排序、Kasai 开销、283 字符的 LRS、规模估算、LCS 规则、KWIC 二分查找）。字符编码、排名、原文和每趟记录放进了演示 |
+| v3 | 2026-11-11 | 去掉倍增与 Kasai，只讲朴素方法。补充 MSD 的稳定性、基数 k 与 256 进制、插入排序截断值、LSD 与 MSD 各自有利的情况。新增 LCP 定义、LCS 定义演示与 MSD 运行时间，引用 `algorithm-code` 中 `08_msd_cost`、`09_radix_timing` 的输出 |

@@ -1,0 +1,289 @@
+---
+// 방어책을 하나씩 켜 보며 바이낸스 해킹의 공격 사슬이 어디서 끊기는지 보는 데모.
+//
+// 왼쪽은 실제로 일어난 단계, 오른쪽은 방어책이다. 방어책마다 겨냥하는 단계가 있고, 그 단계를 "끊는"
+// 것과 피해를 "줄이는" 것으로 나눈다. 끊긴 단계가 있으면 그 뒤는 흐리게 바뀐다. 실제로 막았을지는
+// 알 수 없고, 각 방어가 어느 단계를 겨냥하는지 보이는 교육용 단순화다. 6월에는 탐지가 실제로
+// 작동했지만 정보는 이미 새어 나갔다는 점처럼, 한 겹으로는 부족하다는 것을 보이는 것이 목적이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `dc-${Math.random().toString(36).slice(2, 9)}`;
+
+/* 방어책: 끊는 단계(cut)와 피해를 줄이는 단계(cut 대신 cuts=false) */
+const DEFENSES = [
+  { key: 'source', stage: 0, cuts: true },
+  { key: 'sandbox', stage: 2, cuts: true },
+  { key: 'split', stage: 2, cuts: true },
+  { key: 'reissue', stage: 1, cuts: false },
+  { key: 'aiscope', stage: 3, cuts: true },
+  { key: 'token', stage: 4, cuts: true },
+  { key: 'intent', stage: 5, cuts: true },
+  { key: 'revoke', stage: 6, cuts: false },
+  { key: 'freeze', stage: 7, cuts: false },
+] as const;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '어디서 끊을 수 있었나',
+    stages: '일어난 일',
+    defenses: '방어책',
+    s0: '6월: 변조된 설치 파일 실행',
+    s1: '담당자·동료의 역할 정보 노출',
+    s2: '9월: 가짜 면접 과제를 업무용 PC에서 실행',
+    s3: '사내 AI 도구로 동료 PC 2대 장악',
+    s4: '배포 토큰으로 서명 서비스 접근',
+    s5: '위임 서명과 20분간의 출금',
+    s6: '위임 해제까지 약 4시간',
+    s7: '자금 세탁과 동결 경쟁',
+    source: '설치 파일은 공식 출처에서만 받는다',
+    sandbox: '모르는 코드는 일회용 환경에서 돌린다',
+    split: '업무 기기로 구직·과제를 하지 않는다',
+    reissue: '침해가 나면 주변 계정까지 다시 발급한다',
+    aiscope: 'AI 도구에 기기 간 접근 권한을 주지 않는다',
+    token: '배포 토큰을 기기에 오래 두지 않는다 (하드웨어 키, 짧은 만료)',
+    intent: '서명 서비스가 출금 의도와 위임 요청을 따로 승인한다',
+    revoke: '비상 해제 절차를 미리 연습한다',
+    freeze: '발행사·분석 업체와 즉시 공조한다',
+    none: '방어책을 켜 보세요. 아무것도 없으면 실제 사건처럼 끝까지 이어집니다.',
+    cut: '「{s}」 단계에서 끊깁니다. 그 뒤의 단계는 일어나지 않습니다.',
+    reduce: '사슬은 끝까지 이어지지만 피해가 줄어드는 단계가 있습니다.',
+    layer: '실제로는 6월에 탐지가 작동해 기기를 바꿨지만, 정보는 이미 새어 나갔습니다. 한 겹으로는 부족합니다.',
+    tagCut: '끊음',
+    tagReduce: '줄임',
+  },
+  en: {
+    title: 'Where could the chain have been cut?',
+    stages: 'What happened',
+    defenses: 'Defenses',
+    s0: 'June: a tampered installer is run',
+    s1: 'Role information about staff leaks',
+    s2: 'Sept: fake interview code runs on a work PC',
+    s3: 'An internal AI tool takes over 2 more PCs',
+    s4: 'A deployment token reaches the signing service',
+    s5: 'Delegation and 20 minutes of withdrawals',
+    s6: 'About 4 hours until the delegation is revoked',
+    s7: 'Laundering and the race against freezes',
+    source: 'Install only from official sources',
+    sandbox: 'Run unknown code in a disposable environment',
+    split: 'No job hunting or tests on work devices',
+    reissue: 'After a breach, reissue nearby accounts too',
+    aiscope: 'Give AI tools no cross-device access',
+    token: 'Keep deployment tokens off devices (hardware keys, short expiry)',
+    intent: 'The signing service approves intent and delegations separately',
+    revoke: 'Rehearse an emergency revoke procedure',
+    freeze: 'Work with issuers and analysts at once',
+    none: 'Turn on some defenses. With none, the chain runs to the end, as it did.',
+    cut: 'The chain breaks at “{s}”. Nothing after it happens.',
+    reduce: 'The chain still runs to the end, but some stages do less damage.',
+    layer: 'In reality detection worked in June and the device was replaced, but the information had already leaked. One layer is not enough.',
+    tagCut: 'cuts',
+    tagReduce: 'reduces',
+  },
+  zh: {
+    title: '哪里能切断攻击链',
+    stages: '发生的事',
+    defenses: '防御措施',
+    s0: '6 月：运行被篡改的安装包',
+    s1: '负责人与同事的职责信息外泄',
+    s2: '9 月：在工作电脑上运行假面试题',
+    s3: '经内部 AI 工具控制另外 2 台电脑',
+    s4: '用部署令牌进入签名服务',
+    s5: '委托签名与 20 分钟的提现',
+    s6: '解除委托用了约 4 小时',
+    s7: '洗钱与冻结的赛跑',
+    source: '安装包只从官方来源下载',
+    sandbox: '来路不明的代码在一次性环境里运行',
+    split: '不用工作设备求职或做面试题',
+    reissue: '出事后连周边账号一起重新签发',
+    aiscope: '不给 AI 工具跨设备的访问权限',
+    token: '部署令牌不长期留在设备上（硬件密钥、短有效期）',
+    intent: '签名服务分别审批提现意图与委托请求',
+    revoke: '预先演练紧急解除流程',
+    freeze: '立即与发行方、分析公司协作',
+    none: '打开一些防御措施试试。什么都没有时，攻击链会像真实事件一样走到最后。',
+    cut: '在「{s}」处切断，之后的阶段不会发生。',
+    reduce: '攻击链仍走到最后，但有些阶段的损失变小了。',
+    layer: '实际上 6 月的检测起了作用并更换了设备，但信息已经泄露。只有一层是不够的。',
+    tagCut: '切断',
+    tagReduce: '减轻',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const STAGES = [0, 1, 2, 3, 4, 5, 6, 7];
+---
+
+<div class:list={['aas-defense-chain-demo', slide && 'is-slide']} id={id} data-dc-strings={JSON.stringify(t)} data-dc-defs={JSON.stringify(DEFENSES)}>
+  <div class="dc-head"><strong>{t.title}</strong></div>
+  <div class="dc-main">
+    <div>
+      <p class="dc-cap">{t.stages}</p>
+      <ol class="dc-stages">
+        {STAGES.map((i) => <li data-dc-stage={i}><span>{t[`s${i}`]}</span><em data-dc-tag></em></li>)}
+      </ol>
+    </div>
+    <div>
+      <p class="dc-cap">{t.defenses}</p>
+      <ul class="dc-defs">
+        {DEFENSES.map((d) => (
+          <li>
+            <label><input type="checkbox" data-dc-def={d.key} /> <span>{t[d.key]}</span> <small class:list={[d.cuts ? 'is-cut' : 'is-reduce']}>{d.cuts ? t.tagCut : t.tagReduce}</small></label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+  <p class="dc-note" data-dc-note></p>
+  <p class="dc-layer">{t.layer}</p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.dcStrings);
+    const DEFS = JSON.parse(root.dataset.dcDefs);
+    const stages = [...root.querySelectorAll('[data-dc-stage]')];
+    const boxes = [...root.querySelectorAll('[data-dc-def]')];
+    function render() {
+      const on = DEFS.filter((d) => boxes.find((b) => b.dataset.dcDef === d.key).checked);
+      const cuts = on.filter((d) => d.cuts).map((d) => d.stage);
+      const first = cuts.length ? Math.min(...cuts) : Infinity;
+      const reduced = new Set(on.filter((d) => !d.cuts).map((d) => d.stage));
+      stages.forEach((li, i) => {
+        li.classList.toggle('is-cut', i === first);
+        li.classList.toggle('is-gone', i > first);
+        li.classList.toggle('is-reduced', i < first && reduced.has(i));
+        li.querySelector('[data-dc-tag]').textContent = i === first ? S.tagCut : i < first && reduced.has(i) ? S.tagReduce : '';
+      });
+      const note = root.querySelector('[data-dc-note]');
+      if (first !== Infinity) note.textContent = S.cut.replace('{s}', S[`s${first}`]);
+      else if (reduced.size) note.textContent = S.reduce;
+      else note.textContent = S.none;
+    }
+    boxes.forEach((b) => b.addEventListener('change', render));
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-defense-chain-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-defense-chain-demo .dc-head {
+    font-size: 0.95em;
+  }
+  .aas-defense-chain-demo .dc-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 0.8em 1.6em;
+    margin-top: 0.6em;
+  }
+  .aas-defense-chain-demo .dc-cap {
+    margin: 0 0 0.3em;
+    font-size: 0.72em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-defense-chain-demo .dc-stages,
+  .aas-defense-chain-demo .dc-defs {
+    display: grid;
+    gap: 0.25em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .aas-defense-chain-demo .dc-stages li {
+    display: flex;
+    gap: 0.5em;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0;
+    padding: 0.25em 0.55em;
+    font-size: 0.78em;
+    border: 1.5px solid var(--aas-role-guard);
+    border-radius: 0.4em;
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, var(--aas-bg));
+    transition: opacity 0.25s, background-color 0.25s, border-color 0.25s;
+  }
+  .aas-defense-chain-demo .dc-stages li em {
+    font-style: normal;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-defense-chain-demo .dc-stages li.is-cut {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, var(--aas-bg));
+  }
+  .aas-defense-chain-demo .dc-stages li.is-cut em {
+    color: var(--aas-role-eval);
+  }
+  .aas-defense-chain-demo .dc-stages li.is-gone {
+    opacity: 0.3;
+    text-decoration: line-through;
+    border-style: dashed;
+  }
+  .aas-defense-chain-demo .dc-stages li.is-reduced {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 16%, var(--aas-bg));
+  }
+  .aas-defense-chain-demo .dc-stages li.is-reduced em {
+    color: var(--aas-role-trace);
+  }
+  .aas-defense-chain-demo .dc-defs li {
+    margin: 0;
+    font-size: 0.78em;
+  }
+  .aas-defense-chain-demo .dc-defs label {
+    display: flex;
+    gap: 0.4em;
+    align-items: center;
+    cursor: pointer;
+  }
+  .aas-defense-chain-demo .dc-defs small {
+    margin-left: auto;
+    padding: 0 0.45em;
+    border-radius: 999px;
+    font-size: 0.8em;
+    white-space: nowrap;
+  }
+  .aas-defense-chain-demo .dc-defs small.is-cut {
+    background: color-mix(in srgb, var(--aas-role-eval) 22%, transparent);
+  }
+  .aas-defense-chain-demo .dc-defs small.is-reduce {
+    background: color-mix(in srgb, var(--aas-role-trace) 22%, transparent);
+  }
+  .aas-defense-chain-demo .dc-note {
+    margin: 0.7em 0 0;
+    font-size: 0.88em;
+    font-weight: 600;
+  }
+  .aas-defense-chain-demo .dc-layer {
+    margin: 0.25em 0 0;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-defense-chain-demo.is-slide {
+    font-size: clamp(1rem, min(2.6vh, 1.8vw), 1.75rem);
+    margin: 0.5rem 0;
+  }
+  @media (max-width: 700px) {
+    .aas-defense-chain-demo .dc-main {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-defense-chain-demo .dc-stages li {
+      transition: none;
+    }
+  }
+</style>

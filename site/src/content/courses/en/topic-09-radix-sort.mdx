@@ -12,9 +12,7 @@ slides: ["topic-09-radix-sort"]
 import LsdRadixDemo from '@components/LsdRadixDemo.astro';
 import LsdStringDemo from '@components/LsdStringDemo.astro';
 import MsdRadixDemo from '@components/MsdRadixDemo.astro';
-import SuffixArrayDemo from '@components/SuffixArrayDemo.astro';
 import SuffixInsertDemo from '@components/SuffixInsertDemo.astro';
-import KasaiDemo from '@components/KasaiDemo.astro';
 import LcpScanDemo from '@components/LcpScanDemo.astro';
 import LrsBruteDemo from '@components/LrsBruteDemo.astro';
 import StackQueueDemo from '@components/StackQueueDemo.astro';
@@ -23,12 +21,13 @@ import RadixCostDemo from '@components/RadixCostDemo.astro';
 import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
+import LcpDefineDemo from '@components/LcpDefineDemo.astro';
 import SuffixTableDemo from '@components/SuffixTableDemo.astro';
-import DoublingRadixDemo from '@components/DoublingRadixDemo.astro';
-import KasaiCostDemo from '@components/KasaiCostDemo.astro';
 import LrsFindDemo from '@components/LrsFindDemo.astro';
 import GenomeScaleDemo from '@components/GenomeScaleDemo.astro';
 import LcsPlayDemo from '@components/LcsPlayDemo.astro';
+import SeqMark from '@components/SeqMark.astro';
+import LcsIntroDemo from '@components/LcsIntroDemo.astro';
 import KwicDemo from '@components/KwicDemo.astro';
 
 > Topic 03's counting sort sorted in $$O(n + k)$$ without comparisons, but
@@ -313,7 +312,8 @@ from the previous cell and marked †.
 
 Values depend on the computer, so look at the ratios. LSD reads every digit whatever the input, so
 its time hardly changes between tabs. Insertion sort is the fastest on already sorted input and the
-slowest on reversed input.
+slowest on reversed input. On nearly sorted input (a sorted array with 1% of positions swapped with the next
+element), its time also grows almost in proportion to $$n$$, and it can even beat LSD.
 
 ## Example 2. MSD radix sort \{#msd}
 
@@ -414,6 +414,28 @@ digits examined = 14 (LSD: 8 x 3 = 24)
 The indentation is the recursion depth. There are only two calls, and the
 second looks at just six elements.
 
+### Is stability required? \{#msd-stable}
+
+[LSD has to be stable on every pass](#lsd-stable), because each pass inherits
+the order the previous one built. MSD is different. Buckets are already in
+their final order and never mix again, and the order inside a bucket is decided
+afresh by the next digit. Whether bucket 0 after the hundreds digit reads
+`045 075 090 002 024 066` or `066 002 090 024 075 045`, splitting by the tens
+digit gives the same result.
+
+So MSD still puts the values in order even if it splits into buckets with an
+unstable method. Keeping the original order of equal keys is another matter.
+When a key carries other data, as in `(score, name)`, every step must be stable
+for records with the same score to stay in input order.
+
+| | For the values to end up sorted | To also keep equal keys in order |
+| --- | --- | --- |
+| LSD | Stability required | Stability required |
+| MSD | Not needed | Stability required |
+
+The procedure above uses a stable counting sort, so it keeps equal keys in
+order as well.
+
 ### On strings \{#msd-strings}
 
 MSD suits strings of different lengths. Split by the first character, split
@@ -455,7 +477,80 @@ elements themselves. It is worse for byte strings, where $$k = 256$$. So
 real implementations hand small buckets (say, 15 elements or fewer) to
 insertion sort.
 
-Now count what was just described. The demo really runs both sorts and counts digit reads, counting-cell
+### Changing the radix k \{#msd-radix}
+
+The [radix](#from-counting) is the number of values a single digit can take,
+which is also the number of slots in the counting array. The same value has
+different digits depending on the base. The value stays the same; only the way
+of writing it changes.
+
+| Value | $$k = 10$$ | Digits | $$k = 256$$ | Digits |
+| --- | --- | --- | --- | --- |
+| 100 | 1×100 + 0×10 + 0×1 | 1, 0, 0 | 0×256 + 100×1 | 0, 100 |
+| 200 | 2×100 + 0×10 + 0×1 | 2, 0, 0 | 0×256 + 200×1 | 0, 200 |
+| 300 | 3×100 + 0×10 + 0×1 | 3, 0, 0 | 1×256 + 44×1 | 1, 44 |
+| 400 | 4×100 + 0×10 + 0×1 | 4, 0, 0 | 1×256 + 144×1 | 1, 144 |
+
+`1, 44` is not two numbers but two base-256 digits. Dividing 300 by 256 gives
+quotient 1 and remainder 44, just as 90 minutes is 1 hour 30 minutes. One digit
+holds 0 through 255, so `100` is a single digit and two digits are enough up to
+400.
+
+For integers below $$2^{32}$$, the digit count and call cost look like this:
+
+| Radix $$k$$ | Values of one digit | Digits $$d$$ | Cells one call scans |
+| --- | --- | --- | --- |
+| 10 | 0 through 9 | 10 | 10 |
+| 256 | one byte, 0 through 255 | 4 | 256 |
+
+A larger $$k$$ means fewer digits and so fewer reads, but each call costs more.
+LSD makes only $$d$$ passes, so it scans just $$d \times k$$ cells. MSD calls
+itself for each bucket, so calls can reach the hundreds and the scans grow with
+them.
+
+### k = 256 on strings and on integers \{#msd-bytes}
+
+Either way, $$k = 256$$ means **reading the key one byte at a time**. Only the
+key looks different.
+
+| Key | Bytes, highest first | Digit values |
+| --- | --- | --- |
+| String `she` | `s`, `h`, `e` | 115, 104, 101 |
+| 16-bit integer 300 | hex `01`, `2C` | 1, 44 |
+
+- A **string** is already a sequence of bytes, so each character is one digit.
+  LSD's word sort and the [MSD on strings](#msd-strings) demo work this way.
+- An **integer** is split into bytes. R = 256 in the
+  [running time](#lsd-runtime) table and $$k = 256$$ in the cost demo below work
+  this way.
+
+You could treat an integer as text, like `"300"`. But there are only ten digit
+characters, so 246 of the 256 slots stay empty and the digit count stays at 3:
+raising $$k$$ gains nothing. Lengths must match too. Compared as they are,
+`"45"` lands after `"170"`, so it must be padded to `045`. For integers, $$k$$ is
+raised to reduce the digit count, and that only happens when you split into
+bytes.
+
+### Insertion sort for small buckets \{#msd-cutoff}
+
+A bucket at or below a chosen size is finished with insertion sort instead of
+another recursive call. That size is called the **cutoff**. Recursing on a
+bucket of just two elements still scans $$k$$ cells, while insertion sort needs
+no counting array and takes only a few compares. Insertion sort is stable, so
+MSD stays stable too.
+
+```plaintext
+ALGORITHM MsdRecursive(A, lo, hi, exp)
+    if lo >= hi or exp = 0 then return
+    if hi - lo + 1 <= cutoff then         // finish a small range with insertion sort
+        InsertionSort(A, lo, hi)
+        return
+    // the rest is the same as the procedure above
+```
+
+The procedure is in `08_msd_cost/msdCost.pseudo`.
+
+Now count what was just described. The input is integers, and the line below it shows each value's digits. The line under the table shows where the call counts come from: LSD calls once per digit, and MSD once per range of two or more elements. The demo really runs both sorts and counts digit reads, counting-cell
 scans (calls × $$k$$), and insertion sort's compares. The total adds the three counts; it shows scale,
 not actual time.
 
@@ -466,6 +561,59 @@ not actual time.
 - With 1,000 random values at $$k = 256$$, MSD reads 2,001 digits, half of LSD's 4,000. But it makes
   242 calls and scans 61,952 cells, so the totals are MSD 63,953 and LSD 5,024.
 - Use the slider to hand buckets of size 16 or less to insertion sort, and MSD drops to 1 call and a total of 2,764.
+- `100 200 300 400` splits on the first digit at $$k = 10$$, with totals MSD 14 and LSD 42. At
+  $$k = 256$$ the first digits are 0, 0, 1, 1, so both buckets recurse and the totals are MSD 776
+  and LSD 520. `100 300 600 900` has first digits 0, 1, 2, 3, giving MSD 260 and LSD 520.
+- `111 112 113 114` at $$k = 256$$ is all below 256, so each value is one digit and they split at once.
+  Both make 1 call, with a total of 260.
+
+Here is what the slider gives on the 1,000 random values. On the same input,
+LSD's total is 10,100 at $$k = 10$$ and 5,024 at $$k = 256$$.
+
+| Setting | Digit reads | Calls | Cell scans | Insertion compares | Total |
+| --- | --- | --- | --- | --- | --- |
+| $$k = 10$$, off | 4,158 | 453 | 4,530 | 0 | 8,688 |
+| $$k = 10$$, size 9 or less | 3,000 | 49 | 490 | 991 | 4,481 |
+| $$k = 10$$, size 32 or less | 2,035 | 7 | 70 | 6,439 | 8,544 |
+| $$k = 256$$, off | 2,001 | 242 | 61,952 | 0 | 63,953 |
+| $$k = 256$$, size 16 or less | 1,000 | 1 | 256 | 1,508 | 2,764 |
+
+A larger cutoff does not keep helping. Insertion sort is $$O(n^2)$$, so it only
+wins on small ranges. At $$k = 10$$, handing off up to size 32 adds so many
+compares that the total climbs back to 8,544.
+
+The table's values are the output of `08_msd_cost`. The numbers in `[ ]` are calls per digit, and C and Python
+print the same values.
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/08_msd_cost
+make -f /work/Makefile msdCost.out && ./msdCost.out
+```
+
+- Result
+
+```console
+100 200 300 400, k = 256
+  LSD      reads     8  calls   2  scans    512  ins     0  total    520
+  MSD      reads     8  calls   3  scans    768  ins     0  total    776  [1 + 2]
+
+1000 random values, 965354 to 4290781594
+k = 10
+  LSD      reads 10000  calls  10  scans    100  ins     0  total  10100
+  MSD      reads  4158  calls 453  scans   4530  ins     0  total   8688  [1 + 5 + 43 + 282 + 103 + 15 + 4]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD      reads  2001  calls 242  scans  61952  ins     0  total  63953  [1 + 231 + 10]
+k = 256
+  LSD      reads  4000  calls   4  scans   1024  ins     0  total   5024
+  MSD <=16 reads  1000  calls   1  scans    256  ins  1508  total   2764  [1]
+
+strings
+  ant bee cat dog elk fox: read 6 of 18, calls 1
+  sea sea sea sea: read 12 of 12, calls 4
+```
 
 ### LSD and MSD \{#lsd-vs-msd}
 
@@ -477,6 +625,59 @@ not actual time.
 | Variable-length keys | poor fit, lengths must be padded | good fit |
 | Locality | each pass scans the whole array | works inside one bucket |
 | Implementation | simple | complex, buckets and recursion to manage |
+
+### When each one wins \{#lsd-msd-when}
+
+| Situation | Better | Why |
+| --- | --- | --- |
+| Keys of equal length (integers, dates) | LSD | simple, with calls fixed at the digit count |
+| Same leading digits or many equal keys | LSD | MSD reads to the end too, with more calls |
+| Large radix and many small buckets | LSD | MSD scans $$k$$ cells per call and needs a cutoff |
+| Strings of different lengths | MSD | no need to pad to equal length |
+| Keys that split on leading digits | MSD | stops reading once keys split |
+| Only the front part is needed | MSD | recurses only into the buckets it needs |
+
+Here is what the earlier demos show.
+
+- **MSD when keys split early:** the strings `ant bee cat dog elk fox` read only 6 of 18 characters.
+  The integers `100 200 300 400` at $$k = 10$$ total MSD 14 and LSD 42.
+- **No gain when keys never split:** `sea sea sea sea` reads all 12 characters.
+  `111 112 113 114` at $$k = 10$$ totals 42 for both sorts.
+- **LSD when calls pile up:** 1,000 random values at $$k = 256$$ total MSD 63,953 and LSD 5,024.
+  A cutoff brings MSD down to 2,764.
+
+### Measure it yourself \{#msd-race}
+
+These are the three sorts timed in C with `09_radix_timing`. Values are in ms, measured on a different computer
+from the [earlier table](#lsd-runtime), so look at the ratios. `MSD (≤ 16)` hands ranges of size 16 or less to
+insertion sort.
+
+| n | LSD | MSD | MSD (≤ 16) |
+| --- | --- | --- | --- |
+| 1,000 | 0.003 | 0.042 | 0.002 |
+| 10,000 | 0.024 | 0.169 | 0.061 |
+| 100,000 | 0.266 | 5.448 | 0.516 |
+| 1,000,000 | 6.860 | 20.490 | 10.949 |
+
+At a million values, MSD takes about 3 times as long as LSD, and about 1.6 times with the handoff. At 1,000
+values, MSD with the handoff beats LSD.
+
+- Run
+
+```sh
+cd src/topic-09-radix-sort/09_radix_timing
+make -f /work/Makefile radixTiming.out && ./radixTiming.out
+```
+
+Now run the same three sorts in this browser. This is the [demo from LSD](#lsd-runtime) with two MSD rows added. Both use radix 256, and the
+last row hands ranges of size 16 or less to insertion sort.
+
+<RuntimeRaceDemo msd />
+
+Values depend on the computer, so look at the ratios. On integers of equal length, scanning 256
+cells per call costs more than the saved digit reads gain, so LSD is faster when $$n$$ is large.
+Handing off to insertion sort cuts MSD's time, and it can beat LSD when $$n$$ is small. MSD's strength shows on keys like
+[strings](#msd-strings), which differ in length and split early.
 
 ## Eight sorts side by side \{#comparison}
 
@@ -493,11 +694,15 @@ sort, the value range).
 | Merge sort | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | Stable |
 | Counting sort | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | $$O(n + k)$$ | Stable |
 | LSD radix sort | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + k)$$ | Stable |
-| MSD radix sort | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | Stable |
+| MSD radix sort | $$O(n + k)$$ | $$O(d(n + k))$$ | $$O(d(n + k))$$ | $$O(n + dk)$$ | Stable† |
 
 The top five are comparison sorts, the bottom three non-comparison sorts.
 MSD's worst case counts only the cost of reading digits. As we saw in the
 [analysis](#msd-analysis), each recursive call adds another $$O(k)$$.
+
+† MSD can also be implemented without stability. This course uses a stable
+counting sort, so it is stable here.
+[Sorting the values does not require it](#msd-stable).
 
 ## Example 3. Suffix arrays \{#suffix-array}
 
@@ -596,84 +801,6 @@ $$n$$ characters, so the worst case is $$O(n^2 \log n)$$. When the same
 character repeats, as in `aaaa...a$`, every comparison reads almost to the
 end.
 
-### Doubling \{#suffix-doubling}
-
-**Doubling** (prefix doubling) doubles the compared length each round. It
-ranks the suffixes by their first 1, 2, 4, 8, ... characters, and the key
-point is that **the order of the first $$2h$$ characters can be read off
-two ranks of the first $$h$$ characters**.
-
-The first $$2h$$ characters of suffix $$i$$ come in two pieces.
-
-- The first $$h$$ characters: the first $$h$$ characters of suffix $$i$$,
-  rank $$rank[i]$$
-- The next $$h$$ characters: the first $$h$$ characters of suffix
-  $$i + h$$, rank $$rank[i + h]$$
-
-So comparing the pair $$(rank[i], rank[i + h])$$ is the same as comparing
-the first $$2h$$ characters. There is no need to read the characters again;
-comparing two integers is enough. If $$i + h$$ runs past the string, that
-piece is empty, so it is set to $$-1$$. The initial rank is the character
-code of the first character.
-
-In the demo, each row is one suffix. When the pairs are built, the first
-$$k$$ characters of each suffix are colored, to show that the pair stands
-in for those $$k$$ characters. Sorting by the pairs moves the rows and
-assigns new ranks. Rows with the same rank (suffixes not yet told apart)
-are grouped in orange.
-
-The strip on the right holds the ingredients of the keys: character codes (k = 2) or the previous round's
-ranks. Click a row to mark the two cells behind its key.
-
-<SuffixArrayDemo />
-
-- **k = 2**: the pair is (first character, second character). `anana$` and
-  `ana$` both start with `an`, so their pairs (97, 110) are equal. `nana$`
-  and `na$` are equal too, at (110, 97). There are only five distinct ranks.
-- **k = 4**: the pair is (rank of the first 2 characters, rank of the suffix
-  2 positions later). `ana$` is at position 3, and 2 positions later is `a$`
-  at position 5 with rank 1, so its pair is (2, 1). `anana$` is at position
-  1, and 2 positions later is `ana$` at position 3 with rank 2, so its pair
-  is (2, 2). Now they split. Once all seven ranks are distinct, it stops.
-
-```plaintext
-ALGORITHM BuildSuffixArrayDoubling(T, n)
-    for i <- 0 to n-1 do
-        rank[i] <- T[i]                // initial rank: code of the first character
-        SA[i] <- i
-    k <- 2
-    loop
-        for i <- 0 to n-1 do           // pair: ranks of the first k/2 and next k/2 characters
-            key[i] <- (rank[i], rank[i + k/2] if i + k/2 < n, else -1)
-        sort SA by key[SA[j]]
-        newRank[SA[0]] <- 0            // assign new ranks in sorted order
-        for j <- 1 to n-1 do           // equal keys get equal ranks
-            same <- (key[SA[j]] = key[SA[j-1]])
-            newRank[SA[j]] <- newRank[SA[j-1]] + (0 if same, else 1)
-        rank <- newRank
-        if rank[SA[n-1]] = n-1 then break   // stop when all ranks are distinct
-        k <- k * 2
-    return SA
-```
-
-In the C implementation, the `qsort` comparison function looks at the pairs.
-When the pairs are equal, it orders by starting position, which gives the
-same order as the Python implementation.
-
-```c
-static int compareKey(const void *a, const void *b) {
-    int i = *(const int *)a;
-    int j = *(const int *)b;
-    if (gKey0[i] != gKey0[j]) {
-        return gKey0[i] - gKey0[j];
-    }
-    if (gKey1[i] != gKey1[j]) {
-        return gKey1[i] - gKey1[j];
-    }
-    return i - j;
-}
-```
-
 - Run
 
 ```sh
@@ -681,7 +808,7 @@ cd src/topic-09-radix-sort/03_suffix_array
 make -f /work/Makefile suffixArray.out && ./suffixArray.out
 ```
 
-- Result
+- Result (first part)
 
 ```console
 text = banana$ (n = 7)
@@ -694,62 +821,21 @@ text = banana$ (n = 7)
   6 $
 
 naive    SA = 6 5 3 1 0 4 2
-
-k = 2
-   j  SA[j]  key         rank  suffix
-   0      6  ( 36,  -1)     0  $
-   1      5  ( 97,  36)     1  a$
-   2      1  ( 97, 110)     2  anana$
-   3      3  ( 97, 110)     2  ana$
-   4      0  ( 98,  97)     3  banana$
-   5      2  (110,  97)     4  nana$
-   6      4  (110,  97)     4  na$
-  distinct ranks = 5 of 7
-k = 4
-   j  SA[j]  key         rank  suffix
-   0      6  (  0,  -1)     0  $
-   1      5  (  1,  -1)     1  a$
-   2      3  (  2,   1)     2  ana$
-   3      1  (  2,   2)     3  anana$
-   4      0  (  3,   4)     4  banana$
-   5      4  (  4,   0)     5  na$
-   6      2  (  4,   4)     6  nana$
-  distinct ranks = 7 of 7
-
-doubling SA = 6 5 3 1 0 4 2
-same = yes
 ```
 
-Both methods produce the same suffix array. In the `k = 2` table, `anana$`
-sits before `ana$` only because their pairs are equal and they were put in
-starting-position order (1 < 3). Their ranks are equal, so their order is
-not yet decided; `k = 4` sets it right.
-
-### Analysis \{#suffix-analysis}
-
-- The compared length doubles each round, so there are at most
-  $$\lceil \log_2 n \rceil$$ rounds.
-- Comparison-sorting $$n$$ integer pairs each round is $$O(n \log n)$$.
-- So the **total** is $$O(n \log^2 n)$$.
-
-This is where the first half of this topic comes back. The pair
-$$(rank[i], rank[i + h])$$ is a **two-digit number**, and each digit ranges
-from $$-1$$ to $$n - 1$$. So instead of a comparison sort, it can be sorted
-with **two passes of LSD radix sort** (once by the second digit, once by
-the first), and a round becomes $$O(n)$$. The total is then
-$$O(n \log n)$$. Going further, there are algorithms that build it in
-$$O(n)$$ (SA-IS, DC3).
-
-Run the two passes yourself. One round is four steps: make the pairs in start-position order, stable-sort
-by the second digit, stable-sort by the first digit, and assign new ranks. You can change the string,
-and clicking a row marks the two cells behind its pair in the strip on the right.
-
-<DoublingRadixDemo />
-
-`banana$` finishes in 2 rounds and 4 passes, and the row order matches the output above. Distinct ranks
-grow 9, 11, 12 for `mississippi$` and 3, 5, 9 for `aaaaaaaa$`.
+`naive SA` is the result of the plain method. The program goes on to print the steps of a faster method (doubling),
+which this course does not cover.
 
 ## Example 4. The LCP array \{#lcp}
+
+The **longest common prefix** (LCP) of two strings is the matching run from the front, and its length is the
+$$LCP$$ value. `ana$` and `anana$` share `ana` and then differ, so it is 3. Comparing stops at the first different
+character or when one string ends.
+
+Type or pick strings and compare them step by step. Clicking a row in the table lines that suffix up with its previous
+neighbor, and the $$LCP[j]$$ cell fills in when the comparison ends.
+
+<LcpDefineDemo />
 
 The **LCP array** (longest common prefix array) is the companion of the
 suffix array. It records, for the sorted suffixes, **how many leading
@@ -770,89 +856,27 @@ characters each pair of neighbors shares**.
 | 5 | 4 | `na$` | 0 | `banana$` and `na$`: no common prefix |
 | 6 | 2 | `nana$` | 2 | `na$` and `nana$`: common prefix `na` |
 
-$$LCP = [-, 0, 1, 3, 0, 0, 2]$$. Comparing each neighboring pair from the
-start is easy, but when common prefixes are long, as in `aaaa...a$`, every
-pair reads a long way and it becomes $$O(n^2)$$.
+$$LCP = [-, 0, 1, 3, 0, 0, 2]$$.
 
 Click a row to compare it with its previous neighbor and color the common prefix. Change the string and
 the LCP array is recomputed. The LCP of `mississippi$` is `- 0 1 1 4 0 0 1 0 2 1 3`.
 
 <SuffixTableDemo lcp />
 
-### Kasai's algorithm \{#kasai}
+### Building it \{#lcp-build}
 
-Kasai's algorithm processes the suffixes **in text-position order, not
-sorted order**, $$i = 0, 1, 2, \dots$$. The reason is a single observation.
+Build it straight from the definition: for each pair of neighbors in sorted order, count the matching characters
+from the front.
 
-> If suffix $$i$$ and its previous neighbor in sorted order have LCP $$h$$,
-> then suffix $$i + 1$$ and its previous neighbor have LCP **at least**
-> $$h - 1$$.
-
-Suffix $$i + 1$$ is suffix $$i$$ with its first character removed. Remove
-the first character of suffix $$i$$'s previous neighbor $$j$$ as well and you
-get suffix $$j + 1$$; the two still share $$h - 1$$ characters, and their
-sorted order is unchanged. So the previous neighbor of suffix $$i + 1$$ is
-either $$j + 1$$ or a suffix lying between $$j + 1$$ and $$i + 1$$. A suffix
-in between also agrees with both on the first $$h - 1$$ characters, by
-sorted order. So those $$h - 1$$ characters can be skipped without
-comparing.
-
-- **Step 1**: build the inverse of the suffix array with $$rank[SA[j]] = j$$.
-  $$rank[i]$$ is the sorted position of the suffix starting at position
-  $$i$$.
-- **Step 2**: in order $$i = 0, 1, \dots$$, find the previous neighbor in
-  sorted order, $$j = SA[rank[i] - 1]$$, and compare starting from
-  character $$h$$. Decrease $$h$$ by 1 before moving to the next position.
-
-The strip on top is the text and $$rank[i]$$; the table below is the sorted
-suffixes. Orange is the current suffix $$i$$, and blue is its previous
-neighbor $$j$$. Gray characters are the first $$h$$ characters that were
-skipped, green ones newly matched, and red a mismatch.
-
-<KasaiDemo />
-
-At `i = 1` (`anana$`), it shared 3 characters with its previous neighbor
-`ana$`. The next one, `i = 2` (`nana$`), is `anana$` with the `a` removed,
-so it shares at least 2 characters with its previous neighbor `na$`. So it
-skips 2 characters, starts comparing at the third, and finishes in one
-comparison. `i = 3` starts from 1 character for the same reason.
+- Pseudocode (`04_lcp/lcp.pseudo`)
 
 ```plaintext
-ALGORITHM BuildLcpKasai(T, SA, n)
-    for j <- 0 to n-1 do
-        rank[SA[j]] <- j                    // step 1: inverse of SA
-    h <- 0                                  // common prefix length known so far
-    for i <- 0 to n-1 do                    // step 2: in text-position order
-        if rank[i] > 0 then
-            j <- SA[rank[i] - 1]            // previous neighbor in sorted order
-            while i + h < n and j + h < n and T[i + h] = T[j + h] do
-                h <- h + 1                  // skip h characters, compare from h
-            LCP[rank[i]] <- h
-            if h > 0 then h <- h - 1        // next suffix shares at least h-1
-        else
-            h <- 0                          // the first suffix has no neighbor
-```
-
-The line that sets $$h$$ to 0 when `rank[i] = 0` states explicitly in the
-code that the first suffix has no neighbor to compare with. Working through
-the observation above, $$h$$ is always already 0 at that point, so the
-result is the same without this line.
-
-```c
-for (int i = 0; i < n; i++) {
-    if (rank[i] == 0) {
-        h = 0;
-        continue;
-    }
-    int j = sa[rank[i] - 1];
-    while (i + h < n && j + h < n && text[i + h] == text[j + h]) {
-        h++;
-    }
-    lcp[rank[i]] = h;
-    if (h > 0) {
-        h--;
-    }
-}
+ALGORITHM BuildLcpNaive(T, SA, n)
+    for j <- 1 to n-1 do                  // each pair of neighbors in sorted order
+        a <- SA[j-1], b <- SA[j], h <- 0
+        while a + h < n and b + h < n and T[a + h] = T[b + h] do
+            h <- h + 1                    // count matching characters from the front
+        LCP[j] <- h
 ```
 
 - Run
@@ -862,20 +886,11 @@ cd src/topic-09-radix-sort/04_lcp
 make -f /work/Makefile lcp.out && ./lcp.out
 ```
 
-- Result
+- Result (first part)
 
 ```console
 text = banana$
 SA   = 6 5 3 1 0 4 2
-
-   i  suffix    rank  j  start h  lcp  compares
-   0  banana$      4  1        0    0         1
-   1  anana$       3  3        0    3         4
-   2  nana$        6  4        2    2         1
-   3  ana$         2  5        1    1         1
-   4  na$          5  0        0    0         1
-   5  a$           1  6        0    0         1
-   6  $            0  -        -    -         -
 
    j  SA[j]  LCP[j]  suffix
    0      6       -  $
@@ -885,30 +900,12 @@ SA   = 6 5 3 1 0 4 2
    4      0       0  banana$
    5      4       0  na$
    6      2       2  nana$
-char compares: kasai 9, naive 12
+char compares = 12
 ```
 
-The `start h` column is the number of characters skipped. Kasai makes 9
-character comparisons; comparing each neighboring pair from the start
-makes 12. Change the text to `aaaaaaaa$` and the gap widens to 15 versus 36.
-
-### Analysis \{#lcp-analysis}
-
-$$h$$ drops by at most 1 per position and can never exceed $$n$$. So the
-number of times $$h$$ grows in the while loop is at most $$2n$$ in total,
-and there is one mismatching comparison per position. The **total** is
-$$O(n)$$. If you already have the suffix array, the LCP array comes almost
-for free.
-
-Draw the cost by position. One bar is one position $$i$$. Gray is the characters skipped, green the actual
-character compares, and the dashed outline the compares when the neighbor is compared from scratch.
-Click a bar to see that position's suffix and previous neighbor. The slider switches the string to `a` only.
-
-<KasaiCostDemo />
-
-- `banana$` takes Kasai 9 and from scratch 12.
-- With 8 `a`s it is 15 and 36; with 60 it is 119 and 1,830. Only the from-scratch side grows quadratically.
-- The more gray piles up, the fewer compares remain. The bound $$3n$$ sums the analysis above: $$2n$$ increases of $$h$$ and $$n$$ mismatches.
+That is 12 character compares. Since every pair is compared from the front, long common prefixes such as
+`aaaaaaaa$` raise it to 1 + 2 + ... + 8 = 36, a worst case of $$O(n^2)$$. The program goes on to print, for
+reference, Kasai's algorithm, which builds the same array in $$O(n)$$; this course does not cover it.
 
 ## Example 5. Longest repeated substring \{#lrs}
 
@@ -917,14 +914,7 @@ Click a bar to see that position's suffix and previous neighbor. The slider swit
 overlap. Finding repeated regions in a DNA sequence, plagiarism or
 repetition in documents, or recurring bars in music are all this problem.
 
-```plaintext
-aacaagtttacaagcatgatgctgtactaggagagttatactggtcg
-tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt
-cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg
-gtatagatagatagacccctagatacacatacatagatctagctagc
-tagctcatcgatacacactctcacactcaagagttatactggtcaac
-acactactacgacagacgaccaaccagacagaaaaaaaaactctatat
-```
+<SeqMark lines={["aacaagtttacaagcatgatgctgtactaggagagttatactggtcg", "tcaaacctgaacctaatccttgtgtgtacacacactactactgtcgt", "cgtcatatatcgagatcatcgaaccggaaggccggacaaggcggggg", "gtatagatagatagacccctagatacacatacatagatctagctagc", "tagctcatcgatacacactctcacactcaagagttatactggtcaac", "acactactacgacagacgaccaaccagacagaaaaaaaaactctatat"]} mark="agagttatactggtc" />
 
 This is a 283-character base sequence. The answer is the 15 characters
 `agagttatactggtc` starting at positions 31 and 217, at the end of the first
@@ -965,7 +955,7 @@ neighboring pairs need checking, and that is the LCP array.
 ```plaintext
 ALGORITHM LongestRepeatedSubstring(T, n)
     SA <- BuildSuffixArray(T, n)
-    LCP <- BuildLcpKasai(T, SA, n)
+    LCP <- BuildLcp(T, SA, n)
     best <- -1, at <- 0
     for j <- 1 to n-1 do                    // look only at neighboring pairs
         if LCP[j] > best then
@@ -1037,7 +1027,7 @@ to the end and its compares are counted.
 <LrsFindDemo />
 
 - The answer is the 15 characters `agagttatactggtc` at positions 31 and 217. The second and third rows are the same repeat with leading characters removed.
-- Brute force takes 40,186 position pairs and 54,888 character compares. After sorting it takes 283 neighboring pairs and 562 Kasai compares.
+- Brute force takes 40,186 position pairs and 54,888 character compares. After sorting it takes 283 neighboring pairs and 1,416 character compares, even comparing from the front.
 - Draw a random sequence and the longest repeat is much shorter. The 15 characters in this sequence are unlikely to be chance.
 
 ### Performance \{#lrs-performance}
@@ -1069,17 +1059,16 @@ assumes **keys of equal length**, but suffixes have lengths anywhere from 1
 to $$n$$. Padding them to length $$n$$ means $$n$$ passes of $$O(n)$$ each,
 so $$O(n^2)$$. At a billion characters, $$O(n^2)$$ finishes for none of
 the four. To get an answer, the suffix sort has to be $$O(n \log n)$$ or
-better. An MSD-style sort, which suits keys of varying length, or this
-topic's doubling (with radix sort, $$O(n \log n)$$) is the way.
+better. An MSD-style sort, which suits keys of varying length, is one such way.
 
 Put it in numbers. Change $$n$$, $$D$$, and the operations per second with the sliders, and the time for
-B, C, D and doubling is estimated from the formulas. These are estimates, not measurements.
+B, C, D and an $$O(n \log n)$$ sort is estimated from the formulas. These are estimates, not measurements.
 
 <GenomeScaleDemo />
 
 With $$n = 10^9$$, $$D = 20$$ and $$10^9$$ operations per second, brute force takes about 317 years,
-insertion sort about 7.9 years, and length-padded LSD about 31.7 years. Under the same conditions, doubling
-with radix sort takes 2 minutes. Even a machine 1000 times faster leaves brute force at about 116 days.
+insertion sort about 7.9 years, and length-padded LSD about 31.7 years. Under the same conditions, an
+$$O(n \log n)$$ sort takes 2 minutes. Even a machine 1000 times faster leaves brute force at about 116 days.
 
 ## Example 6. Longest common substring \{#lcs}
 
@@ -1089,6 +1078,10 @@ solution resemble LRS, but the problem is different. LRS is about repetition
 within one string; LCS is about what two strings have in common. **Watch
 out** for the common mix-up of calling the LCP maximum of a single string the
 LCS. That is the LRS.
+
+Type or pick two strings. The longest substring they share is marked in both.
+
+<LcsIntroDemo />
 
 The method is to join the two strings into one.
 
@@ -1112,7 +1105,7 @@ the suffix starts in, and gray rows are pairs that are skipped.
 ```plaintext
 ALGORITHM LongestCommonSubstring(S1, S2)
     T <- S1 + "#" + S2 + "$"
-    SA <- BuildSuffixArray(T, n), LCP <- BuildLcpKasai(T, SA, n)
+    SA <- BuildSuffixArray(T, n), LCP <- BuildLcp(T, SA, n)
     best <- 0, at <- 0
     for j <- 1 to n-1 do
         f <- Origin(SA[j]), g <- Origin(SA[j-1])   // 1, 2, or 0 for a separator
@@ -1159,7 +1152,7 @@ LCS = "iss" (length 3) at j = 5
 but both suffixes are on the `mississippi` side, so it is not a common
 substring. It is the LRS of `mississippi`. The largest candidate is 3 at
 j = 5, where `iss` from `kiss` meets `iss` from `mississippi`. The time is
-$$O(n \log n)$$ for the suffix array plus $$O(n)$$ for the LCP and the scan,
+the cost of building the suffix array and the LCP array plus $$O(n)$$ for the scan,
 with $$n = |S_1| + |S_2| + 2$$.
 
 Turn the rules off yourself. Enter two strings and toggle the separator and the rule "only pairs from
@@ -1300,16 +1293,15 @@ last finishes first: LIFO. To write MSD without recursion, push and pop the
   implement.
 - **MSD**: split into buckets from the highest digit and recurse only on
   buckets with two or more elements. It stops reading once keys split, so it
-  suits variable-length keys, but each call costs $$O(k)$$.
+  suits variable-length keys, but each call costs $$O(k)$$. Sorting the values
+  does not require stability.
 - Radix sort never compares, so it lies **outside the premise** of the
   $$\Omega(n \log n)$$ lower bound. With a fixed digit count it is $$O(n)$$.
 - **Suffix array**: the array of starting positions of all suffixes, sorted.
-  Doubling gets the order of the first $$2h$$ characters from pairs of ranks
-  of the first $$h$$ characters. $$O(n \log^2 n)$$, or $$O(n \log n)$$ when
-  the pairs are radix-sorted
-- **LCP array**: the common prefix lengths of neighboring suffixes. Kasai
-  works in text-position order and lowers $$h$$ only by 1 at a time, so it is
-  $$O(n)$$.
+  The plain method sorts suffixes by comparing them as strings. Worst case
+  $$O(n^2 \log n)$$
+- **LCP array**: the common prefix lengths of neighboring suffixes. It is built by
+  comparing each neighboring pair from the front, worst case $$O(n^2)$$ when prefixes are long.
 - The **LRS** is the maximum of the LCP; the **LCS** joins the two strings
   with `#` and takes the maximum LCP over neighbors that start in different
   strings.
@@ -1326,11 +1318,14 @@ pseudocode file with a C and a Python implementation.
 src/topic-09-radix-sort/
 ├── 01_lsd_radix_sort/   # 437 42 531 8 74 in three passes; twelve three-letter words
 ├── 02_msd_radix_sort/   # 14 digit reads (LSD takes 24)
-├── 03_suffix_array/     # SA of banana$ = 6 5 3 1 0 4 2, naive sort and doubling
-├── 04_lcp/              # Kasai, LCP = - 0 1 3 0 0 2, char compares 9 vs 12
+├── 03_suffix_array/     # SA of banana$ = 6 5 3 1 0 4 2, naive sort (doubling for reference)
+├── 04_lcp/              # LCP = - 0 1 3 0 0 2, 12 char compares (Kasai for reference)
 ├── 05_lrs/              # ana in banana$, acaag in the base sequence
 ├── 06_lcs/              # iss in mississippi and kiss
-└── 07_stack_queue/      # queue buckets sort correctly, stack buckets do not
+├── 07_stack_queue/      # queue buckets sort correctly, stack buckets do not
+├── 08_msd_cost/         # LSD and MSD cost by radix and cutoff
+├── 09_radix_timing/     # timing LSD, MSD, and MSD with a cutoff
+└── 10_suffix_radix/     # for reference: doubling pairs sorted with LSD radix sort
 ```
 
 Open a file and press the **▶ button** at the top right of the editor
@@ -1344,8 +1339,8 @@ run things.
   get the same wrong result as the stack buckets, `074 042 008 437 531`.
 - Change MSD's input to `{111, 112, 113, 114}` and to `{100, 200, 300, 400}`
   and compare the number of digit reads. They are 12 and 4.
-- Change the suffix array's `text` to `mississippi$` and doubling goes up to
-  `k = 8`. Watch how the number of distinct ranks grows each round.
+- Change the suffix array's `text` to `mississippi$`. `naive SA` becomes
+  `11 10 7 4 1 0 9 8 6 3 5 2`.
 - Add `report("mississippi$")` to LRS. The answer is the overlapping repeat
   `issi`.
 - Change LCS's `s2` to `"sip"`. Check that it finds `sip` without being
@@ -1354,9 +1349,10 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v2**, shown at the bottom left of the slides.
+**v3**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-11-04 | Added 12 demos (one counting pass, choosing the radix, real timing, MSD on strings, MSD cost, suffix table, radix-sorting pairs, Kasai cost, LRS in 283 characters, scale estimates, LCS rules, KWIC binary search). Character codes, ranks, the original text and a pass log now sit inside the demos |
+| v3 | 2026-11-11 | Dropped doubling and Kasai to cover only the plain methods. Added MSD stability, the radix k and base 256, the insertion sort cutoff, and when LSD or MSD wins. Added demos defining LCP and LCS and timing MSD, citing `08_msd_cost` and `09_radix_timing` output from `algorithm-code` |

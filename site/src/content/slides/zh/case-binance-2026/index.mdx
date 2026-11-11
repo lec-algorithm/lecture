@@ -1,0 +1,305 @@
+---
+title: "案例研究 · 币安黑客事件（2026）"
+description: "从假招聘面试开始、63 亿美元流出的路径，以及开发者必须守住的东西"
+order: 200
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import AttackTimelineDemo from '@components/AttackTimelineDemo.astro';
+import RunWhereDemo from '@components/RunWhereDemo.astro';
+import NonceRaceDemo from '@components/NonceRaceDemo.astro';
+import DefenseChainDemo from '@components/DefenseChainDemo.astro';
+import StoryStrip from '@components/StoryStrip.astro';
+
+{/* 只收录截至 2026 年 11 月 10 日的报道能确认的事实。来源在最后一张幻灯片。 */}
+
+<Slide class="cover">
+
+# 案例研究 · 币安黑客事件
+
+*2026 年 10 月 29 日，20 分钟流出 63 亿美元*
+
+</Slide>
+
+<Slide>
+
+## 一览
+::sub[各报道的数字略有不同 · 按 → 键逐个显示]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "coins", "head": "约 63 亿美元", "label": "史上最大的加密资产盗窃", "tone": "bad"},
+    {"icon": "clock", "head": "约 20 分钟", "label": "大部分资金流出的时间", "tone": "bad"},
+    {"icon": "link", "head": "10 条链", "label": "同时被盗的区块链", "tone": "bad"},
+    {"icon": "calendar", "head": "约 5 个月", "label": "从 6 月的安装包到 10 月", "tone": "warn"},
+    {"icon": "snowflake", "head": "约 28.5 亿美元", "label": "冻结或拦截的金额", "tone": "good"},
+    {"icon": "eye", "head": "FBI：朝鲜", "label": "指认 TraderTraitor，朝鲜否认"},
+  ]}
+/>
+
+</Slide>
+
+<Slide>
+
+## 被攻破的不是区块链
+::sub[崩溃的是它前面的连接]
+
+<StoryStrip
+  panels={[
+    {"icon": "laptop", "label": "开发者电脑", "tone": "bad"},
+    {"icon": "bot", "label": "内部 AI 工具", "tone": "bad"},
+    {"icon": "key", "label": "部署令牌", "tone": "bad"},
+    {"icon": "server", "label": "签名服务", "tone": "bad"},
+    {"icon": "wallet", "label": "热钱包", "tone": "bad"},
+  ]}
+  punch="密码学、区块链、私钥都没有被攻破。"
+/>
+
+</Slide>
+
+<Slide>
+
+### 一步一步：五个月的攻击
+::sub[点击下一步或条带上的格子切换阶段 · 颜色表示入侵、扩展、盗取、善后]
+
+<AttackTimelineDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 第 1 阶段：寻找 AI 工具时
+::sub[2026 年 6 月]
+
+<StoryStrip
+  panels={[
+    {"icon": "search", "label": "搜索 AI 编程工具"},
+    {"icon": "package", "label": "运行被篡改的安装包", "tone": "bad"},
+    {"icon": "shield", "label": "安全团队检测到并更换设备", "tone": "good"},
+    {"icon": "leak", "label": "团队与职责信息已经外泄", "tone": "bad"},
+  ]}
+  punch="检测成功了，但下一批目标的名单已经被拿走。"
+/>
+
+</Slide>
+
+<Slide>
+
+## 第 2 阶段：假招聘面试
+::sub[2026 年 9 月]
+
+<StoryStrip
+  panels={[
+    {"icon": "mail", "label": "冒充项目总监的跳槽邀约", "tone": "warn"},
+    {"icon": "video", "label": "冒充人事和 CEO 的两次面试", "tone": "warn"},
+    {"icon": "code", "label": "在工作电脑上运行编程题", "tone": "bad"},
+    {"icon": "bug", "label": "终端安全没有检测到", "tone": "bad"},
+  ]}
+  punch="面试官和题目都是假的，一台公司电脑就此失守。"
+/>
+
+</Slide>
+
+<Slide>
+
+## 「零日恶意代码」这个说法
+::sub[准确理解报道中的用词]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "bug", "head": "零日漏洞", "label": "厂商不知道或尚无补丁的缺陷"},
+    {"icon": "eye", "head": "本案的「零日」", "label": "安全产品不认识的新恶意代码，没有 CVE", "tone": "warn"},
+    {"icon": "person", "head": "开门的人", "label": "受害者亲自运行了题目代码", "tone": "bad"},
+  ]}
+  punch="所以光靠检测工具很难挡住。"
+/>
+
+</Slide>
+
+<Slide>
+
+### 动手试试：收到的代码在哪里运行
+::sub[选择运行环境，恶意代码能接触到的东西会变红]
+
+<RunWhereDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 第 3 阶段：经由内部 AI 工具横向移动
+::sub[10 月 20 日至 29 日]
+
+<StoryStrip
+  panels={[
+    {"icon": "laptop", "label": "一台已被控制的电脑", "tone": "bad"},
+    {"icon": "bot", "label": "经内部 AI 工具再控制 2 台电脑", "tone": "bad"},
+    {"icon": "key", "label": "发现容器部署令牌", "tone": "bad"},
+    {"icon": "server", "label": "进入内部钱包签名服务", "tone": "bad"},
+  ]}
+  punch="从此能生成绕过正常提现流程的签名。"
+/>
+
+</Slide>
+
+<Slide>
+
+## EIP-7702：把代码委托给钱包
+::sub[2025 年以太坊升级加入的便利功能]
+
+<StoryStrip
+  panels={[
+    {"icon": "wallet", "label": "平时：\n没有代码，只发密钥签名的交易"},
+    {"icon": "code", "label": "EIP-7702：\n把执行委托给合约", "tone": "warn"},
+    {"icon": "wallet", "label": "委托给清扫合约：\n连转入的资金也被扫走", "tone": "bad"},
+    {"icon": "clock", "label": "解除用了约 4 小时：\nMPC 无法单钥撤销", "tone": "bad"},
+  ]}
+  punch="为便利设计的功能成了绕出正常提现流程的通道。"
+/>
+
+</Slide>
+
+<Slide>
+
+### 动手试试：50 个委托
+::sub[把预先签好的委托数调到 50 · 实际是从 18,914,775 起的 50 个中只有 18,914,809 生效]
+
+<NonceRaceDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 20 分钟，10 条链
+::sub[从 10 月 28 日的准备到 29 日 20:05 UTC]
+
+<StoryStrip
+  panels={[
+    {"icon": "mask", "label": "28 日：\n从 Tornado Cash 分三次提取小额", "tone": "warn"},
+    {"icon": "code", "label": "29 日下午：\n2 个测试钱包，1 次演练", "tone": "warn"},
+    {"icon": "clock", "label": "20:05 UTC 起约 20 分钟，10 条链", "tone": "bad"},
+    {"icon": "wallet", "label": "以太坊热钱包不到 4 分钟被清空", "tone": "bad"},
+  ]}
+  punch="XRP 约 2.33 亿枚、BTC 约 18,270 枚、SOL 约 97 万枚以及稳定币流出。"
+/>
+
+</Slide>
+
+<Slide>
+
+## 洗钱与冻结的赛跑
+::sub[抢在发行方拦截之前换掉]
+
+<StoryStrip
+  panels={[
+    {"icon": "snowflake", "label": "Tether 和 Circle 冻结稳定币", "tone": "good"},
+    {"icon": "swap", "label": "冻结前换成 ETH：\n在 DEX 卖出约 150 种代币", "tone": "bad"},
+    {"icon": "bank", "label": "存入 Aave 借出 ETH", "tone": "bad"},
+    {"icon": "users", "label": "分散到 800 多个地址", "tone": "bad"},
+  ]}
+  punch="还发现了与此前 Bitget 事件资金混合的路径。"
+/>
+
+</Slide>
+
+<Slide>
+
+## 善后
+::sub[10 月 30 日至 11 月 3 日]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "snowflake", "head": "约 28.5 亿美元", "label": "冻结或拦截\n（约占损失的 44%）", "tone": "good"},
+    {"icon": "wallet", "head": "约 98%", "label": "用 SAFU 与公司资金补足", "tone": "good"},
+    {"icon": "calendar", "head": "11 月 1 日", "label": "提现分阶段恢复"},
+    {"icon": "leak", "head": "约 36 亿美元", "label": "恢复后 9 小时净流出", "tone": "warn"},
+    {"icon": "eye", "head": "10 月 31 日", "label": "FBI 指认朝鲜，朝鲜否认"},
+  ]}
+  punch="用户损失由币安承担。"
+/>
+
+</Slide>
+
+<Slide>
+
+### 动手试试：哪里能切断攻击链
+::sub[打开防御措施，会显示被切断的阶段和损失减轻的阶段 · 实际能否挡住无从得知]
+
+<DefenseChainDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 我们不该做的事
+::sub[学生和上班族都一样]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "laptop", "label": "用工作设备求职、做题、个人下载", "tone": "bad"},
+    {"icon": "person", "label": "在个人设备上一直登录公司或学校账号", "tone": "bad"},
+    {"icon": "code", "label": "在自己的设备上直接运行来路不明的代码", "tone": "bad"},
+    {"icon": "search", "label": "通过搜索结果链接下载安装包", "tone": "bad"},
+    {"icon": "key", "label": "把令牌和密钥留在文件、聊天或 shell 历史里", "tone": "bad"},
+  ]}
+/>
+
+</Slide>
+
+<Slide>
+
+## 一定要做的事
+::sub[一层被突破，下一层也能挡住]
+
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "users", "label": "工作与个人分开\n（至少分开账号和浏览器配置）", "tone": "good"},
+    {"icon": "package", "label": "来路不明的代码在一次性环境里运行\n（本课程的 Codespaces）", "tone": "good"},
+    {"icon": "key", "label": "用硬件安全密钥登录", "tone": "good"},
+    {"icon": "shield", "label": "AI 工具和令牌只给必要权限、短有效期", "tone": "good"},
+    {"icon": "bell", "label": "觉得不对马上报告", "tone": "good"},
+  ]}
+/>
+
+</Slide>
+
+<Slide>
+
+## 收到招聘联系时
+::sub[本次事件的入口]
+
+<StoryStrip
+  layout="grid" cols={4}
+  panels={[
+    {"icon": "search", "label": "通过官方招聘页面和邮箱域名反向确认", "tone": "good"},
+    {"icon": "package", "label": "「请运行这段代码」的题目只在一次性环境里运行", "tone": "good"},
+    {"icon": "mask", "label": "不透露现任公司的团队构成和负责的系统", "tone": "warn"},
+    {"icon": "laptop", "label": "不用工作设备和账号参加面试", "tone": "warn"},
+  ]}
+  punch="不要只凭头像和履历就相信。"
+/>
+
+</Slide>
+
+<Slide>
+
+## 来源
+::sub[截至 2026 年 11 月 10 日的报道与分析]
+
+- [CoinDesk：币安 63 亿美元被盗始于假招聘面试（11 月 3 日，英文）](https://www.coindesk.com/business/2026/11/03/binance-s-usd6-3-billion-hack-began-with-a-fake-job-interview-exchange-says)
+- [CoinDesk：一项以太坊权限如何让攻击者掏空币安（10 月 30 日，英文）](https://www.coindesk.com/tech/2026/10/30/here-s-how-one-ethereum-permission-let-an-attacker-drain-usd2-5-billion-from-binance)
+- [ZDNet Korea：币安黑客事件始于假招聘面试（11 月 4 日，韩文）](https://zdnet.co.kr/view/?no=20261104094357)
+- [数字日报：币安称朝鲜黑客五个月多阶段攻击（11 月 4 日，韩文）](https://www.ddaily.co.kr/page/view/2026110405435518640)
+- [TRM Labs：North Korea steals USD 6.36 billion from Binance](https://www.trmlabs.com/resources/blog/north-korea-steals-usd-6-36-billion-from-binance-in-the-largest-hack-in-history)
+- [Elliptic：The largest theft in history](https://www.elliptic.co/insights/binance-largest-hack-in-history/)
+- [Wikipedia：2026 Binance hack](https://en.wikipedia.org/wiki/2026_Binance_hack)
+
+</Slide>
