@@ -1,9 +1,9 @@
 ---
 // 긴 문자열에서 LCP 봉우리를 눌러 반복의 두 자리를 원문 위에서 보는 데모.
 //
-// 283글자 염기 서열이 기본이다. 접미사 배열과 Kasai를 정말 돌려 LCP가 큰 이웃 쌍을 표로 놓는다.
+// 283글자 염기 서열이 기본이다. 접미사 배열과 LCP를 정말 만들어 LCP가 큰 이웃 쌍을 표로 놓는다.
 // 줄을 누르면 그 부분 문자열이 나오는 두 자리가 원문에서 칠해진다. 무차별 대입도 끝까지 돌려
-// 위치 쌍과 글자 비교 수를 세어 이웃 쌍과 Kasai의 비교 수와 나란히 놓는다. 답(위치 31과 217의
+// 위치 쌍과 글자 비교 수를 세어, 이웃 쌍을 처음부터 비교한 글자 수와 나란히 놓는다. 답(위치 31과 217의
 // 15글자)과 banana$의 수치는 05_lrs의 출력과 같다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 import algos from './suffixAlgos.js?raw';
@@ -130,7 +130,7 @@ const presets = ['banana', 'mississippi', 'aaaaaaaa'];
     const S = JSON.parse(root.dataset.lfStrings);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
     const num = (x) => x.toLocaleString('en-US');
-    const { buildSA, kasai, bruteLrs, cleanWord } = globalThis.aasSuffixAlgos;
+    const { buildSA, kasai, naiveLcpCompares, bruteLrs, cleanWord } = globalThis.aasSuffixAlgos;
 
     const DNA = root.dataset.lfDna;
     const input = root.querySelector('[data-lf-in]');
@@ -211,7 +211,7 @@ const presets = ['banana', 'mississippi', 'aaaaaaaa'];
       sel = 0;
       const B = bruteLrs(text);
       root.querySelector('[data-lf-brute]').textContent = `${fill(S.pairs, { p: num(B.pairs) })} · ${fill(S.cmp, { c: num(B.compares) })}`;
-      root.querySelector('[data-lf-sorted]').textContent = `${fill(S.pairs, { p: num(text.length - 1) })} · ${fill(S.cmp, { c: num(K.compares) })}`;
+      root.querySelector('[data-lf-sorted]').textContent = `${fill(S.pairs, { p: num(text.length - 1) })} · ${fill(S.cmp, { c: num(naiveLcpCompares(text, sa)) })}`;
       drawText();
       drawTable();
       drawNote();

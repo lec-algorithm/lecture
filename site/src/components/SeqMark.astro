@@ -1,0 +1,84 @@
+---
+// 긴 서열을 여러 줄로 보이고, 찾은 부분 문자열이 나오는 자리를 모두 칠하는 블록.
+//
+// lines는 줄 단위로 나눈 서열이다(줄바꿈은 보기 위한 것이고 서열은 이어진다). mark가 나오는 모든
+// 자리를 찾아 칠하므로, 줄 경계에 걸쳐도 두 줄에 나뉘어 칠해진다. 각 자리의 시작 위치는 칠한
+// 구간 위에 작게 붙인다. 위치는 0부터 센다(05_lrs의 출력과 같다).
+interface Props {
+  lines: string[];
+  mark: string;
+}
+const { lines, mark } = Astro.props;
+const text = lines.join('');
+const starts: number[] = [];
+for (let k = text.indexOf(mark); mark && k !== -1; k = text.indexOf(mark, k + 1)) starts.push(k);
+
+/* 줄마다 [글자열, 칠할지, 이 조각에서 시작하는 자리] 조각으로 나눈다. */
+type Piece = { s: string; on: boolean; at?: number };
+let offset = 0;
+const rows: Piece[][] = lines.map((line) => {
+  const pieces: Piece[] = [];
+  let i = 0;
+  while (i < line.length) {
+    const g = offset + i;
+    const hit = starts.find((s) => g >= s && g < s + mark.length);
+    if (hit === undefined) {
+      let j = i;
+      while (j < line.length && !starts.some((s) => offset + j >= s && offset + j < s + mark.length)) j++;
+      pieces.push({ s: line.slice(i, j), on: false });
+      i = j;
+    } else {
+      const end = Math.min(line.length, hit + mark.length - offset);
+      pieces.push({ s: line.slice(i, end), on: true, at: g === hit ? hit : undefined });
+      i = end;
+    }
+  }
+  offset += line.length;
+  return pieces;
+});
+---
+
+<pre class="aas-seq-mark" aria-label={`${mark}: ${starts.join(', ')}`}>{
+  rows.map((row) => (
+    <span class="sm-line">{row.map((p) => (p.on ? <mark data-at={p.at}>{p.s}</mark> : p.s))}</span>
+  ))
+}</pre>
+
+<style is:global>
+  .aas-seq-mark {
+    margin: 0.8em 0;
+    padding: 1.1em 1.2em 0.9em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-panel);
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.95em;
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .aas-seq-mark .sm-line {
+    display: block;
+  }
+  .aas-seq-mark mark {
+    position: relative;
+    padding: 0.08em 0;
+    border-radius: 0.2em;
+    background: color-mix(in srgb, var(--aas-role-focus) 30%, transparent);
+    box-shadow: 0 0 0 1.5px var(--aas-role-focus);
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  /* 시작 위치를 칠한 구간 위에 작게 붙인다. */
+  .aas-seq-mark mark[data-at]::before {
+    content: attr(data-at);
+    position: absolute;
+    left: 0;
+    top: -1.05em;
+    font-size: 0.6em;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--aas-role-focus);
+  }
+</style>

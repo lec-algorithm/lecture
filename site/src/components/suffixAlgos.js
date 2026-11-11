@@ -1,6 +1,6 @@
 // 주제 09의 접미사 데모들이 함께 쓰는 계산과 참조 띠.
 //
-// 접미사 배열, Kasai, 더블링, 무차별 대입을 algorithm-code의 topic-09-radix-sort와 같은
+// 접미사 배열, LCP(Kasai), 무차별 대입을 algorithm-code의 topic-09-radix-sort와 같은
 // 절차로 옮겼다. 비교 횟수를 세는 규칙도 실습 코드와 같다. drawStrip은 데모 안의 참조
 // 띠(SuffixStrip.astro)를 채운다. 컴포넌트가 이 파일을 ?raw로 읽어 is:inline으로 넣는다.
 (() => {
@@ -93,36 +93,6 @@
     return { best, at, compares, pairs: (n * (n - 1)) / 2 };
   };
 
-  /* 더블링의 라운드들. 정렬은 LSD 기수 정렬 두 패스다. 처음 줄을 시작 위치 순으로 세우므로
-     짝이 같으면 시작 위치 순으로 남는다(03_suffix_array의 qsort와 같은 순서). */
-  const doublingRounds = (text) => {
-    const n = text.length;
-    const rounds = [];
-    let rank = [...text].map((c) => c.charCodeAt(0));
-    for (let k = 2; ; k *= 2) {
-      const h = k / 2;
-      const key = rank.map((r, i) => [r, i + h < n ? rank[i + h] : -1]);
-      const stable = (order, c) => {
-        const vals = [...new Set(order.map((i) => key[i][c]))].sort((a, b) => a - b);
-        return { vals, order: vals.flatMap((v) => order.filter((i) => key[i][c] === v)) };
-      };
-      const start = Array.from({ length: n }, (_, i) => i);
-      const p1 = stable(start, 1);
-      const p2 = stable(p1.order, 0);
-      const nr = new Array(n).fill(0);
-      for (let j = 1; j < n; j++) {
-        const a = key[p2.order[j]];
-        const b = key[p2.order[j - 1]];
-        nr[p2.order[j]] = nr[p2.order[j - 1]] + (a[0] === b[0] && a[1] === b[1] ? 0 : 1);
-      }
-      const distinct = nr[p2.order[n - 1]] + 1;
-      rounds.push({ k, h, rank: rank.slice(), key, start, pass1: p1, pass2: p2, next: nr, distinct });
-      rank = nr;
-      if (distinct === n || k > 2 * n) break;
-    }
-    return rounds;
-  };
-
   /* 참조 띠 채우기. rows: [{ label, values, cls }]. 칸마다 data-ss-i가 붙어 markStrip으로 칠한다. */
   const drawStrip = (el, text, rows = []) => {
     el.style.setProperty('--ss-cols', String(text.length));
@@ -147,6 +117,6 @@
   const cleanWord = (s, max) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, max);
 
   globalThis.aasSuffixAlgos = {
-    buildSA, rankOf, kasai, naiveLcpCompares, bruteLrs, doublingRounds, drawStrip, markStrip, cleanWord,
+    buildSA, rankOf, kasai, naiveLcpCompares, bruteLrs, drawStrip, markStrip, cleanWord,
   };
 })();
