@@ -20,6 +20,7 @@ import StackQueueDemo from '@components/StackQueueDemo.astro';
 import CountingPassDemo from '@components/CountingPassDemo.astro';
 import RadixCostDemo from '@components/RadixCostDemo.astro';
 import RuntimeRaceDemo from '@components/RuntimeRaceDemo.astro';
+import RadixLegend from '@components/RadixLegend.astro';
 import MsdStringDemo from '@components/MsdStringDemo.astro';
 import MsdCostDemo from '@components/MsdCostDemo.astro';
 import LcpDefineDemo from '@components/LcpDefineDemo.astro';
@@ -107,6 +108,8 @@ Topic 09
 #### LSD radix sort
 ::sub[Lowest digit first, a non-comparison sort]
 
+<RadixLegend />
+
 - **Key ideas**
   - Apply counting sort to each digit.
   - That counting sort must be **stable**.
@@ -124,6 +127,8 @@ Sort three times: ones digit, tens digit, hundreds digit.
 ### One step at a time: strings work the same way
 ::sub[Twelve three-letter words, by last, middle, then first character · click a word to mark it in every row]
 
+<RadixLegend />
+
 <LsdStringDemo slide />
 
 </Slide>
@@ -133,6 +138,8 @@ Sort three times: ones digit, tens digit, hundreds digit.
 ### One step at a time: scatter into buckets, then gather
 ::sub[Current digit orange, finished lower digits green. Buckets empty from 0, in the order filled]
 
+<RadixLegend />
+
 <LsdRadixDemo slide />
 
 </Slide>
@@ -141,6 +148,8 @@ Sort three times: ones digit, tens digit, hundreds digit.
 
 #### As a procedure
 ::sub[`01_lsd_radix_sort/lsdRadixSort.pseudo`]
+
+<RadixLegend />
 
 ```plaintext
 ALGORITHM LsdRadixSort(A, n)
@@ -169,6 +178,8 @@ ALGORITHM CountingSortByDigit(A, n, exp)   // Topic 03's counting sort, key = on
 #### In code
 ::sub[`01_lsd_radix_sort/lsdRadixSort.c`]
 
+<RadixLegend />
+
 ```c
 void countingSortByDigit(int a[], int n, int exp) {
     int output[MAX_N];
@@ -196,6 +207,8 @@ void countingSortByDigit(int a[], int n, int exp) {
 ### One step at a time: count, cumulate, place
 ::sub[Follow the four stages of the code line by line · the tabs change the direction of step 3]
 
+<RadixLegend />
+
 <CountingPassDemo slide />
 
 </Slide>
@@ -204,6 +217,8 @@ void countingSortByDigit(int a[], int n, int exp) {
 
 #### Run
 ::sub[Numbers are printed padded with leading zeros]
+
+<RadixLegend />
 
 - Run
 
@@ -231,6 +246,8 @@ At `exp 10`, `531` and `437` share a tens digit and keep the previous pass's ord
 #### Why it must be stable
 ::sub[One property every pass preserves]
 
+<RadixLegend />
+
 > **After pass $$p$$, the array is sorted by its lowest $$p$$ digits.**
 
 <br/>
@@ -248,6 +265,8 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 ### One step at a time: placing from the front
 ::sub[Do step 3 of counting sort from the front and equal characters come out reversed · switch with the tabs]
 
+<RadixLegend />
+
 <LsdStringDemo placement="unstable" slide />
 
 </Slide>
@@ -256,6 +275,8 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 
 #### Analysis
 ::sub[d: number of digits, k: values one digit can take]
+
+<RadixLegend />
 
 - **Time** $$O(d(n + k))$$
   - Counting sort, $$O(n + k)$$, done $$d$$ times.
@@ -270,6 +291,8 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 #### Strengths and weaknesses
 ::sub[LSD Radix Sort]
 
+<RadixLegend />
+
 | Strengths | Weaknesses |
 | --- | --- |
 | stable, equal keys keep their order | needs extra memory, $$O(n + k)$$ |
@@ -283,6 +306,8 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 #### How it sidesteps the comparison lower bound
 ::sub[It does not break the bound; it lies outside the bound's premise]
 
+<RadixLegend />
+
 - The decision-tree argument assumes **"as long as you sort by comparing."**
 - Radix sort never compares two elements.
   - It reads one digit and computes a position from it directly.
@@ -294,6 +319,8 @@ In pass $$p + 1$$, if two elements' digit $$(p + 1)$$ is
 
 #### It is not free
 ::sub[When the digit count d grows with n]
+
+<RadixLegend />
 
 - To hold $$n$$ distinct values, keys need at least $$\log_k n$$ digits.
 - If the value range grows with $$n$$, $$O(d \cdot n)$$ is back to $$O(n \log n)$$.
@@ -310,6 +337,8 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 ### Try it: how to split the key
 ::sub[Move n and the value range and the work changes for each radix · green is the cheapest]
 
+<RadixLegend />
+
 <RadixCostDemo slide />
 
 </Slide>
@@ -318,6 +347,8 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 
 #### Running time
 ::sub[Sorting integer arrays by size · LSD uses one byte per digit (R = 256)]
+
+<RadixLegend />
 
 | n | Insertion sort | Merge sort | Quicksort | LSD radix sort |
 | --- | --- | --- | --- | --- |
@@ -336,6 +367,8 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 ### Try it: measure it yourself
 ::sub[The four sorts really run in this browser · the tabs change the input order]
 
+<RadixLegend />
+
 <RuntimeRaceDemo slide />
 
 </Slide>
@@ -351,6 +384,8 @@ With $$d$$ fixed, as for 32-bit integers, ID numbers, or postal codes, it is $$O
 
 #### MSD radix sort
 ::sub[Highest digit first, divide and conquer]
+
+<RadixLegend />
 
 - Counting-sorting by the highest digit gathers equal digits into one range.
   - That range is a **bucket**. The buckets are already in order.
@@ -368,6 +403,8 @@ Let us sort `170 45 75 90 2 802 24 66`.
 ### One step at a time: one recursive call each
 ::sub[Orange bracket on top: current range; brackets below: buckets. Only orange buckets recurse; green is done]
 
+<RadixLegend />
+
 <MsdRadixDemo slide />
 
 </Slide>
@@ -376,6 +413,8 @@ Let us sort `170 45 75 90 2 802 24 66`.
 
 #### As a procedure
 ::sub[`02_msd_radix_sort/msdRadixSort.pseudo`]
+
+<RadixLegend />
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -401,6 +440,8 @@ The first call is `MsdRecursive(A, 0, n-1, 100)`, since 802's highest digit is t
 
 #### In code
 ::sub[`02_msd_radix_sort/msdRadixSort.c`]
+
+<RadixLegend />
 
 ```c
 void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
@@ -428,6 +469,8 @@ void msdRecursive(int a[], int lo, int hi, int exp, int depth) {
 
 #### Run
 ::sub[The indentation is the recursion depth]
+
+<RadixLegend />
 
 - Run
 
@@ -457,6 +500,8 @@ The ones digit was never read. 14 digit reads; LSD takes 24.
 #### Is stability required?
 ::sub[Unlike LSD, not for sorting the values]
 
+<RadixLegend />
+
 - Buckets are already in their final order and **never mix again**.
   - The next digit decides the order inside a bucket afresh.
 - To keep the original order of equal keys, **every step must be stable**.
@@ -480,6 +525,8 @@ The comparison table later lists MSD as stable because it uses a stable counting
 #### On strings
 ::sub[A good fit for keys of different lengths]
 
+<RadixLegend />
+
 - Split by the first character, each bucket by the second, ...
   - Once a bucket holds one string, its remaining characters are never read.
 - **The end of a string comes before every character.**
@@ -494,6 +541,8 @@ The comparison table later lists MSD as stable because it uses a stable counting
 ### One step at a time: MSD on strings
 ::sub[Colored cells are the characters read · orange is being read, green is a finished word]
 
+<RadixLegend />
+
 <MsdStringDemo slide />
 
 </Slide>
@@ -502,6 +551,8 @@ The comparison table later lists MSD as stable because it uses a stable counting
 
 #### Analysis
 ::sub[MSD Radix Sort]
+
+<RadixLegend />
 
 - **Best** $$O(n + k)$$: the first digit sends every element to a different bucket.
 - **Worst**: if keys never split, it reads $$n \times d$$ digits, like LSD.
@@ -519,6 +570,8 @@ So real implementations hand small buckets to insertion sort.
 
 #### The radix k
 ::sub[The number of values one digit can take, and the slots in the counting array]
+
+<RadixLegend />
 
 | Value | $$k = 10$$ | Digits | $$k = 256$$ | Digits |
 | --- | --- | --- | --- | --- |
@@ -539,6 +592,8 @@ So real implementations hand small buckets to insertion sort.
 #### k = 256 on strings and on integers
 ::sub[Either way, the key is read one byte at a time]
 
+<RadixLegend />
+
 | Key | Bytes, highest first | Digit values |
 | --- | --- | --- |
 | String `she` | `s`, `h`, `e` | 115, 104, 101 |
@@ -558,6 +613,8 @@ So real implementations hand small buckets to insertion sort.
 
 #### Insertion sort for small buckets
 ::sub[`08_msd_cost/msdCost.pseudo` · at or below a chosen size, stop recursing]
+
+<RadixLegend />
 
 ```plaintext
 ALGORITHM MsdRecursive(A, lo, hi, exp)
@@ -580,6 +637,8 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 ### Try it: count the work
 ::sub[Counts digit reads and cell scans · try the random input at k = 256]
 
+<RadixLegend />
+
 <MsdCostDemo slide />
 
 </Slide>
@@ -588,6 +647,8 @@ ALGORITHM MsdRecursive(A, lo, hi, exp)
 
 #### Output
 ::sub[`08_msd_cost/msdCost.c` · the numbers in `[ ]` are calls per digit]
+
+<RadixLegend />
 
 - Run
 
@@ -617,6 +678,8 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 #### LSD and MSD
 ::sub[LSD vs. MSD]
 
+<RadixLegend />
+
 | Feature | LSD radix sort | MSD radix sort |
 | --- | --- | --- |
 | Direction | low digit → high digit | high digit → low digit |
@@ -632,6 +695,8 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 
 #### When each one wins
 ::sub[LSD for integers of equal length, MSD for keys that vary in length or split early]
+
+<RadixLegend />
 
 | Situation | Better | Why |
 | --- | --- | --- |
@@ -653,6 +718,8 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 #### Running time: measured in C
 ::sub[`09_radix_timing/radixTiming.c` · in ms, R = 256]
 
+<RadixLegend />
+
 | n | LSD | MSD | MSD (≤ 16) |
 | --- | --- | --- | --- |
 | 1,000 | 0.003 | 0.042 | 0.002 |
@@ -673,6 +740,8 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 ### Try it: measure MSD too
 ::sub[Runs all six in this browser · the tabs change the input order]
 
+<RadixLegend />
+
 <RuntimeRaceDemo slide msd />
 
 </Slide>
@@ -681,6 +750,8 @@ These match the demo's table. `MSD <=16` hands size 16 or less to insertion sort
 
 #### Eight sorts side by side
 ::sub[The top five are comparison sorts, the bottom three non-comparison sorts]
+
+<RadixLegend />
 
 | Sort | Best | Average | Worst | Space | Stability |
 | --- | --- | --- | --- | --- | --- |
