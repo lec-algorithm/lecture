@@ -12,6 +12,7 @@ import AttackTimelineDemo from '@components/AttackTimelineDemo.astro';
 import RunWhereDemo from '@components/RunWhereDemo.astro';
 import NonceRaceDemo from '@components/NonceRaceDemo.astro';
 import DefenseChainDemo from '@components/DefenseChainDemo.astro';
+import StoryStrip from '@components/StoryStrip.astro';
 
 {/* Facts are limited to what reporting up to Nov 10, 2026 confirms. Sources are on the last slide. */}
 
@@ -26,30 +27,37 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 <Slide>
 
 ## At a glance
-::sub[Figures differ slightly between reports and analysts]
+::sub[Figures differ slightly between reports · press → to reveal one at a time]
 
-| Item | Details |
-| --- | --- |
-| When | From 20:05 UTC on October 29, 2026, mostly within about 20 minutes |
-| Size | About $6.3 billion (TRM Labs $6.36B, Elliptic $6.43B) |
-| Where | Hot wallets on 10 blockchains |
-| Entry | A tampered installer in June, a fake job interview in September |
-| Attribution | The FBI named North Korea (TraderTraitor); North Korea denies it |
-| Recovery | About $2.85 billion frozen or blocked; Binance covers the losses |
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "coins", "head": "About $6.3B", "label": "The largest crypto theft on record", "tone": "bad"},
+    {"icon": "clock", "head": "About 20 min", "label": "Time for most of it to leave", "tone": "bad"},
+    {"icon": "link", "head": "10 chains", "label": "Blockchains hit at once", "tone": "bad"},
+    {"icon": "calendar", "head": "About 5 months", "label": "From the June installer to October", "tone": "warn"},
+    {"icon": "snowflake", "head": "About $2.85B", "label": "Frozen or blocked", "tone": "good"},
+    {"icon": "eye", "head": "FBI: North Korea", "label": "Named TraderTraitor; North Korea denies it"},
+  ]}
+/>
 
 </Slide>
 
 <Slide>
 
 ## The blockchain was not broken
-::sub[What failed was people, developer machines, and the links between permissions]
+::sub[What failed were the links in front of it]
 
-- **Neither cryptography nor the blockchain protocol was broken.**
-  - There is no evidence that a private key leaked.
-- **It started on one developer's computer.**
-  - One installer and one interview task were the way in.
-- **Linked permissions led all the way to the signing system.**
-  - An internal AI tool, a deployment token, then the signing service.
+<StoryStrip
+  panels={[
+    {"icon": "laptop", "label": "Developer PC", "tone": "bad"},
+    {"icon": "bot", "label": "Internal AI tool", "tone": "bad"},
+    {"icon": "key", "label": "Deployment token", "tone": "bad"},
+    {"icon": "server", "label": "Signing service", "tone": "bad"},
+    {"icon": "wallet", "label": "Hot wallet", "tone": "bad"},
+  ]}
+  punch="No cryptography, no blockchain, and no private key was broken."
+/>
 
 </Slide>
 
@@ -67,13 +75,15 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## Stage 1: looking for an AI tool
 ::sub[June 2026]
 
-- **A wallet development and operations engineer was looking for an AI coding tool.**
-  - The installer found through a search had been tampered with.
-- **The security team detected anomalies and replaced the device.**
-  - Detection itself worked.
-- **But the information had already left.**
-  - The work and roles of the engineer and colleagues were exposed to the attacker.
-  - In effect, it became the next target list.
+<StoryStrip
+  panels={[
+    {"icon": "search", "label": "Searching for an AI coding tool"},
+    {"icon": "package", "label": "Running a tampered installer", "tone": "bad"},
+    {"icon": "shield", "label": "Security detects it and replaces the device", "tone": "good"},
+    {"icon": "leak", "label": "Team and role details already leaked", "tone": "bad"},
+  ]}
+  punch="Detection worked, but the next target list was already gone."
+/>
 
 </Slide>
 
@@ -82,12 +92,15 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## Stage 2: a fake job interview
 ::sub[September 2026]
 
-- **The target was an engineer who listed Binance on a job platform.**
-  - Someone posing as a project director at a well-known company reached out to them.
-- **There were two interviews, both with impersonators.**
-  - They posed as HR and the CEO, with photos on their accounts.
-- **The engineer ran the coding-test repository on a work computer.**
-  - Endpoint security did not detect the malware inside.
+<StoryStrip
+  panels={[
+    {"icon": "mail", "label": "A job offer from a fake project director", "tone": "warn"},
+    {"icon": "video", "label": "Two interviews with fake HR and CEO", "tone": "warn"},
+    {"icon": "code", "label": "The coding test runs on a work PC", "tone": "bad"},
+    {"icon": "bug", "label": "Endpoint security misses it", "tone": "bad"},
+  ]}
+  punch="The interviewers and the test were fake, and one company PC was lost."
+/>
 
 </Slide>
 
@@ -96,14 +109,15 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## What "zero-day malware" means here
 ::sub[Reading the reported wording carefully]
 
-- **A zero-day vulnerability is one the vendor does not know about yet, or has no patch for.**
-  - Zero days are left before a fix.
-- **In this case, "zero-day" means malware nobody had seen before.**
-  - It was not on any security product's detection list, so it passed straight through.
-  - No vulnerability ID (CVE) has been published.
-- **A person opened the door.**
-  - The victim ran the task code himself.
-  - That is why detection tools alone struggle to stop it.
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "bug", "head": "Zero-day vulnerability", "label": "A flaw the vendor does not know or has not patched"},
+    {"icon": "eye", "head": "This case's \"zero-day\"", "label": "New malware no security product knew; no CVE", "tone": "warn"},
+    {"icon": "person", "head": "Who opened the door", "label": "The victim ran the task code", "tone": "bad"},
+  ]}
+  punch="That is why detection tools alone struggle to stop it."
+/>
 
 </Slide>
 
@@ -121,28 +135,32 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## Stage 3: sideways through an internal AI tool
 ::sub[October 20 to 29]
 
-- **From the compromised computer, the attacker used an internal AI tool.**
-  - Through it, they took over two other engineers' computers.
-- **One of them held a container deployment token.**
-  - On October 29, the attacker deployed a container with these credentials.
-- **That reached the internal wallet signing service.**
-  - Signatures could now skip the normal withdrawal process.
+<StoryStrip
+  panels={[
+    {"icon": "laptop", "label": "One compromised PC", "tone": "bad"},
+    {"icon": "bot", "label": "An internal AI tool takes 2 more PCs", "tone": "bad"},
+    {"icon": "key", "label": "A container deployment token turns up", "tone": "bad"},
+    {"icon": "server", "label": "The wallet signing service is reached", "tone": "bad"},
+  ]}
+  punch="Signatures could now skip the normal withdrawal process."
+/>
 
 </Slide>
 
 <Slide>
 
 ## EIP-7702: delegating code to a wallet
-::sub[A feature added in Ethereum's 2025 upgrade]
+::sub[A convenience feature from Ethereum's 2025 upgrade]
 
-- **An ordinary wallet (EOA) has no code.**
-  - It only sends transactions its key owner signs.
-- **EIP-7702 lets a wallet delegate to contract code that runs on its behalf.**
-  - It was built for conveniences such as batched payments and sponsored fees.
-- **The attacker delegated a hot wallet to a sweeper contract.**
-  - Even funds arriving later were swept to the attacker.
-- **Undoing a delegation takes another signature from the wallet key.**
-  - The wallet used multiparty computation (MPC), so no single key could revoke it; it took about 4 hours.
+<StoryStrip
+  panels={[
+    {"icon": "wallet", "label": "Normally: no code, only key-signed transactions"},
+    {"icon": "code", "label": "EIP-7702: delegate execution to a contract", "tone": "warn"},
+    {"icon": "wallet", "label": "Delegated to a sweeper: even incoming funds go", "tone": "bad"},
+    {"icon": "clock", "label": "About 4 hours to revoke: MPC, no single key", "tone": "bad"},
+  ]}
+  punch="A convenience feature became a way out of the normal withdrawal process."
+/>
 
 </Slide>
 
@@ -158,30 +176,34 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 <Slide>
 
 ## 20 minutes, 10 chains
-::sub[From 20:05 UTC on October 29]
+::sub[From preparation on Oct 28 to 20:05 UTC on Oct 29]
 
-- **Preparation was done the day before.**
-  - Three small Tornado Cash withdrawals paid for fees.
-  - The code was tested on two wallets and rehearsed on a third.
-- **Starting with XRP, most assets left in about 20 minutes.**
-  - About 233 million XRP, about 18,270 BTC, about 970,000 SOL
-  - About 1.875 billion USDT and 823 million USDC on Ethereum, among others
-- **The Ethereum hot wallet was emptied in under 4 minutes.**
+<StoryStrip
+  panels={[
+    {"icon": "mask", "label": "Oct 28: three small Tornado Cash withdrawals", "tone": "warn"},
+    {"icon": "code", "label": "Oct 29 afternoon: 2 test wallets, 1 rehearsal", "tone": "warn"},
+    {"icon": "clock", "label": "From 20:05 UTC, about 20 minutes, 10 chains", "tone": "bad"},
+    {"icon": "wallet", "label": "Ethereum hot wallet emptied in under 4 minutes", "tone": "bad"},
+  ]}
+  punch="About 233M XRP, 18,270 BTC, 970,000 SOL, and billions in stablecoins left."
+/>
 
 </Slide>
 
 <Slide>
 
 ## Laundering versus freezing
-::sub[Swapping before the issuers can freeze]
+::sub[A race to swap before the issuers block it]
 
-- **Stablecoin issuers can freeze tokens.**
-  - Tether froze about 1.77 billion USDT and Circle about 825 million USDC.
-- **The attacker tried to swap into ETH before the freezes.**
-  - About 150 tokens were sold for ETH on decentralized exchanges.
-  - USDT was deposited in the lending protocol Aave to borrow ETH.
-- **Funds were scattered across more than 800 addresses.**
-  - A path mixing them with funds from an earlier Bitget exploit was also found.
+<StoryStrip
+  panels={[
+    {"icon": "snowflake", "label": "Tether and Circle freeze stablecoins", "tone": "good"},
+    {"icon": "swap", "label": "Swap to ETH first: about 150 tokens on DEXs", "tone": "bad"},
+    {"icon": "bank", "label": "Deposit in Aave and borrow ETH", "tone": "bad"},
+    {"icon": "users", "label": "Scatter across 800+ addresses", "tone": "bad"},
+  ]}
+  punch="A path mixing funds with an earlier Bitget exploit was also found."
+/>
 
 </Slide>
 
@@ -190,13 +212,17 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## Response
 ::sub[October 30 to November 3]
 
-- **About $2.85 billion was frozen or blocked.**
-  - That is about 44% of the loss.
-- **Binance absorbed the losses.**
-  - Its user protection fund (SAFU) and company funds replenished about 98%.
-- **Withdrawals reopened in phases from November 1.**
-  - In the 9 hours after reopening, net outflows were about $3.6 billion.
-- **The FBI named North Korea on October 31; North Korea denied it.**
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "snowflake", "head": "About $2.85B", "label": "Frozen or blocked\n(about 44% of the loss)", "tone": "good"},
+    {"icon": "wallet", "head": "About 98%", "label": "Replenished from SAFU and company funds", "tone": "good"},
+    {"icon": "calendar", "head": "Nov 1", "label": "Withdrawals reopen in phases"},
+    {"icon": "leak", "head": "About $3.6B", "label": "Net outflow in 9 hours after reopening", "tone": "warn"},
+    {"icon": "eye", "head": "Oct 31", "label": "FBI names North Korea; it denies it"},
+  ]}
+  punch="Binance absorbed user losses."
+/>
 
 </Slide>
 
@@ -214,14 +240,16 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## What we must not do
 ::sub[The same for students and employees]
 
-- **Do not do personal things on work devices.**
-  - Job hunting, interview tasks, and personal downloads stay off work devices.
-- **Do not stay signed in to work or school accounts on personal devices.**
-- **Do not run code of unknown origin directly on your machine.**
-  - Interview tasks, unfamiliar repositories, and files sent over chat all count.
-- **Do not download installers from search result links.**
-  - Check the official site and the official package name yourself.
-- **Do not leave tokens and keys in files, chats, or shell history.**
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "laptop", "label": "Job hunting, tests, or personal downloads on work devices", "tone": "bad"},
+    {"icon": "person", "label": "Staying signed in to work or school on personal devices", "tone": "bad"},
+    {"icon": "code", "label": "Running code of unknown origin on your machine", "tone": "bad"},
+    {"icon": "search", "label": "Downloading installers from search result links", "tone": "bad"},
+    {"icon": "key", "label": "Leaving tokens and keys in files, chats, or shell history", "tone": "bad"},
+  ]}
+/>
 
 </Slide>
 
@@ -230,15 +258,16 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## What we must do
 ::sub[So that if one layer fails, the next one stops it]
 
-- **Separate work and personal.**
-  - If separate devices are hard, at least separate accounts and browser profiles.
-- **Run unknown code in a disposable environment.**
-  - This course's lab environment (Codespaces, containers) is exactly that.
-- **Sign in with phishing-resistant methods such as hardware security keys.**
-- **Give AI tools and tokens only the permissions they need.**
-  - Narrow the scope and keep expiry short.
-- **Report anything odd right away.**
-  - Like the June detection, reporting early is what lets the next stage be cut.
+<StoryStrip
+  layout="grid"
+  panels={[
+    {"icon": "users", "label": "Separate work and personal\n(at least accounts and browser profiles)", "tone": "good"},
+    {"icon": "package", "label": "Run unknown code in a disposable environment\n(this course's Codespaces)", "tone": "good"},
+    {"icon": "key", "label": "Sign in with hardware security keys", "tone": "good"},
+    {"icon": "shield", "label": "Minimal permissions and short expiry for AI tools and tokens", "tone": "good"},
+    {"icon": "bell", "label": "Report anything odd right away", "tone": "good"},
+  ]}
+/>
 
 </Slide>
 
@@ -247,13 +276,16 @@ import DefenseChainDemo from '@components/DefenseChainDemo.astro';
 ## When a recruiter contacts you
 ::sub[The situation that opened this case]
 
-- **Verify in reverse through the company's official careers page and email domain.**
-  - Do not trust a profile photo and work history alone.
-- **Be suspicious of tasks that say "run this code".**
-  - If it must run, run it only in a disposable environment.
-- **Do not share internal details about your current employer.**
-  - Team structure, systems you own, and tools you use are all information.
-- **Do not interview with work devices or accounts.**
+<StoryStrip
+  layout="grid" cols={4}
+  panels={[
+    {"icon": "search", "label": "Verify via the official careers page and email domain", "tone": "good"},
+    {"icon": "package", "label": "Run \"try this code\" tasks only in a disposable environment", "tone": "good"},
+    {"icon": "mask", "label": "Do not share your team structure or the systems you own", "tone": "warn"},
+    {"icon": "laptop", "label": "Do not interview with work devices or accounts", "tone": "warn"},
+  ]}
+  punch="Do not trust a profile photo and work history alone."
+/>
 
 </Slide>
 
