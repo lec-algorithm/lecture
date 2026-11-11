@@ -3,6 +3,7 @@
 //
 // 정수 배열을 만들어 삽입 정렬, 병합 정렬, 퀵 정렬, LSD 기수 정렬(R = 256)을 돌리고 잰다.
 // 탭으로 입력의 순서를 바꾸면 삽입 정렬은 크게 달라지지만 LSD는 거의 그대로다.
+// 거의 정렬됨은 정렬된 배열에서 1%의 자리를 골라 바로 뒤 원소와 바꾼 입력이다.
 // 짧게 끝나는 정렬은 여러 번 돌려 평균을 낸다. 삽입 정렬이 수십만 칸에서 탭을 멈추게
 // 하지 않도록, 오래 걸릴 칸은 재지 않고 앞 칸에서 n²에 비례한다고 어림해 †로 표시한다.
 // 값은 재는 환경마다 다르다. 강의 자료의 표는 C 측정이고 이 데모는 JavaScript다.
@@ -25,6 +26,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     title: '실제로 재 보기',
     random: '무작위',
     sorted: '이미 정렬됨',
+    nearly: '거의 정렬됨',
     reversed: '거꾸로',
     run: '재기',
     running: '재는 중',
@@ -49,6 +51,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     title: 'Measure it yourself',
     random: 'Random',
     sorted: 'Already sorted',
+    nearly: 'Nearly sorted',
     reversed: 'Reversed',
     run: 'Measure',
     running: 'Measuring',
@@ -73,6 +76,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     title: '亲手测一测',
     random: '随机',
     sorted: '已经有序',
+    nearly: '几乎有序',
     reversed: '倒序',
     run: '测量',
     running: '测量中',
@@ -106,6 +110,7 @@ const algos = ['insertion', 'merge', 'quick', 'lsd', ...(msd ? ['msd', 'msdCut']
       <span class="rr-head"><strong>{t.title}</strong></span>
       <button type="button" class="rr-tab" data-rr-order="random">{t.random}</button>
       <button type="button" class="rr-tab" data-rr-order="sorted">{t.sorted}</button>
+      <button type="button" class="rr-tab" data-rr-order="nearly">{t.nearly}</button>
       <button type="button" class="rr-tab" data-rr-order="reversed">{t.reversed}</button>
     </div>
     <button type="button" class="rr-btn" data-rr-run>{t.run}</button>
@@ -294,6 +299,16 @@ const algos = ['insertion', 'merge', 'quick', 'lsd', ...(msd ? ['msd', 'msdCut']
       if (order === 'random') return a;
       a.sort();
       if (order === 'reversed') a.reverse();
+      if (order === 'nearly') {
+        /* 1%의 자리를 골라 바로 뒤 원소와 바꾼다. 대부분은 제자리에 있다. */
+        for (let k = 0; k < Math.max(1, Math.floor(n / 100)); k++) {
+          s = (s + 0x6d2b79f5) | 0;
+          const i = (Math.imul(s ^ (s >>> 15), 1 | s) >>> 0) % (n - 1);
+          const t = a[i];
+          a[i] = a[i + 1];
+          a[i + 1] = t;
+        }
+      }
       return a;
     }
     /* 짧게 끝나는 정렬은 시간 분해능보다 오래 걸리도록 되풀이해 평균을 낸다. */
@@ -309,8 +324,8 @@ const algos = ['insertion', 'merge', 'quick', 'lsd', ...(msd ? ['msd', 'msdCut']
       } while (total < 6 && runs < 40);
       return total / runs;
     }
-    /* 삽입 정렬이 오래 걸릴 칸: 이미 정렬된 입력만 재고, 나머지는 어림한다. */
-    const skip = (algo, n, order) => algo === 'insertion' && n > 10000 && order !== 'sorted';
+    /* 삽입 정렬이 오래 걸릴 칸: 이미 정렬된 입력과 거의 정렬된 입력만 재고, 나머지는 어림한다. */
+    const skip = (algo, n, order) => algo === 'insertion' && n > 10000 && order !== 'sorted' && order !== 'nearly';
 
     let order = 'random';
     let token = 0;
