@@ -1,0 +1,272 @@
+---
+// LCS가 무엇인지 보는 데모. 두 문자열을 나란히 놓고, 두 문자열에 함께 나오는 가장 긴 부분 문자열을
+// 양쪽에서 칠한다. 처음 나오는 자리는 진하게, 같은 문자열이 또 나오는 자리는 점선으로 구분한다.
+// 길이가 같은 답이 여럿이면 모두 적고, 고른 답을 칠한다.
+//
+// 답은 동적 계획법으로 모든 (i, j)에서 끝나는 공통 부분 문자열의 길이를 구해 찾는다. 정의를 보이는
+// 데모라 접미사 배열을 쓰지 않는다. mississippi와 kiss의 답 iss는 06_lcs의 출력과 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `li-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LCS: 두 문자열에 함께 나오는 가장 긴 부분 문자열',
+    found: 'LCS = {w}, 길이 {n}입니다. 두 문자열에서 칠한 자리가 같은 글자들입니다.',
+    many: '길이 {n}인 답이 {c}개입니다: {list}. 답을 누르면 그 자리를 칠합니다.',
+    none: '두 문자열에 함께 나오는 글자가 없습니다. LCS는 빈 문자열입니다.',
+    hint: '부분 문자열은 이어진 글자들입니다. 띄엄띄엄 고른 글자는 해당하지 않습니다.',
+  },
+  en: {
+    title: 'LCS: the longest substring both strings share',
+    found: 'LCS = {w}, length {n}. The marked cells are the same characters in both strings.',
+    many: '{c} answers of length {n}: {list}. Click one to mark it.',
+    none: 'The strings share no character. The LCS is the empty string.',
+    hint: 'A substring is a run of adjacent characters; characters picked here and there do not count.',
+  },
+  zh: {
+    title: 'LCS：两个字符串共同出现的最长子串',
+    found: 'LCS = {w}，长度 {n}。两个字符串中涂色的位置是相同的字符。',
+    many: '长度为 {n} 的答案有 {c} 个：{list}。点击答案即可涂色。',
+    none: '两个字符串没有共同的字符。LCS 是空串。',
+    hint: '子串是连续的字符，隔开挑出来的字符不算。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const pairs = [
+  ['mississippi', 'kiss'],
+  ['banana', 'bandana'],
+  ['algorithm', 'logarithm'],
+  ['abc', 'xyz'],
+];
+---
+
+<div class:list={['aas-lcs-intro-demo', slide && 'is-slide']} id={id} data-li-strings={JSON.stringify(t)}>
+  <div class="li-bar">
+    <span class="li-head"><strong>{t.title}</strong></span>
+  </div>
+  <div class="li-inputs">
+    <label><span>S₁</span><input type="text" data-li-a value={pairs[0][0]} maxlength="20" spellcheck="false" autocomplete="off" /></label>
+    <label><span>S₂</span><input type="text" data-li-b value={pairs[0][1]} maxlength="20" spellcheck="false" autocomplete="off" /></label>
+    {pairs.map(([a, b]) => <button type="button" class="li-chip" data-li-pair={`${a} ${b}`}>{a} · {b}</button>)}
+  </div>
+  <div class="li-grid" data-li-grid></div>
+  <p class="li-note" data-li-note></p>
+  <p class="li-hint">{t.hint}</p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.liStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const aIn = root.querySelector('[data-li-a]');
+    const bIn = root.querySelector('[data-li-b]');
+    const grid = root.querySelector('[data-li-grid]');
+    const note = root.querySelector('[data-li-note]');
+    let pick = 0;
+
+    /* 동적 계획법: len[i][j]는 a[..i)와 b[..j)의 끝에서 끝나는 공통 부분 문자열의 길이다. */
+    function longest(a, b) {
+      let best = 0;
+      const found = new Set();
+      const prev = new Array(b.length + 1).fill(0);
+      for (let i = 1; i <= a.length; i++) {
+        let diag = 0;
+        for (let j = 1; j <= b.length; j++) {
+          const up = prev[j];
+          prev[j] = a[i - 1] === b[j - 1] ? diag + 1 : 0;
+          diag = up;
+          if (prev[j] > best) {
+            best = prev[j];
+            found.clear();
+          }
+          if (best > 0 && prev[j] === best) found.add(a.slice(i - best, i));
+        }
+      }
+      return { best, words: [...found] };
+    }
+
+    function row(label, s, w) {
+      const at = [];
+      for (let k = s.indexOf(w); w && k !== -1; k = s.indexOf(w, k + 1)) at.push(k);
+      const lab = Object.assign(document.createElement('span'), { className: 'li-label', textContent: label });
+      const cells = [...s].map((ch, i) => {
+        const cell = document.createElement('span');
+        cell.className = 'li-cell';
+        cell.textContent = ch;
+        if (at.length && i >= at[0] && i < at[0] + w.length) cell.classList.add('is-on');
+        else if (at.some((k) => i >= k && i < k + w.length)) cell.classList.add('is-also');
+        return cell;
+      });
+      const line = document.createElement('div');
+      line.className = 'li-row';
+      line.append(lab, ...cells);
+      return line;
+    }
+
+    function render() {
+      const a = aIn.value;
+      const b = bIn.value;
+      const { best, words } = longest(a, b);
+      if (pick >= words.length) pick = 0;
+      const w = best > 0 ? words[pick] : '';
+      grid.replaceChildren(row('S₁', a, w), row('S₂', b, w));
+      root.querySelectorAll('[data-li-pair]').forEach((c) => c.classList.toggle('is-on', c.dataset.liPair === `${a} ${b}`));
+      if (best === 0) {
+        note.textContent = S.none;
+      } else if (words.length === 1) {
+        note.textContent = fill(S.found, { w, n: best });
+      } else {
+        const [head, tail] = S.many.split('{list}');
+        note.replaceChildren(
+          fill(head, { n: best, c: words.length }),
+          ...words.flatMap((x, k) => {
+            const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'li-word', textContent: x });
+            btn.classList.toggle('is-on', k === pick);
+            btn.addEventListener('click', () => {
+              pick = k;
+              render();
+            });
+            return k ? [', ', btn] : [btn];
+          }),
+          fill(tail, { n: best, c: words.length }),
+        );
+      }
+    }
+
+    root.querySelectorAll('[data-li-pair]').forEach((chip) =>
+      chip.addEventListener('click', () => {
+        [aIn.value, bIn.value] = chip.dataset.liPair.split(' ');
+        pick = 0;
+        render();
+      }),
+    );
+    [aIn, bIn].forEach((box) =>
+      box.addEventListener('input', () => {
+        pick = 0;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-lcs-intro-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-lcs-intro-demo .li-head {
+    font-size: 0.95em;
+  }
+  .aas-lcs-intro-demo .li-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em 0.5em;
+    align-items: center;
+    margin: 0.7em 0 0.9em;
+  }
+  .aas-lcs-intro-demo .li-inputs label {
+    display: flex;
+    gap: 0.3em;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-lcs-intro-demo .li-inputs input {
+    width: 8.5em;
+    padding: 0.2em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-lcs-intro-demo .li-chip,
+  .aas-lcs-intro-demo .li-word {
+    padding: 0.2em 0.65em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-lcs-intro-demo .li-word {
+    font-size: 0.95em;
+  }
+  .aas-lcs-intro-demo :is(.li-chip, .li-word):hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-lcs-intro-demo :is(.li-chip, .li-word).is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-lcs-intro-demo .li-grid {
+    display: grid;
+    gap: 0.35em;
+    overflow-x: auto;
+  }
+  .aas-lcs-intro-demo .li-row {
+    display: flex;
+    gap: 0.2em;
+    align-items: center;
+  }
+  .aas-lcs-intro-demo .li-label {
+    width: 2em;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-lcs-intro-demo .li-cell {
+    flex: 0 0 auto;
+    width: 1.6em;
+    height: 1.6em;
+    box-sizing: border-box;
+    line-height: calc(1.6em - 3px);
+    text-align: center;
+    font-family: var(--aas-mono, monospace);
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.3em;
+    background: var(--aas-bg);
+  }
+  .aas-lcs-intro-demo .li-cell.is-on {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 24%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-lcs-intro-demo .li-cell.is-also {
+    border-style: dashed;
+    border-color: var(--aas-role-focus);
+  }
+  .aas-lcs-intro-demo .li-note {
+    margin: 0.8em 0 0;
+    font-size: 0.9em;
+    min-height: 1.5em;
+  }
+  .aas-lcs-intro-demo .li-hint {
+    margin: 0.3em 0 0;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-lcs-intro-demo.is-slide {
+    font-size: clamp(1rem, min(2.75vh, 1.9vw), 1.85rem);
+    margin: 0.5rem 0;
+  }
+</style>
