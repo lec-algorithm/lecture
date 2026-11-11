@@ -1,0 +1,227 @@
+---
+// "받은 코드를 어디서 돌릴까"를 고르면, 그 코드가 악성일 때 닿는 것을 보여 주는 데모.
+//
+// 가짜 채용 면접의 코딩 과제처럼 출처를 확인할 수 없는 코드를 실행하는 상황이다. 실행 환경을
+// 고르면 그 기기에 있는 자산(회사 로그인 세션, 배포 토큰, SSH 키 등) 가운데 악성 코드가 닿는 것이
+// 빨갛게 표시된다. 개인 기기라도 회사 계정에 로그인되어 있으면 회사 기기와 크게 다르지 않다는 점,
+// 일회용 컨테이너나 격리된 가상 머신에서는 닿는 것이 거의 없다는 점을 비교한다.
+// 칸의 판정은 일반적인 설정을 가정한 교육용 단순화다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `rw-${Math.random().toString(36).slice(2, 9)}`;
+
+const ENVS = ['work', 'mixed', 'personal', 'container', 'vm'] as const;
+const ASSETS = ['sso', 'deploy', 'ssh', 'vpn', 'ai', 'cookies', 'private'] as const;
+/* 환경마다 악성 코드가 닿는 자산 */
+const REACH: Record<string, string[]> = {
+  work: ['sso', 'deploy', 'ssh', 'vpn', 'ai', 'cookies'],
+  mixed: ['sso', 'vpn', 'ai', 'cookies', 'private'],
+  personal: ['cookies', 'private'],
+  container: [],
+  vm: [],
+};
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '받은 코드를 어디서 돌릴까',
+    work: '회사 노트북',
+    mixed: '개인 노트북 (회사 계정 로그인)',
+    personal: '개인 노트북 (회사 계정 없음)',
+    container: '일회용 컨테이너 (Codespaces 등)',
+    vm: '격리된 가상 머신',
+    sso: '회사 SSO 로그인 세션',
+    deploy: '배포·클라우드 토큰',
+    ssh: '사내 저장소 SSH 키',
+    vpn: '사내망 VPN 연결',
+    ai: '사내 AI 도구 연결',
+    cookies: '브라우저에 저장된 비밀번호·쿠키',
+    private: '개인 사진·메신저·문서',
+    reach: '악성 코드가 닿는 것 {n}개 / {t}개',
+    noteWork: '회사의 모든 권한이 한 번에 노출됩니다. 바이낸스 사건의 둘째 단계가 이 경우입니다.',
+    noteMixed: '개인 기기라도 회사 계정이 로그인되어 있으면 회사 세션이 그대로 넘어갑니다. 개인 정보도 함께 위험합니다.',
+    notePersonal: '회사 자산은 없지만 내 계정과 개인 정보가 위험합니다. 확인되지 않은 코드는 개인 기기에서도 돌리지 않습니다.',
+    noteContainer: '작업이 끝나면 버리는 환경이라 닿는 것이 없습니다. 이 컨테이너에 일부러 넣은 토큰만 위험합니다.',
+    noteVm: '공유 폴더·클립보드·사내망 연결을 끄면 닿는 것이 없습니다. 하나라도 열어 두면 그 길로 새어 나갑니다.',
+  },
+  en: {
+    title: 'Where should I run code I was sent?',
+    work: 'Work laptop',
+    mixed: 'Personal laptop (signed in to work)',
+    personal: 'Personal laptop (no work accounts)',
+    container: 'Disposable container (Codespaces etc.)',
+    vm: 'Isolated virtual machine',
+    sso: 'Company SSO session',
+    deploy: 'Deployment and cloud tokens',
+    ssh: 'SSH keys for company repos',
+    vpn: 'Company VPN connection',
+    ai: 'Company AI tool connections',
+    cookies: 'Saved browser passwords and cookies',
+    private: 'Personal photos, chats, documents',
+    reach: 'Malicious code reaches {n} of {t}',
+    noteWork: 'Every company permission is exposed at once. This is the second stage of the Binance case.',
+    noteMixed: 'Even on a personal device, signed-in work accounts hand over the company session. Your private data is at risk too.',
+    notePersonal: 'No company assets, but your own accounts and private data are at risk. Do not run unverified code on personal devices either.',
+    noteContainer: 'You throw the environment away afterwards, so nothing is reachable. Only tokens you deliberately put in the container are at risk.',
+    noteVm: 'With shared folders, clipboard, and company network turned off, nothing is reachable. Leave one open and data leaks that way.',
+  },
+  zh: {
+    title: '收到的代码在哪里运行',
+    work: '公司笔记本',
+    mixed: '个人笔记本（登录了公司账号）',
+    personal: '个人笔记本（没有公司账号）',
+    container: '一次性容器（Codespaces 等）',
+    vm: '隔离的虚拟机',
+    sso: '公司 SSO 登录会话',
+    deploy: '部署与云令牌',
+    ssh: '公司仓库的 SSH 密钥',
+    vpn: '公司内网 VPN 连接',
+    ai: '公司 AI 工具连接',
+    cookies: '浏览器保存的密码与 Cookie',
+    private: '个人照片、聊天、文档',
+    reach: '恶意代码能接触到 {n} 个 / 共 {t} 个',
+    noteWork: '公司的所有权限一次性暴露。币安事件的第二阶段就是这种情况。',
+    noteMixed: '即使是个人设备，只要登录着公司账号，公司会话就会被一并拿走。个人信息也同样危险。',
+    notePersonal: '没有公司资产，但自己的账号和个人信息有危险。来路不明的代码在个人设备上也不要运行。',
+    noteContainer: '用完即丢的环境，什么也接触不到。只有特意放进容器的令牌有风险。',
+    noteVm: '关掉共享文件夹、剪贴板和公司网络连接，就什么也接触不到。只要开着一个，就会从那里泄露。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const NOTE: Record<string, string> = { work: 'noteWork', mixed: 'noteMixed', personal: 'notePersonal', container: 'noteContainer', vm: 'noteVm' };
+---
+
+<div class:list={['aas-run-where-demo', slide && 'is-slide']} id={id} data-rw-strings={JSON.stringify(t)} data-rw-reach={JSON.stringify(REACH)} data-rw-note={JSON.stringify(NOTE)}>
+  <div class="rw-head"><strong>{t.title}</strong></div>
+  <div class="rw-tabs">
+    {ENVS.map((e) => <button type="button" class="rw-tab" data-rw-env={e}>{t[e]}</button>)}
+  </div>
+  <ul class="rw-assets">
+    {ASSETS.map((a) => <li data-rw-asset={a}><span class="rw-dot" aria-hidden="true"></span>{t[a]}</li>)}
+  </ul>
+  <p class="rw-count" data-rw-count></p>
+  <p class="rw-note" data-rw-noteline></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.rwStrings);
+    const REACH = JSON.parse(root.dataset.rwReach);
+    const NOTE = JSON.parse(root.dataset.rwNote);
+    const items = [...root.querySelectorAll('[data-rw-asset]')];
+    const fill = (tpl, v) => tpl.replace(/\{(\w+)\}/g, (_, k) => v[k]);
+    function pick(env) {
+      root.querySelectorAll('[data-rw-env]').forEach((b) => b.classList.toggle('is-on', b.dataset.rwEnv === env));
+      const hit = new Set(REACH[env]);
+      items.forEach((li) => li.classList.toggle('is-hit', hit.has(li.dataset.rwAsset)));
+      root.querySelector('[data-rw-count]').textContent = fill(S.reach, { n: hit.size, t: items.length });
+      root.querySelector('[data-rw-noteline]').textContent = S[NOTE[env]];
+      root.classList.toggle('is-safe', hit.size === 0);
+    }
+    root.querySelectorAll('[data-rw-env]').forEach((b) => b.addEventListener('click', () => pick(b.dataset.rwEnv)));
+    pick('work');
+  })();
+</script>
+
+<style is:global>
+  .aas-run-where-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-run-where-demo .rw-head {
+    font-size: 0.95em;
+    margin-bottom: 0.6em;
+  }
+  .aas-run-where-demo .rw-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    margin-bottom: 0.8em;
+  }
+  .aas-run-where-demo .rw-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-run-where-demo .rw-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-run-where-demo .rw-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-run-where-demo .rw-assets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
+    gap: 0.35em 0.6em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .aas-run-where-demo .rw-assets li {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    margin: 0;
+    padding: 0.35em 0.6em;
+    font-size: 0.85em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+    transition: background-color 0.25s, border-color 0.25s, color 0.25s;
+  }
+  .aas-run-where-demo .rw-dot {
+    flex: 0 0 auto;
+    width: 0.65em;
+    height: 0.65em;
+    border-radius: 50%;
+    background: var(--aas-border);
+  }
+  .aas-run-where-demo .rw-assets li.is-hit {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 14%, var(--aas-bg));
+    color: var(--aas-text);
+    font-weight: 600;
+  }
+  .aas-run-where-demo .rw-assets li.is-hit .rw-dot {
+    background: var(--aas-role-guard);
+  }
+  .aas-run-where-demo .rw-count {
+    margin: 0.8em 0 0;
+    font-weight: 700;
+    color: var(--aas-role-guard);
+  }
+  .aas-run-where-demo.is-safe .rw-count {
+    color: var(--aas-role-eval);
+  }
+  .aas-run-where-demo .rw-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    min-height: 2.6em;
+  }
+  .aas-run-where-demo.is-slide {
+    font-size: clamp(1rem, min(2.75vh, 1.9vw), 1.85rem);
+    margin: 0.5rem 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-run-where-demo .rw-assets li {
+      transition: none;
+    }
+  }
+</style>
