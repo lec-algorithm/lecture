@@ -15,42 +15,55 @@
 지도 데이터: © OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)
 
 사용법:
-  python3 scripts/osm-walk-graph.py raw.json site/src/data/map-sinchon.json
+  python3 scripts/osm-walk-graph.py songdo raw.json site/src/data/map-songdo.json
 
-raw.json을 받는 Overpass 질의(상자: 남 37.5525, 서 126.9290, 북 37.5700, 동 126.9490):
+첫 인자는 아래 AREAS의 지역 이름이다. raw.json을 받는 Overpass 질의(상자는 AREAS의 bbox):
   [out:json];(
     way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street|
       pedestrian|footway|path|steps|service|primary_link|secondary_link|tertiary_link|
-      track|corridor)$"](bbox);
+      track|corridor|cycleway)$"](bbox);
     node["railway"="station"](bbox);
-    way["name"]["building"](37.5600,126.9330,37.5700,126.9420);
+    way["name"]["building"](bbox);
   );out body;>;out skel qt;
 """
 import json
 import math
 import sys
 
-S, W, N, E = 37.5525, 126.9290, 37.5700, 126.9490
-LAT0 = (S + N) / 2
-KX = 111320 * math.cos(math.radians(LAT0))
-KY = 110540
-
-# 랜드마크: OSM 이름(역은 노선이 둘이라 좌표로 고른다) -> 데모에서 쓰는 키
-LANDMARKS = {
-    'sinchon': ('node', '신촌', (37.5551517, 126.9369084)),  # 2호선 신촌역
-    'ewha': ('node', '이대', None),
-    'sinchonKorail': ('node', '신촌', (37.5597815, 126.9423581)),  # 경의중앙선 신촌역
-    'underwood': ('way', '언더우드관 (501)', None),
-    'library': ('way', '중앙도서관 (301)', None),
-    'engineering': ('way', '제1공학관 (121)', None),
-    'union': ('way', '학생회관 (207)', None),
-    'baekyang': ('way', '백양관 (310)', None),
+# 지역마다 상자(남, 서, 북, 동)와 랜드마크를 둔다. 랜드마크는 키 -> (종류, OSM 이름, 고를 좌표)다.
+# 같은 이름이 여럿이면(역은 노선마다 하나씩) 고를 좌표에 가장 가까운 것을 쓴다.
+AREAS = {
+    # 연세대학교 국제캠퍼스(송도)와 인천 1호선 캠퍼스타운역·테크노파크역
+    'songdo': {
+        'bbox': (37.3725, 126.6530, 37.3920, 126.6830),
+        'marks': {
+            'campusTown': ('node', '캠퍼스타운', None),
+            'technopark': ('node', '테크노파크', None),
+            'library': ('way', '언더우드 기념도서관', None),
+            'mainHall': ('way', '종합관', None),
+            'dormA': ('way', '송도학사 A', None),
+            'dormE': ('way', '송도학사 E', None),
+        },
+    },
 }
+
+S = W = N = E = 0.0
+KX = KY = 1.0
+LANDMARKS = {}
+
+
+def set_area(name):
+    global S, W, N, E, KX, KY, LANDMARKS
+    area = AREAS[name]
+    S, W, N, E = area['bbox']
+    KX = 111320 * math.cos(math.radians((S + N) / 2))
+    KY = 110540
+    LANDMARKS = area['marks']
 
 
 # 길의 등급: 2는 큰길, 1은 골목·차로, 0은 보행로·계단. 그릴 때 굵기만 다르고 길이는 같게 센다.
 KIND = {'primary': 2, 'secondary': 2, 'tertiary': 2, 'primary_link': 2, 'secondary_link': 2, 'tertiary_link': 2,
-        'footway': 0, 'path': 0, 'steps': 0, 'pedestrian': 0, 'track': 0}
+        'footway': 0, 'path': 0, 'steps': 0, 'pedestrian': 0, 'track': 0, 'cycleway': 0}
 
 
 def proj(lat, lon):
@@ -79,7 +92,8 @@ def rdp(pts, eps):
     return rdp(pts[: idx + 1], eps)[:-1] + rdp(pts[idx:], eps)
 
 
-def main(src, dst):
+def main(area, src, dst):
+    set_area(area)
     els = json.load(open(src))['elements']
     node = {e['id']: (e['lat'], e['lon']) for e in els if e['type'] == 'node' and 'lat' in e}
     ways = []
@@ -179,7 +193,7 @@ def main(src, dst):
     marks = {}
     for key, (kind, name, at) in LANDMARKS.items():
         if kind == 'node':
-            cands = [(e['lat'], e['lon']) for e in els if e['type'] == 'node' and e.get('tags', {}).get('name') == name and e.get('tags', {}).get('railway') == 'station']
+            cands = [(e['lat'], e['lon']) for e in els if e['type'] == 'node' and e.get('tags', {}).get('name') == name]
             lat, lon = min(cands, key=lambda p: math.dist(p, at)) if at else cands[0]
         else:
             lat, lon = centroid(name)
@@ -202,4 +216,4 @@ def main(src, dst):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])

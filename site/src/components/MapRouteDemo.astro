@@ -1,9 +1,10 @@
 ---
 // 실제 지도에서 네 길찾기 알고리즘을 돌려 보는 데모.
 //
-// 지도는 신촌역에서 연세대학교까지의 보행 도로망(OpenStreetMap)이다. 교차로가 정점, 두 교차로
-// 사이의 길 한 토막이 간선이고, 가중치는 그 토막의 실제 길이(m)다. 정점 3,763개, 간선 4,940개.
-// 데이터와 만드는 법은 scripts/osm-walk-graph.py와 src/data/map-sinchon.json을 참고한다.
+// 지도는 연세대학교 국제캠퍼스(송도)와 인천 1호선 캠퍼스타운역·테크노파크역 일대의 보행 도로망
+// (OpenStreetMap)이다. 교차로가 정점, 두 교차로 사이의 길 한 토막이 간선이고, 가중치는 그 토막의
+// 실제 길이(m)다. 정점 1,323개, 간선 1,980개, 약 2.7km x 2.2km.
+// 데이터와 만드는 법은 scripts/osm-walk-graph.py와 src/data/map-songdo.json을 참고한다.
 //
 // 네 알고리즘은 SearchRaceDemo와 같다. 목표를 꺼내면 멈춘다.
 //   BFS       간선 수(길 토막 수)가 가장 적은 길. 길이는 보지 않는다.
@@ -14,6 +15,7 @@
 // 닫는 순서를 지도에 그린다. 닫은 교차로마다 그곳에 처음 닿은 간선(부모 간선)을 칠한다.
 // 지도를 누르면 가장 가까운 교차로가 출발, 도착으로 번갈아 바뀐다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
+import MAP from '../data/map-songdo.json';
 
 interface Props {
   /** 슬라이드용: 지도는 왼쪽, 표와 설명은 오른쪽 */
@@ -32,14 +34,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     grid: '넷 나란히',
     route: '경로',
     hint: '지도를 누르면 출발과 도착이 번갈아 바뀝니다.',
-    sinchon: '신촌역',
-    ewha: '이대역',
-    sinchonKorail: '신촌역(경의중앙선)',
-    underwood: '언더우드관',
-    library: '중앙도서관',
-    engineering: '제1공학관',
-    union: '학생회관',
-    baekyang: '백양관',
+    campusTown: '캠퍼스타운역',
+    technopark: '테크노파크역',
+    library: '언더우드 기념도서관',
+    mainHall: '종합관',
+    dormA: '송도학사 A',
+    dormE: '송도학사 E',
     start: '출발',
     goal: '도착',
     note: 'A*는 Dijkstra와 같은 {d}m 길을 찾으면서 교차로를 {a}개만 닫았습니다. Dijkstra는 {k}개입니다. BFS는 토막이 가장 적은 {b}m 길, Greedy는 {g}개만 닫고 {gd}m 길을 찾았습니다.',
@@ -56,14 +56,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     grid: 'All four',
     route: 'Route',
     hint: 'Click the map to move the start and the goal in turn.',
-    sinchon: 'Sinchon Stn.',
-    ewha: 'Ewha Womans Univ. Stn.',
-    sinchonKorail: 'Sinchon Stn. (Gyeongui)',
-    underwood: 'Underwood Hall',
-    library: 'Central Library',
-    engineering: 'Engineering Hall I',
-    union: 'Student Union',
-    baekyang: 'Baekyang Hall',
+    campusTown: 'Campus Town Stn.',
+    technopark: 'Technopark Stn.',
+    library: 'Underwood Memorial Library',
+    mainHall: 'Main Hall',
+    dormA: 'Songdo Dorm A',
+    dormE: 'Songdo Dorm E',
     start: 'Start',
     goal: 'Goal',
     note: 'A* finds the same {d} m route as Dijkstra while closing only {a} intersections; Dijkstra closes {k}. BFS takes the {b} m route with the fewest segments, and Greedy closes just {g} for a {gd} m route.',
@@ -80,14 +78,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     grid: '四个并排',
     route: '路线',
     hint: '点击地图，起点和终点会轮流改变。',
-    sinchon: '新村站',
-    ewha: '梨大站',
-    sinchonKorail: '新村站（京义中央线）',
-    underwood: '安德伍德馆',
-    library: '中央图书馆',
-    engineering: '第一工学馆',
-    union: '学生会馆',
-    baekyang: '白杨馆',
+    campusTown: '大学城站',
+    technopark: '科技公园站',
+    library: '安德伍德纪念图书馆',
+    mainHall: '综合馆',
+    dormA: '松岛学舍 A',
+    dormE: '松岛学舍 E',
     start: '起点',
     goal: '终点',
     note: 'A* 找到与 Dijkstra 相同的 {d}m 路线，却只关闭了 {a} 个路口；Dijkstra 关闭了 {k} 个。BFS 选了段数最少的 {b}m 路线，Greedy 只关闭 {g} 个，找到 {gd}m 的路线。',
@@ -99,16 +95,16 @@ const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 const ALGOS = ['bfs', 'dijkstra', 'astar', 'greedy'] as const;
 const NAMES: Record<string, string> = { bfs: 'BFS', dijkstra: 'Dijkstra', astar: 'A*', greedy: 'Greedy' };
-/* 고를 수 있는 경로. 랜드마크 키는 map-sinchon.json의 marks와 같다. */
+/* 고를 수 있는 경로. 랜드마크 키는 map-songdo.json의 marks와 같다. */
 const ROUTES: [string, string][] = [
-  ['sinchon', 'underwood'],
-  ['ewha', 'library'],
-  ['sinchonKorail', 'engineering'],
-  ['sinchon', 'baekyang'],
+  ['campusTown', 'mainHall'],
+  ['campusTown', 'library'],
+  ['technopark', 'dormA'],
+  ['dormA', 'dormE'],
 ];
 ---
 
-<div class:list={['aas-map-demo', slide && 'is-slide']} data-mp-strings={JSON.stringify(t)} data-mp-routes={JSON.stringify(ROUTES)}>
+<div class:list={['aas-map-demo', slide && 'is-slide']} style={`--mp-ratio: ${MAP.width} / ${MAP.height}`} data-mp-strings={JSON.stringify(t)} data-mp-routes={JSON.stringify(ROUTES)}>
   <div class="mp-bar">
     <strong class="mp-head">{t.title}</strong>
     <div class="mp-routes">
@@ -177,7 +173,7 @@ const ROUTES: [string, string][] = [
 </div>
 
 <script>
-  import MAP from '../data/map-sinchon.json';
+  import MAP from '../data/map-songdo.json';
 
   type Algo = 'bfs' | 'dijkstra' | 'astar' | 'greedy';
   type Run = { order: number[]; parentEdge: Int32Array; path: number[]; pathEdges: number[]; dist: number; hops: number };
@@ -689,11 +685,11 @@ const ROUTES: [string, string][] = [
     flex: 1 1 22em;
     max-width: 34em;
   }
-  /* 지도의 가로세로 비는 상자의 실제 크기(1,765m x 1,934m)와 같다. */
+  /* 지도의 가로세로 비는 데이터 상자의 실제 크기와 같다(--mp-ratio). */
   .aas-map-demo canvas {
     display: block;
     width: 100%;
-    aspect-ratio: 17649 / 19344;
+    aspect-ratio: var(--mp-ratio);
     border: 1px solid var(--aas-border);
     border-radius: 0.5em;
     cursor: crosshair;

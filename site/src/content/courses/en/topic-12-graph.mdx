@@ -1950,10 +1950,10 @@ There are many ways to refine A* further.
 ## On a real map \{#real-map}
 
 The graphs so far had eight vertices. What happens on a real map? The demo below is the
-walking network from Sinchon Station to Yonsei University, about 1.8 km × 1.9 km. From
-OpenStreetMap street data, intersections become vertices and each street segment between two
-intersections becomes an edge whose weight is its real length in meters. There are 3,763
-vertices and 4,940 edges.
+walking network around Yonsei University's International Campus in Songdo and the Campus Town
+and Technopark stations on Incheon Line 1, about 2.7 km × 2.2 km. From OpenStreetMap street
+data, intersections become vertices and each street segment between two intersections becomes
+an edge whose weight is its real length in meters. There are 1,323 vertices and 1,980 edges.
 
 The four algorithms are the same as in the demo above. A*'s $$h$$ is the straight-line
 distance to the goal. No street is shorter than a straight line, so this $$h$$ is admissible
@@ -1961,24 +1961,25 @@ and consistent, and A* finds the same shortest route as Dijkstra without reopeni
 
 <MapRouteDemo />
 
-From Sinchon Station to Underwood Hall:
+From Campus Town Station to Main Hall:
 
 | Algorithm | Closed | Length | Segments |
 | --- | --- | --- | --- |
-| BFS | 2,825 | 1,664 m | 41 |
-| Dijkstra | 2,968 | 1,392 m | 64 |
-| A* | 642 | 1,392 m | 64 |
-| Greedy | 68 | 2,087 m | 60 |
+| BFS | 872 | 1,286 m | 21 |
+| Dijkstra | 710 | 1,057 m | 25 |
+| A* | 91 | 1,057 m | 25 |
+| Greedy | 33 | 1,259 m | 27 |
 
 - **Dijkstra** spreads evenly in every direction from the start. Even with the goal to the
-  north, it closes the alleys to the south just the same.
-- <strong>A*</strong> spreads in a long shape toward the goal. It finds the same 1,392 m route while
-  closing a little over a fifth as many intersections as Dijkstra.
-- **BFS** counts only segments. It picks the route with the fewest, 41, but it is 272 m
-  longer. It prefers main roads with few intersections over campus footpaths made of many
-  short segments.
-- **Greedy** closes only 68 and is the fastest, but it heads only toward the goal, backs out
-  when blocked, and walks 695 m more.
+  southeast, it closes the streets to the north and west just the same.
+- <strong>A*</strong> spreads in a long shape toward the goal. It finds the same 1,057 m route
+  while closing a little over an eighth as many intersections as Dijkstra.
+- **BFS** counts only segments. It picks the route with the fewest, 21, but it is 229 m
+  longer. Segments vary in length, so fewer segments does not mean a shorter route.
+- **Greedy** closes only 33 and is the fastest, but it heads only toward the goal, backs out
+  when blocked, and walks 202 m more. Sometimes it gets lucky and comes within 1 m of the
+  shortest, as from Campus Town Station to Underwood Memorial Library; sometimes it detours
+  492 m, as from Technopark Station to Songdo Dorm A.
 
 Change the route or click the map to move the start and goal, and the order mostly stays.
 Greedy closes the fewest, A* the next fewest, and Dijkstra and A* always find the same,
@@ -2053,4 +2054,4 @@ The slides and this note are versioned together. The current version is
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-11-04 | Added 13 hands-on demos (edges and cells, picking frontier edges, BFS and DFS side by side, topological sort, swapping spanning-tree edges, min heap, the paths of BFS and Dijkstra, Prim and Dijkstra side by side, choosing the priority queue, negative weights, negative cycles, editing h, measuring four algorithms). Added an adjacency-list table inside the search demos |
-| v3 | 2026-11-13 | Wrote graph sizes as V and E throughout and added top-right legends for V and E and for A*'s g, h and f. Added a union-find section with a step-by-step demo, a section on when to use Kruskal or Prim, a demo timing four MST methods in the browser, and a map demo comparing the four route-finding algorithms on the real walking network from Sinchon Station to Yonsei (OpenStreetMap), citing `08_union_find` and `09_mst_timing` output from `algorithm-code` |
+| v3 | 2026-11-13 | Wrote graph sizes as V and E throughout and added top-right legends for V and E and for A*'s g, h and f. Added a union-find section with a step-by-step demo, a section on when to use Kruskal or Prim, a demo timing four MST methods in the browser, and a map demo comparing the four route-finding algorithms on the real walking network around Yonsei's International Campus in Songdo (OpenStreetMap), citing `08_union_find` and `09_mst_timing` output from `algorithm-code` |
