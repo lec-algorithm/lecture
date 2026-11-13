@@ -84,8 +84,8 @@ and the heap is what makes Huffman coding $$O(k \log k)$$.
 #### What a graph is
 ::sub[A set V of vertices and a set E of edges]
 
-- **Vertex**: also called a node. Count $$n$$ or $$V$$
-- **Edge**: a pair of vertices. Count $$m$$ or $$E$$
+- **Vertex**: also called a node. Count $$V$$ (some books: $$n$$)
+- **Edge**: a pair of vertices. Count $$E$$ (some books: $$m$$)
   - Undirected: an unordered pair (friendship)
   - Directed: an ordered pair (following)
 - **Path**: a sequence of vertices joined by edges
@@ -112,10 +112,10 @@ and the heap is what makes Huffman coding $$O(k \log k)$$.
 #### How many edges at most
 ::sub[n vertices, no parallel edges, a connected undirected graph]
 
-- **At least** $$n - 1$$
+- **At least** $$V - 1$$
   - Join them in a line. Remove any edge and the piece splits in two.
-- **At most** $$\dfrac{n(n-1)}{2}$$
-  - Join every pair. $$(n-1) + (n-2) + \dots + 1$$
+- **At most** $$\dfrac{V(V-1)}{2}$$
+  - Join every pair. $$(V-1) + (V-2) + \dots + 1$$
   - With 5 vertices, $$4 + 3 + 2 + 1 = 10$$
 
 <br/>
@@ -129,9 +129,9 @@ This gap decides what graph algorithms cost.
 #### Kinds of graphs
 ::sub[Number of edges, direction, cycles]
 
-- **Sparse**: $$m = O(n)$$
+- **Sparse**: $$E = O(V)$$
   - Social networks
-- **Dense**: $$m = O(n^2)$$
+- **Dense**: $$E = O(V^2)$$
   - Complete graphs
 - **Directed / undirected**
 - **Cyclic / acyclic**
@@ -207,12 +207,12 @@ means scanning the whole list.
 #### Adjacency matrix and adjacency list
 ::sub[They need different amounts of space]
 
-- **Adjacency matrix**: an $$n \times n$$ matrix, $$A_{ij} = 1$$ if there is an i-j edge.
+- **Adjacency matrix**: a $$V \times V$$ matrix, $$A_{ij} = 1$$ if there is an i-j edge.
   - Variants store edge counts or weights.
-  - Space $$\Theta(n^2)$$
+  - Space $$\Theta(V^2)$$
 - **Adjacency list**: a list of neighbours for each vertex
   - An array of vertices, an array of edges, pointers between them
-  - Space $$\Theta(n + m)$$, one slot at each end of an undirected edge
+  - Space $$\Theta(V + E)$$, one slot at each end of an undirected edge
 
 </Slide>
 
@@ -305,7 +305,7 @@ One question remains.
 | --- | --- | --- |
 | How it spreads | layer by layer, nearest first | one branch to the end, then back up |
 | Data structure | queue (FIFO) | stack (LIFO) or recursion |
-| Running time | $$O(m + n)$$ | $$O(m + n)$$ |
+| Running time | $$O(V + E)$$ | $$O(V + E)$$ |
 | Good at | unweighted shortest paths, components | topological sort, components, cycle detection |
 
 </Slide>
@@ -391,7 +391,7 @@ path 0 -> 4: 0 5 4 (2 edges)
 ::sub[n_s, m_s: vertices and edges reachable from s]
 
 - **Claim 1**: at the end, v is explored ⇔ there is a path from s to v
-- **Claim 2**: running time $$O(n_s + m_s)$$
+- **Claim 2**: running time $$O(V_s + E_s)$$
   - Each vertex enters the queue once and leaves once.
   - Each edge is looked at once from each end.
 - **Shortest paths**: $$\text{dist}(w) = \text{dist}(v) + 1$$
@@ -413,7 +413,7 @@ for i <- 1 to n do
 ```
 
 - Called several times, but each vertex and edge is seen once in total.
-  - $$O(m + n)$$
+  - $$O(V + E)$$
 - DFS does the same job. The practice code uses DFS.
 
 </Slide>
@@ -1553,10 +1553,10 @@ Open a file and press the **▶ button** at the top right of the editor.
 
 ## What to keep
 
-1. **An adjacency list is $$\Theta(n + m)$$, an adjacency matrix $$\Theta(n^2)$$.**
+1. **An adjacency list is $$\Theta(V + E)$$, an adjacency matrix $$\Theta(V^2)$$.**
    - Lists suit search.
 2. **BFS and DFS are the same generic search.**
-   - A queue goes layer by layer (shortest paths), a stack goes deep first (topological sort). Both $$O(m + n)$$
+   - A queue goes layer by layer (shortest paths), a stack goes deep first (topological sort). Both $$O(V + E)$$
 3. **Kruskal and Prim stand on the cut property.**
    - Greedy algorithms that differ only in the cut they pick; the example's MST is 1.81
 4. **A min heap sifts up and sifts down in $$O(\log n)$$.**

@@ -57,8 +57,8 @@ degree, path and cycle are shown for the selected vertex. The graph has 7 vertic
 The degrees add up to 18, twice the 9 edges, because each edge adds one to the degree
 at both of its ends. In summary:
 
-- **Vertex**: also called a node. The count is usually written $$n$$ or $$V$$.
-- **Edge**: a pair of vertices. The count is written $$m$$ or $$E$$.
+- **Vertex**: also called a node. The count is written $$V$$, the same letter as the vertex set. Some books use $$n$$.
+- **Edge**: a pair of vertices. The count is written $$E$$. Some books use $$m$$.
   - **Undirected**: an unordered pair. Like friendship, both sides are the same.
   - **Directed**: an ordered pair. Like following someone, it goes one way only.
 - **Path**: a sequence of vertices joined by edges. If there is a path between
@@ -79,19 +79,19 @@ The graphs in this topic have no parallel edges.
 
 ### How many edges at most \{#edge-count}
 
-Take a connected (one-piece) undirected graph with $$n$$ vertices and no parallel
+Take a connected (one-piece) undirected graph with $$V$$ vertices and no parallel
 edges. What is the smallest and the largest number of edges it can have?
 
-- **At least** $$n - 1$$: joining the vertices in a single line uses the fewest.
+- **At least** $$V - 1$$: joining the vertices in a single line uses the fewest.
   Remove any one edge and the piece splits in two.
-- **At most** $$\dfrac{n(n-1)}{2}$$: join every pair. The first vertex has
-  $$n-1$$ partners, the second $$n-2$$ not yet joined, and so on, giving
-  $$(n-1) + (n-2) + \dots + 1$$. With 5 vertices that is $$4 + 3 + 2 + 1 = 10$$.
+- **At most** $$\dfrac{V(V-1)}{2}$$: join every pair. The first vertex has
+  $$V-1$$ partners, the second $$V-2$$ not yet joined, and so on, giving
+  $$(V-1) + (V-2) + \dots + 1$$. With 5 vertices that is $$4 + 3 + 2 + 1 = 10$$.
 
 This gap decides what graph algorithms cost.
 
-- **Sparse** graph: the number of edges is close to the number of vertices. $$m = O(n)$$, as in social networks.
-- **Dense** graph: the number of edges is close to the square of the number of vertices. $$m = O(n^2)$$, as in complete graphs.
+- **Sparse** graph: the number of edges is close to the number of vertices. $$E = O(V)$$, as in social networks.
+- **Dense** graph: the number of edges is close to the square of the number of vertices. $$E = O(V^2)$$, as in complete graphs.
 
 Graphs are also classified by whether edges have direction (directed/undirected)
 and whether there are cycles (cyclic/acyclic). A directed graph with no cycles is
@@ -137,20 +137,20 @@ For an undirected graph the same edge is sometimes written twice, as `0-1` and `
 
 ### Adjacency matrix \{#adjacency-matrix}
 
-Write 0s and 1s in an $$n \times n$$ matrix A. $$A_{ij} = 1$$ means there is an edge
+Write 0s and 1s in a $$V \times V$$ matrix A. $$A_{ij} = 1$$ means there is an edge
 between i and j. There are variations.
 
 - With parallel edges, $$A_{ij}$$ holds the **number** of i-j edges.
 - With weights, $$A_{ij}$$ holds the **weight** of the i-j edge.
 - A directed graph can store direction as $$A_{ij} = +1$$ (i → j) and $$-1$$ (i ← j).
 
-The space needed is $$\Theta(n^2)$$ regardless of the number of edges.
+The space needed is $$\Theta(V^2)$$ regardless of the number of edges.
 
 ### Adjacency list \{#adjacency-list}
 
 Keep a list of neighbours for each vertex. It consists of an array of vertices, an
 array of edges, and pointers between edges and vertices. The space needed is
-$$\Theta(n + m)$$: one slot per vertex, plus $$2m$$ slots because each undirected edge
+$$\Theta(V + E)$$: one slot per vertex, plus $$2E$$ slots because each undirected edge
 appears in the lists of both of its endpoints.
 
 Here is the same graph stored three ways at once. It is the graph from the terms demo,
@@ -194,13 +194,13 @@ fewer the edges, the more the list wins.
 ### Edges and cells \{#edge-cells}
 
 Move the edge range from earlier together with the cell counts of the two representations.
-Changing $$n$$ and $$m$$ redraws the graph and updates the counts.
+Changing $$V$$ and $$E$$ redraws the graph and updates the counts.
 
 <DensityDemo />
 
-- With $$n = 5$$, $$m$$ moves from 4 to 10. At the minimum, the list takes 13 cells and the matrix 25.
-- The list's $$n + 2m$$ cells equal the matrix's $$n^2$$ only when $$m$$ is at its maximum. With $$n = 5$$, $$m = 10$$, both take 25.
-- With $$n = 12$$, $$m = 11$$, the list takes 34 cells and the matrix 144.
+- With $$V = 5$$, $$E$$ moves from 4 to 10. At the minimum, the list takes 13 cells and the matrix 25.
+- The list's $$V + 2E$$ cells equal the matrix's $$V^2$$ only when $$E$$ is at its maximum. With $$V = 5$$, $$E = 10$$, both take 25.
+- With $$V = 12$$, $$E = 11$$, the list takes 34 cells and the matrix 144.
 - Only for checking a single edge does the matrix lead, with 1 cell.
 
 ### Comparing the two \{#representation-compare}
@@ -252,7 +252,7 @@ algorithms ask most often is "who are this vertex's neighbours?"
 
 - Find **every vertex reachable** from a start vertex s.
 - **Never explore any vertex twice.**
-- So it finishes in $$O(m + n)$$ time.
+- So it finishes in $$O(V + E)$$ time.
 
 ### Generic search \{#generic-search}
 
@@ -291,7 +291,7 @@ Click a vertex to start over from it.
 | --- | --- | --- |
 | How it spreads | layer by layer, nearest first | one branch to the end, backtrack when stuck |
 | Data structure | queue (FIFO) | stack (LIFO) or recursion |
-| Running time | $$O(m + n)$$ | $$O(m + n)$$ |
+| Running time | $$O(V + E)$$ | $$O(V + E)$$ |
 | Good at | unweighted shortest paths, connected components | topological sort, connected components, cycle detection |
 
 ## Example 1. Breadth-first search \{#bfs}
@@ -392,8 +392,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 
 - **Claim 1**: when BFS ends, v is explored ⇔ there is a path from s to v.
   BFS is a case of generic search, so the proof is the same.
-- **Claim 2**: the main loop runs in $$O(n_s + m_s)$$ time.
-  - $$n_s$$ is the number of vertices reachable from s, $$m_s$$ the number of reachable edges.
+- **Claim 2**: the main loop runs in $$O(V_s + E_s)$$ time.
+  - $$V_s$$ is the number of vertices reachable from s, $$E_s$$ the number of reachable edges.
   - Each vertex enters the queue once and leaves once.
   - Each edge is looked at twice, once when each endpoint is taken out.
 
@@ -426,7 +426,7 @@ for i <- 1 to n do
 ```
 
 BFS is called several times, but each vertex and edge is seen only once in total, so
-this is $$O(m + n)$$. DFS can do the same job, and the practice code uses DFS.
+this is $$O(V + E)$$. DFS can do the same job, and the practice code uses DFS.
 
 ## Example 2. Depth-first search \{#dfs}
 
@@ -532,7 +532,7 @@ implementation choice.
 
 - **Claim 1**: when DFS ends, v is explored ⇔ there is a path from s to v.
   Again, it is a case of generic search.
-- **Claim 2**: the running time is $$O(n_s + m_s)$$. Within the component of s, each
+- **Claim 2**: the running time is $$O(V_s + E_s)$$. Within the component of s, each
   vertex is visited at most once and each edge looked at most twice (from both ends).
 
 ### Application: connected components \{#dfs-components}
@@ -587,7 +587,7 @@ Only a course whose prerequisites are done can be picked.
 - "Add a cycle edge" adds 4 → 0, making 0 → 1 → 4 → 0 a cycle. After 3 and 6 nothing can be picked, and the number of orders is 0.
 
 A topological order of a directed graph G labels the vertices with numbers
-$$f(v) \in \{1, 2, \dots, n\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
+$$f(v) \in \{1, 2, \dots, V\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
 produces these numbers directly. A vertex gets its number **after all its outgoing
 edges have been explored**, and numbers are handed out backwards from the largest. A
 vertex that finishes first is one with nothing left to come after it. Blue vertices
@@ -630,7 +630,7 @@ number, 7. Nothing points to 3, so it comes first and gets number 1.
 
 - If G **has a directed cycle**, there is no topological order. The vertices on the
   cycle would each have to come before the others.
-- If there is no cycle, a topological order can be found in $$O(m + n)$$ time.
+- If there is no cycle, a topological order can be found in $$O(V + E)$$ time.
 
 ### Other things DFS does \{#dfs-more}
 
@@ -1753,12 +1753,12 @@ There are many ways to refine A* further.
 
 ## What to keep \{#takeaway}
 
-- **Graph representation**: an adjacency matrix takes $$\Theta(n^2)$$ space with $$O(1)$$
-  edge checks; an adjacency list takes $$\Theta(n + m)$$ space and walks neighbours fast.
+- **Graph representation**: an adjacency matrix takes $$\Theta(V^2)$$ space with $$O(1)$$
+  edge checks; an adjacency list takes $$\Theta(V + E)$$ space and walks neighbours fast.
   Lists suit search.
 - **BFS and DFS** are two faces of the same generic search. With a queue it goes layer by
   layer (unweighted shortest paths); with a stack or recursion it goes deep first, used for
-  topological sort and cycle detection. Both are $$O(m + n)$$.
+  topological sort and cycle detection. Both are $$O(V + E)$$.
 - **Cut property**: for any cut, the lightest crossing edge is in the MST. Kruskal and Prim
   are greedy algorithms that differ only in how they pick the cut. The example's MST is 1.81.
 - **Min heap**: insert sifts up, extract sifts down. Both are $$O(\log n)$$, and it is the
