@@ -30,6 +30,7 @@ import PqCostDemo from '@components/PqCostDemo.astro';
 import NegWeightDemo from '@components/NegWeightDemo.astro';
 import UnionFindDemo from '@components/UnionFindDemo.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
+import MapRouteDemo from '@components/MapRouteDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
@@ -1915,6 +1916,44 @@ A*를 더 다듬는 방법도 많습니다.
   덩어리로 나눠 먼저 찾는 계층적 경로 탐색(Hierarchical Pathfinding)
 - **휴리스틱 다듬기**: 미리 계산한 패턴 데이터베이스, 머신러닝으로 배운 휴리스틱
 
+## 실제 지도에서 보기 \{#real-map}
+
+지금까지의 그래프는 정점이 여덟 개였습니다. 실제 지도에서는 어떨까요? 아래 데모는
+신촌역에서 연세대학교까지 약 1.8km × 1.9km의 보행 도로망입니다. OpenStreetMap의 길
+데이터에서 교차로를 정점으로, 두 교차로 사이의 길 한 토막을 간선으로 삼았고, 가중치는
+그 토막의 실제 길이(m)입니다. 정점 3,763개, 간선 4,940개입니다.
+
+네 알고리즘은 위의 데모와 같습니다. A*의 $$h$$는 목표까지의 직선거리입니다. 어떤 길도
+직선보다 짧을 수 없으니 이 $$h$$는 허용적이고 일관적입니다. 그래서 A*는 다시 열지
+않고도 Dijkstra와 같은 최단 경로를 찾습니다.
+
+<MapRouteDemo />
+
+신촌역에서 언더우드관까지를 보면 이렇습니다.
+
+| 알고리즘 | 닫은 교차로 | 거리 | 길 토막 |
+| --- | --- | --- | --- |
+| BFS | 2,825 | 1,664m | 41 |
+| Dijkstra | 2,968 | 1,392m | 64 |
+| A* | 642 | 1,392m | 64 |
+| Greedy | 68 | 2,087m | 60 |
+
+- **Dijkstra**는 출발점에서 사방으로 고르게 번집니다. 목표가 북쪽에 있어도 남쪽의
+  골목까지 똑같이 닫습니다.
+- <strong>A*</strong>는 목표 쪽으로 길쭉하게 번집니다. 같은 1,392m 길을 찾으면서 닫은 교차로는
+  Dijkstra의 5분의 1 남짓입니다.
+- **BFS**는 길 토막 수만 셉니다. 토막이 41개로 가장 적은 길을 고르지만 272m 더
+  깁니다. 짧은 토막이 이어진 캠퍼스 보행로보다 교차로가 드문 큰길을 좋아합니다.
+- **Greedy**는 68개만 닫아 가장 빠르지만, 목표 쪽으로만 가다 막히면 돌아가서 695m를
+  더 걷습니다.
+
+경로를 바꾸거나 지도를 눌러 출발과 도착을 옮겨 보면 순서는 대체로 그대로입니다. 닫는
+수는 Greedy가 가장 적고 A*가 그다음입니다. 거리는 Dijkstra와 A*가 늘 같고 가장 짧습니다.
+
+실제 지도 서비스의 도로망은 교차로가 수백만 개입니다. A*만으로는 한 번 찾는 데도
+너무 많이 닫으므로, 지도를 미리 계산해 지름길을 만들어 두는 방법(계층적 경로 탐색 등)을
+함께 씁니다. 지도 데이터는 © OpenStreetMap contributors이며 ODbL을 따릅니다.
+
 ## 이 주제에서 남길 것 \{#takeaway}
 
 - **그래프 표현**: 인접 행렬은 $$\Theta(V^2)$$ 공간에 간선 확인 $$O(1)$$, 인접
@@ -1974,4 +2013,4 @@ src/topic-12-graph/
 | --- | --- | --- |
 | v1 | 2026-10-28 | 최초 공개 |
 | v2 | 2026-11-04 | 직접 해 보는 데모 13개 추가: 간선 수와 칸 수, 경계 간선 고르기, BFS와 DFS 나란히, 위상 정렬, 스패닝 트리 바꾸기, 최소 힙, BFS와 Dijkstra의 길, Prim과 Dijkstra 나란히, 우선순위 큐 고르기, 음의 가중치, 음의 사이클, h 고치기, 네 알고리즘 재 보기. 탐색 데모 안에 인접 목록 표 추가 |
-| v3 | 2026-11-13 | 그래프 크기를 V, E로 통일하고 오른쪽 위에 V·E, A*의 g·h·f 범례를 붙임. union-find 절과 한 걸음씩 데모, Kruskal과 Prim을 언제 쓰는지 정리하고 브라우저에서 네 방법을 재 보는 데모 추가, `algorithm-code`의 `08_union_find`, `09_mst_timing` 출력 인용 |
+| v3 | 2026-11-13 | 그래프 크기를 V, E로 통일하고 오른쪽 위에 V·E, A*의 g·h·f 범례를 붙임. union-find 절과 한 걸음씩 데모, Kruskal과 Prim을 언제 쓰는지 정리하고 브라우저에서 네 방법을 재 보는 데모 추가. 신촌역에서 연세대까지 실제 보행 도로망(OpenStreetMap)에서 네 길찾기 알고리즘을 견주는 지도 데모 추가, `algorithm-code`의 `08_union_find`, `09_mst_timing` 출력 인용 |

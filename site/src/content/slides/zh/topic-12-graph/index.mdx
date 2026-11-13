@@ -34,6 +34,7 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 import VarLegend from '@components/VarLegend.astro';
 import UnionFindDemo from '@components/UnionFindDemo.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
+import MapRouteDemo from '@components/MapRouteDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-12-graph）的运行结果一致。 */}
@@ -1760,6 +1761,36 @@ path: 0 4 5 2 6, cost 25
 | Dijkstra | 以距离为准 | 保证（非负权重） | 中 | 中 |
 | A* | 目标导向 | 有条件保证 | 高 | 高 |
 | Greedy Best-First | 只用 $$h$$ | 不保证 | 很高 | 低 |
+
+</Slide>
+
+<Slide class="center">
+
+## 在真实地图上看
+::sub[从新村站到延世大学，3,763 个路口的步行路网]
+
+</Slide>
+
+<Slide>
+
+### 动手试试：在地图上寻路
+::sub[点击表中的一行，就会画出该算法关闭的路口 · 点击地图可改变起点和终点]
+
+<MapRouteDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 从地图上看到的
+::sub[新村站 → 安德伍德馆，路口 3,763 个 · 路段 4,940 条]
+
+- **Dijkstra** 从起点向四面八方均匀扩散。它不知道终点在哪里。
+- <strong>A*</strong> 朝终点方向拉长着扩散。
+  - 找到同样 1,392m 的路线，关闭的路口不是 2,968 个而是 642 个
+- **BFS** 只数路段。它选了 41 段、1,664m 的路线。
+- **Greedy** 只关闭 68 个，却一味朝终点走而绕路，走了 2,087m。
+- 真实的地图服务有数百万个路口，所以在 A* 之外还用预先算好的捷径。
 
 </Slide>
 
