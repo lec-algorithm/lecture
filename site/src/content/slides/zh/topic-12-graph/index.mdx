@@ -31,6 +31,7 @@ import NegWeightDemo from '@components/NegWeightDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
+import VarLegend from '@components/VarLegend.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-12-graph）的运行结果一致。 */}
@@ -110,7 +111,9 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 <Slide>
 
 #### 最多有多少条边
-::sub[n 个顶点、没有平行边、连通的无向图]
+::sub[V 个顶点、没有平行边、连通的无向图]
+
+<VarLegend set="graph" />
 
 - **最少** $$V - 1$$ 条
   - 连成一条线。去掉任何一条，整块就断成两块。
@@ -128,6 +131,8 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 #### 图的种类
 ::sub[边数、方向、环]
+
+<VarLegend set="graph" />
 
 - **稀疏**（sparse）：$$E = O(V)$$
   - 社交网络
@@ -207,6 +212,8 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 #### 邻接矩阵与邻接表
 ::sub[所需空间不同]
 
+<VarLegend set="graph" />
+
 - **邻接矩阵**：$$V \times V$$ 矩阵，$$A_{ij} = 1$$ 表示有 i-j 边。
   - 也有记边数或权重的变形。
   - 空间 $$\Theta(V^2)$$
@@ -221,6 +228,8 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 ### 动手试试：边数与格数
 ::sub[移动 n 和 m，图和两种表示的格数一起变化]
 
+<VarLegend set="graph" />
+
 <DensityDemo slide />
 
 </Slide>
@@ -229,6 +238,8 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 #### 邻接矩阵 vs. 邻接表
 ::sub[首尔(0)-釜山(1)、首尔-大邱(2)、釜山-光州(3) · 表是 4 + 6 格，矩阵是 16 格]
+
+<VarLegend set="graph" />
 
 | 操作 | 邻接矩阵 | 邻接表 |
 | --- | --- | --- |
@@ -255,7 +266,7 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 <Slide>
 
 #### 要做什么
-::sub[从起点 s 能到达的所有顶点，不看两次，在 O(m + n) 内]
+::sub[从起点 s 能到达的所有顶点，不看两次，在 O(V + E) 内]
 
 **通用搜索算法**
 
@@ -300,6 +311,8 @@ Prim 和 Dijkstra 都是挑选"当下最近者"的贪心，
 
 #### BFS 与 DFS
 ::sub[同一种通用搜索，只是选择顺序不同]
+
+<VarLegend set="graph" />
 
 | | BFS | DFS |
 | --- | --- | --- |
@@ -390,6 +403,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 #### BFS 的性质与最短路径
 ::sub[n_s, m_s：从 s 能到达的顶点数和边数]
 
+<VarLegend set="graph" />
+
 - **命题 1**：结束时 v 已被探索 ⇔ 存在从 s 到 v 的路径
 - **命题 2**：运行时间 $$O(V_s + E_s)$$
   - 每个顶点进队一次、出队一次。
@@ -404,6 +419,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 
 #### 应用：连通分量
 ::sub[从每个尚未探索的顶点各启动一次搜索]
+
+<VarLegend set="graph" />
 
 ```plaintext
 把所有顶点标记为未探索
@@ -597,6 +614,8 @@ topological sort (V = 7, E = 11, directed)
 #### 树、生成树、MST
 ::sub[以最低代价连起所有顶点]
 
+<VarLegend set="graph" />
+
 - **树**：无环且连通的无向图，边有 $$V - 1$$ 条
 - **生成树**：包含所有顶点、且是树的子图
 - **最小生成树**：边权之和最小的生成树
@@ -689,6 +708,8 @@ Kruskal 与 Prim 的例子
 #### Greedy、Kruskal、Prim
 ::sub[都是建立在割的性质上的贪心]
 
+<VarLegend set="graph" />
+
 | | Greedy MST | Kruskal | Prim |
 | --- | --- | --- | --- |
 | 思路 | 直接用割的性质 | 以边为中心，全局选择 | 以顶点为中心，局部扩展 |
@@ -779,6 +800,8 @@ total weight = 1.81
 
 #### 分析
 ::sub[MST：0-7 2-3 1-7 0-2 5-7 4-5 6-2，总权重 1.81]
+
+<VarLegend set="graph" />
 
 <div class="aas-split">
 <div>
@@ -1018,6 +1041,8 @@ total weight = 1.81
 #### 分析
 ::sub[和 Kruskal 一样的七条边，一样的 1.81]
 
+<VarLegend set="graph" />
+
 - **正确性**：Greedy MST 的特例
   - 把"当前的树"和"其余部分"看成割，选中的边就是最轻的横切边
 - **时间**：$$O(E \log E) = O(E \log V)$$
@@ -1205,6 +1230,8 @@ path 0 -> 6: 0 4 5 2 6 (25)
 ### 动手试试：选择优先队列
 ::sub[移动 V 和 E，合计公式的值随之变化 · 条形是对数刻度]
 
+<VarLegend set="graph" />
+
 <PqCostDemo slide />
 
 </Slide>
@@ -1213,6 +1240,8 @@ path 0 -> 6: 0 4 5 2 6 (25)
 
 #### 运行时间
 ::sub[取决于用什么实现优先队列 · * 均摊]
+
+<VarLegend set="graph" />
 
 | 数据结构 | 放入 | 取出最小值 | 修改值 | 合计 |
 | --- | --- | --- | --- | --- |
@@ -1302,6 +1331,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### A*
 ::sub[到一个目标，用剩余距离的估计值先往目标方向找]
 
+<VarLegend set="astar" />
+
 - Dijkstra 求到**所有**顶点。导航通常只要到**一个目标**。
 - 游戏、机器人路径搜索、地理信息系统（GIS）
 - 每个节点三个值
@@ -1316,6 +1347,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 #### 启发式函数 h(n)
 ::sub[从真理馆 A 到电影院 · 在宿舍 C 栋前对朋友说]
+
+<VarLegend set="astar" />
 
 - "大概 10 分钟。"接近实际且不超过。**好的估计**
 - "2 分钟就到。"没超过，但太乐观，**起不到引路的作用**。
@@ -1333,6 +1366,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### 看起来近的不一定是答案
 ::sub[走到这里用了 2 分钟，能去的地方有三处]
 
+<VarLegend set="astar" />
+
 | 下一个地点 | 要花的时间 | $$g$$ | $$h$$ | $$f = g + h$$ |
 | --- | --- | --- | --- | --- |
 | A 栋 | 5 分钟 | $$2 + 5 = 7$$ | 10 | 17 |
@@ -1349,6 +1384,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 #### 例子图
 ::sub[和 Dijkstra 相同的图 · 起点 0，目标 6 · 顶点旁是 h]
+
+<VarLegend set="astar" />
 
 <div class="aas-split">
 <div>
@@ -1374,6 +1411,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 ### 一步一步：不重新打开的 A*
 ::sub[常见的实现：已关闭的顶点不再看第二次]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" reopen={false} slide />
 
 </Slide>
@@ -1382,6 +1421,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 #### 26 不是最短
 ::sub[在同一个图上 Dijkstra 是 0 → 4 → 5 → 2 → 6，25]
+
+<VarLegend set="astar" />
 
 <div class="aas-split">
 <div>
@@ -1407,6 +1448,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### 启发式的两个条件
 ::sub[h*(n)：从 n 到目标的实际最短距离]
 
+<VarLegend set="astar" />
+
 - **可采纳性**（admissible）：$$h(n) \le h^*(n)$$
   - 不高估。**允许重新打开时**能找到最短路径。
 - **一致性**（consistent）：$$h(n) \le c(n, n') + h(n')$$
@@ -1422,6 +1465,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 ### 动手试试：修改 h
 ::sub[红色虚线是违反一致性的边，绿色是不重新打开时的路径]
 
+<VarLegend set="astar" />
+
 <HeuristicLabDemo slide />
 
 </Slide>
@@ -1431,6 +1476,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 ### 一步一步：重新打开
 ::sub[找到通向已关闭顶点的更短路径时，重新打开它]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" slide />
 
 </Slide>
@@ -1439,6 +1486,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 #### 过程
 ::sub[`07_a_star/aStar.pseudo` · 与 Dijkstra 不同：键是 g + h，到目标即停，可重新打开]
+
+<VarLegend set="astar" />
 
 ```plaintext
 g[s] <- 0,  insert (g[s] + h[s], s) into open
@@ -1461,6 +1510,8 @@ while open 不为空 do
 
 #### 运行
 ::sub[`07_a_star/` · 两次运行的分歧处]
+
+<VarLegend set="astar" />
 
 - 运行
 
@@ -1490,6 +1541,8 @@ path: 0 4 5 2 6, cost 25
 ### 动手试试：更换启发式
 ::sub[同一个图，从 0 到 6 · 用标签切换 h，然后运行到底]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" hChoices slide />
 
 </Slide>
@@ -1498,6 +1551,8 @@ path: 0 4 5 2 6, cost 25
 
 #### 分析
 ::sub[b：分支因子，d：最优解的深度]
+
+<VarLegend set="astar" />
 
 - **时间**：最坏 $$O(b^d)$$，实际取决于启发式。
   - 完美的启发式（$$h = h^*$$）：$$O(d)$$，这个例子里只关闭 0、4、5、2。

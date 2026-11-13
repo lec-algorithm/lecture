@@ -31,6 +31,7 @@ import NegWeightDemo from '@components/NegWeightDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
+import VarLegend from '@components/VarLegend.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Numbers match the practice code (topic-12-graph) exactly. */}
@@ -110,7 +111,9 @@ and the heap is what makes Huffman coding $$O(k \log k)$$.
 <Slide>
 
 #### How many edges at most
-::sub[n vertices, no parallel edges, a connected undirected graph]
+::sub[V vertices, no parallel edges, a connected undirected graph]
+
+<VarLegend set="graph" />
 
 - **At least** $$V - 1$$
   - Join them in a line. Remove any edge and the piece splits in two.
@@ -128,6 +131,8 @@ This gap decides what graph algorithms cost.
 
 #### Kinds of graphs
 ::sub[Number of edges, direction, cycles]
+
+<VarLegend set="graph" />
 
 - **Sparse**: $$E = O(V)$$
   - Social networks
@@ -207,6 +212,8 @@ means scanning the whole list.
 #### Adjacency matrix and adjacency list
 ::sub[They need different amounts of space]
 
+<VarLegend set="graph" />
+
 - **Adjacency matrix**: a $$V \times V$$ matrix, $$A_{ij} = 1$$ if there is an i-j edge.
   - Variants store edge counts or weights.
   - Space $$\Theta(V^2)$$
@@ -221,6 +228,8 @@ means scanning the whole list.
 ### Try it: edges and cells
 ::sub[Move n and m to see the graph and the cell counts of the two representations change]
 
+<VarLegend set="graph" />
+
 <DensityDemo slide />
 
 </Slide>
@@ -229,6 +238,8 @@ means scanning the whole list.
 
 #### Adjacency matrix vs. adjacency list
 ::sub[Seoul(0)-Busan(1), Seoul-Daegu(2), Busan-Gwangju(3) · list 4 + 6 slots, matrix 16 cells]
+
+<VarLegend set="graph" />
 
 | Operation | Adjacency matrix | Adjacency list |
 | --- | --- | --- |
@@ -255,7 +266,7 @@ Search asks "who are the neighbours?" most often. All the practice code uses adj
 <Slide>
 
 #### The goal
-::sub[Every vertex reachable from s, none seen twice, in O(m + n)]
+::sub[Every vertex reachable from s, none seen twice, in O(V + E)]
 
 **Generic search**
 
@@ -300,6 +311,8 @@ One question remains.
 
 #### BFS and DFS
 ::sub[The same generic search; only the order of choice differs]
+
+<VarLegend set="graph" />
 
 | | BFS | DFS |
 | --- | --- | --- |
@@ -390,6 +403,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 #### Properties of BFS and shortest paths
 ::sub[n_s, m_s: vertices and edges reachable from s]
 
+<VarLegend set="graph" />
+
 - **Claim 1**: at the end, v is explored ⇔ there is a path from s to v
 - **Claim 2**: running time $$O(V_s + E_s)$$
   - Each vertex enters the queue once and leaves once.
@@ -404,6 +419,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 
 #### Application: connected components
 ::sub[Start one search from each vertex not yet explored]
+
+<VarLegend set="graph" />
 
 ```plaintext
 mark every vertex unexplored
@@ -597,6 +614,8 @@ With a directed cycle there is no topological order.
 #### Trees, spanning trees, MSTs
 ::sub[Connecting every vertex as cheaply as possible]
 
+<VarLegend set="graph" />
+
 - **Tree**: an acyclic, connected, undirected graph, with $$V - 1$$ edges
 - **Spanning tree**: a subgraph that is a tree and includes every vertex
 - **Minimum spanning tree**: the spanning tree with the smallest total edge weight
@@ -689,6 +708,8 @@ Kruskal and Prim are what decide "which cut to pick".
 #### Greedy, Kruskal, Prim
 ::sub[All greedy, all standing on the cut property]
 
+<VarLegend set="graph" />
+
 | | Greedy MST | Kruskal | Prim |
 | --- | --- | --- | --- |
 | Approach | the cut property directly | edge-centred, global choice | vertex-centred, local growth |
@@ -779,6 +800,8 @@ total weight = 1.81
 
 #### Analysis
 ::sub[MST: 0-7 2-3 1-7 0-2 5-7 4-5 6-2, total weight 1.81]
+
+<VarLegend set="graph" />
 
 <div class="aas-split">
 <div>
@@ -1018,6 +1041,8 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 #### Analysis
 ::sub[The same seven edges as Kruskal, the same 1.81]
 
+<VarLegend set="graph" />
+
 - **Correctness**: a special case of Greedy MST
   - Take "the current tree" and "the rest" as the cut; the chosen edge is its lightest crossing edge
 - **Time**: $$O(E \log E) = O(E \log V)$$
@@ -1205,6 +1230,8 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 ### Try it: choosing the priority queue
 ::sub[Move V and E to see the total formulas change · the bars use a log scale]
 
+<VarLegend set="graph" />
+
 <PqCostDemo slide />
 
 </Slide>
@@ -1213,6 +1240,8 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 
 #### Running time
 ::sub[Depends on what the priority queue is built from · * amortized]
+
+<VarLegend set="graph" />
 
 | Data structure | insert | extract-min | update-key | total |
 | --- | --- | --- | --- | --- |
@@ -1302,6 +1331,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### A*
 ::sub[To one goal, searching towards it with an estimate of the remaining distance]
 
+<VarLegend set="astar" />
+
 - Dijkstra finds paths to **every** vertex. Route finding usually needs **one goal**.
 - Games, robot path planning, geographic information systems (GIS)
 - Three values per node
@@ -1316,6 +1347,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 #### The heuristic function h(n)
 ::sub[From Jinri Hall A to the Megabox cinema · on the phone in front of dormitory C]
+
+<VarLegend set="astar" />
 
 - "About ten minutes." Close to the truth and not over it. **A good estimate**
 - "Two minutes." Not over, but so optimistic it **cannot guide you.**
@@ -1333,6 +1366,8 @@ Distance heuristics: Euclidean, Manhattan, Chebyshev
 #### What looks closest is not the answer
 ::sub[It took 2 minutes to get here, and there are three places to go]
 
+<VarLegend set="astar" />
+
 | Next point | Time | $$g$$ | $$h$$ | $$f = g + h$$ |
 | --- | --- | --- | --- | --- |
 | Building A | 5 min | $$2 + 5 = 7$$ | 10 | 17 |
@@ -1349,6 +1384,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 
 #### The example graph
 ::sub[The same graph as Dijkstra · start 0, goal 6 · h beside each vertex]
+
+<VarLegend set="astar" />
 
 <div class="aas-split">
 <div>
@@ -1374,6 +1411,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 ### One step at a time: A* without reopening
 ::sub[A common implementation: once a vertex is closed it is never looked at again]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" reopen={false} slide />
 
 </Slide>
@@ -1382,6 +1421,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 
 #### 26 is not the shortest
 ::sub[On the same graph Dijkstra finds 0 → 4 → 5 → 2 → 6, 25]
+
+<VarLegend set="astar" />
 
 <div class="aas-split">
 <div>
@@ -1407,6 +1448,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 #### Two conditions on the heuristic
 ::sub[h*(n): the true shortest distance from n to the goal]
 
+<VarLegend set="astar" />
+
 - **Admissible**: $$h(n) \le h^*(n)$$
   - Never overestimates. **With reopening** it finds the shortest path.
 - **Consistent**: $$h(n) \le c(n, n') + h(n')$$
@@ -1422,6 +1465,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 ### Try it: edit h
 ::sub[Dashed red edges break consistency, green is the path without reopening]
 
+<VarLegend set="astar" />
+
 <HeuristicLabDemo slide />
 
 </Slide>
@@ -1431,6 +1476,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 ### One step at a time: reopening
 ::sub[When a shorter path to a closed vertex is found, reopen it]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" slide />
 
 </Slide>
@@ -1439,6 +1486,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 
 #### The procedure
 ::sub[`07_a_star/aStar.pseudo` · unlike Dijkstra: key g + h, stop at the goal, reopening]
+
+<VarLegend set="astar" />
 
 ```plaintext
 g[s] <- 0,  insert (g[s] + h[s], s) into open
@@ -1461,6 +1510,8 @@ while open is not empty do
 
 #### Run
 ::sub[`07_a_star/` · where the two runs part ways]
+
+<VarLegend set="astar" />
 
 - Run
 
@@ -1490,6 +1541,8 @@ path: 0 4 5 2 6, cost 25
 ### Try it: change the heuristic
 ::sub[Same graph, from 0 to 6 · pick an h with the chips and run it to the end]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" hChoices slide />
 
 </Slide>
@@ -1498,6 +1551,8 @@ path: 0 4 5 2 6, cost 25
 
 #### Analysis
 ::sub[b: branching factor, d: depth of the optimal solution]
+
+<VarLegend set="astar" />
 
 - **Time**: $$O(b^d)$$ in the worst case; in practice it depends on the heuristic.
   - Perfect heuristic ($$h = h^*$$): $$O(d)$$, here it closes only 0, 4, 5, 2.

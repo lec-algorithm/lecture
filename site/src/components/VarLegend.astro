@@ -9,10 +9,13 @@
 // - lcs: 가장 긴 공통 부분 문자열. T는 두 문자열을 이은 것, n은 그 길이, 출처는 접미사가 시작한 문자열이다.
 //   그림은 교안의 예 mississippi(S₁, 파랑)와 kiss(S₂, 주황)다.
 // - kwic: 문맥 속 키워드 검색. n은 텍스트 길이, m은 질의어 길이다.
+// - graph: 그래프의 크기. V는 정점 수, E는 간선 수다. 정점은 동그라미, 간선은 그 사이의 선으로 그린다.
+// - astar: A*의 세 값. g(n)은 시작 s에서 n까지 실제로 온 거리(실선), h(n)은 n에서 목표 t까지 남은
+//   거리의 추정(점선), f(n)은 둘의 합이다.
 // 슬라이드에서는 맨 위 줄에 띄우고, 교안 본문에서는 보통 블록으로 둔다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
-type Set = 'radix' | 'lrs' | 'lcs' | 'kwic';
+type Set = 'radix' | 'lrs' | 'lcs' | 'kwic' | 'graph' | 'astar';
 interface Props {
   set?: Set;
   /** 교안 본문용: 띄우지 않고 글 흐름에 둔다. */
@@ -20,8 +23,9 @@ interface Props {
 }
 const { set = 'radix', inline = false } = Astro.props;
 
-/* 그림의 칸. c는 칸 색(m: 파랑, e: 초록, f: 주황), 'more'는 줄임표다. */
-type Cell = { t?: string; c?: 'm' | 'e' | 'f' } | 'more';
+/* 그림의 칸. c는 칸 색(m: 파랑, e: 초록, f: 주황), round는 동그라미(정점), 'more'는 줄임표,
+   'link'와 'dash'는 앞뒤 칸을 잇는 실선과 점선(간선, 추정)이다. */
+type Cell = { t?: string; c?: 'm' | 'e' | 'f'; round?: boolean } | 'more' | 'link' | 'dash';
 type Item = { pic: Cell[]; key: string; text: Record<string, string> };
 
 const ITEMS: Record<Set, Item[]> = {
@@ -44,6 +48,15 @@ const ITEMS: Record<Set, Item[]> = {
     { pic: [{ t: 'i' }, { t: 't' }, 'more', { t: '$' }], key: 'n', text: { ko: '텍스트 길이', en: 'text length', zh: '文本长度' } },
     { pic: [{ t: 's', c: 'f' }, { t: 'e', c: 'f' }, { t: 'a', c: 'f' }], key: 'm', text: { ko: '질의어 길이', en: 'query length', zh: '查询词长度' } },
   ],
+  graph: [
+    { pic: [{ t: '0', round: true }, { t: '1', round: true }, { t: '2', round: true }, 'more'], key: 'V', text: { ko: '정점 수', en: 'number of vertices', zh: '顶点数' } },
+    { pic: [{ round: true }, 'link', { round: true }], key: 'E', text: { ko: '간선 수', en: 'number of edges', zh: '边数' } },
+  ],
+  astar: [
+    { pic: [{ t: 's', round: true }, 'link', { t: 'n', round: true, c: 'f' }], key: 'g(n)', text: { ko: '시작에서 n까지 실제 거리', en: 'actual cost from start to n', zh: '从起点到 n 的实际距离' } },
+    { pic: [{ t: 'n', round: true, c: 'f' }, 'dash', { t: 't', round: true }], key: 'h(n)', text: { ko: 'n에서 목표까지 추정', en: 'estimate from n to goal', zh: '从 n 到终点的估计' } },
+    { pic: [], key: 'f(n)', text: { ko: 'g + h, 예상 총비용', en: 'g + h, estimated total', zh: 'g + h，预计总代价' } },
+  ],
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const items = ITEMS[set];
@@ -56,7 +69,15 @@ const textOf = (it: Item) => it.text[lang] ?? it.text[defaultLang] ?? it.text.ko
       <span class="vl-item">
         {it.pic.length > 0 && (
           <span class="vl-pic" aria-hidden="true">
-            {it.pic.map((cell) => (cell === 'more' ? <b>…</b> : <i class:list={[cell.c && `is-${cell.c}`]}>{cell.t ?? ''}</i>))}
+            {it.pic.map((cell) =>
+              cell === 'more' ? (
+                <b>…</b>
+              ) : cell === 'link' || cell === 'dash' ? (
+                <s class:list={['vl-link', cell === 'dash' && 'is-dash']} />
+              ) : (
+                <i class:list={[cell.c && `is-${cell.c}`, cell.round && 'is-round']}>{cell.t ?? ''}</i>
+              ),
+            )}
           </span>
         )}
         {it.key && <span class="vl-key">{it.key}</span>}
@@ -123,6 +144,26 @@ const textOf = (it: Item) => it.text[lang] ?? it.text[defaultLang] ?? it.text.ko
     line-height: calc(1.05em - 2px);
     text-align: center;
     color: var(--aas-text);
+  }
+  /* 정점. 칸보다 테두리를 진하게 해서 작은 글씨에서도 동그라미로 보이게 한다. */
+  .aas-var-legend .vl-pic i.is-round {
+    border-color: var(--aas-muted);
+    border-radius: 50%;
+  }
+  .aas-var-legend .vl-pic i.is-round.is-f {
+    border-color: var(--aas-role-focus);
+  }
+  /* 앞뒤 정점을 잇는 짧은 선(간선). 칸 사이 간격만큼 비워 두 동그라미에 닿을 듯 붙는다. */
+  .aas-var-legend .vl-pic s {
+    display: inline-block;
+    width: 0.9em;
+    border-top: 2px solid var(--aas-role-focus);
+  }
+  /* 추정은 점선. 선이 짧아 border의 dashed는 실선처럼 보이므로 무늬를 직접 그린다. */
+  .aas-var-legend .vl-pic s.is-dash {
+    height: 2px;
+    border-top: 0;
+    background: repeating-linear-gradient(90deg, var(--aas-muted) 0 3px, transparent 3px 5px);
   }
   .aas-var-legend .vl-pic b {
     font-weight: 400;
