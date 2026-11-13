@@ -187,6 +187,31 @@ Linux 바이너리이므로, 커밋에 섞이면 저장소만 지저분해진다
 gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 ```
 
+## 과제 저장소
+
+과제마다 저장소를 따로 둔다. 네 저장소의 경계 밖에 있고, 학기가 끝나도
+지우지 않는다.
+
+| 저장소 | 담는 것 |
+| --- | --- |
+| `hw1-sample-2026` | 과제1 샘플. 코드와 보고서의 모양을 보여 준다 |
+| `hw2-starter-2026` | 과제2 시작 저장소이고 template이다. 수강생이 `Use this template`으로 시작한다 |
+| `hw2-sample-2026` | 과제2 완성본. 수업 일곱 단계마다 `step-1`\~`step-7` 태그 |
+
+`hw2-starter-2026`은 `algorithm-env`에서 환경 파일을 그대로 가져오고, 과제2에
+필요한 것만 더했다. 포트 8000 포워딩과 Copilot Chat 확장이다. 다음 둘은 넣지 않는다.
+
+- **정답 코드**: 에이전트는 작업 공간의 파일을 읽는다. 정답이 옆에 있으면 그대로
+  베껴 와서 실습이 되지 않는다. 놓친 단계는 `tools/catchup.sh`가 샘플의 태그에서
+  가져온다.
+- **`CLAUDE.md`·`AGENTS.md`**: Copilot도 `AGENTS.md`를 읽는다. 저장소 관리용
+  안내가 들어 있으면 수강생이 직접 쓰는 `.github/copilot-instructions.md`의
+  효과를 가린다. 관리 메모는 이 문서에 둔다.
+
+샘플의 코드를 고치면 해당 단계 이후의 태그를 모두 다시 붙여야 한다.
+`catchup.sh`는 태그를 받아 오므로, 태그를 옮긴 뒤에는 `git push --force origin
+step-N`으로 덮어쓴다.
+
 ## algorithm-viz
 
 정렬 과정이나 트리 회전처럼 **움직여야 이해되는 것**을 만드는 저장소.
