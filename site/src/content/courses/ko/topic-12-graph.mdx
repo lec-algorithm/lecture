@@ -28,6 +28,8 @@ import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
 import NegWeightDemo from '@components/NegWeightDemo.astro';
+import UnionFindDemo from '@components/UnionFindDemo.astro';
+import MstRaceDemo from '@components/MstRaceDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
@@ -856,7 +858,109 @@ total weight = 1.81
 - **시간**: 정렬이 $$O(E \log E)$$입니다. 덩어리 판정은 $$O(1)$$, 합치기는 배열
   전체를 훑어 $$O(V)$$인데 합치기는 $$V - 1$$번만 일어나므로 통틀어 $$O(V^2)$$입니다.
   합치기를 **union-find**(서로소 집합)로 바꾸면 판정과 합치기가 거의 상수 시간이
-  되어, 전체가 정렬 비용 $$O(E \log E)$$에 묶입니다.
+  되어, 전체가 정렬 비용 $$O(E \log E)$$에 묶입니다. 바로 아래에서 살펴봅니다.
+
+### union-find \{#union-find}
+
+comp 배열의 약점은 합치기입니다. 두 덩어리를 합칠 때마다 V칸을 모두 훑어 번호를
+고쳐 씁니다. V가 10만이면 합치기 한 번에 10만 칸, 합치기는 V-1번이므로 100억 칸입니다.
+
+**union-find**(서로소 집합, disjoint set)는 덩어리를 트리로 들고 있습니다.
+정점마다 **부모**(parent) 하나만 두고, 부모를 따라 올라가 닿는 **뿌리**를 덩어리의 이름으로 씁니다.
+
+- **Find(x)**: x에서 부모를 따라 뿌리까지 올라갑니다. 두 끝의 뿌리가 같으면 같은 덩어리입니다.
+- **Union(a, b)**: 뿌리 a, b 가운데 하나를 다른 하나의 밑에 답니다. 고쳐 쓰는 칸은 하나뿐입니다.
+
+이것만으로는 트리가 한 줄로 길어질 수 있습니다. 그러면 Find가 V칸을 올라가야 합니다.
+요령 두 가지가 이를 막습니다.
+
+- **크기로 합치기**(union by size): 작은 트리의 뿌리를 큰 트리의 뿌리 밑에 답니다.
+  크기가 같으면 번호가 큰 뿌리를 작은 뿌리 밑에 답니다.
+- **경로 압축**(path compression): Find가 지나온 정점을 뿌리에 바로 붙입니다. 다음
+  Find는 한 칸이면 닿습니다.
+
+<UnionFindDemo />
+
+같은 간선 일곱 개를 넣고 같은 1.81에서 멈춥니다. 바뀐 것은 덩어리를 들고 있는
+방법뿐입니다. 1-3에서 3은 3→2→0으로 두 칸을 올라갑니다. 경로 압축으로 3이 0에
+바로 붙고, 그 뒤로는 한 칸이면 뿌리에 닿습니다. 링크를 따라간 횟수는 모두 16번입니다.
+comp 배열은 합치기 7번에 8칸씩, 56칸을 훑습니다.
+
+- 의사코드 (`08_union_find/unionFind.pseudo`에서)
+
+```plaintext
+ALGORITHM Find(x)                       // x가 속한 트리의 뿌리
+    root <- x
+    while parent[root] != root do       // 부모를 따라 뿌리까지 올라간다
+        root <- parent[root]
+    while parent[x] != root do          // 경로 압축: 지나온 정점을 뿌리에 바로 붙인다
+        next <- parent[x]
+        parent[x] <- root
+        x <- next
+    return root
+
+ALGORITHM Union(a, b)                   // a, b는 서로 다른 뿌리
+    if size[a] < size[b] or (size[a] = size[b] and a > b) then
+        swap(a, b)                      // a가 큰 쪽(같으면 번호가 작은 쪽)
+    parent[b] <- a                      // 작은 트리를 큰 트리의 뿌리 밑에 단다
+    size[a] <- size[a] + size[b]
+```
+
+Kruskal은 그대로 두고, `comp[u] != comp[v]` 대신 `Find(u) != Find(v)`를, 합치기
+대신 `Union`을 부릅니다.
+
+- 실행
+
+```sh
+cd src/topic-12-graph/08_union_find
+make -f /work/Makefile unionFind.out && ./unionFind.out
+```
+
+- 결과
+
+```console
+V = 8, E = 16, union by size + path compression
+edge      find u    find v    result
+0-7 0.16  0         7         add   7 under 0  parent [0 1 2 3 4 5 6 0]
+2-3 0.17  2         3         add   3 under 2  parent [0 1 2 2 4 5 6 0]
+1-7 0.19  1         7>0       add   1 under 0  parent [0 0 2 2 4 5 6 0]
+0-2 0.26  0         2         add   2 under 0  parent [0 0 0 2 4 5 6 0]
+5-7 0.28  5         7>0       add   5 under 0  parent [0 0 0 2 4 0 6 0]
+1-3 0.29  1>0       3>2>0     skip  root 0     parent [0 0 0 0 4 0 6 0]
+1-5 0.32  1>0       5>0       skip  root 0
+2-7 0.34  2>0       7>0       skip  root 0
+4-5 0.35  4         5>0       add   4 under 0  parent [0 0 0 0 0 0 6 0]
+1-2 0.36  1>0       2>0       skip  root 0
+4-7 0.37  4>0       7>0       skip  root 0
+0-4 0.38  0         4>0       skip  root 0
+6-2 0.40  6         2>0       add   6 under 0  parent [0 0 0 0 0 0 0 0]
+7 edges = V - 1, stop
+mst: 0-7 2-3 1-7 0-2 5-7 4-5 6-2
+total weight = 1.81
+links followed = 16 (comp array: 7 merges x 8 cells = 56)
+
+random connected graphs, E = 4V, seed 2026
+        V       comp cells     finds     links links/find
+    1,000          999,000     7,040     6,447       0.92
+   10,000       99,990,000    78,228    72,834       0.93
+  100,000    9,999,900,000   788,952   737,258       0.93
+```
+
+`find u`, `find v` 열은 두 끝에서 뿌리까지 올라간 경로입니다. `7>0`은 7의 부모가
+0이고 0이 뿌리라는 뜻입니다. 부모가 바뀐 줄에만 `parent`를 찍었습니다.
+
+뒤의 표는 무작위 큰 그래프에서 센 값입니다. `comp cells`는 comp 배열이 합치기
+V-1번에 V칸씩 훑는 수, `links`는 union-find의 Find가 따라간 부모 링크의 합입니다.
+시간이 아니라 세는 값이라 C와 Python의 출력이 같습니다.
+
+- **트리 높이**: 크기로 합치면 트리 높이가 $$\log_2 V$$를 넘지 않습니다. 정점이 한 층
+  내려가는 것은 그 정점이 든 트리가 크기가 같거나 더 큰 트리 밑에 달릴 때뿐이고, 그때마다 그
+  트리의 크기는 두 배 이상이 됩니다. 크기는 V를 넘을 수 없으니 층은 $$\log_2 V$$개까지입니다.
+- **경로 압축까지**: Find 한 번이 사실상 상수입니다. 정확히는 역 아커만 함수
+  $$\alpha(V)$$에 비례하는데, 우주의 원자 수만큼 V가 커져도 4를 넘지 않습니다. 표에서도
+  Find 한 번에 평균 1칸이 안 됩니다.
+- **Kruskal 전체**: V가 10배가 되면 comp 배열은 100배가 되고, union-find는 10배입니다.
+  판정과 합치기가 거의 공짜가 되어 전체가 정렬 $$O(E \log E)$$에 묶입니다.
 
 ## 예제 4. 우선순위 큐와 최소 힙 \{#heap}
 
@@ -1173,6 +1277,94 @@ MST는 하나뿐이므로 당연한 결과입니다. 다른 것은 순서입니�
 - **시간**: 힙에 넣는 항목은 간선마다 많아야 하나입니다. 넣기와 꺼내기가 각각
   $$O(\log E)$$이므로 $$O(E \log E)$$이고, $$E \le V^2$$이라 $$\log E \le 2 \log V$$이므로
   $$O(E \log V)$$입니다.
+
+## Kruskal과 Prim, 언제 무엇을 \{#mst-when}
+
+Kruskal과 Prim은 같은 MST를 내지만 비용은 그래프에 따라 크게 다릅니다. 구현도 둘씩
+있습니다. Kruskal은 덩어리를 comp 배열로 들 수도 union-find로 들 수도 있고, Prim은
+가장 가까운 정점을 힙에서 꺼낼 수도, 힙 없이 key 배열 V칸을 훑어 고를 수도 있습니다.
+
+| 방법 | 덩어리 또는 다음 정점 고르기 | 시간 |
+| --- | --- | --- |
+| Kruskal comp | 합칠 때마다 V칸을 고쳐 쓴다 | $$O(E \log E + V^2)$$ |
+| Kruskal UF | union-find | $$O(E \log E)$$ |
+| Prim heap | 최소 힙에서 꺼낸다 | $$O(E \log V)$$ |
+| Prim array | key 배열 V칸을 훑는다 | $$O(V^2 + E)$$ |
+
+아래 데모는 이 브라우저에서 네 방법을 직접 잽니다. 탭으로 그래프를 바꿉니다. 완전
+그래프는 두 가지입니다. 하나는 가중치가 무작위인 것이고, 다른 하나는 u < v인 간선의
+가중치를 $$(V - u) \times V + v$$로 두어 Prim이 정점을 붙일 때마다 남은 모든 정점의
+key가 줄어드는 것입니다. 힙에는 가장 나쁜 경우입니다.
+
+<MstRaceDemo />
+
+같은 일을 C로 잰 것이 `09_mst_timing`입니다. Prim array는 의사코드로 이렇습니다.
+
+```plaintext
+ALGORITHM PrimArray(G)
+    for each 정점 v do key[v] <- INF, inTree[v] <- false
+    key[0] <- 0, total <- 0
+    repeat V번
+        u <- inTree가 아닌 정점 중 key가 가장 작은 것   // V칸을 훑는다
+        inTree[u] <- true, total <- total + key[u]
+        for each (u, v, w) in G.adj[u] do
+            if not inTree[v] and w < key[v] then key[v] <- w
+    return total
+```
+
+- 실행
+
+```sh
+cd src/topic-12-graph/09_mst_timing
+make -f /work/Makefile mstTiming.out && ./mstTiming.out
+```
+
+- 결과 (밀리초, 값은 컴퓨터마다 다르다)
+
+```console
+sparse, E = 4V (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+   2000      8000         2.968       0.435      0.142       2.287
+   8000     32000        34.831       2.106      0.955      35.513
+  32000    128000       517.287      10.024      5.184     555.430
+
+complete, E = V(V-1)/2 (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         9.306       9.148      0.256       0.491
+   1000    499500        41.711      41.022      0.965       2.106
+   2000   1999000       183.393     180.328      3.413       9.270
+
+complete, every edge lowers a key (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         2.984       3.002      5.445       0.233
+   1000    499500        13.145      13.253     25.066       0.833
+   2000   1999000        57.362      56.097    109.677       3.222
+```
+
+- **희소 그래프**: V가 4배가 될 때 Kruskal comp와 Prim array는 15배쯤 늘어납니다.
+  둘 다 $$V^2$$에 묶이기 때문입니다. union-find와 힙으로 바꾼 두 방법은 V = 32,000에서
+  각각 50배, 100배 넘게 빠릅니다.
+- **무작위 완전 그래프**: Prim heap이 가장 빠릅니다. 가중치가 무작위면 새로 붙은
+  정점이 남은 정점의 key를 줄이는 일이 드물어서, 힙에 넣는 횟수가 E보다 훨씬
+  적습니다. 데모의 V = 2,000에서는 간선 약 200만 개 중 1%도 안 됩니다. Kruskal은
+  간선을 모두 정렬해야 해서 가장 느립니다.
+- **힙에 가장 나쁜 완전 그래프**: 간선마다 key가 줄어 힙에 E번 넣습니다. 이제 Prim
+  array가 V = 2,000에서 34배 빠릅니다. $$O(V^2)$$는 입력과 상관없이 지켜지는
+  상한이고, 완전 그래프에서는 간선을 한 번씩 보는 비용과 같은 크기입니다.
+
+정리하면 이렇습니다.
+
+| 상황 | 고를 것 | 까닭 |
+| --- | --- | --- |
+| 희소 ($$E \approx V$$) | Kruskal UF, Prim heap | 둘 다 $$O(E \log V)$$. $$V^2$$인 방법은 V가 크면 못 씁니다 |
+| 밀집 ($$E \approx V^2$$) | Prim array | 입력과 상관없이 $$O(V^2)$$. 힙은 key가 자주 줄면 $$E \log V$$ |
+| 간선 목록만 있다 | Kruskal UF | 인접 목록을 만들지 않아도 됩니다 |
+| 덩어리 k개로 나누기 | Kruskal을 간선 V-k개에서 멈춤 | 그때의 숲이 바로 답입니다 |
+
+마지막 줄은 군집(clustering)입니다. Kruskal을 간선 V-1개가 아니라 V-k개에서 멈추면
+k개의 덩어리가 남는데, 서로 다른 덩어리의 가장 가까운 두 정점 사이 거리가 가능한
+나눔 가운데 가장 큽니다. 무작위 완전 그래프에서 힙이 빠른 것은 입력이
+도와준 결과이고, 보장된 상한은 아닙니다.
 
 ## 최단 경로 \{#shortest-path}
 
@@ -1732,6 +1924,9 @@ A*를 더 다듬는 방법도 많습니다.
   $$O(V + E)$$이다.
 - **cut 속성**: 어떤 cut이든 가장 가벼운 crossing edge는 MST에 있다. Kruskal과
   Prim은 cut을 고르는 방식만 다른 그리디다. 예제의 MST는 1.81이다.
+- **union-find**: 크기로 합치고 경로를 압축하면 Find가 사실상 상수다. 그래서 Kruskal은
+  정렬 $$O(E \log E)$$에 묶인다. 희소 그래프에는 Kruskal UF나 Prim heap, 밀집 그래프에는
+  힙 없이 V칸을 훑는 Prim array가 맞다.
 - **최소 힙**: 넣을 때는 sift up으로 올리고, 꺼낼 때는 sift down으로 내린다. 둘 다
   $$O(\log n)$$이고, 우선순위 큐의 바탕이다.
 - **Prim과 Dijkstra는 같은 틀**이다. 힙에 넣는 값이 간선 하나의 가중치냐, 쌓인
@@ -1752,7 +1947,9 @@ src/topic-12-graph/
 ├── 04_min_heap/         # insert 10, insert 0, extract min
 ├── 05_mst_prim/         # 최소 힙으로 정점 0부터, MST 1.81
 ├── 06_dijkstra/         # 0에서 6까지 25, 음의 가중치에서 틀리는 예
-└── 07_a_star/           # 다시 열지 않으면 26, 다시 열면 25
+├── 07_a_star/           # 다시 열지 않으면 26, 다시 열면 25
+├── 08_union_find/       # union-find로 Kruskal, 링크 16번 vs comp 배열 56칸
+└── 09_mst_timing/       # Kruskal 둘과 Prim 둘의 시간, 희소와 완전 그래프
 ```
 
 파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다. 실행 방법은
@@ -1764,6 +1961,7 @@ src/topic-12-graph/
   순서와 from은 달라져도 dist 열은 그대로입니다.
 - `02_dfs`에서 이웃을 큰 번호부터 넣도록 바꿔 보세요. 방문 순서가 `0 1 2 3 4 5 6`이 됩니다.
 - `05_mst_prim`의 시작 정점을 바꿔 보세요. 붙는 순서는 달라져도 MST와 1.81은 그대로입니다.
+- `08_union_find`의 `unite`에서 크기 비교를 빼 보세요. 뒤의 표에서 `links`가 늘어납니다.
 - `07_a_star`의 `h`를 모두 0으로 바꾸면 Dijkstra와 같은 순서로 닫고, 실제 남은
   거리(`25 22 11 9 16 12 0 18`)로 바꾸면 정점 넷만 닫고 목표에 닿습니다.
 

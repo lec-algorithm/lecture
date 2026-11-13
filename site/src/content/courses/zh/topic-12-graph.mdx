@@ -28,6 +28,8 @@ import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
 import NegWeightDemo from '@components/NegWeightDemo.astro';
+import UnionFindDemo from '@components/UnionFindDemo.astro';
+import MstRaceDemo from '@components/MstRaceDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
@@ -834,7 +836,104 @@ total weight = 1.81
 - **时间**：排序是 $$O(E \log E)$$。块的判断是 $$O(1)$$，合并要扫整个数组是
   $$O(V)$$，但合并只发生 $$V - 1$$ 次，总共 $$O(V^2)$$。
   把合并换成 **union-find**（并查集），判断和合并都接近常数时间，
-  整体就取决于排序代价 $$O(E \log E)$$。
+  整体就取决于排序代价 $$O(E \log E)$$。下面就来看看。
+
+### union-find \{#union-find}
+
+comp 数组的弱点是合并。每次合并两块，都要扫描全部 V 格改写编号。V 是 10 万时，一次合并
+就是 10 万格，合并 V-1 次就是 100 亿格。
+
+**union-find**（并查集，disjoint set）把每一块当作一棵树来保存。每个顶点只有一个
+**父节点**（parent），沿父节点走上去到达的**根**就是这一块的名字。
+
+- **Find(x)**：从 x 沿父节点走到根。两端的根相同就在同一块里。
+- **Union(a, b)**：把根 a、b 中的一个挂到另一个下面。只改写一格。
+
+只这样做，树可能拉成一条长线，Find 就得走 V 格。两个技巧可以避免。
+
+- **按大小合并**（union by size）：把小树的根挂到大树的根下面。大小相同时，把编号大的根
+  挂到编号小的根下面。
+- **路径压缩**（path compression）：把 Find 经过的顶点直接挂到根上。下一次 Find 一步就到。
+
+<UnionFindDemo />
+
+加入同样的七条边，在同样的 1.81 停下。变的只是保存分量的方法。在 1-3 时，3 沿
+3→2→0 向上走两步。路径压缩把 3 直接挂到 0 上，之后一步就到根。总共走了 16 次链接。
+comp 数组每次合并扫描 8 格，合并 7 次，共 56 格。
+
+- 伪代码（摘自 `08_union_find/unionFind.pseudo`）
+
+```plaintext
+ALGORITHM Find(x)                       // x 所在树的根
+    root <- x
+    while parent[root] != root do       // 沿父节点走到根
+        root <- parent[root]
+    while parent[x] != root do          // 路径压缩：把经过的顶点直接挂到根上
+        next <- parent[x]
+        parent[x] <- root
+        x <- next
+    return root
+
+ALGORITHM Union(a, b)                   // a、b 是不同的根
+    if size[a] < size[b] or (size[a] = size[b] and a > b) then
+        swap(a, b)                      // a 是大的一方（相同时是编号小的一方）
+    parent[b] <- a                      // 把小树挂到大树的根下面
+    size[a] <- size[a] + size[b]
+```
+
+Kruskal 保持不变，用 `Find(u) != Find(v)` 代替 `comp[u] != comp[v]`，用 `Union` 代替合并。
+
+- 运行
+
+```sh
+cd src/topic-12-graph/08_union_find
+make -f /work/Makefile unionFind.out && ./unionFind.out
+```
+
+- 结果
+
+```console
+V = 8, E = 16, union by size + path compression
+edge      find u    find v    result
+0-7 0.16  0         7         add   7 under 0  parent [0 1 2 3 4 5 6 0]
+2-3 0.17  2         3         add   3 under 2  parent [0 1 2 2 4 5 6 0]
+1-7 0.19  1         7>0       add   1 under 0  parent [0 0 2 2 4 5 6 0]
+0-2 0.26  0         2         add   2 under 0  parent [0 0 0 2 4 5 6 0]
+5-7 0.28  5         7>0       add   5 under 0  parent [0 0 0 2 4 0 6 0]
+1-3 0.29  1>0       3>2>0     skip  root 0     parent [0 0 0 0 4 0 6 0]
+1-5 0.32  1>0       5>0       skip  root 0
+2-7 0.34  2>0       7>0       skip  root 0
+4-5 0.35  4         5>0       add   4 under 0  parent [0 0 0 0 0 0 6 0]
+1-2 0.36  1>0       2>0       skip  root 0
+4-7 0.37  4>0       7>0       skip  root 0
+0-4 0.38  0         4>0       skip  root 0
+6-2 0.40  6         2>0       add   6 under 0  parent [0 0 0 0 0 0 0 0]
+7 edges = V - 1, stop
+mst: 0-7 2-3 1-7 0-2 5-7 4-5 6-2
+total weight = 1.81
+links followed = 16 (comp array: 7 merges x 8 cells = 56)
+
+random connected graphs, E = 4V, seed 2026
+        V       comp cells     finds     links links/find
+    1,000          999,000     7,040     6,447       0.92
+   10,000       99,990,000    78,228    72,834       0.93
+  100,000    9,999,900,000   788,952   737,258       0.93
+```
+
+`find u`、`find v` 两列是从两端走到根的路径。`7>0` 表示 7 的父节点是 0，0 是根。只在
+父节点有变化的行打印 `parent`。
+
+后面的表是在大的随机图上数出的值。`comp cells` 是 comp 数组在 V-1 次合并中每次扫描 V 格的
+总数，`links` 是 union-find 的 Find 走过的父链接总数。这些是计数而不是时间，所以 C 和
+Python 的输出相同。
+
+- **树高**：按大小合并时，树高不会超过 $$\log_2 V$$。顶点往下一层，只发生在它所在的树被挂到
+  一棵同样大或更大的树下面时，每次它所在的树至少变大一倍。树的大小不会超过 V，所以最多
+  $$\log_2 V$$ 层。
+- **再加上路径压缩**：一次 Find 实际上是常数。准确地说与反阿克曼函数 $$\alpha(V)$$ 成正比，
+  即使 V 大到宇宙中的原子数，它也不超过 4。表里一次 Find 平均也不到 1 步。
+- **Kruskal 整体**：V 变 10 倍时，comp 数组变 100 倍，union-find 变 10 倍。判断与合并几乎
+  不花代价，整体取决于排序 $$O(E \log E)$$。
 
 ## 例 4. 优先队列与最小堆 \{#heap}
 
@@ -1147,6 +1246,88 @@ Prim 自始至终只有一块在长大。
 - **时间**：放进堆的项每条边最多一个。放入和取出各是
   $$O(\log E)$$，所以是 $$O(E \log E)$$；又因为 $$E \le V^2$$，有 $$\log E \le 2 \log V$$，
   所以是 $$O(E \log V)$$。
+
+## Kruskal 与 Prim，何时用哪个 \{#mst-when}
+
+Kruskal 和 Prim 得到同一棵 MST，但代价随图而大不相同。实现也各有两种。Kruskal 可以用 comp
+数组或 union-find 保存分量；Prim 可以从堆里取出最近的顶点，也可以不用堆，扫描 V 格的 key
+数组来选。
+
+| 方法 | 保存分量或选下一个顶点 | 时间 |
+| --- | --- | --- |
+| Kruskal comp | 每次合并改写 V 格 | $$O(E \log E + V^2)$$ |
+| Kruskal UF | union-find | $$O(E \log E)$$ |
+| Prim heap | 从最小堆取出 | $$O(E \log V)$$ |
+| Prim array | 扫描 key 数组的 V 格 | $$O(V^2 + E)$$ |
+
+下面的演示在这个浏览器里亲手测这四种方法。用标签切换图。完全图有两种：一种权重随机；
+另一种把 u < v 的边的权重设为 $$(V - u) \times V + v$$，Prim 每加入一个顶点，其余所有顶点的
+key 都会变小。这对堆是最不利的情况。
+
+<MstRaceDemo />
+
+用 C 做同样的事的是 `09_mst_timing`。Prim array 的伪代码如下。
+
+```plaintext
+ALGORITHM PrimArray(G)
+    for each 顶点 v do key[v] <- INF, inTree[v] <- false
+    key[0] <- 0, total <- 0
+    repeat V 次
+        u <- 不在 inTree 里、key 最小的顶点   // 扫描 V 格
+        inTree[u] <- true, total <- total + key[u]
+        for each (u, v, w) in G.adj[u] do
+            if not inTree[v] and w < key[v] then key[v] <- w
+    return total
+```
+
+- 运行
+
+```sh
+cd src/topic-12-graph/09_mst_timing
+make -f /work/Makefile mstTiming.out && ./mstTiming.out
+```
+
+- 结果（毫秒，数值因电脑而异）
+
+```console
+sparse, E = 4V (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+   2000      8000         2.968       0.435      0.142       2.287
+   8000     32000        34.831       2.106      0.955      35.513
+  32000    128000       517.287      10.024      5.184     555.430
+
+complete, E = V(V-1)/2 (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         9.306       9.148      0.256       0.491
+   1000    499500        41.711      41.022      0.965       2.106
+   2000   1999000       183.393     180.328      3.413       9.270
+
+complete, every edge lowers a key (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         2.984       3.002      5.445       0.233
+   1000    499500        13.145      13.253     25.066       0.833
+   2000   1999000        57.362      56.097    109.677       3.222
+```
+
+- **稀疏图**：V 变 4 倍时，Kruskal comp 和 Prim array 约变 15 倍。二者都受 $$V^2$$ 限制。
+  换成 union-find 和堆的两种方法，在 V = 32,000 时分别快 50 倍和 100 倍以上。
+- **随机完全图**：Prim heap 最快。权重随机时，新加入的顶点很少让其余顶点的 key 变小，
+  入堆次数远少于 E。演示中 V = 2,000 时，约 200 万条边里不到 1%。Kruskal 要对所有边排序，最慢。
+- **对堆最不利的完全图**：每条边都让 key 变小，入堆 E 次。这时 V = 2,000 下 Prim array 快
+  34 倍。$$O(V^2)$$ 是不论输入都成立的上界，在完全图上与把每条边看一次的代价同一量级。
+
+归纳如下。
+
+| 情况 | 选什么 | 原因 |
+| --- | --- | --- |
+| 稀疏（$$E \approx V$$） | Kruskal UF、Prim heap | 都是 $$O(E \log V)$$。V 大时 $$V^2$$ 的方法用不了 |
+| 稠密（$$E \approx V^2$$） | Prim array | 不论输入都是 $$O(V^2)$$。key 经常变小时堆要 $$E \log V$$ |
+| 只有边的列表 | Kruskal UF | 不必建邻接表 |
+| 分成 k 块 | Kruskal 在 V-k 条边时停下 | 那时的森林就是答案 |
+
+最后一行是聚类（clustering）。让 Kruskal 不在 V-1 条边、而在 V-k 条边时停下，就剩下 k 块，
+不同块中最近两个顶点之间的距离，在所有分法中最大。随机完全图上堆快，是输入帮的忙，
+不是有保证的上界。
 
 ## 最短路径 \{#shortest-path}
 
@@ -1696,6 +1877,8 @@ $$2h^*$$ 高估了剩余距离，所以不是可采纳的。它关闭的顶点�
   $$O(V + E)$$。
 - **割的性质**：无论哪个割，最轻的横切边都在 MST 里。Kruskal 和
   Prim 是只在选割方式上不同的贪心。例子的 MST 是 1.81。
+- **union-find**：按大小合并并压缩路径，Find 实际上是常数，所以 Kruskal 取决于排序
+  $$O(E \log E)$$。稀疏图用 Kruskal UF 或 Prim heap，稠密图用不用堆、扫描 V 格的 Prim array。
 - **最小堆**：放入时用 sift up 上浮，取出时用 sift down 下沉。二者都是
   $$O(\log n)$$，是优先队列的基础。
 - **Prim 和 Dijkstra 是同一个框架**。区别只在放进堆的值是一条边的权重，
@@ -1716,7 +1899,9 @@ src/topic-12-graph/
 ├── 04_min_heap/         # insert 10, insert 0, extract min
 ├── 05_mst_prim/         # 用最小堆从顶点 0 开始，MST 1.81
 ├── 06_dijkstra/         # 从 0 到 6 是 25，负权重时出错的例子
-└── 07_a_star/           # 不重新打开是 26，重新打开是 25
+├── 07_a_star/           # 不重新打开是 26，重新打开是 25
+├── 08_union_find/       # 用 union-find 做 Kruskal，链接 16 次 vs comp 数组 56 格
+└── 09_mst_timing/       # 两种 Kruskal 与两种 Prim 的时间，稀疏图与完全图
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
@@ -1728,6 +1913,7 @@ src/topic-12-graph/
   会变，但 dist 列不变。
 - 在 `02_dfs` 里改成邻居从大编号开始压栈。访问顺序会变成 `0 1 2 3 4 5 6`。
 - 改变 `05_mst_prim` 的起点。接入顺序会变，但 MST 和 1.81 不变。
+- 去掉 `08_union_find` 里 `unite` 的大小比较。后面表里的 `links` 会变多。
 - 把 `07_a_star` 的 `h` 全部改成 0，就会按和 Dijkstra 相同的顺序关闭；改成实际剩余
   距离（`25 22 11 9 16 12 0 18`），就只关闭四个顶点便到达目标。
 

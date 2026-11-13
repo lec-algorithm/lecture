@@ -32,6 +32,8 @@ import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 import VarLegend from '@components/VarLegend.astro';
+import UnionFindDemo from '@components/UnionFindDemo.astro';
+import MstRaceDemo from '@components/MstRaceDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-12-graph）的运行结果一致。 */}
@@ -812,11 +814,108 @@ total weight = 1.81
   - 把 v 所在的块和其余部分看成割，e 就是这个割中最轻的横切边
 - **时间**
   - 排序 $$O(E \log E)$$
-  - 合并 $$O(V)$$ × $$V-1$$ 次
-  - 用 union-find 就是 $$O(E \log E)$$
+  - 合并 $$O(V)$$ × $$V-1$$ 次 = $$O(V^2)$$
+  - 用 union-find 就是 $$O(E \log E)$$（下一页）
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+#### union-find
+::sub[不改写所有分量编号，每个顶点只留一个父节点]
+
+<VarLegend set="graph" />
+
+- comp 数组每次合并都要改写**全部 V 格**。合并 V-1 次就是 $$O(V^2)$$
+- union-find 给每个顶点只留一个**父节点**（parent）。
+  - 沿父节点走上去到达的**根**就是分量的名字。
+  - **Find(x)**：从 x 走到根。
+  - **Union(a, b)**：把一个根挂到另一个根下面。
+- 两个技巧
+  - **按大小合并**：把小树的根挂到大树的根下面。
+  - **路径压缩**：把 Find 经过的顶点直接挂到根上。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：用 union-find 做 Kruskal
+::sub[橙色是 Find 走过的路，绿色是新挂的链接，蓝色是路径压缩 · 根上方的数字是树的大小]
+
+<UnionFindDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 过程
+::sub[`08_union_find/unionFind.pseudo` · Kruskal 不变，只换分量的判断]
+
+```plaintext
+ALGORITHM Find(x)                       // x 所在树的根
+    root <- x
+    while parent[root] != root do       // 沿父节点走到根
+        root <- parent[root]
+    while parent[x] != root do          // 路径压缩：把经过的顶点直接挂到根上
+        next <- parent[x], parent[x] <- root, x <- next
+    return root
+
+ALGORITHM Union(a, b)                   // a、b 是不同的根
+    if size[a] < size[b] or (size[a] = size[b] and a > b) then
+        swap(a, b)                      // a 是大的一方（相同时是编号小的一方）
+    parent[b] <- a                      // 小树挂到大树下面
+    size[a] <- size[a] + size[b]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### 运行
+::sub[`08_union_find/` · 中间两列是从两端 Find 走过的路 · 加入的边和总权重与 comp 数组相同]
+
+```console
+0-7 0.16  0         7         add   7 under 0  parent [0 1 2 3 4 5 6 0]
+2-3 0.17  2         3         add   3 under 2  parent [0 1 2 2 4 5 6 0]
+1-7 0.19  1         7>0       add   1 under 0  parent [0 0 2 2 4 5 6 0]
+0-2 0.26  0         2         add   2 under 0  parent [0 0 0 2 4 5 6 0]
+5-7 0.28  5         7>0       add   5 under 0  parent [0 0 0 2 4 0 6 0]
+1-3 0.29  1>0       3>2>0     skip  root 0     parent [0 0 0 0 4 0 6 0]
+1-5 0.32  1>0       5>0       skip  root 0
+2-7 0.34  2>0       7>0       skip  root 0
+4-5 0.35  4         5>0       add   4 under 0  parent [0 0 0 0 0 0 6 0]
+1-2 0.36  1>0       2>0       skip  root 0
+4-7 0.37  4>0       7>0       skip  root 0
+0-4 0.38  0         4>0       skip  root 0
+6-2 0.40  6         2>0       add   6 under 0  parent [0 0 0 0 0 0 0 0]
+links followed = 16 (comp array: 7 merges x 8 cells = 56)
+```
+
+</Slide>
+
+<Slide>
+
+#### 分析
+::sub[`08_union_find` 后半部分 · E = 4V 的随机连通图]
+
+<VarLegend set="graph" />
+
+```console
+random connected graphs, E = 4V, seed 2026
+        V       comp cells     finds     links links/find
+    1,000          999,000     7,040     6,447       0.92
+   10,000       99,990,000    78,228    72,834       0.93
+  100,000    9,999,900,000   788,952   737,258       0.93
+```
+
+- 按大小合并时，树高不会超过 $$\log_2 V$$。
+  - 顶点每往下一层，它所在的树至少变大一倍。
+- 再加上路径压缩，一次 Find 实际上是常数。这里平均不到 1 步。
+- V 变 10 倍时，comp 数组变 100 倍，union-find 随 V 变 10 倍
+- Kruskal 整体取决于排序 $$O(E \log E)$$。
 
 </Slide>
 
@@ -1048,6 +1147,91 @@ total weight = 1.81
 - **与 Kruskal 的不同**
   - Kruskal 是多块各自长大再合并。
   - Prim 自始至终只有一块在长大。
+
+</Slide>
+
+<Slide class="center">
+
+## Kruskal 与 Prim，何时用哪个
+::sub[同一棵 MST，不同的代价]
+
+</Slide>
+
+<Slide>
+
+### 亲手测：MST 的四种方法
+::sub[用标签切换图 · 绿色行是用 union-find 和堆改进后的方法]
+
+<VarLegend set="graph" />
+
+<MstRaceDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 用 C 测的时间：稀疏图
+::sub[`09_mst_timing/` · 毫秒，数值因电脑而异，要看比例]
+
+<VarLegend set="graph" />
+
+```console
+sparse, E = 4V (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+   2000      8000         2.968       0.435      0.142       2.287
+   8000     32000        34.831       2.106      0.955      35.513
+  32000    128000       517.287      10.024      5.184     555.430
+```
+
+- V 变 4 倍时，Kruskal comp 约变 15 倍，Prim array 约变 16 倍。二者都受 $$V^2$$ 限制。
+- 换成 union-find 和堆后，在 V = 32,000 时分别快 50 倍和 100 倍以上。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 用 C 测的时间：完全图
+::sub[`09_mst_timing/` · 上面是随机权重，下面是每条边都让 key 变小、对堆最不利的情况]
+
+<VarLegend set="graph" />
+
+```console
+complete, E = V(V-1)/2 (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         9.306       9.148      0.256       0.491
+   1000    499500        41.711      41.022      0.965       2.106
+   2000   1999000       183.393     180.328      3.413       9.270
+
+complete, every edge lowers a key (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         2.984       3.002      5.445       0.233
+   1000    499500        13.145      13.253     25.066       0.833
+   2000   1999000        57.362      56.097    109.677       3.222
+```
+
+- 权重随机时 Prim heap 最快。key 很少变小，入堆次数远少于 E。
+- 对堆不利时每条边都要入堆。V = 2,000 时 Prim array 快 34 倍。
+- Kruskal 要对全部 E 条边排序，在稠密图上吃亏。
+
+</Slide>
+
+<Slide>
+
+#### 何时用哪个
+::sub[稀疏用 E log V，稠密用 V²]
+
+<VarLegend set="graph" />
+
+| 情况 | 选什么 | 原因 |
+| --- | --- | --- |
+| 稀疏（$$E \approx V$$） | Kruskal UF、Prim heap | 都是 $$O(E \log V)$$。V 大时 $$V^2$$ 的方法用不了 |
+| 稠密（$$E \approx V^2$$） | Prim array | 不论输入都是 $$O(V^2)$$。key 经常变小时堆要 $$E \log V$$ |
+| 只有边的列表 | Kruskal UF | 不必建邻接表 |
+| 分成 k 块 | Kruskal 在 V-k 条边时停下 | 那时的森林就是答案 |
+
+<br/>
+
+随机完全图上 Prim heap 快，是因为 key 很少变小。这不是上界。
 
 </Slide>
 
