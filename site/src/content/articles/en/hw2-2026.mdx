@@ -1,0 +1,325 @@
+---
+title: Assignment 2 · Building a URL shortener with an agent
+description: Move past asking a chat window and pasting the answer. Let an agent inside your Codespace read the repository, edit files and run the tests. We start together in class on November 20; submit by November 29
+date: 2026-11-20
+category: assignment
+tags: ["Assignment 2", "Submission", "Agent", "Hashing"]
+---
+
+If you only use AI in a chat window, this assignment is the next step.
+The same AI can do much more **when it works inside your repository**.
+You learn how by building one URL shortener.
+
+| Item | Details |
+| --- | --- |
+| Class | November 20, 2026, after the graph lecture, we follow along together |
+| Deadline | November 29, 2026, 23:59 |
+| What you hand in | Repository URL + ZIP |
+| Starter repository | [hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026) |
+| Slides | [Assignment 2 lab slides](/slides/hw2-2026/) |
+
+Students who miss the class hand in **the same assignment**. This page is written so
+you can follow it to the end on your own. See [If you missed the class](#absent).
+
+## What the assignment is about \{#what}
+
+Chat and agent use the same AI, but they work in different places.
+
+| | Chat | Agent |
+| --- | --- | --- |
+| Does it know my code | Only what I paste in | Reads the files in the repository itself |
+| Where does the result go | I copy the answer and paste it | It creates and edits files itself |
+| Does it run anything | No | Runs the tests in the terminal and reads the failures |
+| Does it remember rules | Forgets when the conversation ends | Reads the rules file every time |
+
+The more the agent can do, the clearer the human's part becomes.
+
+- **I decide what to build.** Writing the specification is the human's job.
+- **I check that it is right.** Agents are wrong in convincing ways. Tests and real runs catch it.
+- **I leave points to go back to.** Committing after every step means anything the agent breaks can be undone.
+
+You build a URL shortener on top of the hash table from [Topic 08](/course/topic-08-hashing/).
+Give it a long URL and it returns a short code such as `1`, `2`, `3`; open that code and
+it sends you to the original address. At the end you run the server in your Codespace
+and **open the short link on your own phone.**
+
+## Before class \{#prepare}
+
+Do these three things before class. Doing them in class costs ten minutes of waiting.
+
+1. A laptop where you can **sign in to GitHub**. Bring a phone too.
+2. **Turn on Copilot Free** at [github.com/settings/copilot](https://github.com/settings/copilot). It is free and needs no payment details.
+3. **Open a Codespace once**: follow [Setting up the lab environment](/article/setup-guide/) and open a Codespace on `algorithm-code`. The first one takes a few minutes.
+
+### Free allowance \{#quota}
+
+Copilot Free limits how much you can use chat and the agent. Completions are counted
+separately, 2,000 per month. This assignment is designed to fit in **about 20 agent
+requests**. Some ways to save them:
+
+- Ask for one thing at a time, and say exactly what you want. A vague request spends one turn on a clarifying question.
+- Paste the failure message as it is. It gets fixed in one go, unlike "it doesn't work."
+- Make small edits yourself. Do not spend a request on renaming a variable.
+
+Verified students can get the Copilot Student plan through GitHub Education. Its
+availability changes, so check [GitHub Education](https://education.github.com/).
+**You can finish the assignment without it.**
+
+## Getting started \{#start}
+
+1. On [hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026), click **Use this template** → **Create a new repository**
+2. Name it something like `algorithms-hw2` and make it **Public**.
+3. In **your new repository**, click **Code** → **Codespaces** → **Create codespace on main**
+4. Open the chat with the Copilot icon in the side bar or the title bar, and switch the mode under the input box to **Agent**.
+
+The starter repository has no solution in it. The agent reads the files in the
+workspace, so if a solution sat next to it, it would copy that and you would learn nothing.
+
+| File | Purpose |
+| --- | --- |
+| `SPEC.md` | Specification template. You fill it in |
+| `AGENT_LOG.md` | Work log template for submission |
+| `src/` · `tests/` · `experiments/` | Empty |
+| `tools/catchup.sh` | Catch up on a missed step |
+| `Makefile` | `make test` · `make serve` · `make experiment` |
+
+## Seven steps \{#steps}
+
+Each step repeats **request → check → commit → log**. Commit in the terminal.
+
+```sh
+git add -A && git commit -m "Step 1: base62 encode/decode"
+```
+
+In `AGENT_LOG.md`, write one line per step with the exact request you used and what
+you checked. You can use the example requests below as they are or rewrite them.
+
+### Step 1. Chat and agent side by side \{#step-1}
+
+Build the same feature both ways and see the difference. The feature is base62
+encoding, which turns an integer into short text: base 62 written with the 62
+characters `0-9`, `a-z`, `A-Z`.
+
+First the **chat way**. Leave the mode on **Ask** and ask:
+
+```text
+Write base62 encode/decode functions in Python
+```
+
+Copy the answer into `src/base62.py` and work out for yourself how to run it.
+
+Now switch the mode to **Agent**. Delete the pasted file and ask:
+
+```text
+In src/base62.py, write encode(n), which turns an integer n >= 0 into a base-62
+string using the characters 0-9, a-z, A-Z in that order, and its inverse decode(s).
+Write unittest tests in tests/test_base62.py, then run make test in the terminal
+and show me that they pass.
+```
+
+The agent creates files and asks whether it may run terminal commands. **You are the
+one who clicks Allow.** Read what it wants to run before you click.
+
+What to check
+
+- What does `encode(0)` return? An empty string is a common bug.
+- Did the chat answer and the agent answer use the same character order? If you do not say, the AI picks one.
+- What did you do by hand in each approach? That is section 3 of `AGENT_LOG.md`.
+
+### Step 2. I write the specification \{#step-2}
+
+As step 1 showed, whatever you leave out the AI decides for you. So before building,
+you write `SPEC.md` **yourself**. Make no agent requests in this step.
+
+Delete the `TEMPLATE:` line at the top and answer these questions section by section.
+
+- **Hash table**: how are collisions resolved? What is the hash function? When does the table grow?
+- **Shortener**: does the same URL get the same code twice? Is an unknown code an error or `None`?
+- **Bad input**: what happens to an address starting with `ftp://`, one with a space, a very long one?
+- **Edge cases**: list everything to turn into tests. This list becomes the tests in step 4.
+
+Decide that the hash table uses **linear probing** and the **Horner hash** from Topic 08,
+and does not use Python's `dict`, `set` or built-in `hash()`. This assignment is about
+building the hash table yourself. The built-in `hash()` gives strings a different value
+on every run, so rerunning the step 6 experiment would give different numbers.
+
+### Step 3. A plan before code \{#step-3}
+
+Do not say "build it" right away. Get a plan first and review it.
+
+```text
+Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
+Do not write any code yet.
+```
+
+Read `PLAN.md`, find where it disagrees with the specification, and fix it yourself.
+These come up often:
+
+- It plans to store URL→code in a `dict`. That breaks the specification.
+- It plans to make the code a hash of the URL. Then two different URLs can get the same code.
+- It plans to write the tests last. Change the order.
+
+Fixing the plan is much cheaper than fixing the code.
+
+### Step 4. Tests first, implementation by the agent \{#step-4}
+
+Ask for the tests only.
+
+```text
+Turn the edge cases in section 6 of SPEC.md into unittest tests in
+tests/test_hash_table.py and tests/test_shortener.py. Do not implement anything yet.
+```
+
+**Read** the tests. Check that every edge case from the specification is there and that
+the expected values are right. Add whatever is missing yourself and commit. `make test`
+fails at this point, which is expected: there is no implementation yet.
+
+Then ask for the implementation.
+
+```text
+Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
+and keep fixing them until make test passes. Do not change the tests.
+```
+
+**"Do not change the tests" matters.** Without it the agent sometimes quietly edits a
+test it cannot pass. When it finishes, open the changed files, read the diff and commit.
+
+### Step 5. Give the rules as a file \{#step-5}
+
+Check in the terminal whether the agent followed the specification.
+
+```sh
+grep -n "dict\|set(\|hash(" src/*.py
+```
+
+A rule in the specification does nothing if the agent never reads `SPEC.md`. The agent
+reads only the files that look relevant at the moment. **`.github/copilot-instructions.md`,
+on the other hand, is read with every request.** Create this file yourself and write the
+repository's rules in it.
+
+- `.github/copilot-instructions.md` (part of an example)
+
+```md
+# To the agent working in this repository
+
+- Read SPEC.md before writing code.
+- Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
+- After changing code, run make test and show the result.
+- If a test fails, fix the code, not the test.
+- I am a first-year student. Summarize what you changed in at most three lines.
+```
+
+Open a new chat and ask it to check. If anything broke the rules, have it fixed.
+
+```text
+Check whether the code in src/ follows this repository's rules, and fix anything that breaks them.
+```
+
+A rules file is a habit that outlives this assignment. Put one in your project repository too.
+
+### Step 6. Verify the result yourself \{#step-6}
+
+Passing tests do not make a hash table a **good** one. As Topic 08 showed, linear probing
+slows down sharply as the load factor approaches 1. Measure whether your table does.
+
+```text
+Create experiments/probe_experiment.py. Fill a HashTable(max_load=None) of fixed size
+4093 with random URLs up to load factors from 0.1 to 0.9, measure the average number
+of slots probed for successful and unsuccessful searches, and compare them in a table
+with Knuth's approximations from Topic 08:
+hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2.
+Save experiments/results.csv and an SVG chart. Do not use external libraries.
+```
+
+Run `make experiment` and **judge the numbers yourself.**
+
+- At load factor 1/2, are hits near 1.5 and misses near 2.5?
+- If they are far from theory, find out why. Check whether the first slot was counted as 0, or whether the hash function differs from the specification.
+- Can you read the axis labels and the legend?
+
+### Step 7. Serve it \{#step-7}
+
+Finally, add a web server.
+
+```text
+Create src/server.py as described in section 5 of SPEC.md. Use only the standard
+http.server module, and make it start on port 8000 with make serve.
+```
+
+Start it with `make serve` and open it on your phone.
+
+1. In the bottom panel, find port 8000 on the **Ports** tab.
+2. Right-click the row → **Port Visibility** → **Public**
+3. Open the **Forwarded Address** on your phone.
+4. Enter a long URL, get a short link, and tap it to see that it goes to the original address.
+
+If the short link shows `localhost:8000`, the agent did not know about the proxy.
+Codespaces passes the requested address in the `X-Forwarded-Host` header. Things like this
+are the "places the agent was wrong" for section 2 of `AGENT_LOG.md`.
+
+**Anyone on the internet can open a public port.** When you are done, stop the server with
+`Ctrl+C` and switch the port back to **Private**. Restarting the Codespace also makes it private again.
+
+## Catching up on a missed step \{#catchup}
+
+If you miss a step in class you can still go on. Commit what you have, then give the
+step number to catch up to.
+
+```sh
+git add -A && git commit -m "WIP"
+sh tools/catchup.sh 4
+```
+
+This sets `src/`, `tests/`, `experiments/` and so on to the `step-4` tag of the
+[sample repository](https://github.com/lec-algorithm/hw2-sample-2026). It does not touch
+`AGENT_LOG.md`. Write "caught up" in the log for that step. Catching up costs no points,
+but you cannot use that step for "places the agent was wrong."
+
+## Submission \{#submit}
+
+| What | How |
+| --- | --- |
+| Repository URL | Enter it in the LearnUs assignment box |
+| ZIP | The file from **Code** → **Download ZIP** on your repository |
+
+The repository must contain:
+
+- `SPEC.md`: the specification you wrote
+- `.github/copilot-instructions.md`: the rules you wrote
+- `src/`, `tests/`: your own hash table, shortener, server and their tests
+- `experiments/`: the experiment script, `results.csv` and the chart
+- `AGENT_LOG.md`: the step log, two or more places the agent was wrong, the comparison with chat, and your reflections
+- A commit history with a commit per step
+
+Keep the repository public. Commits after the deadline are not graded.
+
+## Grading \{#grading}
+
+We look at **what you decided and what you caught**, not at how well the agent did.
+Agent output differs from person to person, so grading only the finished product would
+let luck decide the score.
+
+| Item | Points | What we look at |
+| --- | --- | --- |
+| Specification and tests | 1 | You chose the edge cases, and the tests check all of them |
+| Rules file | 1 | The rules are concrete and actually had an effect |
+| Hash table and experiment | 1 | Works without `dict`, and measured values are compared with theory and explained |
+| Work log | 1.5 | Concretely describes how you noticed and fixed mistakes |
+| Service | 0.5 | Starts with `make serve` and the short link redirects |
+
+## If you missed the class \{#absent}
+
+Hand in **the same assignment with the same deadline**. Follow the [seven steps](#steps)
+on this page in order. The screens shown in class are in the [slides](/slides/hw2-2026/).
+
+- Working alone, commit even more carefully after each step. Your commit history stands in for class attendance.
+- If you get stuck, you may move on with `tools/catchup.sh`.
+- Post questions on the LearnUs board.
+
+## Rules for using AI \{#ai-rules}
+
+This assignment is about using AI. Some parts are still yours.
+
+- **You write** `SPEC.md` and `AGENT_LOG.md`. A log written by AI is not a log.
+- You may get a first draft of the rules file from AI, but you decide what goes in it.
+- Do not copy someone else's repository. It shows in the commit history and the log.
