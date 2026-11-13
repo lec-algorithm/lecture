@@ -1,0 +1,764 @@
+---
+// union-find로 Kruskal을 한 걸음씩 해 보는 데모.
+//
+// 왼쪽은 union-find의 숲이다. 정점마다 부모를 가리키는 화살표 하나가 있고, 화살표를
+// 따라 올라가 닿는 뿌리(굵은 테두리)가 그 덩어리의 이름이다. 뿌리 위의 작은 숫자는
+// 트리의 크기(정점 수)다. 오른쪽은 가중치 순으로 정렬한 간선 목록과 parent 배열이다.
+//
+// 한 걸음에 간선 하나를 본다. 두 끝에서 Find가 지나온 경로를 주황으로 칠하고,
+// 뿌리가 다르면 넣고(초록) 작은 트리의 뿌리를 큰 트리의 뿌리 밑에 단다. 크기가 같으면
+// 번호가 큰 뿌리를 단다. 뿌리가 같으면 사이클이므로 버린다. Find가 두 칸 이상
+// 올라갔으면 경로 압축으로 지나온 정점을 뿌리에 바로 붙인다(파랑).
+//
+// 절차와 결과는 algorithm-code의 08_union_find와 같다. 간선 7개를 넣고 멈추며, 총 가중치는
+// 1.81, 따라간 링크는 16번이다. comp 배열이었다면 합치기 7번 x 8칸 = 56칸을 훑는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
+  initial?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { initial = -1, slide = false } = Astro.props;
+const g = getGraph('mst');
+const n = g.nodes.length;
+const id = `uf-${Math.random().toString(36).slice(2, 9)}`;
+/* 간선은 처음부터 (가중치, u, v) 순으로 줄 세워 둔다. 정렬 자체는 KruskalDemo가 보인다. */
+const sorted = g.edges
+  .map((e, i) => ({ e, i }))
+  .sort((a, b) => a.e[2] - b.e[2] || a.e[0] - b.e[0] || a.e[1] - b.e[1])
+  .map(({ e }) => e);
+const PER_COL = Math.ceil(sorted.length / 2);
+
+/* 숲을 그리는 칸. 정점 8개를 한 줄에 놓을 수 있는 폭, 세 층의 높이 */
+const COL = 62;
+const ROW = 78;
+const W = COL * n;
+const H = ROW * 3 + 30;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'union-find로 하는 Kruskal',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    edges: '간선 (가중치 순)',
+    parent: 'parent (부모)',
+    countPre: 'MST 간선 ',
+    links: '따라간 링크',
+    idle: '정점마다 자기 혼자인 트리입니다. parent[v] = v, 곧 저마다 뿌리이고 크기는 1입니다.',
+    find: 'Find({u}) {pu} · Find({v}) {pv}',
+    add: '{e} ({w}): 뿌리 {a|과} {b|이} 다르므로 넣습니다.',
+    bySize: '크기 {big} > {small}이므로 작은 쪽 뿌리 {low|을} {high} 밑에 답니다.',
+    tie: '크기가 {big|으로} 같아 번호가 큰 {low|을} {high} 밑에 답니다.',
+    skip: '{e} ({w}): 두 끝의 뿌리가 모두 {r}입니다. 넣으면 사이클이므로 버립니다.',
+    climb: '{x|은} {path|으로} {d}칸을 올라가야 뿌리에 닿습니다.',
+    compress: '경로 압축: Find가 지나온 {x|을} 뿌리 {r}에 바로 붙입니다.',
+    done: '간선이 V-1 = {k}개가 되어 멈춥니다. 링크를 모두 {links}번 따라갔습니다. comp 배열이었다면 합치기 {k}번 × {n}칸 = {cells}칸을 훑었습니다.',
+  },
+  en: {
+    title: 'Kruskal with union-find',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    edges: 'Edges (by weight)',
+    parent: 'parent',
+    countPre: 'MST edges ',
+    links: 'links followed',
+    idle: 'Every vertex is a tree of its own. parent[v] = v, so each one is a root of size 1.',
+    find: 'Find({u}) {pu} · Find({v}) {pv}',
+    add: '{e} ({w}): roots {a} and {b} differ, so add it.',
+    bySize: 'Size {big} > {small}, so hang the smaller root {low} under {high}.',
+    tie: 'Both have size {big}, so hang the larger number {low} under {high}.',
+    skip: '{e} ({w}): both ends have root {r}. Adding it makes a cycle, so drop it.',
+    climb: '{x} has to climb {d} links, {path}, to reach its root.',
+    compress: 'Path compression: Find hangs {x}, which it passed, directly under the root {r}.',
+    done: 'V-1 = {k} edges, stop. {links} links followed in all. A comp array would have scanned {k} merges × {n} cells = {cells} cells.',
+  },
+  zh: {
+    title: '用 union-find 做 Kruskal',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    edges: '边（按权重）',
+    parent: 'parent（父节点）',
+    countPre: 'MST 边 ',
+    links: '走过的链接',
+    idle: '每个顶点各自是一棵树。parent[v] = v，所以每个都是根，大小为 1。',
+    find: 'Find({u}) {pu} · Find({v}) {pv}',
+    add: '{e}（{w}）：根 {a} 和 {b} 不同，加入。',
+    bySize: '大小 {big} > {small}，把小的一边的根 {low} 挂到 {high} 下面。',
+    tie: '大小同为 {big}，把编号大的 {low} 挂到 {high} 下面。',
+    skip: '{e}（{w}）：两端的根都是 {r}。加入会成环，丢弃。',
+    climb: '{x} 要沿 {path} 向上走 {d} 步才到根。',
+    compress: '路径压缩：把 Find 经过的 {x} 直接挂到根 {r} 下面。',
+    done: '边数达到 V-1 = {k}，停止。总共走了 {links} 次链接。若用 comp 数组，要扫描合并 {k} 次 × {n} 格 = {cells} 格。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
+---
+
+<div
+  class:list={['aas-uf-demo', slide && 'is-slide']}
+  id={id}
+  data-uf-n={n}
+  data-uf-edges={JSON.stringify(sorted)}
+  data-uf-scale={g.scale ?? 1}
+  data-uf-initial={initial}
+  data-uf-geo={JSON.stringify({ COL, ROW })}
+  data-uf-strings={JSON.stringify(t)}
+  style={`--uf-rows: ${PER_COL}`}
+>
+  <div class="uf-bar">
+    <span class="uf-head"><strong>{t.title}</strong></span>
+    <div class="uf-controls">
+      <button type="button" data-act="back" class="uf-btn">{t.back}</button>
+      <button type="button" data-act="step" class="uf-btn">{t.step}</button>
+      <button type="button" data-act="play" class="uf-btn uf-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="uf-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="uf-body">
+    <div class="uf-forest">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.parent}>
+        <defs>
+          <marker id={`${id}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="context-stroke"></path>
+          </marker>
+        </defs>
+        <g data-uf-links>
+          {Array.from({ length: n }, (_, v) => (
+            <line data-uf-link={v} marker-end={`url(#${id}-arrow)`} />
+          ))}
+        </g>
+        <g data-uf-nodes>
+          {Array.from({ length: n }, (_, v) => (
+            <g class="uf-node" data-uf-node={v}>
+              <circle r="19" />
+              <text class="uf-id" text-anchor="middle" dy="0.35em">{v}</text>
+              <text class="uf-size" text-anchor="middle" y="-27" data-uf-size={v}></text>
+            </g>
+          ))}
+        </g>
+      </svg>
+    </div>
+    <div class="uf-panel">
+      <div class="uf-label">{t.edges}</div>
+      <div class="uf-list">
+        {sorted.map(([u, v, w], i) => (
+          <span class="uf-chip" data-uf-chip={i}>
+            {u}-{v} <b>{fmt(w)}</b>
+          </span>
+        ))}
+      </div>
+      <div class="uf-label">{t.parent}</div>
+      <div class="uf-parent">
+        {Array.from({ length: n }, (_, v) => (
+          <span class="uf-cell">
+            <i>{v}</i>
+            <b data-uf-parent={v}>{v}</b>
+          </span>
+        ))}
+      </div>
+      <p class="uf-find" data-uf-find></p>
+    </div>
+  </div>
+
+  <div class="uf-foot">
+    <p class="uf-note" data-uf-note></p>
+    <span class="uf-count">
+      {t.countPre}<strong data-uf-count>0</strong> / {n - 1} · {t.links} <strong data-uf-links-count>0</strong>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 한국어 조사는 {v|을}처럼 받침 있는 꼴로 적는다. 숫자는 끝자리 소리로 정한다(KruskalDemo와 같다). */
+    const JOSA = { 을: '를', 이: '가', 은: '는', 과: '와', 으로: '로' };
+    const batchim = (val) => {
+      const ch = String(val).trim().slice(-1);
+      if (/[0-9]/.test(ch)) return [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][Number(ch)] ? (ch === '1' || ch === '7' || ch === '8' ? 'l' : 'y') : '';
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return '';
+      const fin = code % 28;
+      return fin === 0 ? '' : fin === 8 ? 'l' : 'y';
+    };
+    const josa = (val, p) => {
+      const b = batchim(val);
+      if (p === '으로') return b === 'y' ? '으로' : '로';
+      return b ? p : JOSA[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(~?)(\w+)(?:\|([^}]+))?\}/g, (_, only, k, p) => (p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k]));
+
+    const n = Number(root.dataset.ufN);
+    const edges = JSON.parse(root.dataset.ufEdges);
+    const scale = Number(root.dataset.ufScale);
+    const { COL, ROW } = JSON.parse(root.dataset.ufGeo);
+    const S = JSON.parse(root.dataset.ufStrings);
+    const fmt = (w) => (w / scale).toFixed(2);
+
+    /* 절차는 unionFind.pseudo와 같다. 단계마다 화면 전체의 모습을 담는다. */
+    function plan() {
+      const parent = Array.from({ length: n }, (_, v) => v);
+      const size = new Array(n).fill(1);
+      const status = new Array(edges.length).fill(null);
+      const steps = [];
+      let k = 0;
+      let links = 0;
+      let total = 0;
+      /* Find는 뿌리까지 올라간 경로를 돌려주고, 그 자리에서 경로 압축을 한다(08_union_find와 같은 순서). */
+      let moved = [];
+      const find = (x) => {
+        const path = [x];
+        let r = x;
+        while (parent[r] !== r) {
+          r = parent[r];
+          path.push(r);
+          links += 1;
+        }
+        path.slice(0, -2).forEach((y, j) => {
+          moved.push({ x: y, d: path.length - 1 - j, r, path: path.slice(j).join('→') });
+          parent[y] = r;
+        });
+        return path;
+      };
+      for (let i = 0; i < edges.length; i++) {
+        const [u, v, w] = edges[i];
+        const before = parent.slice();
+        moved = [];
+        const pu = find(u);
+        const pv = find(v);
+        const a = pu[pu.length - 1];
+        const b = pv[pv.length - 1];
+        const e = `${u}-${v}`;
+        let note;
+        let joined = null;
+        if (a !== b) {
+          let hi = a;
+          let lo = b;
+          if (size[hi] < size[lo] || (size[hi] === size[lo] && hi > lo)) [hi, lo] = [lo, hi];
+          const tie = size[hi] === size[lo];
+          note = fill(S.add, { e, w: fmt(w), a, b }) + ' ' +
+            fill(tie ? S.tie : S.bySize, { big: size[hi], small: size[lo], low: lo, high: hi });
+          parent[lo] = hi;
+          size[hi] += size[lo];
+          joined = lo;
+          status[i] = 'add';
+          k += 1;
+          total += w;
+        } else {
+          note = fill(S.skip, { e, w: fmt(w), r: a });
+          status[i] = 'skip';
+        }
+        const arrow = (p) => p.join('→');
+        /* 경로 압축이 있으면 먼저 압축 전의 숲에서 올라간 길을 보이고, 다음 걸음에서 압축한다. */
+        if (moved.length > 0) {
+          const head = note.split(/(?<=\.)\s+|(?<=。)/)[0];
+          steps.push({
+            parent: before,
+            changed: new Array(n).fill(false),
+            size: steps.length ? steps[steps.length - 1].size : new Array(n).fill(1),
+            status: status.map((x, j) => (j === i ? null : x)),
+            cur: i,
+            path: new Set([...pu, ...pv]),
+            pathLinks: new Set([...pu.slice(0, -1), ...pv.slice(0, -1)]),
+            joined: null,
+            moved: new Set(),
+            find: fill(S.find, { u, v, pu: arrow(pu), pv: arrow(pv) }),
+            k: steps.length ? steps[steps.length - 1].k : 0,
+            links,
+            total,
+            note: [head, ...moved.map((m) => fill(S.climb, m))].join(' '),
+          });
+          note = [note.slice(head.length).trim(), ...moved.map((m) => fill(S.compress, m))].filter(Boolean).join(' ');
+        }
+        steps.push({
+          parent: parent.slice(),
+          changed: parent.map((p, x) => p !== before[x]),
+          size: size.slice(),
+          status: status.slice(),
+          cur: i,
+          path: new Set([...pu, ...pv]),
+          pathLinks: new Set([...pu.slice(0, -1), ...pv.slice(0, -1)]),
+          joined,
+          moved: new Set(moved.map((m) => m.x)),
+          find: fill(S.find, { u, v, pu: arrow(pu), pv: arrow(pv) }),
+          k,
+          links,
+          total,
+          note,
+        });
+        if (k === n - 1) {
+          const last = steps[steps.length - 1];
+          steps.push({
+            ...last,
+            cur: null,
+            path: new Set(),
+            pathLinks: new Set(),
+            joined: null,
+            moved: new Set(),
+            changed: new Array(n).fill(false),
+            done: true,
+            find: '',
+            note: fill(S.done, { k, links, n, cells: k * n, total: fmt(total) }),
+          });
+          break;
+        }
+      }
+      return steps;
+    }
+
+    /* 숲의 배치: 뿌리는 번호순, 자식도 번호순. 잎이 차례로 한 칸씩 차지하고 부모는 자식들의 가운데. */
+    function layout(parent) {
+      const kids = Array.from({ length: n }, () => []);
+      const roots = [];
+      for (let v = 0; v < n; v++) (parent[v] === v ? roots : kids[parent[v]]).push(v);
+      const pos = new Array(n);
+      let slot = 0;
+      const place = (v, depth) => {
+        if (kids[v].length === 0) {
+          pos[v] = { x: (slot + 0.5) * COL, y: 40 + depth * ROW };
+          slot += 1;
+          return;
+        }
+        kids[v].forEach((c) => place(c, depth + 1));
+        const xs = kids[v].map((c) => pos[c].x);
+        pos[v] = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: 40 + depth * ROW };
+      };
+      roots.forEach((r) => place(r, 0));
+      return pos;
+    }
+
+    const steps = plan();
+    const chips = [...root.querySelectorAll('[data-uf-chip]')];
+    const linkEls = [...root.querySelectorAll('[data-uf-link]')];
+    const nodeEls = [...root.querySelectorAll('[data-uf-node]')];
+    const sizeEls = [...root.querySelectorAll('[data-uf-size]')];
+    const parentEls = [...root.querySelectorAll('[data-uf-parent]')];
+    const note = root.querySelector('[data-uf-note]');
+    const findEl = root.querySelector('[data-uf-find]');
+    const countEl = root.querySelector('[data-uf-count]');
+    const linksEl = root.querySelector('[data-uf-links-count]');
+    const R = 19;
+
+    function render(s) {
+      const st = s >= 0 ? steps[s] : null;
+      const parent = st ? st.parent : Array.from({ length: n }, (_, v) => v);
+      const size = st ? st.size : new Array(n).fill(1);
+      const pos = layout(parent);
+      chips.forEach((c, i) => {
+        const status = st ? st.status[i] : null;
+        c.classList.toggle('is-add', status === 'add');
+        c.classList.toggle('is-skip', status === 'skip');
+        c.classList.toggle('is-now', !!st && st.cur === i);
+        c.classList.toggle('is-rest', !!st && !!st.done && status === null);
+      });
+      nodeEls.forEach((el, v) => {
+        el.setAttribute('transform', `translate(${pos[v].x} ${pos[v].y})`);
+        const isRoot = parent[v] === v;
+        el.classList.toggle('is-root', isRoot);
+        el.classList.toggle('is-path', !!st && st.path.has(v));
+        el.classList.toggle('is-moved', !!st && st.moved.has(v));
+        sizeEls[v].textContent = isRoot && size[v] > 1 ? String(size[v]) : '';
+      });
+      /* 자식에서 부모로 향하는 화살표. 원의 가장자리에서 끊는다. */
+      linkEls.forEach((el, v) => {
+        const p = parent[v];
+        if (p === v) {
+          el.style.display = 'none';
+          return;
+        }
+        el.style.display = '';
+        const a = pos[v];
+        const b = pos[p];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        el.setAttribute('x1', String(a.x + (dx / len) * R));
+        el.setAttribute('y1', String(a.y + (dy / len) * R));
+        el.setAttribute('x2', String(b.x - (dx / len) * (R + 2)));
+        el.setAttribute('y2', String(b.y - (dy / len) * (R + 2)));
+        el.classList.toggle('is-new', !!st && st.joined === v);
+        el.classList.toggle('is-moved', !!st && st.moved.has(v));
+        el.classList.toggle('is-path', !!st && st.pathLinks.has(v) && !st.moved.has(v));
+      });
+      parentEls.forEach((el, v) => {
+        el.textContent = String(parent[v]);
+        el.classList.toggle('is-linked', parent[v] !== v);
+        el.classList.toggle('is-changed', !!st && st.changed[v]);
+      });
+      countEl.textContent = String(st ? st.k : 0);
+      linksEl.textContent = String(st ? st.links : 0);
+      findEl.textContent = st ? st.find : '';
+      setLines(note, st ? st.note : S.idle);
+      root.classList.toggle('is-done', !!(st && st.done));
+    }
+
+    let at = Math.min(Number(root.dataset.ufInitial), steps.length - 1);
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= steps.length - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= steps.length - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= steps.length - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1600);
+    });
+    render(at);
+  })();
+</script>
+
+<style is:global>
+  .aas-uf-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-uf-demo .uf-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9em;
+  }
+  .aas-uf-demo .uf-head {
+    font-size: 0.95em;
+  }
+  .aas-uf-demo .uf-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-uf-demo .uf-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-uf-demo .uf-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-uf-demo .uf-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-uf-demo .uf-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-uf-demo .uf-forest {
+    flex: 1 1 20em;
+    max-width: 30em;
+  }
+  .aas-uf-demo .uf-forest svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .aas-uf-demo .uf-forest line {
+    stroke: var(--aas-muted);
+    stroke-width: 2;
+  }
+  .aas-uf-demo .uf-forest line.is-path {
+    stroke: var(--aas-role-focus);
+    stroke-width: 3;
+  }
+  .aas-uf-demo .uf-forest line.is-new {
+    stroke: var(--aas-role-eval);
+    stroke-width: 3.5;
+  }
+  .aas-uf-demo .uf-forest line.is-moved {
+    stroke: var(--aas-role-model);
+    stroke-width: 3.5;
+  }
+  .aas-uf-demo .uf-node circle {
+    fill: var(--aas-bg);
+    stroke: var(--aas-border);
+    stroke-width: 2;
+  }
+  .aas-uf-demo .uf-node.is-root circle {
+    stroke: var(--aas-text);
+    stroke-width: 3.5;
+  }
+  .aas-uf-demo .uf-node.is-path circle {
+    fill: color-mix(in srgb, var(--aas-role-focus) 22%, var(--aas-bg));
+    stroke: var(--aas-role-focus);
+  }
+  .aas-uf-demo .uf-node.is-moved circle {
+    fill: color-mix(in srgb, var(--aas-role-model) 20%, var(--aas-bg));
+    stroke: var(--aas-role-model);
+  }
+  .aas-uf-demo .uf-id {
+    font-family: var(--aas-mono, monospace);
+    font-size: 17px;
+    font-weight: 700;
+    fill: var(--aas-text);
+  }
+  .aas-uf-demo .uf-size {
+    font-family: var(--aas-mono, monospace);
+    font-size: 13px;
+    fill: var(--aas-muted);
+  }
+  .aas-uf-demo .uf-panel {
+    flex: 0 1 auto;
+  }
+  .aas-uf-demo .uf-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+    margin: 0 0 0.3em;
+  }
+  .aas-uf-demo .uf-list {
+    display: grid;
+    grid-template-rows: repeat(var(--uf-rows), auto);
+    grid-auto-flow: column;
+    gap: 0.3em 0.5em;
+    margin-bottom: 0.8em;
+    font-size: 0.8em;
+  }
+  .aas-uf-demo .uf-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+    padding: 0.2em 0.55em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    font-family: var(--aas-mono, monospace);
+    transition:
+      background-color 0.3s,
+      opacity 0.3s;
+  }
+  .aas-uf-demo .uf-chip b {
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-uf-demo .uf-chip.is-add {
+    background: var(--aas-role-eval);
+    border-color: var(--aas-role-eval);
+    color: #fff;
+  }
+  .aas-uf-demo .uf-chip.is-add b {
+    color: #fff;
+  }
+  .aas-uf-demo .uf-chip.is-skip {
+    color: var(--aas-role-guard);
+    text-decoration: line-through;
+    opacity: 0.75;
+  }
+  .aas-uf-demo .uf-chip.is-now {
+    box-shadow: 0 0 0 3px var(--aas-role-focus);
+  }
+  .aas-uf-demo .uf-chip.is-rest {
+    opacity: 0.35;
+  }
+  .aas-uf-demo .uf-parent {
+    display: flex;
+    gap: 0.25em;
+  }
+  .aas-uf-demo .uf-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-uf-demo .uf-cell i {
+    font-style: normal;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+  }
+  .aas-uf-demo .uf-cell b {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7em;
+    height: 1.7em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-muted);
+    transition: background-color 0.3s;
+  }
+  .aas-uf-demo .uf-cell b.is-linked {
+    color: var(--aas-text);
+  }
+  .aas-uf-demo .uf-cell b.is-changed {
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    border-color: var(--aas-role-focus);
+  }
+  .aas-uf-demo .uf-find {
+    margin: 0.6em 0 0;
+    min-height: 1.4em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    color: var(--aas-role-focus);
+  }
+  .aas-uf-demo .uf-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1em;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .aas-uf-demo .uf-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.6em;
+    flex: 1 1 20em;
+  }
+  .aas-uf-demo.is-done .uf-note {
+    color: var(--aas-text);
+  }
+  .aas-uf-demo .uf-count {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-uf-demo .uf-count strong {
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+
+  /* 슬라이드용. KruskalDemo와 같은 틀: 숲은 왼쪽, 목록과 설명은 오른쪽 */
+  .aas-uf-demo.is-slide {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'bar bar'
+      'forest panel'
+      'forest foot';
+    column-gap: 1.6em;
+  }
+  .aas-uf-demo.is-slide .uf-body {
+    display: contents;
+  }
+  .aas-uf-demo.is-slide .uf-bar {
+    grid-area: bar;
+    margin-bottom: 0.5em;
+  }
+  .aas-uf-demo.is-slide .uf-forest {
+    grid-area: forest;
+    max-width: none;
+    min-width: 0;
+    align-self: center;
+  }
+  .aas-uf-demo.is-slide .uf-forest svg {
+    max-height: 40vh;
+  }
+  .aas-uf-demo.is-slide .uf-panel {
+    grid-area: panel;
+  }
+  .aas-uf-demo.is-slide .uf-foot {
+    grid-area: foot;
+    align-self: start;
+  }
+  .aas-uf-demo.is-slide .uf-list {
+    font-size: 0.6em;
+    gap: 0.1em 0.5em;
+    margin-bottom: 0.3em;
+  }
+  .aas-uf-demo.is-slide .uf-chip {
+    padding-block: 0;
+  }
+  .aas-uf-demo.is-slide .uf-parent {
+    font-size: 0.85em;
+  }
+  .aas-uf-demo.is-slide .uf-cell b {
+    width: 1.5em;
+    height: 1.5em;
+    font-size: 0.85em;
+  }
+  .aas-uf-demo.is-slide .uf-find {
+    margin-top: 0.3em;
+    font-size: 0.7em;
+  }
+  .aas-uf-demo.is-slide .uf-note {
+    margin-top: 0.2em;
+    min-height: 3.2em;
+    font-size: 0.68em;
+  }
+  /* 슬라이드에서는 개수를 위에 한 줄로 두고 설명이 폭을 다 쓰게 한다. */
+  .aas-uf-demo.is-slide .uf-foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .aas-uf-demo.is-slide .uf-count {
+    order: -1;
+    font-size: 0.72em;
+  }
+  .aas-uf-demo.is-slide .uf-note {
+    flex: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-uf-demo .uf-chip,
+    .aas-uf-demo .uf-cell b {
+      transition: none;
+    }
+  }
+</style>

@@ -1,7 +1,7 @@
 ---
 title: "Topic 12. Graphs and Shortest Paths"
 description: "Graphs write the world as vertices and edges. Representing and traversing them (BFS, DFS), minimum spanning trees (Kruskal, Prim), the min heap behind both, and shortest paths (Dijkstra, A*)"
-date: "Topic 12 · v2"
+date: "Topic 12 · v3"
 order: 12
 transition: none
 toc_level: 4
@@ -31,6 +31,10 @@ import NegWeightDemo from '@components/NegWeightDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
+import VarLegend from '@components/VarLegend.astro';
+import UnionFindDemo from '@components/UnionFindDemo.astro';
+import MstRaceDemo from '@components/MstRaceDemo.astro';
+import MapRouteDemo from '@components/MapRouteDemo.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Numbers match the practice code (topic-12-graph) exactly. */}
@@ -84,8 +88,8 @@ and the heap is what makes Huffman coding $$O(k \log k)$$.
 #### What a graph is
 ::sub[A set V of vertices and a set E of edges]
 
-- **Vertex**: also called a node. Count $$n$$ or $$V$$
-- **Edge**: a pair of vertices. Count $$m$$ or $$E$$
+- **Vertex**: also called a node. Count $$V$$ (some books: $$n$$)
+- **Edge**: a pair of vertices. Count $$E$$ (some books: $$m$$)
   - Undirected: an unordered pair (friendship)
   - Directed: an ordered pair (following)
 - **Path**: a sequence of vertices joined by edges
@@ -110,12 +114,14 @@ and the heap is what makes Huffman coding $$O(k \log k)$$.
 <Slide>
 
 #### How many edges at most
-::sub[n vertices, no parallel edges, a connected undirected graph]
+::sub[V vertices, no parallel edges, a connected undirected graph]
 
-- **At least** $$n - 1$$
+<VarLegend set="graph" />
+
+- **At least** $$V - 1$$
   - Join them in a line. Remove any edge and the piece splits in two.
-- **At most** $$\dfrac{n(n-1)}{2}$$
-  - Join every pair. $$(n-1) + (n-2) + \dots + 1$$
+- **At most** $$\dfrac{V(V-1)}{2}$$
+  - Join every pair. $$(V-1) + (V-2) + \dots + 1$$
   - With 5 vertices, $$4 + 3 + 2 + 1 = 10$$
 
 <br/>
@@ -129,9 +135,11 @@ This gap decides what graph algorithms cost.
 #### Kinds of graphs
 ::sub[Number of edges, direction, cycles]
 
-- **Sparse**: $$m = O(n)$$
+<VarLegend set="graph" />
+
+- **Sparse**: $$E = O(V)$$
   - Social networks
-- **Dense**: $$m = O(n^2)$$
+- **Dense**: $$E = O(V^2)$$
   - Complete graphs
 - **Directed / undirected**
 - **Cyclic / acyclic**
@@ -207,12 +215,14 @@ means scanning the whole list.
 #### Adjacency matrix and adjacency list
 ::sub[They need different amounts of space]
 
-- **Adjacency matrix**: an $$n \times n$$ matrix, $$A_{ij} = 1$$ if there is an i-j edge.
+<VarLegend set="graph" />
+
+- **Adjacency matrix**: a $$V \times V$$ matrix, $$A_{ij} = 1$$ if there is an i-j edge.
   - Variants store edge counts or weights.
-  - Space $$\Theta(n^2)$$
+  - Space $$\Theta(V^2)$$
 - **Adjacency list**: a list of neighbours for each vertex
   - An array of vertices, an array of edges, pointers between them
-  - Space $$\Theta(n + m)$$, one slot at each end of an undirected edge
+  - Space $$\Theta(V + E)$$, one slot at each end of an undirected edge
 
 </Slide>
 
@@ -220,6 +230,8 @@ means scanning the whole list.
 
 ### Try it: edges and cells
 ::sub[Move n and m to see the graph and the cell counts of the two representations change]
+
+<VarLegend set="graph" />
 
 <DensityDemo slide />
 
@@ -229,6 +241,8 @@ means scanning the whole list.
 
 #### Adjacency matrix vs. adjacency list
 ::sub[Seoul(0)-Busan(1), Seoul-Daegu(2), Busan-Gwangju(3) · list 4 + 6 slots, matrix 16 cells]
+
+<VarLegend set="graph" />
 
 | Operation | Adjacency matrix | Adjacency list |
 | --- | --- | --- |
@@ -255,7 +269,7 @@ Search asks "who are the neighbours?" most often. All the practice code uses adj
 <Slide>
 
 #### The goal
-::sub[Every vertex reachable from s, none seen twice, in O(m + n)]
+::sub[Every vertex reachable from s, none seen twice, in O(V + E)]
 
 **Generic search**
 
@@ -301,11 +315,13 @@ One question remains.
 #### BFS and DFS
 ::sub[The same generic search; only the order of choice differs]
 
+<VarLegend set="graph" />
+
 | | BFS | DFS |
 | --- | --- | --- |
 | How it spreads | layer by layer, nearest first | one branch to the end, then back up |
 | Data structure | queue (FIFO) | stack (LIFO) or recursion |
-| Running time | $$O(m + n)$$ | $$O(m + n)$$ |
+| Running time | $$O(V + E)$$ | $$O(V + E)$$ |
 | Good at | unweighted shortest paths, components | topological sort, components, cycle detection |
 
 </Slide>
@@ -390,8 +406,10 @@ path 0 -> 4: 0 5 4 (2 edges)
 #### Properties of BFS and shortest paths
 ::sub[n_s, m_s: vertices and edges reachable from s]
 
+<VarLegend set="graph" />
+
 - **Claim 1**: at the end, v is explored ⇔ there is a path from s to v
-- **Claim 2**: running time $$O(n_s + m_s)$$
+- **Claim 2**: running time $$O(V_s + E_s)$$
   - Each vertex enters the queue once and leaves once.
   - Each edge is looked at once from each end.
 - **Shortest paths**: $$\text{dist}(w) = \text{dist}(v) + 1$$
@@ -405,6 +423,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 #### Application: connected components
 ::sub[Start one search from each vertex not yet explored]
 
+<VarLegend set="graph" />
+
 ```plaintext
 mark every vertex unexplored
 for i <- 1 to n do
@@ -413,7 +433,7 @@ for i <- 1 to n do
 ```
 
 - Called several times, but each vertex and edge is seen once in total.
-  - $$O(m + n)$$
+  - $$O(V + E)$$
 - DFS does the same job. The practice code uses DFS.
 
 </Slide>
@@ -597,6 +617,8 @@ With a directed cycle there is no topological order.
 #### Trees, spanning trees, MSTs
 ::sub[Connecting every vertex as cheaply as possible]
 
+<VarLegend set="graph" />
+
 - **Tree**: an acyclic, connected, undirected graph, with $$V - 1$$ edges
 - **Spanning tree**: a subgraph that is a tree and includes every vertex
 - **Minimum spanning tree**: the spanning tree with the smallest total edge weight
@@ -689,6 +711,8 @@ Kruskal and Prim are what decide "which cut to pick".
 #### Greedy, Kruskal, Prim
 ::sub[All greedy, all standing on the cut property]
 
+<VarLegend set="graph" />
+
 | | Greedy MST | Kruskal | Prim |
 | --- | --- | --- | --- |
 | Approach | the cut property directly | edge-centred, global choice | vertex-centred, local growth |
@@ -753,8 +777,6 @@ for each (u, v, w) in edges do
 #### Run
 ::sub[`03_mst_kruskal/` · weights are integers times 100, turned into decimals only when printed]
 
-- Run
-
 ```console
   0-7 0.16  add   comp [0 1 2 3 4 5 6 0]
   2-3 0.17  add   comp [0 1 2 2 4 5 6 0]
@@ -769,7 +791,6 @@ for each (u, v, w) in edges do
   4-7 0.37  skip  (4 and 7 both in 0, cycle)
   0-4 0.38  skip  (0 and 4 both in 0, cycle)
   6-2 0.40  add   comp [0 0 0 0 0 0 0 0]
-7 edges = V - 1, stop
 total weight = 1.81
 ```
 
@@ -779,6 +800,8 @@ total weight = 1.81
 
 #### Analysis
 ::sub[MST: 0-7 2-3 1-7 0-2 5-7 4-5 6-2, total weight 1.81]
+
+<VarLegend set="graph" />
 
 <div class="aas-split">
 <div>
@@ -792,11 +815,108 @@ total weight = 1.81
   - Take v's piece and the rest as the cut; e is that cut's lightest crossing edge
 - **Time**
   - Sorting $$O(E \log E)$$
-  - Merging $$O(V)$$ × $$V-1$$ times
-  - With union-find, $$O(E \log E)$$
+  - Merging $$O(V)$$ × $$V-1$$ times = $$O(V^2)$$
+  - With union-find, $$O(E \log E)$$ (next slide)
 
 </div>
 </div>
+
+</Slide>
+
+<Slide>
+
+#### union-find
+::sub[Don't rewrite every component id; give each vertex one parent]
+
+<VarLegend set="graph" />
+
+- A comp array rewrites **all V cells** on every merge. V-1 merges make $$O(V^2)$$
+- union-find keeps one **parent** per vertex.
+  - The **root** you reach by following parents is the component's name.
+  - **Find(x)**: climb from x to the root.
+  - **Union(a, b)**: hang one root under the other.
+- Two tricks
+  - **Union by size**: hang the smaller tree under the larger tree's root.
+  - **Path compression**: hang every vertex Find passed directly on the root.
+
+</Slide>
+
+<Slide>
+
+### Step by step: Kruskal with union-find
+::sub[Orange is the path Find climbed, green the new link, blue path compression · the number above a root is its tree size]
+
+<UnionFindDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Procedure
+::sub[`08_union_find/unionFind.pseudo` · Kruskal stays the same; only the component check changes]
+
+```plaintext
+ALGORITHM Find(x)                       // root of the tree x is in
+    root <- x
+    while parent[root] != root do       // follow parents up to the root
+        root <- parent[root]
+    while parent[x] != root do          // path compression
+        next <- parent[x], parent[x] <- root, x <- next
+    return root
+
+ALGORITHM Union(a, b)                   // a, b are different roots
+    if size[a] < size[b] or (size[a] = size[b] and a > b) then
+        swap(a, b)                      // a is the larger (on a tie, the smaller number)
+    parent[b] <- a                      // the smaller tree goes under the larger
+    size[a] <- size[a] + size[b]
+```
+
+</Slide>
+
+<Slide class="compact">
+
+#### Run
+::sub[`08_union_find/` · the middle two columns are the paths Find climbed from each end · the edges and total weight match the comp array]
+
+```console
+0-7 0.16  0         7         add   7 under 0  parent [0 1 2 3 4 5 6 0]
+2-3 0.17  2         3         add   3 under 2  parent [0 1 2 2 4 5 6 0]
+1-7 0.19  1         7>0       add   1 under 0  parent [0 0 2 2 4 5 6 0]
+0-2 0.26  0         2         add   2 under 0  parent [0 0 0 2 4 5 6 0]
+5-7 0.28  5         7>0       add   5 under 0  parent [0 0 0 2 4 0 6 0]
+1-3 0.29  1>0       3>2>0     skip  root 0     parent [0 0 0 0 4 0 6 0]
+1-5 0.32  1>0       5>0       skip  root 0
+2-7 0.34  2>0       7>0       skip  root 0
+4-5 0.35  4         5>0       add   4 under 0  parent [0 0 0 0 0 0 6 0]
+1-2 0.36  1>0       2>0       skip  root 0
+4-7 0.37  4>0       7>0       skip  root 0
+0-4 0.38  0         4>0       skip  root 0
+6-2 0.40  6         2>0       add   6 under 0  parent [0 0 0 0 0 0 0 0]
+links followed = 16 (comp array: 7 merges x 8 cells = 56)
+```
+
+</Slide>
+
+<Slide>
+
+#### Analysis
+::sub[second half of `08_union_find` · random connected graphs with E = 4V]
+
+<VarLegend set="graph" />
+
+```console
+random connected graphs, E = 4V, seed 2026
+        V       comp cells     finds     links links/find
+    1,000          999,000     7,040     6,447       0.92
+   10,000       99,990,000    78,228    72,834       0.93
+  100,000    9,999,900,000   788,952   737,258       0.93
+```
+
+- With union by size, a tree is never taller than $$\log_2 V$$.
+  - Each time a vertex moves down a level, its tree at least doubles in size.
+- With path compression too, one Find is effectively constant. Here it averages under one link.
+- The comp array grows ×100 when V grows ×10; union-find grows ×10 with V
+- Kruskal as a whole is bounded by sorting, $$O(E \log E)$$.
 
 </Slide>
 
@@ -1018,6 +1138,8 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 #### Analysis
 ::sub[The same seven edges as Kruskal, the same 1.81]
 
+<VarLegend set="graph" />
+
 - **Correctness**: a special case of Greedy MST
   - Take "the current tree" and "the rest" as the cut; the chosen edge is its lightest crossing edge
 - **Time**: $$O(E \log E) = O(E \log V)$$
@@ -1026,6 +1148,91 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 - **How it differs from Kruskal**
   - In Kruskal several pieces grow and then merge.
   - In Prim a single piece grows from start to finish.
+
+</Slide>
+
+<Slide class="center">
+
+## Kruskal or Prim, and when
+::sub[Same MST, different cost]
+
+</Slide>
+
+<Slide>
+
+### Measure it: four MST methods
+::sub[Tabs change the graph · green rows are the versions fixed with union-find and a heap]
+
+<VarLegend set="graph" />
+
+<MstRaceDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Timed in C: sparse graphs
+::sub[`09_mst_timing/` · milliseconds; values depend on the computer, so look at the ratios]
+
+<VarLegend set="graph" />
+
+```console
+sparse, E = 4V (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+   2000      8000         2.968       0.435      0.142       2.287
+   8000     32000        34.831       2.106      0.955      35.513
+  32000    128000       517.287      10.024      5.184     555.430
+```
+
+- When V grows ×4, Kruskal comp grows about ×15 and Prim array about ×16. Both are bounded by $$V^2$$.
+- With union-find and a heap they are over 50 and 100 times faster at V = 32,000.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Timed in C: complete graphs
+::sub[`09_mst_timing/` · top: random weights; bottom: every edge lowers a key, the worst case for a heap]
+
+<VarLegend set="graph" />
+
+```console
+complete, E = V(V-1)/2 (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         9.306       9.148      0.256       0.491
+   1000    499500        41.711      41.022      0.965       2.106
+   2000   1999000       183.393     180.328      3.413       9.270
+
+complete, every edge lowers a key (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         2.984       3.002      5.445       0.233
+   1000    499500        13.145      13.253     25.066       0.833
+   2000   1999000        57.362      56.097    109.677       3.222
+```
+
+- With random weights Prim heap is fastest. Keys rarely drop, so it pushes far fewer than E times.
+- In the bad case every edge is pushed. Prim array is 34 times faster at V = 2,000.
+- Kruskal must sort all E edges, which hurts on dense graphs.
+
+</Slide>
+
+<Slide>
+
+#### Which one to use
+::sub[Sparse: E log V. Dense: V²]
+
+<VarLegend set="graph" />
+
+| Situation | Pick | Why |
+| --- | --- | --- |
+| Sparse ($$E \approx V$$) | Kruskal UF, Prim heap | Both $$O(E \log V)$$. The $$V^2$$ methods break down for large V |
+| Dense ($$E \approx V^2$$) | Prim array | $$O(V^2)$$ whatever the input. A heap costs $$E \log V$$ when keys drop often |
+| Only an edge list | Kruskal UF | No adjacency list needed |
+| Split into k groups | Kruskal stopped at V-k edges | That forest is the answer |
+
+<br/>
+
+Prim heap is fast on random complete graphs because keys rarely drop. Nothing guarantees it.
 
 </Slide>
 
@@ -1205,6 +1412,8 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 ### Try it: choosing the priority queue
 ::sub[Move V and E to see the total formulas change · the bars use a log scale]
 
+<VarLegend set="graph" />
+
 <PqCostDemo slide />
 
 </Slide>
@@ -1213,6 +1422,8 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 
 #### Running time
 ::sub[Depends on what the priority queue is built from · * amortized]
+
+<VarLegend set="graph" />
 
 | Data structure | insert | extract-min | update-key | total |
 | --- | --- | --- | --- | --- |
@@ -1302,6 +1513,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 #### A*
 ::sub[To one goal, searching towards it with an estimate of the remaining distance]
 
+<VarLegend set="astar" />
+
 - Dijkstra finds paths to **every** vertex. Route finding usually needs **one goal**.
 - Games, robot path planning, geographic information systems (GIS)
 - Three values per node
@@ -1316,6 +1529,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 #### The heuristic function h(n)
 ::sub[From Jinri Hall A to the Megabox cinema · on the phone in front of dormitory C]
+
+<VarLegend set="astar" />
 
 - "About ten minutes." Close to the truth and not over it. **A good estimate**
 - "Two minutes." Not over, but so optimistic it **cannot guide you.**
@@ -1333,6 +1548,8 @@ Distance heuristics: Euclidean, Manhattan, Chebyshev
 #### What looks closest is not the answer
 ::sub[It took 2 minutes to get here, and there are three places to go]
 
+<VarLegend set="astar" />
+
 | Next point | Time | $$g$$ | $$h$$ | $$f = g + h$$ |
 | --- | --- | --- | --- | --- |
 | Building A | 5 min | $$2 + 5 = 7$$ | 10 | 17 |
@@ -1349,6 +1566,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 
 #### The example graph
 ::sub[The same graph as Dijkstra · start 0, goal 6 · h beside each vertex]
+
+<VarLegend set="astar" />
 
 <div class="aas-split">
 <div>
@@ -1374,6 +1593,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 ### One step at a time: A* without reopening
 ::sub[A common implementation: once a vertex is closed it is never looked at again]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" reopen={false} slide />
 
 </Slide>
@@ -1382,6 +1603,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 
 #### 26 is not the shortest
 ::sub[On the same graph Dijkstra finds 0 → 4 → 5 → 2 → 6, 25]
+
+<VarLegend set="astar" />
 
 <div class="aas-split">
 <div>
@@ -1407,6 +1630,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 #### Two conditions on the heuristic
 ::sub[h*(n): the true shortest distance from n to the goal]
 
+<VarLegend set="astar" />
+
 - **Admissible**: $$h(n) \le h^*(n)$$
   - Never overestimates. **With reopening** it finds the shortest path.
 - **Consistent**: $$h(n) \le c(n, n') + h(n')$$
@@ -1422,6 +1647,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 ### Try it: edit h
 ::sub[Dashed red edges break consistency, green is the path without reopening]
 
+<VarLegend set="astar" />
+
 <HeuristicLabDemo slide />
 
 </Slide>
@@ -1431,6 +1658,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 ### One step at a time: reopening
 ::sub[When a shorter path to a closed vertex is found, reopen it]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" slide />
 
 </Slide>
@@ -1439,6 +1668,8 @@ The nearest, Main Hall, lies away from the goal. A* picks Building C.
 
 #### The procedure
 ::sub[`07_a_star/aStar.pseudo` · unlike Dijkstra: key g + h, stop at the goal, reopening]
+
+<VarLegend set="astar" />
 
 ```plaintext
 g[s] <- 0,  insert (g[s] + h[s], s) into open
@@ -1460,19 +1691,16 @@ while open is not empty do
 <Slide class="compact">
 
 #### Run
-::sub[`07_a_star/` · where the two runs part ways]
+::sub[`07_a_star/` · inconsistent edges 4→5 and 5→2 · where the two runs part ways]
 
-- Run
+<VarLegend set="astar" />
 
 ```console
-inconsistent edges: 4->5 (11 > 4 + 6) 5->2 (6 > 1 + 4)
-
 without reopening closed nodes
 pop 5 (f 19 = 13 + 6): close
   2: g 14 < 15, but 2 is closed
 expanded: 0 1 7 2 4 5 3
 path: 0 7 2 6, cost 26
-
 with reopening
 pop 5 (f 19 = 13 + 6): close
   2: g 14 < 15, reopen, f 18
@@ -1490,6 +1718,8 @@ path: 0 4 5 2 6, cost 25
 ### Try it: change the heuristic
 ::sub[Same graph, from 0 to 6 · pick an h with the chips and run it to the end]
 
+<VarLegend set="astar" />
+
 <HeapGraphDemo mode="astar" hChoices slide />
 
 </Slide>
@@ -1498,6 +1728,8 @@ path: 0 4 5 2 6, cost 25
 
 #### Analysis
 ::sub[b: branching factor, d: depth of the optimal solution]
+
+<VarLegend set="astar" />
 
 - **Time**: $$O(b^d)$$ in the worst case; in practice it depends on the heuristic.
   - Perfect heuristic ($$h = h^*$$): $$O(d)$$, here it closes only 0, 4, 5, 2.
@@ -1532,6 +1764,36 @@ path: 0 4 5 2 6, cost 25
 
 </Slide>
 
+<Slide class="center">
+
+## On a real map
+::sub[Yonsei's Songdo campus and two nearby stations, a walking network of 1,323 intersections]
+
+</Slide>
+
+<Slide>
+
+### Try it: route finding on a map
+::sub[Click a row to paint what that algorithm closes · click the map to move start and goal]
+
+<MapRouteDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### What the map shows
+::sub[Campus Town Stn. → Main Hall, 1,323 intersections · 1,980 street segments]
+
+- **Dijkstra** spreads evenly in every direction from the start. It does not know where the goal is.
+- <strong>A*</strong> spreads in a long shape toward the goal.
+  - It finds the same 1,057 m route while closing 91 intersections instead of 710
+- **BFS** counts only street segments. It picks a 1,286 m route of 21 segments.
+- **Greedy** closes only 33, but heads straight for the goal and detours, walking 1,259 m.
+- Real map services have millions of intersections, so they add precomputed shortcuts to A*.
+
+</Slide>
+
 <Slide class="compact">
 
 #### Try it now
@@ -1553,10 +1815,10 @@ Open a file and press the **▶ button** at the top right of the editor.
 
 ## What to keep
 
-1. **An adjacency list is $$\Theta(n + m)$$, an adjacency matrix $$\Theta(n^2)$$.**
+1. **An adjacency list is $$\Theta(V + E)$$, an adjacency matrix $$\Theta(V^2)$$.**
    - Lists suit search.
 2. **BFS and DFS are the same generic search.**
-   - A queue goes layer by layer (shortest paths), a stack goes deep first (topological sort). Both $$O(m + n)$$
+   - A queue goes layer by layer (shortest paths), a stack goes deep first (topological sort). Both $$O(V + E)$$
 3. **Kruskal and Prim stand on the cut property.**
    - Greedy algorithms that differ only in the cut they pick; the example's MST is 1.81
 4. **A min heap sifts up and sifts down in $$O(\log n)$$.**

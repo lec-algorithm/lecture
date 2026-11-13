@@ -1,14 +1,14 @@
 ---
 // 간선 수가 표현의 비용을 어떻게 가르는지 슬라이더로 보는 데모.
 //
-// 정점 수 n과 간선 수 m을 고르면 원 위에 그 그래프를 그린다. 먼저 한 줄로
-// 이어 연결을 지키고(n-1개), 그다음 가까운 쌍부터 간선을 더한다. m의 범위는
-// 연결된 무방향 그래프의 범위인 n-1 이상 n(n-1)/2 이하다.
+// 정점 수 V와 간선 수 E를 고르면 원 위에 그 그래프를 그린다. 먼저 한 줄로
+// 이어 연결을 지키고(V-1개), 그다음 가까운 쌍부터 간선을 더한다. E의 범위는
+// 연결된 무방향 그래프의 범위인 V-1 이상 V(V-1)/2 이하다.
 // 오른쪽 표는 같은 그래프를 두 표현으로 둘 때 드는 칸 수와 보는 칸 수다.
-//   공간: 인접 목록 n + 2m칸, 인접 행렬 n²칸
-//   이웃 찾기(정점 하나): 목록은 평균 2m/n칸, 행렬은 n칸
-//   간선 확인(한 쌍): 목록은 평균 2m/n칸까지, 행렬은 1칸
-// 서울-부산 예(n = 4, m = 3)는 목록 4 + 6칸, 행렬 16칸이 나온다.
+//   공간: 인접 목록 V + 2E칸, 인접 행렬 V²칸
+//   이웃 찾기(정점 하나): 목록은 평균 2E/V칸, 행렬은 V칸
+//   간선 확인(한 쌍): 목록은 평균 2E/V칸까지, 행렬은 1칸
+// 서울-부산 예(V = 4, E = 3)는 목록 4 + 6칸, 행렬 16칸이 나온다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 
 interface Props {
@@ -23,12 +23,12 @@ const id = `dn-${Math.random().toString(36).slice(2, 9)}`;
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
     title: '정점과 간선 수 고르기',
-    n: '정점 n',
-    m: '간선 m',
+    n: '정점 V',
+    m: '간선 E',
     min: '최소로',
     max: '최대로',
     density: '채운 정도',
-    possible: '가능한 m',
+    possible: '가능한 E',
     rep: '인접 목록과 인접 행렬',
     op: '하는 일',
     list: '인접 목록',
@@ -36,19 +36,19 @@ const STRINGS: Record<string, Record<string, string>> = {
     space: '공간(칸)',
     nbr: '정점 하나의 이웃 찾기(칸)',
     check: '간선 하나 확인(칸)',
-    noteMin: '간선이 n-1 = {m}개인 최소입니다. 하나라도 빼면 덩어리가 둘로 갈라집니다.',
-    noteMax: '모든 쌍을 이은 최대입니다. n(n-1)/2 = {m}개입니다. 이때만 목록의 칸 수가 행렬과 같아집니다.',
+    noteMin: '간선이 V-1 = {m}개인 최소입니다. 하나라도 빼면 덩어리가 둘로 갈라집니다.',
+    noteMax: '모든 쌍을 이은 최대입니다. V(V-1)/2 = {m}개입니다. 이때만 목록의 칸 수가 행렬과 같아집니다.',
     noteMid: '가능한 간선의 {p}%를 채웠습니다. 목록은 {l}칸, 행렬은 {x}칸입니다.',
-    outro: 'n을 늘려 보면 m이 n에 비례하는 희소 그래프에서 행렬이 얼마나 낭비인지 보입니다.',
+    outro: 'V를 늘려 보면 E가 V에 비례하는 희소 그래프에서 행렬이 얼마나 낭비인지 보입니다.',
   },
   en: {
     title: 'Choose the vertices and edges',
-    n: 'vertices n',
-    m: 'edges m',
+    n: 'vertices V',
+    m: 'edges E',
     min: 'Fewest',
     max: 'Most',
     density: 'filled',
-    possible: 'possible m',
+    possible: 'possible E',
     rep: 'Adjacency lists and matrix',
     op: 'Operation',
     list: 'Adjacency list',
@@ -56,19 +56,19 @@ const STRINGS: Record<string, Record<string, string>> = {
     space: 'Space (cells)',
     nbr: 'Neighbours of one vertex (cells)',
     check: 'Check one edge (cells)',
-    noteMin: 'This is the minimum, n-1 = {m} edges. Remove any one and the graph splits in two.',
-    noteMax: 'This is the maximum, every pair joined: n(n-1)/2 = {m} edges. Only here does the list take as many cells as the matrix.',
+    noteMin: 'This is the minimum, V-1 = {m} edges. Remove any one and the graph splits in two.',
+    noteMax: 'This is the maximum, every pair joined: V(V-1)/2 = {m} edges. Only here does the list take as many cells as the matrix.',
     noteMid: '{p}% of the possible edges are in. The list takes {l} cells, the matrix {x}.',
-    outro: 'Raise n to see how wasteful the matrix is on a sparse graph, where m grows with n.',
+    outro: 'Raise V to see how wasteful the matrix is on a sparse graph, where E grows with V.',
   },
   zh: {
     title: '选择顶点数和边数',
-    n: '顶点 n',
-    m: '边 m',
+    n: '顶点 V',
+    m: '边 E',
     min: '最少',
     max: '最多',
     density: '填充',
-    possible: '可能的 m',
+    possible: '可能的 E',
     rep: '邻接表和邻接矩阵',
     op: '操作',
     list: '邻接表',
@@ -76,10 +76,10 @@ const STRINGS: Record<string, Record<string, string>> = {
     space: '空间（格）',
     nbr: '找一个顶点的邻居（格）',
     check: '检查一条边（格）',
-    noteMin: '这是最少的情况，n-1 = {m} 条边。少任何一条，图就分成两块。',
-    noteMax: '这是最多的情况，所有顶点对都相连：n(n-1)/2 = {m} 条边。只有这时邻接表的格数才与矩阵相同。',
+    noteMin: '这是最少的情况，V-1 = {m} 条边。少任何一条，图就分成两块。',
+    noteMax: '这是最多的情况，所有顶点对都相连：V(V-1)/2 = {m} 条边。只有这时邻接表的格数才与矩阵相同。',
     noteMid: '可能的边已填上 {p}%。邻接表 {l} 格，矩阵 {x} 格。',
-    outro: '增大 n，就能看到在 m 与 n 成正比的稀疏图上矩阵有多浪费。',
+    outro: '增大 V，就能看到在 E 与 V 成正比的稀疏图上矩阵有多浪费。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;

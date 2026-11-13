@@ -1,0 +1,583 @@
+---
+// Kruskal 두 가지와 Prim 두 가지의 시간을 지금 이 브라우저에서 실제로 재는 데모.
+//
+//   Kruskal comp   정렬 + comp 배열 합치기          O(E log E + V^2)
+//   Kruskal UF     정렬 + union-find                O(E log E)
+//   Prim heap      최소 힙에 (key, 정점)을 넣고 꺼낸다  O(E log V)
+//   Prim array     key 배열 V칸을 훑어 고른다       O(V^2 + E)
+//
+// 탭은 그래프의 종류다. 희소(E = 4V), 무작위 가중치의 완전 그래프, 그리고 간선마다 key가 줄어
+// 힙에 가장 나쁜 완전 그래프(u < v인 간선의 가중치가 (V - u) x V + v). 그래프를 만드는 규칙과
+// 난수는 algorithm-code의 09_mst_timing과 같다. 강의 자료의 표는 C 측정이고 이 데모는 JavaScript다.
+// 무작위 완전 그래프에서 Prim heap이 빠른 이유를 보이려고, 가장 큰 V에서 힙에 넣은 횟수를 함께 센다.
+// 짧게 끝나는 칸은 여러 번 돌려 평균을 낸다. 네 방법의 총 가중치가 같은지 확인한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `mr-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '직접 재 보기',
+    sparse: '희소 (E = 4V)',
+    complete: '완전, 무작위',
+    worst: '완전, 힙에 나쁜',
+    run: '재기',
+    running: '재는 중',
+    colAlgo: 'V (ms)',
+    ratio: 'V가 2배일 때',
+    kComp: 'Kruskal comp',
+    kUf: 'Kruskal UF',
+    pHeap: 'Prim heap',
+    pArray: 'Prim array',
+    chart: '가장 큰 V, 로그 눈금',
+    idle: '재기를 누르면 이 브라우저에서 네 방법을 돌립니다. 값은 컴퓨터마다 다르고, 볼 것은 비율입니다.',
+    doneSparse: 'V가 2배일 때 Kruskal comp ×{rc}, Prim array ×{ra}로 V²처럼 늘어납니다. union-find와 힙으로 바꾸면 ×{ru}, ×{rh}입니다.',
+    doneComplete: 'Prim heap이 힙에 넣은 것은 간선 {e}개 중 {p}번({pct}%)뿐입니다. 가중치가 무작위면 이미 붙은 정점이 key를 줄이는 일이 드뭅니다.',
+    doneWorst: '이번에는 간선마다 key가 줄어 힙에 {p}번 넣습니다. 힙 없이 V칸을 훑는 Prim array가 {x}배 빠릅니다.',
+    edges: 'E = {e}',
+  },
+  en: {
+    title: 'Measure it yourself',
+    sparse: 'Sparse (E = 4V)',
+    complete: 'Complete, random',
+    worst: 'Complete, bad for heap',
+    run: 'Measure',
+    running: 'Measuring',
+    colAlgo: 'V (ms)',
+    ratio: 'when V is ×2',
+    kComp: 'Kruskal comp',
+    kUf: 'Kruskal UF',
+    pHeap: 'Prim heap',
+    pArray: 'Prim array',
+    chart: 'largest V, log scale',
+    idle: 'Measure runs the four methods in this browser. Values depend on the computer; what matters is the ratio.',
+    doneSparse: 'When V doubles, Kruskal comp grows ×{rc} and Prim array ×{ra}, like V². With union-find and a heap it is ×{ru} and ×{rh}.',
+    doneComplete: 'Prim heap pushed only {p} times for {e} edges ({pct}%). With random weights, a new tree vertex rarely lowers a key.',
+    doneWorst: 'Here every edge lowers a key, so the heap takes {p} pushes. Prim array, which just scans V cells, is {x} times faster.',
+    edges: 'E = {e}',
+  },
+  zh: {
+    title: '亲手测一测',
+    sparse: '稀疏 (E = 4V)',
+    complete: '完全图，随机',
+    worst: '完全图，对堆最不利',
+    run: '测量',
+    running: '测量中',
+    colAlgo: 'V (ms)',
+    ratio: 'V 变 2 倍时',
+    kComp: 'Kruskal comp',
+    kUf: 'Kruskal UF',
+    pHeap: 'Prim heap',
+    pArray: 'Prim array',
+    chart: '最大的 V，对数刻度',
+    idle: '按测量后，会在这个浏览器里运行四种方法。数值因电脑而异，要看的是比例。',
+    doneSparse: 'V 变 2 倍时，Kruskal comp ×{rc}、Prim array ×{ra}，像 V² 一样增长。换成 union-find 和堆后是 ×{ru}、×{rh}。',
+    doneComplete: 'Prim heap 在 {e} 条边中只入堆 {p} 次（{pct}%）。权重随机时，新加入的顶点很少能让 key 变小。',
+    doneWorst: '这次每条边都让 key 变小，入堆 {p} 次。不用堆、只扫描 V 格的 Prim array 快 {x} 倍。',
+    edges: 'E = {e}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const algos = ['kComp', 'kUf', 'pHeap', 'pArray'];
+const SIZES = { sparse: [2000, 4000, 8000, 16000], complete: [250, 500, 1000, 2000], worst: [250, 500, 1000, 2000] };
+---
+
+<div class:list={['aas-mst-race-demo', slide && 'is-slide']} id={id} data-mr-strings={JSON.stringify(t)}>
+  <div class="mr-bar">
+    <div class="mr-tabs">
+      <span class="mr-head"><strong>{t.title}</strong></span>
+      <button type="button" class="mr-tab" data-mr-kind="sparse">{t.sparse}</button>
+      <button type="button" class="mr-tab" data-mr-kind="complete">{t.complete}</button>
+      <button type="button" class="mr-tab" data-mr-kind="worst">{t.worst}</button>
+    </div>
+    <button type="button" class="mr-btn" data-mr-run>{t.run}</button>
+  </div>
+
+  <table class="mr-table">
+    <thead>
+      <tr>
+        <th class="mr-name">{t.colAlgo}</th>
+        {[0, 1, 2, 3].map((j) => <th data-mr-size={j}>-</th>)}
+        <th>{t.ratio}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        algos.map((a) => (
+          <tr data-mr-row={a}>
+            <td class="mr-name">{t[a]}</td>
+            {[0, 1, 2, 3].map((j) => <td data-mr-cell={j}>-</td>)}
+            <td data-mr-ratio>-</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <div class="mr-chart">
+    <span class="mr-chartcap" data-mr-cap>{t.chart}</span>
+    {
+      algos.map((a) => (
+        <div class="mr-chartline">
+          <span>{t[a]}</span>
+          <div class="mr-track"><i data-mr-bar={a}></i></div>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="mr-note" data-mr-note></p>
+</div>
+
+<script is:inline define:vars={{ id, algos, SIZES }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.mrStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const comma = (x) => x.toLocaleString('en-US');
+    const note = root.querySelector('[data-mr-note]');
+    const runBtn = root.querySelector('[data-mr-run]');
+
+    /* ---- 그래프: 09_mst_timing과 같은 규칙. 난수 x <- (1664525 x + 1013904223) mod 2^32 ---- */
+    function makeGraph(kind, V) {
+      let x = 2026;
+      const rnd = (k) => {
+        x = (Math.imul(1664525, x) + 1013904223) >>> 0;
+        return x % k;
+      };
+      const E = kind === 'sparse' ? 4 * V : (V * (V - 1)) / 2;
+      const eu = new Int32Array(E);
+      const ev = new Int32Array(E);
+      const ew = new Int32Array(E);
+      let e = 0;
+      if (kind === 'sparse') {
+        for (let v = 1; v < V; v++) {
+          eu[e] = rnd(v);
+          ev[e] = v;
+          ew[e++] = rnd(1000000);
+        }
+        while (e < E) {
+          const u = rnd(V);
+          const v = rnd(V);
+          if (u === v) continue;
+          eu[e] = u;
+          ev[e] = v;
+          ew[e++] = rnd(1000000);
+        }
+      } else {
+        for (let u = 0; u < V; u++) {
+          for (let v = u + 1; v < V; v++) {
+            eu[e] = u;
+            ev[e] = v;
+            ew[e++] = kind === 'worst' ? (V - u) * V + v : rnd(1000000);
+          }
+        }
+      }
+      /* 인접 목록(CSR): 정점 u의 이웃은 to[start[u]] .. to[start[u + 1] - 1] */
+      const start = new Int32Array(V + 1);
+      for (let i = 0; i < E; i++) {
+        start[eu[i] + 1]++;
+        start[ev[i] + 1]++;
+      }
+      for (let u = 0; u < V; u++) start[u + 1] += start[u];
+      const to = new Int32Array(2 * E);
+      const wt = new Int32Array(2 * E);
+      const fillAt = start.slice(0, V);
+      for (let i = 0; i < E; i++) {
+        let p = fillAt[eu[i]]++;
+        to[p] = ev[i];
+        wt[p] = ew[i];
+        p = fillAt[ev[i]]++;
+        to[p] = eu[i];
+        wt[p] = ew[i];
+      }
+      return { V, E, eu, ev, ew, start, to, wt };
+    }
+
+    /* 간선을 가중치 순으로: (가중치 x 2^22 + 번호)를 Float64Array로 정렬한다. 2^53 안에 든다. */
+    function sortedEdges(G) {
+      const keys = new Float64Array(G.E);
+      for (let i = 0; i < G.E; i++) keys[i] = G.ew[i] * 4194304 + i;
+      keys.sort();
+      return keys;
+    }
+
+    function kComp(G) {
+      const { V, eu, ev, ew } = G;
+      const keys = sortedEdges(G);
+      const comp = new Int32Array(V);
+      for (let v = 0; v < V; v++) comp[v] = v;
+      let total = 0;
+      let k = 0;
+      for (let j = 0; j < keys.length && k < V - 1; j++) {
+        const i = keys[j] % 4194304;
+        const a = comp[eu[i]];
+        const b = comp[ev[i]];
+        if (a === b) continue;
+        total += ew[i];
+        k++;
+        const small = a < b ? a : b;
+        for (let x = 0; x < V; x++) if (comp[x] === a || comp[x] === b) comp[x] = small; // V칸을 다 훑는다
+      }
+      return total;
+    }
+
+    function kUf(G) {
+      const { V, eu, ev, ew } = G;
+      const keys = sortedEdges(G);
+      const parent = new Int32Array(V);
+      const size = new Int32Array(V).fill(1);
+      for (let v = 0; v < V; v++) parent[v] = v;
+      const find = (x) => {
+        let r = x;
+        while (parent[r] !== r) r = parent[r];
+        while (parent[x] !== r) {
+          const nx = parent[x];
+          parent[x] = r;
+          x = nx;
+        }
+        return r;
+      };
+      let total = 0;
+      let k = 0;
+      for (let j = 0; j < keys.length && k < V - 1; j++) {
+        const i = keys[j] % 4194304;
+        let a = find(eu[i]);
+        let b = find(ev[i]);
+        if (a === b) continue;
+        total += ew[i];
+        k++;
+        if (size[a] < size[b]) [a, b] = [b, a];
+        parent[b] = a;
+        size[a] += size[b];
+      }
+      return total;
+    }
+
+    let pushes = 0;
+    function pHeap(G) {
+      const { V, E, start, to, wt } = G;
+      const key = new Int32Array(V).fill(0x7fffffff);
+      const inTree = new Uint8Array(V);
+      const hk = new Int32Array(2 * E + 1);
+      const hv = new Int32Array(2 * E + 1);
+      let n = 0;
+      pushes = 0;
+      const push = (k, v) => {
+        let i = n++;
+        pushes++;
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (hk[p] <= k) break;
+          hk[i] = hk[p];
+          hv[i] = hv[p];
+          i = p;
+        }
+        hk[i] = k;
+        hv[i] = v;
+      };
+      key[0] = 0;
+      push(0, 0);
+      let total = 0;
+      while (n > 0) {
+        const k0 = hk[0];
+        const u = hv[0];
+        const lk = hk[--n];
+        const lv = hv[n];
+        let i = 0;
+        for (;;) {
+          let c = 2 * i + 1;
+          if (c >= n) break;
+          if (c + 1 < n && hk[c + 1] < hk[c]) c++;
+          if (hk[c] >= lk) break;
+          hk[i] = hk[c];
+          hv[i] = hv[c];
+          i = c;
+        }
+        hk[i] = lk;
+        hv[i] = lv;
+        if (inTree[u]) continue; // 더 가벼운 간선으로 이미 붙었다
+        inTree[u] = 1;
+        total += k0;
+        for (let p = start[u]; p < start[u + 1]; p++) {
+          const v = to[p];
+          if (!inTree[v] && wt[p] < key[v]) {
+            key[v] = wt[p];
+            push(wt[p], v);
+          }
+        }
+      }
+      return total;
+    }
+
+    function pArray(G) {
+      const { V, start, to, wt } = G;
+      const key = new Int32Array(V).fill(0x7fffffff);
+      const inTree = new Uint8Array(V);
+      key[0] = 0;
+      let total = 0;
+      for (let s = 0; s < V; s++) {
+        let u = -1;
+        for (let v = 0; v < V; v++) if (!inTree[v] && (u < 0 || key[v] < key[u])) u = v; // V칸을 훑는다
+        inTree[u] = 1;
+        total += key[u];
+        for (let p = start[u]; p < start[u + 1]; p++) {
+          const v = to[p];
+          if (!inTree[v] && wt[p] < key[v]) key[v] = wt[p];
+        }
+      }
+      return total;
+    }
+
+    const FNS = { kComp, kUf, pHeap, pArray };
+
+    /* 첫 번은 재지 않고 데운다. 짧게 끝나는 칸은 되풀이해 평균을 낸다. */
+    function measure(fn, G) {
+      const expected = fn(G);
+      let total = 0;
+      let runs = 0;
+      do {
+        const t0 = performance.now();
+        const got = fn(G);
+        total += performance.now() - t0;
+        runs += 1;
+        if (got !== expected) throw new Error('different total weight');
+      } while (total < 6 && runs < 20);
+      return { ms: total / runs, weight: expected };
+    }
+
+    let kind = 'sparse';
+    let token = 0;
+    const results = {};
+    const fmt = (ms) => (ms >= 100 ? Math.round(ms).toLocaleString('en-US') : ms >= 1 ? ms.toFixed(2) : ms.toFixed(3));
+
+    function paint() {
+      const res = results[kind] || {};
+      const sizes = SIZES[kind];
+      sizes.forEach((V, j) => (root.querySelector(`[data-mr-size="${j}"]`).textContent = comma(V)));
+      const last = sizes[3];
+      for (const a of algos) {
+        const row = root.querySelector(`[data-mr-row="${a}"]`);
+        sizes.forEach((V, j) => {
+          const r = res[`${a}:${V}`];
+          row.querySelector(`[data-mr-cell="${j}"]`).textContent = r ? fmt(r.ms) : '-';
+        });
+        const big = res[`${a}:${last}`];
+        const prev = res[`${a}:${sizes[2]}`];
+        row.querySelector('[data-mr-ratio]').textContent = big && prev ? `×${(big.ms / prev.ms).toFixed(1)}` : '-';
+        const mx = Math.max(...algos.map((x) => res[`${x}:${last}`]?.ms ?? 0));
+        const mn = Math.min(...algos.map((x) => res[`${x}:${last}`]?.ms ?? Infinity));
+        /* 차이가 수십 배라 로그 눈금으로 그린다. */
+        const w = big && mx > mn ? 12 + (88 * Math.log(big.ms / mn)) / Math.log(mx / mn) : big ? 100 : 0;
+        root.querySelector(`[data-mr-bar="${a}"]`).style.width = `${w.toFixed(1)}%`;
+      }
+      const E = kind === 'sparse' ? 4 * last : (last * (last - 1)) / 2;
+      root.querySelector('[data-mr-cap]').textContent = `V = ${comma(last)}, ${fill(S.edges, { e: comma(E) })} · ${S.chart}`;
+      const done = algos.every((a) => res[`${a}:${last}`]);
+      const ratio = (a) => (res[`${a}:${last}`].ms / res[`${a}:${sizes[2]}`].ms).toFixed(1);
+      if (!done) setLines(note, S.idle);
+      else if (kind === 'sparse') setLines(note, fill(S.doneSparse, { rc: ratio('kComp'), ra: ratio('pArray'), ru: ratio('kUf'), rh: ratio('pHeap') }));
+      else if (kind === 'complete') setLines(note, fill(S.doneComplete, { e: comma(E), p: comma(res.pushes), pct: ((100 * res.pushes) / E).toFixed(1) }));
+      else setLines(note, fill(S.doneWorst, { p: comma(res.pushes), x: (res[`pHeap:${last}`].ms / res[`pArray:${last}`].ms).toFixed(0) }));
+      root.querySelectorAll('[data-mr-kind]').forEach((b) => b.classList.toggle('is-on', b.dataset.mrKind === kind));
+    }
+
+    /* 칸마다 쉬어 가며 재서 화면이 멈추지 않게 한다. 새로 누르면 앞의 측정은 버린다. */
+    function run() {
+      const my = ++token;
+      const k = kind;
+      const res = {};
+      results[k] = res;
+      paint();
+      runBtn.textContent = S.running;
+      const queue = [];
+      for (const V of SIZES[k]) for (const a of algos) queue.push([a, V]);
+      let G = null;
+      const next = () => {
+        if (my !== token) return;
+        const job = queue.shift();
+        if (!job) {
+          runBtn.textContent = S.run;
+          return;
+        }
+        const [a, V] = job;
+        if (!G || G.V !== V) G = makeGraph(k, V);
+        res[`${a}:${V}`] = measure(FNS[a], G);
+        if (a === 'pHeap') res.pushes = pushes;
+        paint();
+        setTimeout(next, 0);
+      };
+      setTimeout(next, 30);
+    }
+
+    root.querySelectorAll('[data-mr-kind]').forEach((b) =>
+      b.addEventListener('click', () => {
+        token += 1;
+        runBtn.textContent = S.run;
+        kind = b.dataset.mrKind;
+        paint();
+      }),
+    );
+    runBtn.addEventListener('click', run);
+    paint();
+  })();
+</script>
+
+<style is:global>
+  .aas-mst-race-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-mst-race-demo .mr-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-mst-race-demo .mr-head {
+    margin-right: 0.4em;
+    font-size: 0.95em;
+  }
+  .aas-mst-race-demo .mr-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-mst-race-demo .mr-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-mst-race-demo .mr-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-mst-race-demo .mr-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-mst-race-demo .mr-btn {
+    padding: 0.35em 1.1em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-accent);
+    border-radius: 0.5em;
+    background: var(--aas-accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .aas-mst-race-demo.aas-mst-race-demo table {
+    width: 100%;
+    max-width: none;
+    margin: 0.6em 0 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.85em;
+  }
+  .aas-mst-race-demo.aas-mst-race-demo :is(th, td) {
+    padding: 0.2em 0.6em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-mst-race-demo.aas-mst-race-demo th {
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-mst-race-demo.aas-mst-race-demo .mr-name {
+    text-align: left;
+  }
+  .aas-mst-race-demo.aas-mst-race-demo tr:is([data-mr-row='kUf'], [data-mr-row='pHeap']) td {
+    background: color-mix(in srgb, var(--aas-role-eval) 12%, transparent);
+  }
+  .aas-mst-race-demo .mr-chart {
+    margin-top: 0.35em;
+  }
+  .aas-mst-race-demo .mr-chartcap {
+    display: block;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-mst-race-demo .mr-chartline {
+    display: grid;
+    grid-template-columns: 8em 1fr;
+    gap: 0.6em;
+    align-items: center;
+    font-size: 0.78em;
+  }
+  .aas-mst-race-demo .mr-chartline span {
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-mst-race-demo .mr-track {
+    height: 0.85em;
+  }
+  .aas-mst-race-demo .mr-track i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 0.2em;
+    background: var(--aas-role-model);
+    transition: width 0.25s;
+  }
+  .aas-mst-race-demo .mr-track i:is([data-mr-bar='kUf'], [data-mr-bar='pHeap']) {
+    background: var(--aas-role-eval);
+  }
+  .aas-mst-race-demo .mr-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 좁은 화면: 여섯 열이 화면 안에 들도록 글자와 칸 여백을 줄인다. */
+  @media (max-width: 560px) {
+    .aas-mst-race-demo.aas-mst-race-demo table {
+      font-size: 0.68em;
+    }
+    .aas-mst-race-demo.aas-mst-race-demo :is(th, td) {
+      padding: 0.2em 0.25em;
+    }
+    .aas-mst-race-demo .mr-chartline {
+      grid-template-columns: 6.5em 1fr;
+    }
+  }
+
+  /* 슬라이드용. RuntimeRaceDemo와 같은 크기 */
+  .aas-mst-race-demo.is-slide {
+    font-size: clamp(1rem, 2.55vh, 1.75rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-mst-race-demo .mr-track i {
+      transition: none;
+    }
+  }
+</style>

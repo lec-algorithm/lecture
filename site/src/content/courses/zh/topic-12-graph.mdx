@@ -28,6 +28,9 @@ import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
 import NegWeightDemo from '@components/NegWeightDemo.astro';
+import UnionFindDemo from '@components/UnionFindDemo.astro';
+import MstRaceDemo from '@components/MstRaceDemo.astro';
+import MapRouteDemo from '@components/MapRouteDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
@@ -54,8 +57,8 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 所有顶点的度加起来是 18，正好是 9 条边的两倍。因为一条边会让两端顶点的度各加一。
 整理如下。
 
-- **顶点**：也叫节点（node）。个数通常记作 $$n$$ 或 $$V$$。
-- **边**：顶点的对。个数记作 $$m$$ 或 $$E$$。
+- **顶点**：也叫节点（node）。个数记作 $$V$$，与顶点集合同名。有的书记作 $$n$$。
+- **边**：顶点的对。个数记作 $$E$$。有的书记作 $$m$$。
   - **无向**（undirected）：无序对。像朋友关系一样，两边相同。
   - **有向**（directed）：有序对。像关注一样，只朝一个方向。
 - **路径**（path）：由边连接起来的顶点序列。两个顶点之间有路径时，称这两个顶点
@@ -76,19 +79,19 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 
 ### 最多有多少条边 \{#edge-count}
 
-考虑一个有 $$n$$ 个顶点、没有平行边、连通（是一整块）的无向图。边最少几条，
+考虑一个有 $$V$$ 个顶点、没有平行边、连通（是一整块）的无向图。边最少几条，
 最多几条？
 
-- **最少** $$n - 1$$ 条：把顶点连成一条线是用边最少的方法。
+- **最少** $$V - 1$$ 条：把顶点连成一条线是用边最少的方法。
   去掉任何一条，整块就会断成两块。
-- **最多** $$\dfrac{n(n-1)}{2}$$ 条：所有顶点对都相连。第一个顶点可选的对象有
-  $$n-1$$ 个，第二个去掉已连的有 $$n-2$$ 个，…… 所以是
-  $$(n-1) + (n-2) + \dots + 1$$。顶点有 5 个时是 $$4 + 3 + 2 + 1 = 10$$ 条。
+- **最多** $$\dfrac{V(V-1)}{2}$$ 条：所有顶点对都相连。第一个顶点可选的对象有
+  $$V-1$$ 个，第二个去掉已连的有 $$V-2$$ 个，…… 所以是
+  $$(V-1) + (V-2) + \dots + 1$$。顶点有 5 个时是 $$4 + 3 + 2 + 1 = 10$$ 条。
 
 这个差距决定了图算法的代价。
 
-- **稀疏**（sparse）图：边数接近顶点数。$$m = O(n)$$，社交网络就是这样。
-- **稠密**（dense）图：边数接近顶点数的平方。$$m = O(n^2)$$，完全图就是这样。
+- **稀疏**（sparse）图：边数接近顶点数。$$E = O(V)$$，社交网络就是这样。
+- **稠密**（dense）图：边数接近顶点数的平方。$$E = O(V^2)$$，完全图就是这样。
 
 此外，图还可以按有没有方向（有向/无向）、有没有环（cyclic/acyclic）来分类。
 有方向且没有环的图称为 **DAG**（directed acyclic graph）。
@@ -130,20 +133,20 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 
 ### 邻接矩阵 \{#adjacency-matrix}
 
-在 $$n \times n$$ 的矩阵 A 里写 0 和 1。$$A_{ij} = 1$$ 表示 i 和 j 之间有边。
+在 $$V \times V$$ 的矩阵 A 里写 0 和 1。$$A_{ij} = 1$$ 表示 i 和 j 之间有边。
 也有变形。
 
 - 有平行边时，在 $$A_{ij}$$ 里写 i-j 边的**条数**。
 - 有权重时，在 $$A_{ij}$$ 里写 i-j 边的**权重**。
 - 有向图用 $$A_{ij} = +1$$（i → j）、$$-1$$（i ← j）这样记下方向。
 
-所需空间与边数无关，都是 $$\Theta(n^2)$$。
+所需空间与边数无关，都是 $$\Theta(V^2)$$。
 
 ### 邻接表 \{#adjacency-list}
 
 每个顶点有一张邻居列表。它由顶点数组、边数组，以及边和顶点互相指向的指针
-组成。所需空间是 $$\Theta(n + m)$$。
-每个顶点一格，每条无向边在两端的列表里各占一格，共 $$2m$$ 格。
+组成。所需空间是 $$\Theta(V + E)$$。
+每个顶点一格，每条无向边在两端的列表里各占一格，共 $$2E$$ 格。
 
 用三种方式同时存同一个图。它和前面术语演示的图相同，BFS 和 DFS 的例子也会一直用到。
 点击图中的边会删除它，点击矩阵的格子会加入或删除那一对顶点之间的边。点击顶点，
@@ -183,13 +186,13 @@ adjacency list
 ### 边数与格数 \{#edge-cells}
 
 把前面看到的边数范围和两种表示的格数放在一起调整。
-改变 $$n$$ 和 $$m$$，图会重画，格数也跟着变。
+改变 $$V$$ 和 $$E$$，图会重画，格数也跟着变。
 
 <DensityDemo />
 
-- $$n = 5$$ 时 $$m$$ 在 4 到 10 之间。最少时邻接表 13 格，矩阵 25 格。
-- 邻接表的 $$n + 2m$$ 格只有在 $$m$$ 最大时才等于矩阵的 $$n^2$$ 格。$$n = 5$$、$$m = 10$$ 时都是 25 格。
-- $$n = 12$$、$$m = 11$$ 时邻接表 34 格，矩阵 144 格。
+- $$V = 5$$ 时 $$E$$ 在 4 到 10 之间。最少时邻接表 13 格，矩阵 25 格。
+- 邻接表的 $$V + 2E$$ 格只有在 $$E$$ 最大时才等于矩阵的 $$V^2$$ 格。$$V = 5$$、$$E = 10$$ 时都是 25 格。
+- $$V = 12$$、$$E = 11$$ 时邻接表 34 格，矩阵 144 格。
 - 只有检查一条边时矩阵才领先，只要 1 格。
 
 ### 两者对比 \{#representation-compare}
@@ -241,7 +244,7 @@ graph = {
 
 - 找出从起点 s **能到达的所有顶点**。
 - **任何顶点都不搜索两次。**
-- 所以在 $$O(m + n)$$ 时间内结束。
+- 所以在 $$O(V + E)$$ 时间内结束。
 
 ### 通用搜索算法 \{#generic-search}
 
@@ -278,7 +281,7 @@ graph = {
 | --- | --- | --- |
 | 扩展方式 | 按层（layer），近的先 | 一条路走到底，走不通就退回 |
 | 数据结构 | 队列（FIFO） | 栈（LIFO）或递归 |
-| 运行时间 | $$O(m + n)$$ | $$O(m + n)$$ |
+| 运行时间 | $$O(V + E)$$ | $$O(V + E)$$ |
 | 擅长的事 | 无权最短路径、连通分量 | 拓扑排序、连通分量、环检测 |
 
 ## 例 1. 广度优先搜索 \{#bfs}
@@ -378,8 +381,8 @@ path 0 -> 4: 0 5 4 (2 edges)
 
 - **命题 1**：BFS 结束时 v 已被探索 ⇔ 存在从 s 到 v 的路径。
   BFS 是通用搜索算法的一种，所以证明相同。
-- **命题 2**：主循环的运行时间是 $$O(n_s + m_s)$$。
-  - $$n_s$$ 是从 s 能到达的顶点数，$$m_s$$ 是从 s 能到达的边数。
+- **命题 2**：主循环的运行时间是 $$O(V_s + E_s)$$。
+  - $$V_s$$ 是从 s 能到达的顶点数，$$E_s$$ 是从 s 能到达的边数。
   - 每个顶点只进队列一次、出队列一次。
   - 每条边在取出两端顶点时各看一次，共两次。
 
@@ -410,7 +413,7 @@ for i <- 1 to n do
         BFS(G, i)                       // 从 i 能到达的顶点构成一个连通分量
 ```
 
-虽然调用多次 BFS，但顶点和边总共只各看一次，所以是 $$O(m + n)$$。
+虽然调用多次 BFS，但顶点和边总共只各看一次，所以是 $$O(V + E)$$。
 同样的事也可以用 DFS 做，实践代码用的就是 DFS。
 
 ## 例 2. 深度优先搜索 \{#dfs}
@@ -515,7 +518,7 @@ order: 0 6 4 5 3 2 1
 
 - **命题 1**：DFS 结束时 v 已被探索 ⇔ 存在从 s 到 v 的路径。
   同样是通用搜索算法的一种。
-- **命题 2**：运行时间是 $$O(n_s + m_s)$$。在 s 的连通分量内，
+- **命题 2**：运行时间是 $$O(V_s + E_s)$$。在 s 的连通分量内，
   每个顶点最多访问一次，每条边最多看两次（两端各一次）。
 
 ### 应用：连通分量 \{#dfs-components}
@@ -568,7 +571,7 @@ count = 3
 - 可能的顺序有 6 种。3、6、0 的次序是固定的，后面是把 1 → 4 和 5 → 2 穿插起来的方法数。
 - 用“加入环边”加上 4 → 0，0 → 1 → 4 → 0 就成了环。3 和 6 之后再没有可选的课程，可能的顺序变成 0 种。
 
-有向图 G 的拓扑顺序就是给顶点编号 $$f(v) \in \{1, 2, \dots, n\}$$，
+有向图 G 的拓扑顺序就是给顶点编号 $$f(v) \in \{1, 2, \dots, V\}$$，
 使得对所有边 (u, v) 都有 $$f(u) < f(v)$$。DFS 正好能给出这个编号。
 **看完所有出边之后**才给编号，并且从大号往回倒着给。先结束的顶点，
 后面没有要排在它之后的顶点了。蓝色是还在调用栈里、尚未结束的顶点，绿色是已结束
@@ -609,7 +612,7 @@ topological sort (V = 7, E = 11, directed)
 没有任何顶点指向 3，所以它排在最前，拿到 1 号。
 
 - G 中**有有向环**时没有拓扑顺序。因为环上的顶点彼此都要排在对方前面。
-- 没有环时可以在 $$O(m + n)$$ 时间内求出拓扑顺序。
+- 没有环时可以在 $$O(V + E)$$ 时间内求出拓扑顺序。
 
 ### DFS 能做的其他事 \{#dfs-more}
 
@@ -834,7 +837,104 @@ total weight = 1.81
 - **时间**：排序是 $$O(E \log E)$$。块的判断是 $$O(1)$$，合并要扫整个数组是
   $$O(V)$$，但合并只发生 $$V - 1$$ 次，总共 $$O(V^2)$$。
   把合并换成 **union-find**（并查集），判断和合并都接近常数时间，
-  整体就取决于排序代价 $$O(E \log E)$$。
+  整体就取决于排序代价 $$O(E \log E)$$。下面就来看看。
+
+### union-find \{#union-find}
+
+comp 数组的弱点是合并。每次合并两块，都要扫描全部 V 格改写编号。V 是 10 万时，一次合并
+就是 10 万格，合并 V-1 次就是 100 亿格。
+
+**union-find**（并查集，disjoint set）把每一块当作一棵树来保存。每个顶点只有一个
+**父节点**（parent），沿父节点走上去到达的**根**就是这一块的名字。
+
+- **Find(x)**：从 x 沿父节点走到根。两端的根相同就在同一块里。
+- **Union(a, b)**：把根 a、b 中的一个挂到另一个下面。只改写一格。
+
+只这样做，树可能拉成一条长线，Find 就得走 V 格。两个技巧可以避免。
+
+- **按大小合并**（union by size）：把小树的根挂到大树的根下面。大小相同时，把编号大的根
+  挂到编号小的根下面。
+- **路径压缩**（path compression）：把 Find 经过的顶点直接挂到根上。下一次 Find 一步就到。
+
+<UnionFindDemo />
+
+加入同样的七条边，在同样的 1.81 停下。变的只是保存分量的方法。在 1-3 时，3 沿
+3→2→0 向上走两步。路径压缩把 3 直接挂到 0 上，之后一步就到根。总共走了 16 次链接。
+comp 数组每次合并扫描 8 格，合并 7 次，共 56 格。
+
+- 伪代码（摘自 `08_union_find/unionFind.pseudo`）
+
+```plaintext
+ALGORITHM Find(x)                       // x 所在树的根
+    root <- x
+    while parent[root] != root do       // 沿父节点走到根
+        root <- parent[root]
+    while parent[x] != root do          // 路径压缩：把经过的顶点直接挂到根上
+        next <- parent[x]
+        parent[x] <- root
+        x <- next
+    return root
+
+ALGORITHM Union(a, b)                   // a、b 是不同的根
+    if size[a] < size[b] or (size[a] = size[b] and a > b) then
+        swap(a, b)                      // a 是大的一方（相同时是编号小的一方）
+    parent[b] <- a                      // 把小树挂到大树的根下面
+    size[a] <- size[a] + size[b]
+```
+
+Kruskal 保持不变，用 `Find(u) != Find(v)` 代替 `comp[u] != comp[v]`，用 `Union` 代替合并。
+
+- 运行
+
+```sh
+cd src/topic-12-graph/08_union_find
+make -f /work/Makefile unionFind.out && ./unionFind.out
+```
+
+- 结果
+
+```console
+V = 8, E = 16, union by size + path compression
+edge      find u    find v    result
+0-7 0.16  0         7         add   7 under 0  parent [0 1 2 3 4 5 6 0]
+2-3 0.17  2         3         add   3 under 2  parent [0 1 2 2 4 5 6 0]
+1-7 0.19  1         7>0       add   1 under 0  parent [0 0 2 2 4 5 6 0]
+0-2 0.26  0         2         add   2 under 0  parent [0 0 0 2 4 5 6 0]
+5-7 0.28  5         7>0       add   5 under 0  parent [0 0 0 2 4 0 6 0]
+1-3 0.29  1>0       3>2>0     skip  root 0     parent [0 0 0 0 4 0 6 0]
+1-5 0.32  1>0       5>0       skip  root 0
+2-7 0.34  2>0       7>0       skip  root 0
+4-5 0.35  4         5>0       add   4 under 0  parent [0 0 0 0 0 0 6 0]
+1-2 0.36  1>0       2>0       skip  root 0
+4-7 0.37  4>0       7>0       skip  root 0
+0-4 0.38  0         4>0       skip  root 0
+6-2 0.40  6         2>0       add   6 under 0  parent [0 0 0 0 0 0 0 0]
+7 edges = V - 1, stop
+mst: 0-7 2-3 1-7 0-2 5-7 4-5 6-2
+total weight = 1.81
+links followed = 16 (comp array: 7 merges x 8 cells = 56)
+
+random connected graphs, E = 4V, seed 2026
+        V       comp cells     finds     links links/find
+    1,000          999,000     7,040     6,447       0.92
+   10,000       99,990,000    78,228    72,834       0.93
+  100,000    9,999,900,000   788,952   737,258       0.93
+```
+
+`find u`、`find v` 两列是从两端走到根的路径。`7>0` 表示 7 的父节点是 0，0 是根。只在
+父节点有变化的行打印 `parent`。
+
+后面的表是在大的随机图上数出的值。`comp cells` 是 comp 数组在 V-1 次合并中每次扫描 V 格的
+总数，`links` 是 union-find 的 Find 走过的父链接总数。这些是计数而不是时间，所以 C 和
+Python 的输出相同。
+
+- **树高**：按大小合并时，树高不会超过 $$\log_2 V$$。顶点往下一层，只发生在它所在的树被挂到
+  一棵同样大或更大的树下面时，每次它所在的树至少变大一倍。树的大小不会超过 V，所以最多
+  $$\log_2 V$$ 层。
+- **再加上路径压缩**：一次 Find 实际上是常数。准确地说与反阿克曼函数 $$\alpha(V)$$ 成正比，
+  即使 V 大到宇宙中的原子数，它也不超过 4。表里一次 Find 平均也不到 1 步。
+- **Kruskal 整体**：V 变 10 倍时，comp 数组变 100 倍，union-find 变 10 倍。判断与合并几乎
+  不花代价，整体取决于排序 $$O(E \log E)$$。
 
 ## 例 4. 优先队列与最小堆 \{#heap}
 
@@ -1147,6 +1247,88 @@ Prim 自始至终只有一块在长大。
 - **时间**：放进堆的项每条边最多一个。放入和取出各是
   $$O(\log E)$$，所以是 $$O(E \log E)$$；又因为 $$E \le V^2$$，有 $$\log E \le 2 \log V$$，
   所以是 $$O(E \log V)$$。
+
+## Kruskal 与 Prim，何时用哪个 \{#mst-when}
+
+Kruskal 和 Prim 得到同一棵 MST，但代价随图而大不相同。实现也各有两种。Kruskal 可以用 comp
+数组或 union-find 保存分量；Prim 可以从堆里取出最近的顶点，也可以不用堆，扫描 V 格的 key
+数组来选。
+
+| 方法 | 保存分量或选下一个顶点 | 时间 |
+| --- | --- | --- |
+| Kruskal comp | 每次合并改写 V 格 | $$O(E \log E + V^2)$$ |
+| Kruskal UF | union-find | $$O(E \log E)$$ |
+| Prim heap | 从最小堆取出 | $$O(E \log V)$$ |
+| Prim array | 扫描 key 数组的 V 格 | $$O(V^2 + E)$$ |
+
+下面的演示在这个浏览器里亲手测这四种方法。用标签切换图。完全图有两种：一种权重随机；
+另一种把 u < v 的边的权重设为 $$(V - u) \times V + v$$，Prim 每加入一个顶点，其余所有顶点的
+key 都会变小。这对堆是最不利的情况。
+
+<MstRaceDemo />
+
+用 C 做同样的事的是 `09_mst_timing`。Prim array 的伪代码如下。
+
+```plaintext
+ALGORITHM PrimArray(G)
+    for each 顶点 v do key[v] <- INF, inTree[v] <- false
+    key[0] <- 0, total <- 0
+    repeat V 次
+        u <- 不在 inTree 里、key 最小的顶点   // 扫描 V 格
+        inTree[u] <- true, total <- total + key[u]
+        for each (u, v, w) in G.adj[u] do
+            if not inTree[v] and w < key[v] then key[v] <- w
+    return total
+```
+
+- 运行
+
+```sh
+cd src/topic-12-graph/09_mst_timing
+make -f /work/Makefile mstTiming.out && ./mstTiming.out
+```
+
+- 结果（毫秒，数值因电脑而异）
+
+```console
+sparse, E = 4V (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+   2000      8000         2.968       0.435      0.142       2.287
+   8000     32000        34.831       2.106      0.955      35.513
+  32000    128000       517.287      10.024      5.184     555.430
+
+complete, E = V(V-1)/2 (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         9.306       9.148      0.256       0.491
+   1000    499500        41.711      41.022      0.965       2.106
+   2000   1999000       183.393     180.328      3.413       9.270
+
+complete, every edge lowers a key (ms)
+      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
+    500    124750         2.984       3.002      5.445       0.233
+   1000    499500        13.145      13.253     25.066       0.833
+   2000   1999000        57.362      56.097    109.677       3.222
+```
+
+- **稀疏图**：V 变 4 倍时，Kruskal comp 和 Prim array 约变 15 倍。二者都受 $$V^2$$ 限制。
+  换成 union-find 和堆的两种方法，在 V = 32,000 时分别快 50 倍和 100 倍以上。
+- **随机完全图**：Prim heap 最快。权重随机时，新加入的顶点很少让其余顶点的 key 变小，
+  入堆次数远少于 E。演示中 V = 2,000 时，约 200 万条边里不到 1%。Kruskal 要对所有边排序，最慢。
+- **对堆最不利的完全图**：每条边都让 key 变小，入堆 E 次。这时 V = 2,000 下 Prim array 快
+  34 倍。$$O(V^2)$$ 是不论输入都成立的上界，在完全图上与把每条边看一次的代价同一量级。
+
+归纳如下。
+
+| 情况 | 选什么 | 原因 |
+| --- | --- | --- |
+| 稀疏（$$E \approx V$$） | Kruskal UF、Prim heap | 都是 $$O(E \log V)$$。V 大时 $$V^2$$ 的方法用不了 |
+| 稠密（$$E \approx V^2$$） | Prim array | 不论输入都是 $$O(V^2)$$。key 经常变小时堆要 $$E \log V$$ |
+| 只有边的列表 | Kruskal UF | 不必建邻接表 |
+| 分成 k 块 | Kruskal 在 V-k 条边时停下 | 那时的森林就是答案 |
+
+最后一行是聚类（clustering）。让 Kruskal 不在 V-1 条边、而在 V-k 条边时停下，就剩下 k 块，
+不同块中最近两个顶点之间的距离，在所有分法中最大。随机完全图上堆快，是输入帮的忙，
+不是有保证的上界。
 
 ## 最短路径 \{#shortest-path}
 
@@ -1687,15 +1869,53 @@ $$2h^*$$ 高估了剩余距离，所以不是可采纳的。它关闭的顶点�
   先在块之间搜索的分层寻路（Hierarchical Pathfinding）
 - **改进启发式**：预先计算的模式数据库、用机器学习学到的启发式
 
+## 在真实地图上看 \{#real-map}
+
+到目前为止的图只有八个顶点。在真实地图上会怎样？下面的演示是延世大学国际校区（松岛）与
+仁川 1 号线大学城站、科技公园站一带约 2.7km × 2.2km 的步行路网。取 OpenStreetMap 的道路
+数据，把路口当作顶点，两个路口之间的一段路当作边，权重是这段路的实际长度（m）。顶点
+1,323 个，边 1,980 条。
+
+四个算法与上面的演示相同。A* 的 $$h$$ 是到终点的直线距离。任何路都不会比直线短，所以
+这个 $$h$$ 是可采纳的，也是一致的，A* 不必重新打开也能找到与 Dijkstra 相同的最短路线。
+
+<MapRouteDemo />
+
+从大学城站到综合馆的结果如下。
+
+| 算法 | 关闭的路口 | 距离 | 路段 |
+| --- | --- | --- | --- |
+| BFS | 872 | 1,286m | 21 |
+| Dijkstra | 710 | 1,057m | 25 |
+| A* | 91 | 1,057m | 25 |
+| Greedy | 33 | 1,259m | 27 |
+
+- **Dijkstra** 从起点向四面八方均匀扩散。终点在东南边，它也同样关闭北边和西边的路。
+- <strong>A*</strong> 朝终点方向拉长着扩散。找到同样 1,057m 的路线，关闭的路口只有
+  Dijkstra 的八分之一多一点。
+- **BFS** 只数路段。它选了路段最少（21 段）的路线，却长了 229m。路段长短不一，路段少
+  并不等于路短。
+- **Greedy** 只关闭 33 个，最快，但它一味朝终点走，碰壁就绕回去，多走了 202m。有时运气好，
+  像从大学城站到安德伍德纪念图书馆那样只比最短多 1m；有时像从科技公园站到松岛学舍 A
+  那样绕了 492m。
+
+换一条路线，或点击地图移动起点和终点，顺序大体不变。关闭的数量 Greedy 最少，A* 其次；
+距离上 Dijkstra 与 A* 总是相同且最短。
+
+真实地图服务的路网有数百万个路口。只用 A*，一次查询也要关闭太多路口，所以还会预先计算
+地图、建好捷径（分层寻路等方法）一起使用。地图数据 © OpenStreetMap contributors，遵循 ODbL。
+
 ## 要带走的 \{#takeaway}
 
-- **图的表示**：邻接矩阵空间 $$\Theta(n^2)$$、判断边 $$O(1)$$；邻接表
-  空间 $$\Theta(n + m)$$、遍历邻居快。搜索适合用表。
+- **图的表示**：邻接矩阵空间 $$\Theta(V^2)$$、判断边 $$O(1)$$；邻接表
+  空间 $$\Theta(V + E)$$、遍历邻居快。搜索适合用表。
 - **BFS 和 DFS** 是同一种通用搜索的两副面孔。用队列就按层走（无权最短路径），
   用栈或递归就先往深处走，用于拓扑排序和环检测。二者都是
-  $$O(m + n)$$。
+  $$O(V + E)$$。
 - **割的性质**：无论哪个割，最轻的横切边都在 MST 里。Kruskal 和
   Prim 是只在选割方式上不同的贪心。例子的 MST 是 1.81。
+- **union-find**：按大小合并并压缩路径，Find 实际上是常数，所以 Kruskal 取决于排序
+  $$O(E \log E)$$。稀疏图用 Kruskal UF 或 Prim heap，稠密图用不用堆、扫描 V 格的 Prim array。
 - **最小堆**：放入时用 sift up 上浮，取出时用 sift down 下沉。二者都是
   $$O(\log n)$$，是优先队列的基础。
 - **Prim 和 Dijkstra 是同一个框架**。区别只在放进堆的值是一条边的权重，
@@ -1716,7 +1936,9 @@ src/topic-12-graph/
 ├── 04_min_heap/         # insert 10, insert 0, extract min
 ├── 05_mst_prim/         # 用最小堆从顶点 0 开始，MST 1.81
 ├── 06_dijkstra/         # 从 0 到 6 是 25，负权重时出错的例子
-└── 07_a_star/           # 不重新打开是 26，重新打开是 25
+├── 07_a_star/           # 不重新打开是 26，重新打开是 25
+├── 08_union_find/       # 用 union-find 做 Kruskal，链接 16 次 vs comp 数组 56 格
+└── 09_mst_timing/       # 两种 Kruskal 与两种 Prim 的时间，稀疏图与完全图
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
@@ -1728,15 +1950,17 @@ src/topic-12-graph/
   会变，但 dist 列不变。
 - 在 `02_dfs` 里改成邻居从大编号开始压栈。访问顺序会变成 `0 1 2 3 4 5 6`。
 - 改变 `05_mst_prim` 的起点。接入顺序会变，但 MST 和 1.81 不变。
+- 去掉 `08_union_find` 里 `unite` 的大小比较。后面表里的 `links` 会变多。
 - 把 `07_a_star` 的 `h` 全部改成 0，就会按和 Dijkstra 相同的顺序关闭；改成实际剩余
   距离（`25 22 11 9 16 12 0 18`），就只关闭四个顶点便到达目标。
 
 ## 版本记录 \{#changelog}
 
-幻灯片与本资料一起升版。当前版本是 **v2**，幻灯片左下角
+幻灯片与本资料一起升版。当前版本是 **v3**，幻灯片左下角
 可以看到同一版本号。
 
 | 版本 | 日期 | 内容 |
 | --- | --- | --- |
 | v1 | 2026-10-28 | 首次公开 |
 | v2 | 2026-11-04 | 新增 13 个动手演示（边数与格数、选择边界边、BFS 与 DFS 并排、拓扑排序、替换生成树的边、最小堆、BFS 与 Dijkstra 的路径、Prim 与 Dijkstra 并排、选择优先队列、负权重、负环、修改 h、测量四个算法）。在搜索演示中加入邻接表 |
+| v3 | 2026-11-13 | 图的规模统一写成 V、E，并在右上角加上 V·E 以及 A* 的 g·h·f 图例。新增 union-find 一节与单步演示、何时用 Kruskal 或 Prim 的整理，在浏览器里测量四种 MST 方法的演示，以及在延世大学国际校区一带的真实步行路网（OpenStreetMap）上比较四种寻路算法的地图演示，引用 `algorithm-code` 中 `08_union_find`、`09_mst_timing` 的输出 |

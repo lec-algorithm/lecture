@@ -3,6 +3,35 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
+## [1.6.0] - 2026-11-13
+
+이 버전은 `algorithm-code`의 새 예제(`08_union_find`, `09_mst_timing`)의 출력을 인용한다.
+`algorithm-code` v1.6.0이 먼저 릴리스되어야 슬라이드의 명령과 결과가 맞는다.
+
+### Added
+
+- **주제 12를 v3로 올렸다.** 덱은 106장에서 119장, 데모 사용은 28회에서 31회가 되었다.
+  - **union-find로 Kruskal**: 부모 포인터로 된 숲에서 두 Find가 올라간 길, 크기로 합치기,
+    경로 압축(압축 전과 후를 두 걸음으로)을 한 걸음씩 본다. 링크 16번 대 comp 배열 56칸
+  - **Kruskal과 Prim, 언제 무엇을**: 희소 그래프, 무작위 완전 그래프, 힙에 가장 나쁜 완전
+    그래프에서 Kruskal 둘과 Prim 둘을 브라우저에서 직접 재고, C로 잰 시간과 언제 무엇을
+    쓰는지 정리한 표를 더했다. 무작위 완전 그래프에서는 key가 드물게 줄어 힙이 빠르다는 것도 보인다.
+  - **실제 지도에서 보기**: 연세대 국제캠퍼스와 캠퍼스타운역·테크노파크역 일대의 실제 보행
+    도로망(OpenStreetMap, 교차로 1,323개)에서 BFS, Dijkstra, A*, Greedy가 닫는 교차로와
+    찾은 길을 그린다. 지도를 눌러 출발과 도착을 옮기고, 넷을 나란히 같은 속도로 돌린다.
+    지도 데이터는 `scripts/osm-walk-graph.py`로 다시 만들 수 있다.
+  - 그래프 슬라이드 맨 위 줄에 V·E 범례를, A* 슬라이드에 g·h·f 범례를 붙였다.
+
+### Changed
+
+- **진도를 바꿨다.** 주제 12(그래프)를 주제 10·11보다 먼저 12\~13주차에 진행한다. 최단 경로를
+  14주차로 떼어 놓지 않는다. 주제 번호는 그대로다. `docs/course-plan.md`의 주차표와
+  오리엔테이션 덱의 학기 진도표(세 로케일)를 고쳤다.
+- 주제 12의 그래프 크기 표기를 n, m에서 V, E로 통일했다. 힙의 원소 수 n은 그대로다.
+- 휴대폰 폭에서 주제 12의 교안이 가로로 넘치던 데모 넷(MST 시간 표, 우선순위 큐 비용,
+  Prim·Dijkstra 표, 최소 힙)을 고쳤다.
+- 주제 12의 Kruskal과 A* 실행 슬라이드에서 출력이 아래로 잘리던 것을 고쳤다.
+
 ## [1.5.0] - 2026-11-11
 
 이 버전은 `algorithm-code`의 새 예제(`08_msd_cost`, `09_radix_timing`)와 바뀐 `04_lcp` 출력을
@@ -490,6 +519,7 @@
     - 슬라이드와 안내 글에 두 흐름을 GitHub 화면 캡처 네 장으로 나눠 실었다.
       세 언어 모두 반영했다.
 
+[1.6.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.6.0
 [1.5.0]: https://github.com/lec-algorithm/lecture/releases/tag/v1.5.0
 [1.3.2]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.2
 [1.3.1]: https://github.com/lec-algorithm/lecture/releases/tag/v1.3.1
