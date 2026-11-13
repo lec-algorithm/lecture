@@ -1,0 +1,600 @@
+---
+title: "Assignment 2 · Building a URL shortener with an agent"
+description: "From chat to agent: specification, plan, tests, rules file, verification and a live service in seven steps"
+order: 150
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import AgentLoopDemo from '@components/AgentLoopDemo.astro';
+import Base62Demo from '@components/Base62Demo.astro';
+import ShortenerDemo from '@components/ShortenerDemo.astro';
+import ProxyLinkDemo from '@components/ProxyLinkDemo.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
+
+{/* Slides follow the "Slide rules" in docs/writing-rules.md.
+    The content must match the /article/hw2-2026/ page.
+    The experiment numbers must match experiments/results.csv in hw2-sample-2026. */}
+
+<Slide class="cover">
+
+# Assignment 2
+
+Building a URL shortener with an agent
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## Today
+::sub[From the chat window into the repository]
+
+- One step beyond using AI **only in a chat window**.
+- Let the same AI read, edit and test files **inside the repository**.
+- Build a URL shortener in seven steps.
+- At the end, open the short link on **your own phone**.
+
+</Slide>
+
+<Slide class="compact">
+
+## Chat and agent
+::sub[Same AI, different place]
+
+| | Chat | Agent |
+| --- | --- | --- |
+| Knows my code | Only what I paste | Reads the repository files itself |
+| Where results go | I copy and paste them | It creates and edits files itself |
+| Runs anything | No | Runs the tests and reads failures |
+| Remembers rules | Forgets after the conversation | Reads the rules file every time |
+
+</Slide>
+
+<Slide>
+
+### The same job, two ways
+::sub[Same result. What we count is the process]
+
+<AgentLoopDemo slide />
+
+</Slide>
+
+<Slide>
+
+## My job changes
+::sub[From moving text around to checking]
+
+- **I decide what to build.**
+  - Writing the specification is the human's job.
+- **I check that it is right.**
+  - Agents are wrong in convincing ways.
+  - Tests and real runs catch it.
+- **I leave points to go back to.**
+  - Commit after every step and you can always undo.
+
+</Slide>
+
+<Slide>
+
+## Getting started
+::sub[Create your repository from hw2-starter-2026]
+
+1. **Use this template** → **Create a new repository**
+2. Name it `algorithms-hw2`, make it **Public**
+3. In your repository: **Code** → **Codespaces** → **Create codespace on main**
+4. Open the Copilot chat and switch the mode to **Agent**
+
+<br/>
+
+The starter repository has no solution in it.  
+If it did, the agent would simply copy it.
+
+</Slide>
+
+<Slide>
+
+### Within the free allowance
+::sub[This assignment fits in about 20 agent requests]
+
+- **One thing at a time, and specific.**
+  - A vague request spends a turn on a clarifying question.
+- **Paste failure messages as they are.**
+  - It gets fixed in one go, unlike "it doesn't work."
+- **Make small edits yourself.**
+  - Do not spend a request on renaming a variable.
+
+</Slide>
+
+<Slide class="compact">
+
+## Seven steps
+
+| Step | What you do | Requests |
+| --- | --- | --- |
+| 1 | Chat and agent side by side | 2 |
+| 2 | I write the specification | 0 |
+| 3 | A plan before code | 1\~2 |
+| 4 | Tests first, implementation by the agent | 3\~5 |
+| 5 | Give the rules as a file | 2\~3 |
+| 6 | Verify the result yourself | 2\~3 |
+| 7 | Serve it | 2\~3 |
+
+</Slide>
+
+<Slide class="compact">
+
+### The same rhythm every step
+::sub[request → check → commit → log]
+
+```sh
+git add -A && git commit -m "Step 1: base62 encode/decode"
+```
+
+- A commit is **a point to go back to**.
+- In `AGENT_LOG.md`, write the exact request and what you checked, one line each.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 1
+
+Chat and agent side by side
+
+</Slide>
+
+<Slide class="compact">
+
+### First, the chat way
+::sub[Mode: Ask]
+
+```text
+Write base62 encode/decode functions in Python
+```
+
+- Copy the answer into `src/base62.py`.
+- Work out **yourself** how to run it.
+
+</Slide>
+
+<Slide class="compact">
+
+### Now the agent
+::sub[Mode: Agent · delete the pasted file first]
+
+```text
+In src/base62.py, write encode(n), which turns an integer n >= 0 into a base-62
+string using the characters 0-9, a-z, A-Z in that order, and its inverse decode(s).
+Write unittest tests in tests/test_base62.py, then run make test in the terminal
+and show me that they pass.
+```
+
+- It creates the files, runs the tests, and fixes failures.
+- The request says **where, what, and how to check**.
+
+</Slide>
+
+<Slide>
+
+### base62 is dividing by 62
+::sub[Try 0]
+
+<Base62Demo slide />
+
+</Slide>
+
+<Slide>
+
+### You are the one who clicks Allow
+::sub[The agent asks before running a command]
+
+- It shows what it wants to run, such as `make test`, and asks.
+- **Read, then click.** If you do not know the command, ask what it does first.
+- Be especially careful with commands that delete files or install things.
+
+<br/>
+
+Knowing that you are the one who checks  
+is the first habit to learn with an agent.
+
+</Slide>
+
+<Slide>
+
+### What to check in step 1
+
+- What does `encode(0)` return?
+- Did both ways use the same character order?
+  - If you do not say, the AI picks one.
+- What did **you do by hand** in each way?
+  - Write it in section 3 of `AGENT_LOG.md`.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 2
+
+I write the specification
+
+</Slide>
+
+<Slide>
+
+### Whatever you leave out, the AI decides
+::sub[No requests in this step]
+
+Delete the `TEMPLATE:` line at the top of `SPEC.md` and write it yourself.
+
+- **Hash table**: collisions? hash function? when does it grow?
+- **Shortener**: the same URL twice? an unknown code?
+- **Bad input**: `ftp://`, spaces, very long addresses?
+- **Edge cases**: write them as a list. They become the step 4 tests.
+
+</Slide>
+
+<Slide>
+
+### Fixed for this assignment
+::sub[You build the hash table yourself]
+
+- Collisions by **linear probing**, hashing by the **Horner method** from Topic 08
+- No Python `dict`, `set` or built-in `hash()`.
+- The built-in `hash()` gives strings a different value on every run.
+  - Rerunning the step 6 experiment would give different numbers.
+
+</Slide>
+
+<Slide>
+
+### Horner hash, again
+::sub[h ← (31 · h + character code) mod M]
+
+<StringHashDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## Step 3
+
+A plan before code
+
+</Slide>
+
+<Slide class="compact">
+
+### Ask for the plan only
+
+```text
+Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
+Do not write any code yet.
+```
+
+Fixing the plan is much cheaper than fixing the code.
+
+</Slide>
+
+<Slide>
+
+### What you often catch in the plan
+
+- It plans to store URL→code in a **`dict`**.
+  - That breaks the specification.
+- It plans to make the code **a hash of the URL**.
+  - Two different URLs can then get the same code.
+  - A serial number in base62 never collides.
+- It plans to write the tests **last**.
+  - Change the order.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 4
+
+Tests first, implementation by the agent
+
+</Slide>
+
+<Slide class="compact">
+
+### Tests only, first
+
+```text
+Turn the edge cases in section 6 of SPEC.md into unittest tests in
+tests/test_hash_table.py and tests/test_shortener.py. Do not implement anything yet.
+```
+
+- **Read** the tests. Is every edge case there?
+- Add what is missing yourself and commit.
+- `make test` failing right now is expected.
+
+</Slide>
+
+<Slide class="compact">
+
+### Then the implementation
+
+```text
+Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
+and keep fixing them until make test passes. Do not change the tests.
+```
+
+- **"Do not change the tests" matters.**
+  - Without it the agent sometimes quietly edits a test it cannot pass.
+- When it finishes, read the diff and commit.
+
+</Slide>
+
+<Slide>
+
+### What happens inside
+::sub[URLs find a slot by Horner hash; codes are serial numbers]
+
+<ShortenerDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## Step 5
+
+Give the rules as a file
+
+</Slide>
+
+<Slide class="compact">
+
+### Did it follow the specification
+
+```sh
+grep -n "dict\|set(\|hash(" src/*.py
+```
+
+- A rule in the specification does nothing if the agent never reads `SPEC.md`.
+- The agent reads only **the files that look relevant at the moment**.
+
+</Slide>
+
+<Slide>
+
+### One file is read every time
+::sub[.github/copilot-instructions.md]
+
+| File | When the agent reads it |
+| --- | --- |
+| `SPEC.md` | When it looks relevant, or when told to |
+| `.github/copilot-instructions.md` | **With every request** |
+
+<br/>
+
+Keep the repository's rules in the rules file.  
+Put one in your project repository too.
+
+</Slide>
+
+<Slide class="compact">
+
+### A rules file
+::sub[Write it yourself]
+
+```md
+# To the agent working in this repository
+
+- Read SPEC.md before writing code.
+- Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
+- After changing code, run make test and show the result.
+- If a test fails, fix the code, not the test.
+- I am a first-year student. Summarize what you changed in at most three lines.
+```
+
+</Slide>
+
+<Slide class="compact">
+
+### Check in a new chat
+
+```text
+Check whether the code in src/ follows this repository's rules, and fix anything that breaks them.
+```
+
+- A new chat still reads the rules file.
+- Write in `AGENT_LOG.md` which rules had an effect.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 6
+
+Verify the result yourself
+
+</Slide>
+
+<Slide class="compact">
+
+### Passing tests do not make a good table
+::sub[Measure how probes change with the load factor]
+
+```text
+Create experiments/probe_experiment.py. Fill a HashTable(max_load=None) of fixed size
+4093 with random URLs up to load factors from 0.1 to 0.9, measure the average number
+of slots probed for successful and unsuccessful searches, and compare them in a table
+with Knuth's approximations from Topic 08:
+hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2.
+Save experiments/results.csv and an SVG chart. Do not use external libraries.
+```
+
+</Slide>
+
+<Slide>
+
+### The theory
+::sub[Topic 08 · it gets sharply worse near 1]
+
+<LoadCostDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### Measured in the sample repository
+::sub[M = 4093, random URLs, 2000 unsuccessful searches]
+
+| Load factor | Hit (measured) | Hit (theory) | Miss (measured) | Miss (theory) |
+| --- | --- | --- | --- | --- |
+| 0.5 | 1.55 | 1.50 | 2.62 | 2.50 |
+| 0.7 | 2.19 | 2.17 | 5.63 | 6.06 |
+| 0.8 | 3.07 | 3.00 | 13.11 | 13.00 |
+| 0.9 | 5.14 | 5.50 | 64.44 | 50.50 |
+
+- Up to 0.8 it matches the theory well.
+- At 0.9 the miss cost swings a lot. Why?
+
+</Slide>
+
+<Slide>
+
+### Judge the numbers yourself
+
+- At load factor 1/2, are hits near 1.5 and misses near 2.5?
+- If they are far off, find out why.
+  - Was the first slot counted as 0?
+  - Does the hash function differ from the specification?
+- Can you read the axis labels and the legend?
+
+</Slide>
+
+<Slide class="center">
+
+## Step 7
+
+Serve it
+
+</Slide>
+
+<Slide class="compact">
+
+### Add a web server
+
+```text
+Create src/server.py as described in section 5 of SPEC.md. Use only the standard
+http.server module, and make it start on port 8000 with make serve.
+```
+
+- Start it with `make serve`.
+- Port 8000 shows up on the **Ports** tab of the bottom panel.
+
+</Slide>
+
+<Slide>
+
+### Open it on your phone
+
+1. On the **Ports** tab, right-click the row for port 8000
+2. **Port Visibility** → **Public**
+3. Open the **Forwarded Address** on your phone.
+4. Enter a long URL and tap the short link you get.
+
+</Slide>
+
+<Slide>
+
+### If the short link does not open
+::sub[The agent may not have known about the proxy]
+
+<ProxyLinkDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Anyone can open a public port
+
+- Anyone on the internet who knows the address can open it.
+- When you are done, stop the server with `Ctrl+C`.
+- Switch the port back to **Private**.
+  - Restarting the Codespace also makes it private again.
+
+</Slide>
+
+<Slide class="center">
+
+## Wrapping up
+
+</Slide>
+
+<Slide class="compact">
+
+### Catching up on a missed step
+::sub[Commit what you have, then give the step number]
+
+```sh
+git add -A && git commit -m "WIP"
+sh tools/catchup.sh 4
+```
+
+- Sets your code to the `step-4` state of the sample repository.
+- It does not touch `AGENT_LOG.md`.
+- Write "caught up" in the log for that step.
+
+</Slide>
+
+<Slide class="compact">
+
+### Submission
+::sub[November 29, 23:59 · repository URL + ZIP]
+
+- `SPEC.md`, `.github/copilot-instructions.md`: written by you
+- `src/`, `tests/`: hash table, shortener, server and tests
+- `experiments/`: experiment script, `results.csv`, chart
+- `AGENT_LOG.md`: step log, two or more mistakes caught, chat comparison, reflections
+- A commit per step
+
+</Slide>
+
+<Slide class="compact">
+
+### Grading
+::sub[Not how well the agent did, but what you caught]
+
+| Item | Points | What we look at |
+| --- | --- | --- |
+| Specification and tests | 1 | You chose the edge cases and the tests check all of them |
+| Rules file | 1 | The rules are concrete and actually had an effect |
+| Hash table and experiment | 1 | Works without `dict`; measurements compared with theory |
+| Work log | 1.5 | Concretely shows how you noticed and fixed mistakes |
+| Service | 0.5 | Starts with `make serve` and the short link redirects |
+
+</Slide>
+
+<Slide>
+
+### The human's part
+::sub[Fixed even in an assignment about AI]
+
+- **You write** `SPEC.md` and `AGENT_LOG.md`.
+  - A log written by AI is not a log.
+- You may get a draft of the rules file, but you decide what goes in it.
+- Students who miss class do the same assignment with the same deadline.
+  - The article alone is enough to finish it.
+
+</Slide>
+
+<Slide>
+
+## Habits to take home
+
+1. Decide what to build **in a specification** first.
+2. Get **a plan** before code.
+3. Speak **in tests**, and say not to change them.
+4. Keep rules **in a rules file**.
+5. Check results **by running them**, and **commit** every step.
+
+</Slide>

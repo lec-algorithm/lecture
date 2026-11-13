@@ -1,0 +1,598 @@
+---
+title: "作业 2 · 与智能体一起做短网址服务"
+description: "从聊天到智能体：规格说明、计划、测试、规则文件、验证，直到上线服务的七步实习"
+order: 150
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import AgentLoopDemo from '@components/AgentLoopDemo.astro';
+import Base62Demo from '@components/Base62Demo.astro';
+import ShortenerDemo from '@components/ShortenerDemo.astro';
+import ProxyLinkDemo from '@components/ProxyLinkDemo.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
+
+{/* 幻灯片遵循 docs/writing-rules.md 的"幻灯片规则"。
+    内容必须与 /article/hw2-2026/ 一致。
+    实验数字必须与 hw2-sample-2026 的 experiments/results.csv 一致。 */}
+
+<Slide class="cover">
+
+# 作业 2
+
+与智能体一起做短网址服务
+
+*高级算法*
+
+</Slide>
+
+<Slide>
+
+## 今天要做的事
+::sub[从聊天窗口走进仓库]
+
+- 从**只在聊天窗口**用 AI 的方式往前走一步。
+- 让同一个 AI **在仓库里**读文件、改文件、跑测试。
+- 跟着七个步骤做一个短网址服务。
+- 最后用**自己的手机**打开短链接。
+
+</Slide>
+
+<Slide class="compact">
+
+## 聊天与智能体
+::sub[同一个 AI，不同的位置]
+
+| | 聊天 | 智能体 |
+| --- | --- | --- |
+| 了解我的代码吗 | 只知道我贴进去的 | 直接读取仓库里的文件 |
+| 结果放在哪里 | 我复制粘贴 | 它自己创建和修改文件 |
+| 会运行吗 | 不运行 | 跑测试并查看失败 |
+| 记得规则吗 | 对话结束就忘 | 每次都读规则文件 |
+
+</Slide>
+
+<Slide>
+
+### 同一件事，两种方式
+::sub[结果相同。要数的是过程]
+
+<AgentLoopDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 我的工作变了
+::sub[从搬运的人变成检查的人]
+
+- **做什么由我决定。**
+  - 写规格说明是人的工作。
+- **对不对由我检查。**
+  - 智能体会错得很像对的。
+  - 用测试和运行结果抓出来。
+- **留好可以回退的点。**
+  - 每一步都提交，随时可以撤回。
+
+</Slide>
+
+<Slide>
+
+## 开始
+::sub[从 hw2-starter-2026 创建自己的仓库]
+
+1. **Use this template** → **Create a new repository**
+2. 名称 `algorithms-hw2`，设为 **Public**
+3. 在自己的仓库里：**Code** → **Codespaces** → **Create codespace on main**
+4. 打开 Copilot 聊天窗口，模式切换为 **Agent**
+
+<br/>
+
+起始仓库里没有答案。  
+如果有，智能体会直接照抄。
+
+</Slide>
+
+<Slide>
+
+### 在免费额度之内
+::sub[这次作业大约 20 次智能体请求就能完成]
+
+- **一次一件事，说具体。**
+  - 含糊的请求会浪费一次在反问上。
+- **失败信息原样贴进去。**
+  - 比说"不行"更能一次修好。
+- **小改动自己做。**
+  - 不要为改个变量名浪费一次请求。
+
+</Slide>
+
+<Slide class="compact">
+
+## 七个步骤
+
+| 步骤 | 做什么 | 请求 |
+| --- | --- | --- |
+| 1 | 聊天与智能体并排比较 | 2 |
+| 2 | 规格说明由我来写 | 0 |
+| 3 | 先要计划，再写代码 | 1\~2 |
+| 4 | 先写测试，实现交给智能体 | 3\~5 |
+| 5 | 用文件给出规则 | 2\~3 |
+| 6 | 结果由自己验证 | 2\~3 |
+| 7 | 作为服务运行 | 2\~3 |
+
+</Slide>
+
+<Slide class="compact">
+
+### 每一步同样的节奏
+::sub[请求 → 检查 → 提交 → 记录]
+
+```sh
+git add -A && git commit -m "Step 1: base62 encode/decode"
+```
+
+- 提交就是**可以回退的点**。
+- 在 `AGENT_LOG.md` 里逐行写下实际用过的请求和检查了什么。
+
+</Slide>
+
+<Slide class="center">
+
+## 第 1 步
+
+聊天与智能体并排比较
+
+</Slide>
+
+<Slide class="compact">
+
+### 先用聊天方式
+::sub[模式：Ask]
+
+```text
+用 Python 写 base62 的 encode/decode 函数
+```
+
+- 把答案复制到 `src/base62.py`。
+- 怎么运行，**自己**想办法。
+
+</Slide>
+
+<Slide class="compact">
+
+### 这次用智能体
+::sub[模式：Agent · 先删掉粘贴的文件]
+
+```text
+在 src/base62.py 中写 encode(n)，把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成
+62 进制字符串，以及它的逆变换 decode(s)。在 tests/test_base62.py 中用 unittest
+写测试，然后在终端运行 make test，给我看是否通过。
+```
+
+- 它会创建文件、跑测试，失败了就修改。
+- 请求里写清了**放在哪里、做什么、怎么检查**。
+
+</Slide>
+
+<Slide>
+
+### base62 就是除以 62
+::sub[输入 0 试试]
+
+<Base62Demo slide />
+
+</Slide>
+
+<Slide>
+
+### 点 Allow 的人是你
+::sub[智能体运行命令前会询问]
+
+- 它会显示要运行什么，比如 `make test`，并请求许可。
+- **先读再点。** 不认识的命令先问它是什么。
+- 删除文件或安装东西的命令要格外小心。
+
+<br/>
+
+意识到检查的人是自己，  
+是使用智能体时最先要养成的习惯。
+
+</Slide>
+
+<Slide>
+
+### 第 1 步要检查的地方
+
+- `encode(0)` 返回什么？
+- 两种方式的字符顺序一样吗？
+  - 如果你不说，AI 会自己决定。
+- 两种方式里，**你亲手做了什么**？
+  - 写在 `AGENT_LOG.md` 第 3 节。
+
+</Slide>
+
+<Slide class="center">
+
+## 第 2 步
+
+规格说明由我来写
+
+</Slide>
+
+<Slide>
+
+### 没写下来的，AI 会自己决定
+::sub[这一步不发请求]
+
+删掉 `SPEC.md` 最上面的 `TEMPLATE:` 那一行，亲手写。
+
+- **哈希表**：冲突怎么办？哈希函数是什么？什么时候扩容？
+- **短网址**：同一个 URL 放两次？不存在的代码？
+- **错误输入**：`ftp://`、空格、很长的地址？
+- **边界情况**：列成清单。它们会变成第 4 步的测试。
+
+</Slide>
+
+<Slide>
+
+### 这次作业已经定好的
+::sub[哈希表要亲手实现]
+
+- 冲突用**线性探测**，哈希用主题 08 的**霍纳方法**
+- 不使用 Python 的 `dict`、`set` 和内置 `hash()`。
+- 内置 `hash()` 每次运行时字符串的哈希值都会变。
+  - 第 6 步的实验重跑一次就会得到不同的数字。
+
+</Slide>
+
+<Slide>
+
+### 复习霍纳哈希
+::sub[h ← (31 · h + 字符编码) mod M]
+
+<StringHashDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 第 3 步
+
+先要计划，再写代码
+
+</Slide>
+
+<Slide class="compact">
+
+### 只要计划
+
+```text
+读 SPEC.md，制定分步骤的实现计划并保存到 PLAN.md。
+现在还不要写代码。
+```
+
+在计划里修改，比在代码里修改便宜得多。
+
+</Slide>
+
+<Slide>
+
+### 计划里常见的问题
+
+- 打算用 **`dict`** 保存 URL→代码。
+  - 违反规格说明。
+- 打算用 **URL 的哈希值**作为代码。
+  - 不同的 URL 可能得到相同的代码。
+  - 把序号转成 base62 就不会重复。
+- 打算**最后**才写测试。
+  - 调换顺序。
+
+</Slide>
+
+<Slide class="center">
+
+## 第 4 步
+
+先写测试，实现交给智能体
+
+</Slide>
+
+<Slide class="compact">
+
+### 先只要测试
+
+```text
+把 SPEC.md 第 6 节的边界情况用 unittest 写进 tests/test_hash_table.py 和
+tests/test_shortener.py。现在还不要实现。
+```
+
+- **阅读**测试。边界情况都包含了吗？
+- 缺的自己补上并提交。
+- 现在 `make test` 失败是正常的。
+
+</Slide>
+
+<Slide class="compact">
+
+### 然后让它实现
+
+```text
+按照 PLAN.md 的顺序实现 src/hash_table.py 和 src/shortener.py，
+一直修改到 make test 全部通过为止。不要修改测试。
+```
+
+- **"不要修改测试"很重要。**
+  - 没有这句话，它有时会悄悄改掉通过不了的测试。
+- 完成后阅读 diff 再提交。
+
+</Slide>
+
+<Slide>
+
+### 内部发生了什么
+::sub[URL 用霍纳哈希找位置，代码是序号]
+
+<ShortenerDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 第 5 步
+
+用文件给出规则
+
+</Slide>
+
+<Slide class="compact">
+
+### 遵守规格说明了吗
+
+```sh
+grep -n "dict\|set(\|hash(" src/*.py
+```
+
+- 规格说明里写了，智能体不读 `SPEC.md` 也没用。
+- 智能体只读**当下看起来相关的文件**。
+
+</Slide>
+
+<Slide>
+
+### 有一个文件每次都会读
+::sub[.github/copilot-instructions.md]
+
+| 文件 | 智能体读取的时机 |
+| --- | --- |
+| `SPEC.md` | 看起来相关时，或者被要求时 |
+| `.github/copilot-instructions.md` | **每次请求都读** |
+
+<br/>
+
+仓库的规则放在规则文件里。  
+在个人项目的仓库里也放一个吧。
+
+</Slide>
+
+<Slide class="compact">
+
+### 规则文件示例
+::sub[亲手写]
+
+```md
+# 致在本仓库工作的智能体
+
+- 写代码之前先读 SPEC.md。
+- src/ 里不要使用 dict、set 和内置 hash()。使用我们自己实现的哈希表。
+- 改完代码后运行 make test 并展示结果。
+- 测试失败时修改代码，而不是测试。
+- 我是一年级学生。用三行以内总结你改了什么。
+```
+
+</Slide>
+
+<Slide class="compact">
+
+### 在新的聊天里检查
+
+```text
+检查 src/ 里的代码是否遵守本仓库的规则，有违反的地方就修正。
+```
+
+- 新的聊天也会读规则文件。
+- 哪条规则起了作用，写进 `AGENT_LOG.md`。
+
+</Slide>
+
+<Slide class="center">
+
+## 第 6 步
+
+结果由自己验证
+
+</Slide>
+
+<Slide class="compact">
+
+### 测试通过不等于好的哈希表
+::sub[测量探查次数如何随装载因子变化]
+
+```text
+创建 experiments/probe_experiment.py。往大小固定为 4093 的 HashTable(max_load=None)
+里放入随机 URL，使装载因子从 0.1 到 0.9，测量成功查找和失败查找平均探查的格子数，
+并用表格与主题 08 的克努斯近似值比较：
+成功 ≈ (1 + 1/(1-α))/2，失败 ≈ (1 + 1/(1-α)²)/2。
+结果保存为 experiments/results.csv 和 SVG 图表。不要使用外部库。
+```
+
+</Slide>
+
+<Slide>
+
+### 理论是这样的
+::sub[主题 08 · 越接近 1 越急剧变差]
+
+<LoadCostDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### 在示例仓库测得的值
+::sub[M = 4093，随机 URL，失败查找 2000 次]
+
+| 装载因子 | 成功（实测） | 成功（理论） | 失败（实测） | 失败（理论） |
+| --- | --- | --- | --- | --- |
+| 0.5 | 1.55 | 1.50 | 2.62 | 2.50 |
+| 0.7 | 2.19 | 2.17 | 5.63 | 6.06 |
+| 0.8 | 3.07 | 3.00 | 13.11 | 13.00 |
+| 0.9 | 5.14 | 5.50 | 64.44 | 50.50 |
+
+- 到 0.8 为止与理论很吻合。
+- 到 0.9 时失败查找波动很大。为什么？
+
+</Slide>
+
+<Slide>
+
+### 自己判断这些数字
+
+- 装载因子为 1/2 时，成功在 1.5、失败在 2.5 左右吗？
+- 相差很大就找原因。
+  - 是不是把第一次探查的格子算成了 0？
+  - 哈希函数是否与规格说明不同？
+- 图表的坐标轴名称和图例看得清吗？
+
+</Slide>
+
+<Slide class="center">
+
+## 第 7 步
+
+作为服务运行
+
+</Slide>
+
+<Slide class="compact">
+
+### 加上 Web 服务器
+
+```text
+按照 SPEC.md 第 5 节创建 src/server.py。只使用标准模块 http.server，
+并让 make serve 在 8000 端口启动。
+```
+
+- 用 `make serve` 启动。
+- 下方面板的**端口**标签页会出现 8000。
+
+</Slide>
+
+<Slide>
+
+### 用手机打开
+
+1. 在**端口**标签页右键点击 8000 那一行
+2. **Port Visibility** → **Public**
+3. 用手机打开 **Forwarded Address**。
+4. 输入长 URL，点开拿到的短链接。
+
+</Slide>
+
+<Slide>
+
+### 短链接打不开的话
+::sub[智能体可能不知道有代理]
+
+<ProxyLinkDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Public 端口谁都能打开
+
+- 互联网上任何知道地址的人都能打开。
+- 确认完毕后用 `Ctrl+C` 停止服务器。
+- 把端口改回 **Private**。
+  - 重启 Codespace 也会恢复为 Private。
+
+</Slide>
+
+<Slide class="center">
+
+## 收尾
+
+</Slide>
+
+<Slide class="compact">
+
+### 追上漏掉的步骤
+::sub[先提交目前的进度，再给出步骤编号]
+
+```sh
+git add -A && git commit -m "WIP"
+sh tools/catchup.sh 4
+```
+
+- 把代码调整为示例仓库 `step-4` 的状态。
+- 不会动 `AGENT_LOG.md`。
+- 在记录里把这一步写成"已追上"。
+
+</Slide>
+
+<Slide class="compact">
+
+### 提交
+::sub[11 月 29 日 23:59 · 仓库 URL + ZIP]
+
+- `SPEC.md`、`.github/copilot-instructions.md`：自己写的
+- `src/`、`tests/`：哈希表、短网址、服务器及测试
+- `experiments/`：实验脚本、`results.csv`、图表
+- `AGENT_LOG.md`：分步骤记录、两处以上的错误、与聊天的比较、感想
+- 每一步的提交历史
+
+</Slide>
+
+<Slide class="compact">
+
+### 评分
+::sub[看的不是智能体做得好不好，而是你抓出了什么]
+
+| 项目 | 分值 | 评价内容 |
+| --- | --- | --- |
+| 规格说明与测试 | 1 | 边界情况由本人确定，测试全部覆盖 |
+| 规则文件 | 1 | 规则具体，确实起了作用 |
+| 哈希表与实验 | 1 | 不用 `dict` 也能运行，实测值与理论比较并解释 |
+| 工作记录 | 1.5 | 具体写出如何发现并修正错误 |
+| 服务 | 0.5 | 能用 `make serve` 启动，短链接可以跳转 |
+
+</Slide>
+
+<Slide>
+
+### 人负责的部分
+::sub[即使是用 AI 的作业，也是定好的]
+
+- `SPEC.md` 和 `AGENT_LOG.md` **由你自己写**。
+  - AI 写的记录不算记录。
+- 规则文件可以让 AI 起草，但放什么由你决定。
+- 没能来上课的同学也是同一份作业、同一个截止时间。
+  - 只看说明文章也能做完。
+
+</Slide>
+
+<Slide>
+
+## 今天带走的习惯
+
+1. 先用**规格说明**决定做什么。
+2. 写代码之前先要**计划**。
+3. 用**测试**来表达，并说明不要修改测试。
+4. 规则放在**规则文件**里。
+5. 结果**运行**来确认，每一步都**提交**。
+
+</Slide>
