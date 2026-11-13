@@ -1,0 +1,303 @@
+---
+// base62 인코딩을 나눗셈 표로 보여 주는 데모. 과제2 1단계에서 쓴다.
+//
+// n을 62로 나눈 나머지가 끝자리부터 한 글자씩 나온다. 0을 넣으면 흔한 구현
+// (while n > 0)은 반복을 한 번도 돌지 않아 빈 문자열을 낸다. "흔한 구현"과
+// "고친 구현"을 바꿔 가며 그 차이를 본다. 계산은 hw2-sample-2026의
+// src/base62.py와 같다(글자 순서 0-9, a-z, A-Z).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음에 보일 수 */
+  n?: number;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { n = 3844, slide = false } = Astro.props;
+const id = `b62-${Math.random().toString(36).slice(2, 9)}`;
+const presets = [0, 61, 62, 3843, 3844, 100000000];
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'base62 인코딩',
+    naive: '흔한 구현',
+    fixed: '고친 구현',
+    q: '몫',
+    r: '나머지',
+    c: '글자',
+    result: '결과',
+    check: 'decode로 되돌리면',
+    empty: '반복을 한 번도 돌지 않아 빈 문자열이 나옵니다. decode("")는 오류입니다.',
+    zero: '0은 따로 처리해 "0"을 돌려줍니다.',
+    ok: '나머지를 아래에서 위로 읽으면 결과입니다. 자릿수 {d}개',
+    invalid: '0 이상의 정수를 넣으세요.',
+  },
+  en: {
+    title: 'base62 encoding',
+    naive: 'Common version',
+    fixed: 'Fixed version',
+    q: 'quotient',
+    r: 'remainder',
+    c: 'char',
+    result: 'Result',
+    check: 'decode gives back',
+    empty: 'The loop never runs, so the result is an empty string. decode("") is an error.',
+    zero: 'Zero is handled separately and returns "0".',
+    ok: 'Read the remainders from bottom to top. {d} digit(s)',
+    invalid: 'Enter an integer 0 or greater.',
+  },
+  zh: {
+    title: 'base62 编码',
+    naive: '常见写法',
+    fixed: '修正写法',
+    q: '商',
+    r: '余数',
+    c: '字符',
+    result: '结果',
+    check: '用 decode 还原',
+    empty: '循环一次也没执行，结果是空字符串。decode("") 会报错。',
+    zero: '0 单独处理，返回 "0"。',
+    ok: '把余数从下往上读就是结果。共 {d} 位',
+    invalid: '请输入 0 以上的整数。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-base62-demo', slide && 'is-slide']} id={id} data-b62-strings={JSON.stringify(t)} data-b62-n={n}>
+  <div class="b62-bar">
+    <span class="b62-head"><strong>{t.title}</strong> · 0-9 a-z A-Z</span>
+    <div class="b62-modes" role="group">
+      <button type="button" class="b62-btn" data-b62-mode="naive">{t.naive}</button>
+      <button type="button" class="b62-btn" data-b62-mode="fixed">{t.fixed}</button>
+    </div>
+  </div>
+
+  <div class="b62-input">
+    <input type="number" min="0" step="1" value={n} data-b62-input aria-label="n" />
+    {presets.map((p) => <button type="button" class="b62-chip" data-b62-preset={p}>{p.toLocaleString('en-US')}</button>)}
+  </div>
+
+  <div class="b62-body">
+    <table class="b62-table">
+      <thead>
+        <tr><th>n</th><th>{t.q}</th><th>{t.r}</th><th>{t.c}</th></tr>
+      </thead>
+      <tbody data-b62-rows></tbody>
+    </table>
+    <div class="b62-out">
+      <span class="b62-label">{t.result}</span>
+      <code class="b62-result" data-b62-result></code>
+      <span class="b62-label">{t.check}</span>
+      <code class="b62-back" data-b62-back></code>
+    </div>
+  </div>
+
+  <p class="b62-note" data-b62-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.b62Strings);
+    const A = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const input = root.querySelector('[data-b62-input]');
+    const rowsEl = root.querySelector('[data-b62-rows]');
+    const resultEl = root.querySelector('[data-b62-result]');
+    const backEl = root.querySelector('[data-b62-back]');
+    const note = root.querySelector('[data-b62-note]');
+    const modeBtns = [...root.querySelectorAll('[data-b62-mode]')];
+    let mode = 'naive';
+
+    function encodeSteps(n) {
+      const rows = [];
+      let x = n;
+      while (x > 0) {
+        const q = Math.floor(x / 62);
+        const r = x % 62;
+        rows.push({ n: x, q, r, c: A[r] });
+        x = q;
+      }
+      return rows;
+    }
+    const decode = (s) => {
+      if (s === '') return null;
+      let n = 0;
+      for (const ch of s) n = n * 62 + A.indexOf(ch);
+      return n;
+    };
+
+    function render() {
+      const n = Number(input.value);
+      modeBtns.forEach((b) => b.classList.toggle('is-on', b.dataset.b62Mode === mode));
+      if (!Number.isSafeInteger(n) || n < 0 || input.value === '') {
+        rowsEl.innerHTML = '';
+        resultEl.textContent = '';
+        backEl.textContent = '';
+        note.textContent = S.invalid;
+        root.classList.remove('is-bad');
+        return;
+      }
+      const rows = encodeSteps(n);
+      let out = rows.map((r) => r.c).reverse().join('');
+      const special = n === 0 && mode === 'fixed';
+      if (special) out = '0';
+      rowsEl.innerHTML = rows
+        .map((r) => `<tr><td>${r.n.toLocaleString('en-US')}</td><td>${r.q.toLocaleString('en-US')}</td><td>${r.r}</td><td><code>${r.c}</code></td></tr>`)
+        .join('');
+      if (rows.length === 0) rowsEl.innerHTML = '<tr><td colspan="4" class="b62-none">—</td></tr>';
+      resultEl.textContent = `"${out}"`;
+      const back = decode(out);
+      backEl.textContent = back === null ? 'ValueError' : back.toLocaleString('en-US');
+      const bad = n === 0 && mode === 'naive';
+      root.classList.toggle('is-bad', bad);
+      note.textContent = bad ? S.empty : special ? S.zero : S.ok.replace('{d}', String(out.length));
+    }
+
+    input.addEventListener('input', render);
+    root.querySelectorAll('[data-b62-preset]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = b.dataset.b62Preset;
+        render();
+      }),
+    );
+    modeBtns.forEach((b) =>
+      b.addEventListener('click', () => {
+        mode = b.dataset.b62Mode;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-base62-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-base62-demo .b62-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-base62-demo .b62-modes {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-base62-demo .b62-btn,
+  .aas-base62-demo .b62-chip {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-base62-demo .b62-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-base62-demo .b62-chip {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-base62-demo .b62-chip:hover,
+  .aas-base62-demo .b62-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-base62-demo .b62-input {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+    margin-bottom: 0.8em;
+  }
+  .aas-base62-demo .b62-input input {
+    width: 9em;
+    padding: 0.3em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    border: 1.5px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-base62-demo .b62-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 2em;
+    align-items: center;
+  }
+  .aas-base62-demo .b62-table {
+    border-collapse: collapse;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    margin: 0;
+  }
+  .aas-base62-demo .b62-table th,
+  .aas-base62-demo .b62-table td {
+    padding: 0.2em 0.8em;
+    text-align: right;
+    border-bottom: 1px solid var(--aas-border);
+  }
+  .aas-base62-demo .b62-table th {
+    font-family: inherit;
+    color: var(--aas-muted);
+    font-weight: 600;
+  }
+  .aas-base62-demo .b62-table td code {
+    color: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-base62-demo .b62-none {
+    text-align: center !important;
+    color: var(--aas-muted);
+  }
+  .aas-base62-demo .b62-out {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0.4em 0.8em;
+    align-items: baseline;
+  }
+  .aas-base62-demo .b62-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-base62-demo .b62-result {
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--aas-role-focus);
+  }
+  .aas-base62-demo .b62-back {
+    font-size: 1.1em;
+  }
+  .aas-base62-demo.is-bad .b62-result,
+  .aas-base62-demo.is-bad .b62-back {
+    color: var(--aas-role-guard);
+  }
+  .aas-base62-demo .b62-note {
+    margin: 0.7em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.4em;
+  }
+  .aas-base62-demo.is-bad .b62-note {
+    color: var(--aas-role-guard);
+    font-weight: 700;
+  }
+  .aas-base62-demo.is-slide {
+    font-size: clamp(1rem, 3vh, 2rem);
+    margin: 0.5rem 0;
+  }
+</style>

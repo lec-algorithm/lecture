@@ -1,0 +1,231 @@
+---
+// Codespaces에서 띄운 서버가 짧은 링크의 주소를 어떻게 만드는지 보는 데모.
+// 과제2 7단계에서 쓴다.
+//
+// 휴대폰의 요청은 GitHub의 포트 포워딩 프록시를 거쳐 컨테이너의 8000번 포트에
+// 닿는다. 서버가 받는 Host는 localhost:8000이고, 바깥 주소는 X-Forwarded-Host에
+// 들어 있다. Host만 보는 구현은 휴대폰이 열 수 없는 링크를 만든다.
+// hw2-sample-2026의 src/server.py는 X-Forwarded-Host를 먼저 본다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 예시로 쓸 포워딩 주소 */
+  host?: string;
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { host = 'fluffy-space-xyz-8000.app.github.dev', slide = false } = Astro.props;
+const id = `px-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '짧은 링크의 주소는 어디서 오나',
+    a: 'Host만 본다',
+    b: 'X-Forwarded-Host를 먼저 본다',
+    phone: '휴대폰',
+    proxy: 'GitHub 프록시',
+    server: 'Codespace의 서버 :8000',
+    headers: '서버가 받는 헤더',
+    link: '만든 짧은 링크',
+    badA: '휴대폰에서 localhost는 휴대폰 자신입니다. 링크가 열리지 않습니다.',
+    goodB: '프록시가 넘겨준 바깥 주소로 만들었습니다. 휴대폰에서 열립니다.',
+  },
+  en: {
+    title: 'Where does the short link address come from',
+    a: 'Reads only Host',
+    b: 'Reads X-Forwarded-Host first',
+    phone: 'Phone',
+    proxy: 'GitHub proxy',
+    server: 'Server in the Codespace :8000',
+    headers: 'Headers the server receives',
+    link: 'Short link it builds',
+    badA: 'On the phone, localhost is the phone itself. The link does not open.',
+    goodB: 'Built from the outside address the proxy passed along. It opens on the phone.',
+  },
+  zh: {
+    title: '短链接的地址从哪里来',
+    a: '只看 Host',
+    b: '先看 X-Forwarded-Host',
+    phone: '手机',
+    proxy: 'GitHub 代理',
+    server: 'Codespace 里的服务器 :8000',
+    headers: '服务器收到的请求头',
+    link: '生成的短链接',
+    badA: '在手机上，localhost 就是手机自己。链接打不开。',
+    goodB: '用代理传来的外部地址生成。手机上能打开。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<div class:list={['aas-proxy-link-demo', slide && 'is-slide']} id={id} data-px-host={host} data-px-strings={JSON.stringify(t)}>
+  <div class="px-bar">
+    <span class="px-head"><strong>{t.title}</strong></span>
+    <div class="px-modes" role="group">
+      <button type="button" class="px-btn" data-px-mode="a">{t.a}</button>
+      <button type="button" class="px-btn" data-px-mode="b">{t.b}</button>
+    </div>
+  </div>
+
+  <div class="px-flow">
+    <span class="px-node">{t.phone}<code>https://{host}</code></span>
+    <span class="px-arrow">→</span>
+    <span class="px-node">{t.proxy}</span>
+    <span class="px-arrow">→</span>
+    <span class="px-node">{t.server}</span>
+  </div>
+
+  <div class="px-body">
+    <div>
+      <span class="px-label">{t.headers}</span>
+      <pre class="px-headers"><span data-px-h="host">Host: localhost:8000</span>
+<span data-px-h="xfh">X-Forwarded-Host: {host}</span>
+<span data-px-h="xfp">X-Forwarded-Proto: https</span></pre>
+    </div>
+    <div>
+      <span class="px-label">{t.link}</span>
+      <code class="px-link" data-px-link></code>
+      <p class="px-note" data-px-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.pxStrings);
+    const host = root.dataset.pxHost;
+    const btns = [...root.querySelectorAll('[data-px-mode]')];
+    const link = root.querySelector('[data-px-link]');
+    const note = root.querySelector('[data-px-note]');
+    const h = (k) => root.querySelector(`[data-px-h="${k}"]`);
+    function render(mode) {
+      btns.forEach((b) => b.classList.toggle('is-on', b.dataset.pxMode === mode));
+      const good = mode === 'b';
+      link.textContent = good ? `https://${host}/7` : 'http://localhost:8000/7';
+      note.textContent = good ? S.goodB : S.badA;
+      root.classList.toggle('is-bad', !good);
+      h('host').classList.toggle('is-used', !good);
+      h('xfh').classList.toggle('is-used', good);
+      h('xfp').classList.toggle('is-used', good);
+    }
+    btns.forEach((b) => b.addEventListener('click', () => render(b.dataset.pxMode)));
+    render('a');
+  })();
+</script>
+
+<style is:global>
+  .aas-proxy-link-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-proxy-link-demo .px-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-proxy-link-demo .px-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-proxy-link-demo .px-btn {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-proxy-link-demo .px-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-proxy-link-demo .px-btn.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-proxy-link-demo .px-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5em;
+    margin-bottom: 0.9em;
+  }
+  .aas-proxy-link-demo .px-node {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.2em;
+    padding: 0.4em 0.7em;
+    border: 1.5px solid var(--aas-role-model);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+  .aas-proxy-link-demo .px-node code {
+    font-size: 0.8em;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-proxy-link-demo .px-arrow {
+    color: var(--aas-muted);
+  }
+  .aas-proxy-link-demo .px-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16em, 1fr));
+    gap: 1em;
+  }
+  .aas-proxy-link-demo .px-label {
+    display: block;
+    margin-bottom: 0.3em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-proxy-link-demo .px-headers {
+    margin: 0;
+    padding: 0.6em 0.8em;
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    border: 1px solid var(--aas-border);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .aas-proxy-link-demo .px-headers span {
+    opacity: 0.45;
+  }
+  .aas-proxy-link-demo .px-headers span.is-used {
+    opacity: 1;
+    font-weight: 700;
+    color: var(--aas-role-focus);
+  }
+  .aas-proxy-link-demo .px-link {
+    display: block;
+    font-size: 1.05em;
+    font-weight: 700;
+    word-break: break-all;
+    color: var(--aas-role-eval);
+  }
+  .aas-proxy-link-demo.is-bad .px-link {
+    color: var(--aas-role-guard);
+  }
+  .aas-proxy-link-demo .px-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+  }
+  .aas-proxy-link-demo.is-slide {
+    font-size: clamp(0.95rem, 2.8vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+</style>
