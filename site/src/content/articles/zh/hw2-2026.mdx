@@ -104,11 +104,20 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 
 ## 七个步骤 \{#steps}
 
-每一步都重复**请求 → 检查 → 提交 → 记录**。提交在终端里进行。
+每一步都重复**请求 → 检查 → 提交 → 记录**。
 
-```sh
-git add -A && git commit -m "Step 1: base62 encode/decode"
+提交可以用 git 命令，也可以用 VS Code 的源代码管理界面。这次**连 git 也交给智能体**。
+开始时请求一次：
+
+```text
+这个仓库用 git flow 管理。先从 main 创建 develop 分支。
+以后每一步都从 develop 拉出 feature/step-N 分支来做，这一步完成后
+提交并合并到 develop。提交信息按 "Step N: 做了什么" 的格式写。
 ```
+
+- 在每一步请求的末尾加上"完成后提交并合并到 develop"，就不会多用请求次数。
+- 提交就是可以回退的点。智能体提交后，用源代码管理界面或 `git log` 确认放进了什么。
+- 提交作业前，让它把 develop 合并到 main。评分和 ZIP 以 main 为准。
 
 在 `AGENT_LOG.md` 里，每一步至少写一行：实际用过的请求原文，以及你检查了什么。
 下面的请求示例可以直接用，也可以改写。
@@ -302,7 +311,7 @@ sh tools/catchup.sh 4
 - `src/`、`tests/`：自己实现的哈希表、短网址、服务器及其测试
 - `experiments/`：实验脚本、`results.csv` 和图表
 - `AGENT_LOG.md`：分步骤记录、两处以上智能体出错的地方、与聊天的比较、感想
-- 每一步的提交历史
+- 每一步的提交历史（提交作业前把 develop 合并到 main）
 
 仓库保持 Public。截止后的提交不予查看。
 
