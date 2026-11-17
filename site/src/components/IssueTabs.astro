@@ -1,0 +1,327 @@
+---
+// 과제2의 단계별 GitHub 이슈 목록. 탭으로 단계를 고르면 이슈 제목과 내용이 나오고,
+// 각각 복사 버튼으로 복사해 New issue 화면에 붙여 넣는다.
+//
+// 이슈 번호가 단계 번호와 같아지도록 1단계부터 차례로 만든다(요청 예시가 그렇게 가정한다).
+// 내용은 GitHub 마크다운의 할 일 목록(- [ ])이라 이슈 화면에서 체크박스로 보인다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `it-${Math.random().toString(36).slice(2, 9)}`;
+
+type Issue = { title: string; body: string };
+const STRINGS: Record<string, { step: string; title: string; body: string; copy: string; copied: string; failed: string; issues: Issue[] }> = {
+  ko: {
+    step: '단계',
+    title: '제목',
+    body: '내용',
+    copy: '복사',
+    copied: '복사했습니다',
+    failed: '직접 선택해 복사하세요',
+    issues: [
+      {
+        title: '1단계 · base62 인코딩 (채팅과 에이전트 비교)',
+        body: `- [ ] 브라우저의 채팅 AI로 base62 encode/decode를 만들어 본다
+- [ ] 같은 기능을 Codespace의 에이전트로 만들고 make test로 통과시킨다
+- [ ] encode(0)이 "0"을 돌려주는지 확인한다
+- [ ] 두 방식에서 내가 손으로 한 일을 AGENT_LOG.md에 적는다`,
+      },
+      {
+        title: '2단계 · 명세 작성 (SPEC.md)',
+        body: `- [ ] 에이전트에게 SPEC.md 초안을 받는다 (코드는 아직)
+- [ ] 초안을 읽고 직접 고친다: 해시 테이블, 단축기, 잘못된 입력, 경계 사례
+- [ ] 무엇을 고쳤는지 AGENT_LOG.md에 적는다`,
+      },
+      {
+        title: '3단계 · 구현 계획 (PLAN.md)',
+        body: `- [ ] 에이전트에게 계획만 받아 PLAN.md에 저장한다
+- [ ] 명세와 어긋나는 곳을 고친다: dict 사용, 해시값으로 코드 만들기, 테스트를 마지막에 쓰기`,
+      },
+      {
+        title: '4단계 · 테스트를 먼저, 해시 테이블과 단축기 구현',
+        body: `- [ ] SPEC.md 6절의 경계 사례를 테스트로 옮긴다 (구현 전)
+- [ ] 테스트를 읽고 빠진 사례를 더한다
+- [ ] src/hash_table.py, src/shortener.py를 구현해 make test를 통과시킨다
+- [ ] 테스트는 고치지 않는다`,
+      },
+      {
+        title: '5단계 · 규칙 파일 (.github/copilot-instructions.md)',
+        body: `- [ ] src/에서 dict, set, 내장 hash()를 쓰는지 확인한다
+- [ ] 규칙 파일을 직접 쓴다 (git 규칙 포함)
+- [ ] 새 채팅에서 규칙 위반을 검사하고 고친다`,
+      },
+      {
+        title: '6단계 · 적재율 실험',
+        body: `- [ ] experiments/probe_experiment.py로 적재율 0.1부터 0.9까지 평균 탐지 칸 수를 잰다
+- [ ] 크누스 근삿값과 비교하는 표와 SVG 그래프를 만든다
+- [ ] 이론과 어긋나는 곳을 해석해 적는다`,
+      },
+      {
+        title: '7단계 · 서비스로 띄우기',
+        body: `- [ ] src/server.py를 만들어 make serve로 띄운다
+- [ ] 포트를 Public으로 바꿔 휴대폰에서 짧은 링크를 연다
+- [ ] 확인한 뒤 서버를 끄고 포트를 Private으로 돌린다`,
+      },
+    ],
+  },
+  en: {
+    step: 'Step',
+    title: 'Title',
+    body: 'Description',
+    copy: 'Copy',
+    copied: 'Copied',
+    failed: 'Select and copy it by hand',
+    issues: [
+      {
+        title: 'Step 1 · base62 encoding (chat vs agent)',
+        body: `- [ ] Build base62 encode/decode with a chat AI in the browser
+- [ ] Build the same with the agent in the Codespace and pass make test
+- [ ] Check that encode(0) returns "0"
+- [ ] Write in AGENT_LOG.md what I did by hand in each way`,
+      },
+      {
+        title: 'Step 2 · Specification (SPEC.md)',
+        body: `- [ ] Get a SPEC.md draft from the agent (no code yet)
+- [ ] Read the draft and edit it: hash table, shortener, bad input, edge cases
+- [ ] Write in AGENT_LOG.md what I changed`,
+      },
+      {
+        title: 'Step 3 · Implementation plan (PLAN.md)',
+        body: `- [ ] Get only a plan from the agent and save it to PLAN.md
+- [ ] Fix where it disagrees with the specification: dict, codes from hash values, tests written last`,
+      },
+      {
+        title: 'Step 4 · Tests first, then the hash table and shortener',
+        body: `- [ ] Turn the edge cases in section 6 of SPEC.md into tests (before implementing)
+- [ ] Read the tests and add missing cases
+- [ ] Implement src/hash_table.py and src/shortener.py until make test passes
+- [ ] Do not change the tests`,
+      },
+      {
+        title: 'Step 5 · Rules file (.github/copilot-instructions.md)',
+        body: `- [ ] Check whether src/ uses dict, set or the built-in hash()
+- [ ] Write the rules file myself (including the git rules)
+- [ ] In a new chat, check for rule violations and fix them`,
+      },
+      {
+        title: 'Step 6 · Load factor experiment',
+        body: `- [ ] Measure average probes for load factors from 0.1 to 0.9 with experiments/probe_experiment.py
+- [ ] Make a table comparing with Knuth's approximations, and an SVG chart
+- [ ] Explain where the results differ from theory`,
+      },
+      {
+        title: 'Step 7 · Serve it',
+        body: `- [ ] Create src/server.py and start it with make serve
+- [ ] Make the port public and open a short link on my phone
+- [ ] Afterwards, stop the server and make the port private again`,
+      },
+    ],
+  },
+  zh: {
+    step: '第',
+    title: '标题',
+    body: '内容',
+    copy: '复制',
+    copied: '已复制',
+    failed: '请手动选中复制',
+    issues: [
+      {
+        title: '第 1 步 · base62 编码（聊天与智能体比较）',
+        body: `- [ ] 用浏览器里的聊天 AI 做 base62 encode/decode
+- [ ] 用 Codespace 里的智能体做同样的功能，并通过 make test
+- [ ] 确认 encode(0) 返回 "0"
+- [ ] 把两种方式里亲手做的事写进 AGENT_LOG.md`,
+      },
+      {
+        title: '第 2 步 · 规格说明（SPEC.md）',
+        body: `- [ ] 让智能体起草 SPEC.md（还不写代码）
+- [ ] 读草稿并亲手修改：哈希表、短网址、错误输入、边界情况
+- [ ] 把改了什么写进 AGENT_LOG.md`,
+      },
+      {
+        title: '第 3 步 · 实现计划（PLAN.md）',
+        body: `- [ ] 只让智能体出计划并保存到 PLAN.md
+- [ ] 修改与规格说明不一致的地方：用 dict、用哈希值做代码、最后才写测试`,
+      },
+      {
+        title: '第 4 步 · 先写测试，再实现哈希表和短网址',
+        body: `- [ ] 把 SPEC.md 第 6 节的边界情况写成测试（实现之前）
+- [ ] 读测试，补上缺的情况
+- [ ] 实现 src/hash_table.py 和 src/shortener.py，直到 make test 通过
+- [ ] 不修改测试`,
+      },
+      {
+        title: '第 5 步 · 规则文件（.github/copilot-instructions.md）',
+        body: `- [ ] 检查 src/ 是否用了 dict、set 或内置 hash()
+- [ ] 亲手写规则文件（包括 git 规则）
+- [ ] 在新的聊天里检查违规并修正`,
+      },
+      {
+        title: '第 6 步 · 装载因子实验',
+        body: `- [ ] 用 experiments/probe_experiment.py 测量装载因子 0.1 到 0.9 的平均探查格数
+- [ ] 做出与克努斯近似值比较的表格和 SVG 图表
+- [ ] 解释与理论不一致的地方`,
+      },
+      {
+        title: '第 7 步 · 作为服务运行',
+        body: `- [ ] 创建 src/server.py，用 make serve 启动
+- [ ] 把端口设为 Public，用手机打开短链接
+- [ ] 确认后停止服务器，把端口改回 Private`,
+      },
+    ],
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const tabLabel = (i: number) => (lang === 'zh' ? `第 ${i + 1} 步` : lang === 'en' ? `${t.step} ${i + 1}` : `${i + 1}${t.step}`);
+---
+
+<div
+  class:list={['aas-issue-tabs', slide && 'is-slide']}
+  id={id}
+  data-it-strings={JSON.stringify({ copy: t.copy, copied: t.copied, failed: t.failed })}
+>
+  <div class="it-tabs" role="tablist">
+    {
+      t.issues.map((_, i) => (
+        <button type="button" role="tab" class="it-tab" data-it-tab={i} aria-selected={i === 0 ? 'true' : 'false'}>
+          {tabLabel(i)}
+        </button>
+      ))
+    }
+  </div>
+
+  {
+    t.issues.map((issue, i) => (
+      <div class="it-panel" role="tabpanel" data-it-panel={i} hidden={i !== 0}>
+        <div class="it-field">
+          <span class="it-label">{t.title}</span>
+          <button type="button" class="it-copy" data-it-copy={`t${i}`}>{t.copy}</button>
+        </div>
+        <pre class="it-title" data-it-text={`t${i}`}>{issue.title}</pre>
+        <div class="it-field">
+          <span class="it-label">{t.body}</span>
+          <button type="button" class="it-copy" data-it-copy={`b${i}`}>{t.copy}</button>
+        </div>
+        <pre class="it-body" data-it-text={`b${i}`}>{issue.body}</pre>
+      </div>
+    ))
+  }
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.itStrings);
+    const tabs = [...root.querySelectorAll('[data-it-tab]')];
+    const panels = [...root.querySelectorAll('[data-it-panel]')];
+    function show(i) {
+      tabs.forEach((b, k) => b.setAttribute('aria-selected', String(k === i)));
+      panels.forEach((p, k) => (p.hidden = k !== i));
+    }
+    tabs.forEach((b, i) => b.addEventListener('click', () => show(i)));
+    root.querySelectorAll('[data-it-copy]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const text = root.querySelector(`[data-it-text="${btn.dataset.itCopy}"]`).textContent;
+        let ok = false;
+        try {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        } catch (e) {
+          ok = false;
+        }
+        btn.textContent = ok ? S.copied : S.failed;
+        btn.classList.toggle('is-done', ok);
+        setTimeout(() => {
+          btn.textContent = S.copy;
+          btn.classList.remove('is-done');
+        }, 1600);
+      });
+    });
+  })();
+</script>
+
+<style is:global>
+  .aas-issue-tabs {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-issue-tabs .it-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    margin-bottom: 0.8em;
+  }
+  .aas-issue-tabs .it-tab {
+    padding: 0.35em 0.85em;
+    font-size: 0.9em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-issue-tabs .it-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-issue-tabs .it-tab[aria-selected='true'] {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-issue-tabs .it-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0.5em 0 0.3em;
+  }
+  .aas-issue-tabs .it-label {
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--aas-muted);
+  }
+  .aas-issue-tabs .it-copy {
+    padding: 0.2em 0.7em;
+    font-size: 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-issue-tabs .it-copy.is-done {
+    border-color: var(--aas-role-eval);
+    color: var(--aas-role-eval);
+  }
+  .aas-issue-tabs pre.it-title,
+  .aas-issue-tabs pre.it-body {
+    margin: 0;
+    padding: 0.6em 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg) !important;
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: none;
+  }
+  .aas-issue-tabs pre.it-title {
+    font-weight: 700;
+  }
+  .aas-issue-tabs.is-slide {
+    font-size: clamp(1rem, 2.9vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+</style>
