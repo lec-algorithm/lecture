@@ -1,0 +1,455 @@
+---
+// BFS로 연결 요소를 세는 바깥 반복을 한 걸음씩 보는 데모. 절차 네 줄을 데모
+// 안에 함께 두고, 지금 하는 줄을 강조한다.
+//
+// 그래프는 연결 요소가 셋인 g13이다. "한 걸음"마다 정점 i를 하나 본다. 아직
+// 탐색되지 않았으면 BFS(G, i)를 불러 닿는 정점을 같은 색으로 칠하고, 이미
+// 탐색되었으면 건너뛴다. 끝나면 BFS를 부른 횟수가 연결 요소의 수다.
+//
+// 간선을 누르면 지우거나 되살린다. 간선을 지우면 연결 요소가 늘어나는 것을
+// 다시 돌려 확인한다. 같은 일을 DFS로 하는 것은 DfsAppDemo가 맡는다.
+// 처음 그래프에서는 0~6, 7 8, 9~12 셋이 나온다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const g = getGraph('g13');
+const id = `bc-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'BFS로 연결 요소 세기',
+    hint: '간선을 누르면 지우거나 되살립니다.',
+    step: '한 걸음',
+    run: '끝까지',
+    reset: '처음으로',
+    restore: '간선 되살리기',
+    code1: '모든 정점을 탐색되지 않음으로 표시',
+    code2: 'for i <- 0 to n - 1 do',
+    code3: '    if i가 아직 탐색되지 않았으면 then',
+    code4: '        BFS(G, i)',
+    comps: '연결 요소',
+    comp: '{k}번',
+    none: '아직 없음',
+    calls: 'BFS 호출',
+    seen: '탐색한 정점',
+    idle: '모든 정점이 탐색되지 않은 상태입니다. i = 0부터 차례로 봅니다.',
+    call: 'i = {i}: 아직 탐색되지 않았습니다. BFS(G, {i}) 호출로 {list|을} 탐색합니다. {k}번째 연결 요소입니다.',
+    skip: 'i = {i}: 이미 {k}번 요소로 탐색되어 건너뜁니다.',
+    done: 'BFS를 {c}번 불렀으니 연결 요소는 {c}개입니다. 정점 {n}개와 간선 {m}개를 통틀어 한 번씩만 봤습니다.',
+    cut: '간선 {e|을} 지웠습니다. 처음부터 다시 돌려 보세요.',
+    back: '간선 {e|을} 되살렸습니다. 처음부터 다시 돌려 보세요.',
+  },
+  en: {
+    title: 'Counting connected components with BFS',
+    hint: 'Click an edge to remove or restore it.',
+    step: 'One step',
+    run: 'To the end',
+    reset: 'Reset',
+    restore: 'Restore edges',
+    code1: 'mark every vertex unexplored',
+    code2: 'for i <- 0 to n - 1 do',
+    code3: '    if i is still unexplored then',
+    code4: '        BFS(G, i)',
+    comps: 'Components',
+    comp: 'no. {k}',
+    none: 'none yet',
+    calls: 'BFS calls',
+    seen: 'Explored vertices',
+    idle: 'Every vertex is unexplored. We look at i = 0, 1, 2 and so on in turn.',
+    call: 'i = {i}: still unexplored. BFS(G, {i}) explores {list}. This is component no. {k}.',
+    skip: 'i = {i}: already explored as part of component no. {k}, so skip it.',
+    done: 'BFS was called {c} times, so there are {c} components. All {n} vertices and {m} edges were looked at just once in total.',
+    cut: 'Removed edge {e}. Run it again from the start.',
+    back: 'Restored edge {e}. Run it again from the start.',
+  },
+  zh: {
+    title: '用 BFS 数连通分量',
+    hint: '点击边可以删除或恢复。',
+    step: '走一步',
+    run: '走到底',
+    reset: '重置',
+    restore: '恢复所有边',
+    code1: '把所有顶点标记为未探索',
+    code2: 'for i <- 0 to n - 1 do',
+    code3: '    if i 还未探索 then',
+    code4: '        BFS(G, i)',
+    comps: '连通分量',
+    comp: '第 {k} 个',
+    none: '还没有',
+    calls: 'BFS 调用',
+    seen: '已探索的顶点',
+    idle: '所有顶点都未探索。从 i = 0 开始依次查看。',
+    call: 'i = {i}：还未探索。BFS(G, {i}) 探索了 {list}。这是第 {k} 个连通分量。',
+    skip: 'i = {i}：已作为第 {k} 个分量被探索，跳过。',
+    done: '调用了 {c} 次 BFS，所以连通分量有 {c} 个。{n} 个顶点和 {m} 条边总共各只看了一次。',
+    cut: '删除了边 {e}。请从头再运行一次。',
+    back: '恢复了边 {e}。请从头再运行一次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-bfs-components-demo', slide && 'is-slide']}
+  id={id}
+  data-bc-n={g.nodes.length}
+  data-bc-edges={JSON.stringify(g.edges)}
+  data-bc-strings={JSON.stringify(t)}
+>
+  <div class="bc-bar">
+    <span class="bc-head"><strong>{t.title}</strong> <span class="bc-hint">{t.hint}</span></span>
+    <div class="bc-controls">
+      <button type="button" class="bc-btn bc-btn-primary" data-bc-act="step">{t.step}</button>
+      <button type="button" class="bc-btn bc-btn-primary" data-bc-act="run">{t.run}</button>
+      <button type="button" class="bc-btn" data-bc-act="reset">{t.reset}</button>
+      <button type="button" class="bc-btn" data-bc-act="restore">{t.restore}</button>
+    </div>
+  </div>
+
+  <div class="bc-body">
+    <div class="bc-graph">
+      <GraphFigure graph="g13" bare slide={slide} />
+    </div>
+    <div class="bc-panel">
+      <pre class="bc-code"><span data-bc-line="1">{t.code1}</span>
+<span data-bc-line="2">{t.code2}</span>
+<span data-bc-line="3">{t.code3}</span>
+<span data-bc-line="4">{t.code4}</span></pre>
+      <div class="bc-stats">
+        <span class="bc-label">{t.calls}</span><strong data-bc-calls></strong>
+        <span class="bc-label">{t.seen}</span><strong data-bc-seen></strong>
+      </div>
+      <div class="bc-label">{t.comps}</div>
+      <div class="bc-comps" data-bc-comps></div>
+      <p class="bc-note" data-bc-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 숫자 뒤의 조사. {v|을}처럼 쓰면 받침에 따라 을/를을 고른다. */
+    const josa = (val, p) => {
+      const d = Number(String(val).trim().slice(-1));
+      const batchim = [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][d];
+      return batchim ? p : { 은: '는', 이: '가', 을: '를' }[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(\w+)(?:\|([^}]+))?\}/g, (_, k, p) => (p ? vars[k] + josa(vars[k], p) : vars[k]));
+    const S = JSON.parse(root.dataset.bcStrings);
+    const n = Number(root.dataset.bcN);
+    const edges = JSON.parse(root.dataset.bcEdges);
+    const key = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+    /* 요소마다 다른 색. 간선을 지우면 요소가 13개까지 늘 수 있다. */
+    const HUES = [140, 215, 28, 275, 340, 180, 55, 310, 100, 245, 0, 160, 80];
+    const color = (k) => `hsl(${HUES[k % HUES.length]} 50% 42%)`;
+
+    const removed = new Set();
+    let i = 0; // 다음에 볼 정점
+    let comp = new Array(n).fill(-1);
+    let calls = 0;
+    let note = '';
+    let line = '1';
+    let timer = null;
+
+    function neighbours(v) {
+      const out = [];
+      edges.forEach(([a, b]) => {
+        if (removed.has(key(a, b))) return;
+        if (a === v) out.push(b);
+        else if (b === v) out.push(a);
+      });
+      return out.sort((x, y) => x - y);
+    }
+
+    const edgeEls = [...root.querySelectorAll('[data-gf-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const lineEls = [...root.querySelectorAll('[data-bc-line]')];
+    const compsEl = root.querySelector('[data-bc-comps]');
+    const noteEl = root.querySelector('[data-bc-note]');
+    const buttons = {};
+    root.querySelectorAll('[data-bc-act]').forEach((b) => (buttons[b.dataset.bcAct] = b));
+
+    function render() {
+      nodeEls.forEach((el, v) => {
+        const c = el.querySelector('circle');
+        const label = el.querySelector('.gf-label');
+        const on = comp[v] >= 0;
+        c.style.fill = on ? color(comp[v]) : '';
+        c.style.stroke = on ? color(comp[v]) : '';
+        label.style.fill = on ? '#fff' : '';
+        el.classList.toggle('is-ring', i > 0 && i <= n && v === i - 1);
+      });
+      edgeEls.forEach((el) => {
+        const [a, b] = el.dataset.gfEdge.split('-').map(Number);
+        el.classList.toggle('is-reject', removed.has(key(a, b)));
+      });
+      lineEls.forEach((el) => el.classList.toggle('is-on', el.dataset.bcLine === line));
+
+      const groups = [];
+      comp.forEach((k, v) => k >= 0 && (groups[k] ??= []).push(v));
+      compsEl.replaceChildren(
+        ...(groups.length
+          ? groups.flatMap((vs, k) => {
+              const name = Object.assign(document.createElement('span'), {
+                className: 'bc-comp-name',
+                textContent: fill(S.comp, { k: k + 1 }),
+              });
+              name.style.setProperty('--bc-color', color(k));
+              return [name, Object.assign(document.createElement('strong'), { textContent: vs.join(' ') })];
+            })
+          : [Object.assign(document.createElement('span'), { className: 'bc-empty', textContent: S.none })]),
+      );
+      root.querySelector('[data-bc-calls]').textContent = String(calls);
+      root.querySelector('[data-bc-seen]').textContent = `${comp.filter((k) => k >= 0).length} / ${n}`;
+      const done = i >= n;
+      buttons.step.disabled = done;
+      buttons.run.disabled = done;
+      buttons.restore.disabled = !removed.size;
+      root.classList.toggle('is-done', done);
+      setLines(noteEl, note || S.idle);
+    }
+
+    function step() {
+      if (i >= n) return false;
+      const v = i;
+      if (comp[v] >= 0) {
+        note = fill(S.skip, { i: v, k: comp[v] + 1 });
+        line = '3';
+      } else {
+        /* BFS(G, v): 넣을 때 표시한다. */
+        const found = [v];
+        comp[v] = calls;
+        for (const q = [v]; q.length; ) {
+          const u = q.shift();
+          neighbours(u).forEach((w) => {
+            if (comp[w] >= 0) return;
+            comp[w] = calls;
+            found.push(w);
+            q.push(w);
+          });
+        }
+        calls += 1;
+        note = fill(S.call, { i: v, list: found.join(' '), k: calls });
+        line = '4';
+      }
+      i += 1;
+      if (i >= n) {
+        /* 마지막 정점까지 봤으면 그 걸음의 설명 대신 결과를 적는다. */
+        note = fill(S.done, { c: calls, n, m: edges.length - removed.size });
+        line = '';
+      }
+      render();
+      return i < n;
+    }
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    function reset(msg) {
+      stop();
+      i = 0;
+      comp = new Array(n).fill(-1);
+      calls = 0;
+      note = msg || '';
+      line = '1';
+      render();
+    }
+
+    buttons.step.addEventListener('click', () => {
+      stop();
+      step();
+    });
+    buttons.run.addEventListener('click', () => {
+      stop();
+      if (step()) timer = setInterval(() => step() || stop(), 450);
+    });
+    buttons.reset.addEventListener('click', () => reset());
+    buttons.restore.addEventListener('click', () => {
+      removed.clear();
+      reset();
+    });
+    edgeEls.forEach((el) => {
+      /* 선이 가늘어서 누르기 쉽도록 투명한 굵은 선을 겹친다. */
+      const hit = el.querySelector('line').cloneNode();
+      hit.classList.add('bc-hit');
+      el.appendChild(hit);
+      el.addEventListener('click', () => {
+        const [a, b] = el.dataset.gfEdge.split('-').map(Number);
+        const k = key(a, b);
+        const had = removed.has(k);
+        if (had) removed.delete(k);
+        else removed.add(k);
+        reset(fill(had ? S.back : S.cut, { e: `${a}-${b}` }));
+      });
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-bfs-components-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-bfs-components-demo .bc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-bfs-components-demo .bc-head {
+    font-size: 0.95em;
+  }
+  .aas-bfs-components-demo .bc-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-bfs-components-demo .bc-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-bfs-components-demo .bc-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-bfs-components-demo .bc-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-bfs-components-demo .bc-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-bfs-components-demo .bc-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-bfs-components-demo .bc-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-bfs-components-demo .bc-graph {
+    flex: 0 1 19em;
+    min-width: 12em;
+  }
+  .aas-bfs-components-demo .aas-graph-figure .gf-edge line.bc-hit {
+    stroke: transparent;
+    stroke-width: 22;
+    stroke-dasharray: none;
+    opacity: 1;
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+  .aas-bfs-components-demo .bc-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-bfs-components-demo .bc-code {
+    margin: 0;
+    padding: 0.5em 0.7em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.5;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .aas-bfs-components-demo .bc-code .is-on {
+    font-weight: 700;
+    color: var(--aas-role-focus);
+  }
+  .aas-bfs-components-demo .bc-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-bfs-components-demo .bc-stats,
+  .aas-bfs-components-demo .bc-comps {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15em 0.9em;
+    align-items: baseline;
+    font-size: 0.9em;
+  }
+  .aas-bfs-components-demo .bc-stats {
+    grid-template-columns: auto auto auto 1fr;
+  }
+  .aas-bfs-components-demo .bc-stats strong,
+  .aas-bfs-components-demo .bc-comps strong {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-bfs-components-demo .bc-comps {
+    min-height: 4.6em;
+    align-content: start;
+  }
+  .aas-bfs-components-demo .bc-comp-name {
+    font-size: 0.9em;
+    font-weight: 700;
+    color: var(--bc-color);
+  }
+  .aas-bfs-components-demo .bc-empty {
+    font-size: 0.9em;
+    color: var(--aas-muted);
+  }
+  .aas-bfs-components-demo .bc-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.6em;
+  }
+  .aas-bfs-components-demo.is-done .bc-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-bfs-components-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+  .aas-bfs-components-demo.is-slide .bc-body {
+    flex-wrap: nowrap;
+  }
+  .aas-bfs-components-demo.is-slide .bc-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+</style>

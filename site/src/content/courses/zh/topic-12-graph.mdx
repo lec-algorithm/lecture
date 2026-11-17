@@ -21,6 +21,8 @@ import CutDemo from '@components/CutDemo.astro';
 import DensityDemo from '@components/DensityDemo.astro';
 import FrontierDemo from '@components/FrontierDemo.astro';
 import GenericSearchDemo from '@components/GenericSearchDemo.astro';
+import BfsPathDemo from '@components/BfsPathDemo.astro';
+import BfsComponentsDemo from '@components/BfsComponentsDemo.astro';
 import SearchProofDemo from '@components/SearchProofDemo.astro';
 import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
@@ -416,6 +418,14 @@ path 0 -> 4: 0 5 4 (2 edges)
 之后才会第一次被发现。不过这**只在所有边长度相同时**成立。如果每条边权重不同，
 边数少的路就不一定更短。那时需要后面的 Dijkstra。
 
+在一张图上同时确认两个命题和最短路径。点击顶点可以更换终点，
+用上方的按钮也可以更换起点。
+
+<BfsPathDemo />
+
+- 从 0 出发时，13 个顶点中有 7 个进过队列，看过的边端是 16 = 2 × 8 个。只算 0 所在的连通分量。
+- 把 7 或 9 选为终点时没有路径，也没有 dist。正如命题 1 所说。
+
 ### 应用：连通分量 \{#bfs-components}
 
 要找出无向图的所有连通分量，就依次查看每个顶点，从还没被探索的顶点各启动一次
@@ -430,6 +440,13 @@ for i <- 1 to n do
 
 虽然调用多次 BFS，但顶点和边总共只各看一次，所以是 $$O(V + E)$$。
 同样的事也可以用 DFS 做，实践代码用的就是 DFS。
+
+把外层循环一步一步运行。点击边可以删除或恢复。
+
+<BfsComponentsDemo />
+
+- 在原图上 BFS 被调用三次，分别从 0、7、9 开始，连通分量是 0\~6、7 8、9\~12 三个。
+- 删掉边 7-8 再运行，BFS 被调用四次。删掉 0-1 也一样。
 
 ## 例 2. 深度优先搜索 \{#dfs}
 

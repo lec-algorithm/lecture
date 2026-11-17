@@ -1,0 +1,389 @@
+---
+// BFS의 성질 둘과 최단 경로를 한 그림에서 확인하는 데모.
+//
+// 그래프는 연결 요소가 셋인 g13이다. 출발 정점 s에서 BFS를 끝까지 돌린 결과를
+// 보인다. 정점 옆 숫자가 dist이고, 오른쪽에 거리별 층을 적는다. 정점을 누르면
+// 도착 정점 t가 바뀌고, from을 거슬러 올라간 경로를 초록으로 칠한다. 위쪽
+// 칩으로 "출발 s"를 고른 뒤 정점을 누르면 출발 정점이 바뀐다.
+//
+//   주장 1: s에서 경로가 없는 정점은 흐리게 남고 dist가 없다.
+//   주장 2: 큐에 들어간 정점 수 V_s와 본 간선 끝의 수 2 × E_s를 센다.
+//           s의 연결 요소만 세므로 전체 V, E보다 작다.
+//   최단 경로: 경로의 간선 수가 dist(t)와 같다.
+//
+// 이웃은 작은 번호부터 본다(01_bfs와 같다). 0에서 4까지는 0 → 5 → 4다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 출발 정점 */
+  start?: number;
+  /** 도착 정점 */
+  target?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { start = 0, target = 4, slide = false } = Astro.props;
+const g = getGraph('g13');
+const id = `bp-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'BFS의 거리와 경로',
+    hint: '정점을 눌러 보세요.',
+    pickS: '출발 s 고르기',
+    pickT: '도착 t 고르기',
+    layers: '층',
+    layer: '거리 {d}',
+    vs: '큐에 들어간 정점',
+    es: '본 간선 끝',
+    of: '전체 {n}',
+    twice: '= 2 × {m}',
+    path: '경로',
+    noPath: '없음',
+    found: 'from을 거슬러 올라가면 {back}입니다. 간선 {d}개이고, dist({t})도 {d}입니다. 간선이 더 적은 경로는 없습니다.',
+    self: '{s|은} 출발 정점입니다. dist({s}) = 0입니다.',
+    unreach: '{t}에는 {s}에서 가는 경로가 없습니다. BFS가 끝나도 {t|은} 탐색되지 않고 dist도 없습니다.',
+  },
+  en: {
+    title: 'BFS distances and paths',
+    hint: 'Click a vertex.',
+    pickS: 'Pick start s',
+    pickT: 'Pick target t',
+    layers: 'Layers',
+    layer: 'distance {d}',
+    vs: 'Vertices enqueued',
+    es: 'Edge ends looked at',
+    of: 'of {n}',
+    twice: '= 2 × {m}',
+    path: 'Path',
+    noPath: 'none',
+    found: 'Following from backwards gives {back}. That is {d} edges, equal to dist({t}) = {d}. No path uses fewer edges.',
+    self: '{s} is the start vertex. dist({s}) = 0.',
+    unreach: 'No path leads from {s} to {t}. When BFS ends, {t} is unexplored and has no dist.',
+  },
+  zh: {
+    title: 'BFS 的距离与路径',
+    hint: '点击顶点。',
+    pickS: '选起点 s',
+    pickT: '选终点 t',
+    layers: '层',
+    layer: '距离 {d}',
+    vs: '进过队列的顶点',
+    es: '看过的边端',
+    of: '共 {n}',
+    twice: '= 2 × {m}',
+    path: '路径',
+    noPath: '无',
+    found: '沿 from 往回走得到 {back}。共 {d} 条边，等于 dist({t}) = {d}。没有边数更少的路径。',
+    self: '{s} 是起点。dist({s}) = 0。',
+    unreach: '没有从 {s} 到 {t} 的路径。BFS 结束后 {t} 仍未探索，也没有 dist。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-bfs-path-demo', slide && 'is-slide']}
+  id={id}
+  data-bp-n={g.nodes.length}
+  data-bp-edges={JSON.stringify(g.edges)}
+  data-bp-start={start}
+  data-bp-target={target}
+  data-bp-strings={JSON.stringify(t)}
+>
+  <div class="bp-bar">
+    <span class="bp-head"><strong>{t.title}</strong> <span class="bp-hint">{t.hint}</span></span>
+    <div class="bp-controls" role="tablist">
+      <button type="button" class="bp-chip" data-bp-pick="s" role="tab">{t.pickS}</button>
+      <button type="button" class="bp-chip" data-bp-pick="t" role="tab">{t.pickT}</button>
+    </div>
+  </div>
+
+  <div class="bp-body">
+    <div class="bp-graph">
+      <GraphFigure graph="g13" bare slide={slide} />
+    </div>
+    <div class="bp-panel">
+      <div class="bp-label">{t.layers}</div>
+      <div class="bp-layers" data-bp-layers></div>
+      <div class="bp-stats">
+        <span class="bp-label">{t.vs}</span>
+        <span><strong data-bp-vs></strong> <small data-bp-vs-of></small></span>
+        <span class="bp-label">{t.es}</span>
+        <span><strong data-bp-es></strong> <small data-bp-es-of></small></span>
+        <span class="bp-label">{t.path}</span>
+        <strong class="bp-path" data-bp-path></strong>
+      </div>
+      <p class="bp-note" data-bp-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 숫자 뒤의 조사. {v|은}처럼 쓰면 받침에 따라 은/는을 고른다. */
+    const josa = (val, p) => {
+      const d = Number(String(val).trim().slice(-1));
+      const batchim = [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][d];
+      return batchim ? p : { 은: '는', 이: '가', 을: '를' }[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{(\w+)(?:\|([^}]+))?\}/g, (_, k, p) => (p ? vars[k] + josa(vars[k], p) : vars[k]));
+    const S = JSON.parse(root.dataset.bpStrings);
+    const n = Number(root.dataset.bpN);
+    const edges = JSON.parse(root.dataset.bpEdges);
+
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+
+    let s = Number(root.dataset.bpStart);
+    let t = Number(root.dataset.bpTarget);
+    let pick = 't';
+
+    /* s에서 BFS. 넣을 때 표시하고, 간선 끝을 볼 때마다 센다. */
+    function bfs() {
+      const dist = new Array(n).fill(null);
+      const from = new Array(n).fill(null);
+      dist[s] = 0;
+      let enq = 1;
+      let ends = 0;
+      for (const q = [s]; q.length; ) {
+        const v = q.shift();
+        adj[v].forEach((w) => {
+          ends += 1;
+          if (dist[w] !== null) return;
+          dist[w] = dist[v] + 1;
+          from[w] = v;
+          enq += 1;
+          q.push(w);
+        });
+      }
+      return { dist, from, enq, ends };
+    }
+
+    const edgeEls = [...root.querySelectorAll('[data-gf-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const chips = [...root.querySelectorAll('[data-bp-pick]')];
+    const layersEl = root.querySelector('[data-bp-layers]');
+    const noteEl = root.querySelector('[data-bp-note]');
+    const q = (sel) => root.querySelector(sel);
+
+    function render() {
+      const { dist, from, enq, ends } = bfs();
+      const reach = dist[t] !== null;
+      const path = [];
+      if (reach) for (let x = t; x !== null; x = from[x]) path.unshift(x);
+      const onPath = new Set();
+      for (let i = 1; i < path.length; i++) onPath.add(`${path[i - 1]}-${path[i]}`);
+
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', dist[v] !== null && v !== t);
+        el.classList.toggle('is-focus', v === t);
+        el.classList.toggle('is-ring', v === s);
+        el.classList.toggle('is-dim', dist[v] === null && v !== t);
+      });
+      badgeEls.forEach((el, v) => (el.textContent = dist[v] === null ? '' : String(dist[v])));
+      edgeEls.forEach((el) => {
+        const [a, b] = el.dataset.gfEdge.split('-');
+        el.classList.toggle('is-tree', onPath.has(`${a}-${b}`) || onPath.has(`${b}-${a}`));
+        el.classList.toggle('is-dim', dist[+a] === null);
+      });
+
+      /* 거리별 층. 도착 정점이 든 층을 강조한다. */
+      const byDist = [];
+      dist.forEach((d, v) => d !== null && (byDist[d] ??= []).push(v));
+      layersEl.replaceChildren(
+        ...byDist.flatMap((vs, d) => {
+          const k = Object.assign(document.createElement('span'), {
+            className: 'bp-label',
+            textContent: fill(S.layer, { d }),
+          });
+          const v = Object.assign(document.createElement('strong'), { textContent: vs.join(' ') });
+          if (reach && dist[t] === d) v.classList.add('is-on');
+          return [k, v];
+        }),
+      );
+
+      q('[data-bp-vs]').textContent = String(enq);
+      q('[data-bp-vs-of]').textContent = fill(S.of, { n });
+      q('[data-bp-es]').textContent = String(ends);
+      q('[data-bp-es-of]').textContent = fill(S.twice, { m: ends / 2 });
+      q('[data-bp-path]').textContent = reach ? path.join(' → ') : S.noPath;
+      root.classList.toggle('is-unreach', !reach);
+      chips.forEach((c) => {
+        const on = c.dataset.bpPick === pick;
+        c.classList.toggle('is-on', on);
+        c.setAttribute('aria-selected', String(on));
+      });
+      let note;
+      if (!reach) note = fill(S.unreach, { s, t });
+      else if (t === s) note = fill(S.self, { s });
+      else note = fill(S.found, { back: path.slice().reverse().join(' ← '), d: dist[t], t });
+      setLines(noteEl, note);
+    }
+
+    const choose = (v) => {
+      if (pick === 's') s = v;
+      else t = v;
+      render();
+    };
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => choose(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          choose(v);
+        }
+      });
+    });
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        pick = c.dataset.bpPick;
+        render();
+      }),
+    );
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-bfs-path-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-bfs-path-demo .bp-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-bfs-path-demo .bp-head {
+    font-size: 0.95em;
+  }
+  .aas-bfs-path-demo .bp-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-bfs-path-demo .bp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-bfs-path-demo .bp-chip {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-bfs-path-demo .bp-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-bfs-path-demo .bp-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-bfs-path-demo .bp-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-bfs-path-demo .bp-graph {
+    flex: 0 1 19em;
+    min-width: 12em;
+  }
+  .aas-bfs-path-demo .gf-node {
+    cursor: pointer;
+  }
+  .aas-bfs-path-demo .bp-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-bfs-path-demo .bp-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-bfs-path-demo .bp-layers,
+  .aas-bfs-path-demo .bp-stats {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15em 0.9em;
+    align-items: baseline;
+    font-size: 0.9em;
+  }
+  .aas-bfs-path-demo .bp-layers {
+    min-height: 4.6em;
+    align-content: start;
+  }
+  .aas-bfs-path-demo .bp-layers strong,
+  .aas-bfs-path-demo .bp-stats strong {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-bfs-path-demo .bp-layers strong.is-on {
+    color: var(--aas-role-focus);
+  }
+  .aas-bfs-path-demo .bp-stats small {
+    color: var(--aas-muted);
+  }
+  .aas-bfs-path-demo .bp-path {
+    color: var(--aas-role-eval);
+  }
+  .aas-bfs-path-demo.is-unreach .bp-path {
+    color: var(--aas-role-guard);
+  }
+  .aas-bfs-path-demo .bp-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    min-height: 4.8em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-bfs-path-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-bfs-path-demo.is-slide .bp-body {
+    flex-wrap: nowrap;
+  }
+  .aas-bfs-path-demo.is-slide .bp-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+</style>
