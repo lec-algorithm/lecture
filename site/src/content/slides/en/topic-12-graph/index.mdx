@@ -234,7 +234,7 @@ means scanning the whole list.
 <Slide>
 
 #### Adjacency matrix vs. adjacency list
-::sub[Seoul(0)-Busan(1), Seoul-Daegu(2), Busan-Gwangju(3) · list 4 + 6 slots, matrix 16 cells]
+::sub[The same graph, but each operation costs differently]
 
 <VarLegend set="graph" />
 
@@ -250,6 +250,50 @@ means scanning the whole list.
 <br/>
 
 Search asks "who are the neighbours?" most often. All the practice code uses adjacency lists.
+
+</Slide>
+
+<Slide>
+
+#### Example: four cities, three roads
+::sub[Seoul(0)-Busan(1), Seoul-Daegu(2), Busan-Gwangju(3) · list 4 + 6 slots, matrix 16 cells]
+
+<div class="aas-split">
+<div>
+
+- Adjacency matrix
+
+```python
+graph_matrix = [
+    [0, 1, 1, 0],   # Seoul: Busan(1), Daegu(2)
+    [1, 0, 0, 1],   # Busan: Seoul(0), Gwangju(3)
+    [1, 0, 0, 0],   # Daegu: Seoul(0)
+    [0, 1, 0, 0],   # Gwangju: Busan(1)
+]
+```
+
+- Is there a Seoul-Gwangju road? Look at one cell, `[0][3]`.
+- Neighbours of Seoul: read all 4 cells of row 0.
+
+</div>
+<div>
+
+- Adjacency list
+
+```python
+graph = {
+    'Seoul': ['Busan', 'Daegu'],
+    'Busan': ['Seoul', 'Gwangju'],
+    'Daegu': ['Seoul'],
+    'Gwangju': ['Busan'],
+}
+```
+
+- Is there a Seoul-Gwangju road? Scan Seoul's 2 neighbours.
+- Neighbours of Seoul: read just the 2 listed.
+
+</div>
+</div>
 
 </Slide>
 
