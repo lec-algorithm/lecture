@@ -12,6 +12,8 @@ import Screenshot from '@components/Screenshot.astro';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 import issueList from '@assets/slides/hw2-2026/issue-list.png';
 import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
 import IssueTabs from '@components/IssueTabs.astro';
 import AgentLoopDemo from '@components/AgentLoopDemo.astro';
 import Base62Demo from '@components/Base62Demo.astro';
@@ -664,12 +666,38 @@ src/server.py에 단축 URL 웹 서비스를 만들어 줘.
 브라우저에서 / 에 들어가면 URL을 넣는 폼이 나오고,
 줄이기를 누르면 짧은 링크를 보여 주는 화면이 나와야 해.
 짧은 링크를 열면 원래 주소로 이동해야 해.
+/table 에서는 현재 해시 테이블을 보여 줘.
+칸마다 연결 리스트의 노드(URL 키, 짧은 코드, 짧은 링크)를 화살표로 잇고,
+노드마다 호너 해시 계산 과정을 펼쳐 볼 수 있게 해 줘.
 표준 모듈 http.server만 쓰고, make serve로 포트 8000에서 뜨게 해 줘.
 끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 - `make serve`로 띄웁니다.
 - 아래쪽 패널의 **포트** 탭에 8000번이 나타납니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 해시 테이블도 화면에
+::sub[/table · 칸마다 연결 리스트, 끝은 NULL]
+
+<Screenshot src={hashViewChain} alt="현재 해시 테이블 화면. 칸마다 체인 길이와, URL 키·짧은 코드·짧은 링크가 담긴 노드가 화살표로 이어지고 끝에 NULL이 붙는다" maxHeight="58vh" />
+
+- 같은 칸에 떨어진 URL이 연결 리스트로 이어지는지 눈으로 확인합니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 왜 그 칸인지도
+::sub[노드를 펼치면 호너 해시 계산 근거]
+
+<Screenshot src={hashViewTrace} alt="노드의 해시 계산을 펼친 모습. 글자마다 (h * 31 + ord(글자)) % 16 계산이 이어져 마지막 값 5가 칸 번호가 된다" maxHeight="40vh" />
+
+- 주제 08의 h ← (31·h + 글자 코드) mod M을 글자마다 적습니다.
+- 마지막 값이 그 URL이 들어간 칸 번호입니다.
 
 </Slide>
 
@@ -721,6 +749,7 @@ src/server.py에 단축 URL 웹 서비스를 만들어 줘.
 2. **테스트**: 끝 칸에서 0번 칸으로 넘어가기, 가득 찬 테이블까지
 3. **바꿔 끼우기**: 단축기 테스트가 두 테이블 모두에서 통과
 4. **비교 실험**: 같은 키, 같은 크기, 적재율 0.1부터 0.9까지
+5. **화면**: `/table`에 선형 탐지 테이블도, 들여다본 칸과 계산 근거까지
 
 <br/>
 

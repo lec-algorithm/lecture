@@ -10,6 +10,8 @@ import { Image } from 'astro:assets';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 import issueList from '@assets/slides/hw2-2026/issue-list.png';
 import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
 import IssueTabs from '@components/IssueTabs.astro';
 import ShortenerDemo from '@components/ShortenerDemo.astro';
 
@@ -382,10 +384,20 @@ Build the URL shortener web service in src/server.py.
 Opening / in a browser should show a form to enter a URL,
 and pressing Shorten should show a page with the short link.
 Opening the short link should go to the original address.
+At /table, show the current hash table.
+For each slot, chain the nodes (URL key, short code, short link) with arrows,
+and let each node unfold its Horner hash steps.
 Use only the standard http.server module,
 and make it start on port 8000 with make serve.
 When done, commit, merge into develop and push.
 ```
+
+At `/table` you should be able to look inside the hash table. URLs that land in the same slot are joined
+in a linked list, and unfolding a node shows why it landed there: the Horner hash worked out one character at a time.
+
+<Image src={hashViewChain} alt="Current hash table page: each slot shows its chain length and nodes with the URL key, short code and short link joined by arrows and ending in NULL" />
+
+<Image src={hashViewTrace} alt="A node with its hash calculation unfolded: (h * 31 + ord(char)) % 16 for each character, ending in 5, the slot number" />
 
 Start it with `make serve` and open it on your phone.
 
@@ -410,7 +422,7 @@ from Topic 08 yourself.
 <ShortenerDemo mode="probe" />
 
 Create issue #8 from the **Homework** tab of the issue list, and work with an issue and a feature branch as in class.
-There are four tasks.
+There are five tasks.
 
 1. **Linear probing table**: give it the same interface as `HashTable` (`put`, `get`, `find`, `len`, `in`, `load_factor`).
    Do not use `dict`, `set` or the built-in `hash()`, and keep the Horner hash.
@@ -421,6 +433,8 @@ There are four tasks.
 4. **Comparison experiment**: put the same keys into two tables of the same size and measure hit and miss costs
    for load factors from 0.1 to 0.9. Count nodes compared for chaining and slots probed for linear probing.
    Plot them with the theory.
+5. **Linear probing view**: let `make serve` run on linear probing too, and show it at `/table` the same way:
+   one key per slot, how many slots were probed from its home slot, and the Horner hash steps.
 
 | Method | Hit | Miss |
 | --- | --- | --- |
@@ -482,7 +496,7 @@ let luck decide the score.
 | Item | Points | What we look at |
 | --- | --- | --- |
 | Class work | 1 | `make test` and `make serve` work, and the step issues and commits are there |
-| Linear probing | 1.5 | Works without `dict`, passes the tests, and swaps into the shortener |
+| Linear probing | 1.5 | Works without `dict`, passes the tests, and swaps into the shortener and the `/table` view |
 | Comparison | 1 | Both methods measured with the same keys and size, shown with the theory |
 | Report | 1.5 | Interprets the results and says how you caught the agent's mistakes |
 

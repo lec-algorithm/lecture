@@ -12,6 +12,8 @@ import Screenshot from '@components/Screenshot.astro';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 import issueList from '@assets/slides/hw2-2026/issue-list.png';
 import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
 import IssueTabs from '@components/IssueTabs.astro';
 import AgentLoopDemo from '@components/AgentLoopDemo.astro';
 import Base62Demo from '@components/Base62Demo.astro';
@@ -664,6 +666,9 @@ grep -n "dict\|set(\|hash(" src/*.py
 在浏览器里打开 / 时显示输入 URL 的表单，
 点击缩短后显示带短链接的页面。
 打开短链接时跳转到原来的地址。
+在 /table 显示当前的哈希表。
+每格把链表节点（URL 键、短代码、短链接）用箭头连起来，
+每个节点都能展开查看霍纳哈希的计算过程。
 只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
 完成后提交、合并到 develop 并 push。
@@ -671,6 +676,29 @@ grep -n "dict\|set(\|hash(" src/*.py
 
 - 用 `make serve` 启动。
 - 下方面板的**端口**标签页会出现 8000。
+
+</Slide>
+
+<Slide class="compact">
+
+### 哈希表也显示在页面上
+::sub[/table · 每格一个链表，最后是 NULL]
+
+<Screenshot src={hashViewChain} alt="当前哈希表页面：每格显示链长，含 URL 键、短代码和短链接的节点用箭头相连，最后接 NULL" maxHeight="58vh" />
+
+- 亲眼确认落在同一格的 URL 连成了链表。
+
+</Slide>
+
+<Slide class="compact">
+
+### 为什么是那一格
+::sub[展开节点就能看到霍纳哈希的计算过程]
+
+<Screenshot src={hashViewTrace} alt="展开节点的哈希计算：每个字符依次计算 (h * 31 + ord(字符)) % 16，最后的值 5 就是格号" maxHeight="40vh" />
+
+- 按主题 08 的 h ← (31·h + 字符编码) mod M 逐个字符写出来。
+- 最后的值就是这个 URL 放进的格号。
 
 </Slide>
 
@@ -722,6 +750,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 2. **测试**：从最后一格绕回 0 号格、满表
 3. **替换使用**：短网址测试在两种表上都通过
 4. **比较实验**：相同的键、相同的大小、装载因子 0.1 到 0.9
+5. **页面**：在 `/table` 显示线性探测表，包括探查的格子和计算过程
 
 <br/>
 

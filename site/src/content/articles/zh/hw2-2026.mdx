@@ -10,6 +10,8 @@ import { Image } from 'astro:assets';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 import issueList from '@assets/slides/hw2-2026/issue-list.png';
 import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
 import IssueTabs from '@components/IssueTabs.astro';
 import ShortenerDemo from '@components/ShortenerDemo.astro';
 
@@ -369,10 +371,20 @@ grep -n "dict\|set(\|hash(" src/*.py
 在浏览器里打开 / 时显示输入 URL 的表单，
 点击缩短后显示带短链接的页面。
 打开短链接时跳转到原来的地址。
+在 /table 显示当前的哈希表。
+每格把链表节点（URL 键、短代码、短链接）用箭头连起来，
+每个节点都能展开查看霍纳哈希的计算过程。
 只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
 完成后提交、合并到 develop 并 push。
 ```
+
+在 `/table` 应该能看到哈希表内部。落在同一格的 URL 用链表连起来，展开节点就能看到它落在那一格的原因，
+也就是逐个字符计算霍纳哈希的过程。
+
+<Image src={hashViewChain} alt="当前哈希表页面：每格显示链长，含 URL 键、短代码和短链接的节点用箭头相连，最后接 NULL" />
+
+<Image src={hashViewTrace} alt="展开节点的哈希计算：每个字符依次计算 (h * 31 + ord(字符)) % 16，最后的值 5 就是格号" />
 
 用 `make serve` 启动，然后用手机打开。
 
@@ -396,7 +408,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 <ShortenerDemo mode="probe" />
 
 用 issue 列表的**作业**标签页建好 issue #8，像课上一样用 issue 和 feature 分支来做。
-要做的事有四件。
+要做的事有五件。
 
 1. **线性探测表**：和 `HashTable` 用同样的接口（`put`、`get`、`find`、`len`、`in`、`load_factor`）。
    不使用 `dict`、`set` 和内置 `hash()`，哈希函数沿用霍纳方法。
@@ -404,6 +416,8 @@ grep -n "dict\|set(\|hash(" src/*.py
 3. **换到短网址里**：让短网址可以选用两种表之一，短网址的测试在两种表上都通过。
 4. **比较实验**：把相同的键放进大小相同的两个表，测量装载因子 0.1 到 0.9 的成功、失败查找代价。
    拉链法数比较的节点数，线性探测数探查的格子数。和理论值一起画成图。
+5. **线性探测页面**：让 `make serve` 也能用线性探测运行，并在 `/table` 用同样的方式显示：
+   每格一个键、从最初算出的格子开始探查了几格，以及霍纳哈希的计算过程。
 
 | 方法 | 成功查找 | 失败查找 |
 | --- | --- | --- |
@@ -462,7 +476,7 @@ sh tools/catchup.sh 4
 | 项目 | 分值 | 评价内容 |
 | --- | --- | --- |
 | 课堂成果 | 1 | 仓库里 `make test`、`make serve` 能运行，留有每一步的 issue 和提交 |
-| 线性探测实现 | 1.5 | 不用 `dict` 也能运行，测试通过，可以换到短网址里使用 |
+| 线性探测实现 | 1.5 | 不用 `dict` 也能运行，测试通过，可以换到短网址和 `/table` 页面里使用 |
 | 比较实验 | 1 | 用相同的键和大小测量两种方法，并和理论值一起展示 |
 | 报告 | 1.5 | 解释了结果，并写出如何抓住智能体的错误 |
 

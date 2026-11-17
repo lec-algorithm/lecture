@@ -12,6 +12,8 @@ import Screenshot from '@components/Screenshot.astro';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 import issueList from '@assets/slides/hw2-2026/issue-list.png';
 import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
 import IssueTabs from '@components/IssueTabs.astro';
 import AgentLoopDemo from '@components/AgentLoopDemo.astro';
 import Base62Demo from '@components/Base62Demo.astro';
@@ -664,6 +666,9 @@ Build the URL shortener web service in src/server.py.
 Opening / in a browser should show a form to enter a URL,
 and pressing Shorten should show a page with the short link.
 Opening the short link should go to the original address.
+At /table, show the current hash table.
+For each slot, chain the nodes (URL key, short code, short link) with arrows,
+and let each node unfold its Horner hash steps.
 Use only the standard http.server module,
 and make it start on port 8000 with make serve.
 When done, commit, merge into develop and push.
@@ -671,6 +676,29 @@ When done, commit, merge into develop and push.
 
 - Start it with `make serve`.
 - Port 8000 shows up on the **Ports** tab of the bottom panel.
+
+</Slide>
+
+<Slide class="compact">
+
+### The hash table on screen too
+::sub[/table · a linked list per slot, ending in NULL]
+
+<Screenshot src={hashViewChain} alt="Current hash table page: each slot shows its chain length and nodes with the URL key, short code and short link joined by arrows and ending in NULL" maxHeight="58vh" />
+
+- See with your own eyes that URLs in the same slot form a linked list.
+
+</Slide>
+
+<Slide class="compact">
+
+### And why that slot
+::sub[Unfold a node to see its Horner hash steps]
+
+<Screenshot src={hashViewTrace} alt="A node with its hash calculation unfolded: (h * 31 + ord(char)) % 16 for each character, ending in 5, the slot number" maxHeight="40vh" />
+
+- Topic 08's h ← (31·h + char code) mod M, one character at a time.
+- The last value is the slot the URL went into.
 
 </Slide>
 
@@ -722,6 +750,7 @@ Linear probing and comparison
 2. **Tests**: wrapping from the last slot to slot 0, a full table
 3. **Swap it in**: the shortener tests pass with both tables
 4. **Comparison**: same keys, same size, load factors 0.1 to 0.9
+5. **View**: the probing table at `/table`, with probed slots and hash steps
 
 <br/>
 
