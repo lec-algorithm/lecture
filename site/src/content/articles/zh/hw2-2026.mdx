@@ -87,18 +87,20 @@ Copilot Free 对聊天和智能体的使用量有限制。代码补全单独计�
 
 | 菜单 | 选择 | 含义 |
 | --- | --- | --- |
-| Agent mode | **Interactive** | 一步一步和你一起进行 |
-| Permissions | **Manual** | 每次运行命令前都请求许可 |
-| 模型 | 能选的话选 **Copilot Fusion** | 根据任务自动挑选模型 |
+| Agent mode | **Autopilot** | 在权限范围内自己一直做到底 |
+| Permissions | **Assisted permissions** | 先评估风险，只对看起来危险的命令询问 |
+| 模型 | **Copilot Fusion**（Standard） | 根据任务挑选或组合模型 |
 
-**Permissions 的 Manual 是教学用设置。**
+**检查靠结果，而不是许可按钮。**
 
-- 特意选它，是为了每次都读一读智能体要做什么。
-- 熟悉之后实际使用时，设为 **Assisted** 或 **Allow all** 即可。
-- 那时用测试、diff 和提交来检查，而不是靠许可按钮。
+- Assisted 对大部分命令不询问就直接运行。弹出询问时，读一读它要做什么再决定。
+- Autopilot 有时会做你没说的事。所以每个请求都要写清范围。
+  "现在还不要实现"、"不要修改测试"这样的句子就是起这个作用的。
+- 智能体做了什么，用测试、diff 和提交来确认。
 
-Agent mode 的 **Plan** 在第 3 步使用。**Autopilot** 会自己一直做到底，熟悉之后再用。
-免费方案不能选择模型，会自动决定，保持原样即可。
+想一步一步看着它做，就把 Agent mode 改为 **Interactive**；想亲自批准所有命令，就把
+Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用。免费方案不能选择模型，
+会自动决定，保持原样即可。
 
 ## 七个步骤 \{#steps}
 
@@ -132,8 +134,8 @@ git add -A && git commit -m "Step 1: base62 encode/decode"
 写测试，然后在终端运行 make test，给我看是否通过。
 ```
 
-智能体会创建文件，并询问是否可以运行终端命令，因为 Permissions 设成了 Manual。**批准的人是你。**
-先读清楚它要运行什么，再点。
+智能体会创建文件，在终端里跑测试，失败了就修改。Permissions 为 Assisted，只有看起来危险的命令
+才会在运行前询问。**做决定的人是你。** 弹出询问时读过再决定；没有询问就运行的命令，也要读一读聊天里的记录。
 
 要检查的地方
 
@@ -167,7 +169,7 @@ git add -A && git commit -m "Step 1: base62 encode/decode"
 ```
 
 也可以把 Agent mode 切换为 **Plan** 再请求。Plan 会先给出计划，批准后才执行。
-无论哪种方式，都让它把计划保存到 `PLAN.md`，结束后切回 **Interactive**。
+无论哪种方式，都让它把计划保存到 `PLAN.md`，结束后切回 **Autopilot**。
 
 阅读 `PLAN.md`，找出与规格说明不一致的地方，亲手修改。常见的有这些。
 
