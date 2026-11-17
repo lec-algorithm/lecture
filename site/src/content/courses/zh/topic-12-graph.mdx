@@ -20,6 +20,8 @@ import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
 import DensityDemo from '@components/DensityDemo.astro';
 import FrontierDemo from '@components/FrontierDemo.astro';
+import GenericSearchDemo from '@components/GenericSearchDemo.astro';
+import SearchProofDemo from '@components/SearchProofDemo.astro';
 import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
 import SpanSwapDemo from '@components/SpanSwapDemo.astro';
@@ -257,12 +259,25 @@ graph = {
 
 **命题**：算法结束时 v 已被探索 ⇔ G 中存在从 s 到 v 的路径。
 
+随机选边运行一下。无论运行多少次，只是顺序不同，最后探索到的顶点都等于有路径的顶点。
+点击顶点可从那里重新开始。
+
+<GenericSearchDemo />
+
 用反证法证明右边（⇐）。假设存在从 s 到 v 的路径，但结束时 v 没有被探索。
 
 - s 一开始就已探索，v 未被探索。
 - 那么在这条路径上的某处，一定有一条边 (u, x)，u 已探索而紧接着的 x 未探索。
   x 可能就是 v，u 也可能就是 s。
 - 可是只要还剩这样的边，算法就不会结束。矛盾。
+
+在图上跟着这个论证走一遍。点击顶点，自己决定哪些顶点已探索。
+只要还剩有路径却未探索的 v，那条路径上就一定有一条橙色的边 (u, x)。
+
+<SearchProofDemo />
+
+- 初始状态只探索了 0、1、2。在通往 3 的路径 0 → 5 → 3 上，边 0-5 还在。
+- 把 0 到 6 全部探索后，边界边才会消失。这时剩下的 7 到 12 没有路径。
 
 剩下的问题只有一个：**横跨边界的边有好几条时，先选哪一条？**
 从已探索区域中近的先选就是 BFS，从刚进入的地方再往深处走就是 DFS。

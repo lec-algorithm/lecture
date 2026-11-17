@@ -20,6 +20,8 @@ import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
 import DensityDemo from '@components/DensityDemo.astro';
 import FrontierDemo from '@components/FrontierDemo.astro';
+import GenericSearchDemo from '@components/GenericSearchDemo.astro';
+import SearchProofDemo from '@components/SearchProofDemo.astro';
 import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
 import SpanSwapDemo from '@components/SpanSwapDemo.astro';
@@ -268,6 +270,11 @@ Given a graph G and a start vertex s, the most general form is this.
 
 **Claim**: when the algorithm ends, v is explored ⇔ G has a path from s to v.
 
+Run it with edges picked at random. Each run differs only in the order; the vertices explored
+at the end are exactly those with a path. Click a vertex to start over from it.
+
+<GenericSearchDemo />
+
 We prove the right-to-left direction (⇐) by contradiction. Suppose there is a path from
 s to v but v is unexplored at the end.
 
@@ -275,6 +282,14 @@ s to v but v is unexplored at the end.
 - Then somewhere on that path there must be an edge (u, x) where an explored u is
   followed by an unexplored x. x may be v, and u may be s.
 - But while such an edge remains, the algorithm does not stop. Contradiction.
+
+Follow the argument on a picture. Click vertices to choose which ones are explored.
+Whenever a v with a path is left unexplored, its path always contains an orange edge (u, x).
+
+<SearchProofDemo />
+
+- Initially only 0, 1 and 2 are explored. On the path 0 → 5 → 3 to vertex 3, the edge 0-5 remains.
+- The frontier becomes empty only when 0 through 6 are all explored. The remaining 7 through 12 have no path.
 
 One question remains. **When several edges cross the frontier, which comes first?**
 Picking the ones closest to the explored region gives BFS; going deeper from where you

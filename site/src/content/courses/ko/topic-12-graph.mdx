@@ -20,6 +20,8 @@ import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
 import DensityDemo from '@components/DensityDemo.astro';
 import FrontierDemo from '@components/FrontierDemo.astro';
+import GenericSearchDemo from '@components/GenericSearchDemo.astro';
+import SearchProofDemo from '@components/SearchProofDemo.astro';
 import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
 import SpanSwapDemo from '@components/SpanSwapDemo.astro';
@@ -264,6 +266,11 @@ graph = {
 
 **주장**: 알고리즘이 끝났을 때 v가 탐색되어 있다 ⇔ G에 s에서 v로 가는 경로가 있다.
 
+간선을 무작위로 골라 돌려 봅니다. 몇 번을 돌려도 순서만 다르고, 끝에 탐색한 정점은
+경로가 있는 정점과 같습니다. 정점을 누르면 거기서 다시 시작합니다.
+
+<GenericSearchDemo />
+
 오른쪽(⇐)을 귀류법으로 보입니다. s에서 v로 가는 경로가 있는데 끝났을 때 v가
 탐색되지 않았다고 해 봅시다.
 
@@ -271,6 +278,14 @@ graph = {
 - 그러면 그 경로 위 어딘가에 탐색한 u 바로 다음에 탐색하지 않은 x가 오는 간선 (u, x)가
   있어야 합니다. x가 v일 수도 있고 u가 s일 수도 있습니다.
 - 그런데 그런 간선이 남아 있으면 알고리즘은 끝나지 않습니다. 모순입니다.
+
+이 논증을 그림으로 따라가 봅니다. 정점을 눌러 탐색한 정점을 마음대로 정하세요.
+경로가 있는데 탐색하지 않은 v가 남아 있으면, 그 경로 위에 주황색 간선 (u, x)가 꼭 있습니다.
+
+<SearchProofDemo />
+
+- 처음 상태는 0, 1, 2만 탐색한 것입니다. 3으로 가는 경로 0 → 5 → 3에서 간선 0-5가 남아 있습니다.
+- 0에서 6까지 모두 탐색해야 경계 간선이 없어집니다. 그때 남은 7에서 12까지에는 경로가 없습니다.
 
 남은 질문은 하나입니다. **경계에 걸친 간선이 여럿일 때 무엇부터 고르는가.**
 이미 탐색한 영역에서 가까운 것부터 고르면 BFS, 방금 들어간 곳에서 더 깊이 들어가면
