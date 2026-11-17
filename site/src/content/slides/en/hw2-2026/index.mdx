@@ -162,9 +162,12 @@ On the free plan the model is chosen automatically. Leave it as it is.
 ::sub[Commands or the Source Control view would work; today the agent manages it]
 
 ```text
-Let us manage this repository with git flow. First create a develop branch from main.
-From now on, for each step, branch feature/step-N off develop, work there, and when the
-step is done, commit and merge it into develop. Write commit messages as "Step N: what was done".
+Let us manage this repository with git flow.
+First create a develop branch from main.
+From now on, for each step, branch feature/step-N off develop and work there.
+When the step is done, commit and merge it into develop.
+Write commit messages as "Step N: what was done".
+Push to GitHub every time you commit or merge.
 ```
 
 - Ask **once**, at the start.
@@ -181,13 +184,13 @@ step is done, commit and merge it into develop. Write commit messages as "Step N
 | --- | --- | --- |
 | Request | Me | With a clear scope |
 | Check | Me | Tests, diffs |
-| Commit | Agent | End the request with "when done, commit and merge into develop" |
+| Commit | Agent | End the request with "when done, commit, merge into develop and push" |
 | Log | Me | One line in `AGENT_LOG.md`: the request and what I checked |
 
 <br/>
 
 A commit is **a point to go back to**. Check what went in with `git log`.  
-Before submitting, have it **merge develop into main**.
+Before submitting, have it **merge develop into main and push**.
 
 </Slide>
 
@@ -219,10 +222,11 @@ Write base62 encode/decode functions in Python
 ::sub[Copilot chat in the Codespace · delete the pasted file first]
 
 ```text
-In src/base62.py, write encode(n), which turns an integer n >= 0 into a base-62
-string using the characters 0-9, a-z, A-Z in that order, and its inverse decode(s).
-Write unittest tests in tests/test_base62.py, then run make test in the terminal
-and show me that they pass.
+In src/base62.py, write encode(n) and decode(s).
+encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
+and decode(s) is its inverse.
+Write unittest tests in tests/test_base62.py,
+then run make test in the terminal and show me that they pass.
 ```
 
 - It creates the files, runs the tests, and fixes failures.
@@ -360,8 +364,9 @@ Tests first, implementation by the agent
 ### Tests only, first
 
 ```text
-Turn the edge cases in section 6 of SPEC.md into unittest tests in
-tests/test_hash_table.py and tests/test_shortener.py. Do not implement anything yet.
+Turn the edge cases in section 6 of SPEC.md into unittest tests.
+Put them in tests/test_hash_table.py and tests/test_shortener.py.
+Do not implement anything yet.
 ```
 
 - **Read** the tests. Is every edge case there?
@@ -376,7 +381,8 @@ tests/test_hash_table.py and tests/test_shortener.py. Do not implement anything 
 
 ```text
 Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
-and keep fixing them until make test passes. Do not change the tests.
+and keep fixing them until make test passes.
+Do not change the tests.
 ```
 
 - **"Do not change the tests" matters.**
@@ -444,8 +450,11 @@ Put one in your project repository too.
 - Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
 - After changing code, run make test and show the result.
 - If a test fails, fix the code, not the test.
+- For each step, work on a feature branch off develop; when done, commit, merge into develop and push.
 - I am a first-year student. Summarize what you changed in at most three lines.
 ```
+
+- Move the git rule from the first chat here too. A new chat does not know the earlier conversation.
 
 </Slide>
 
@@ -454,7 +463,8 @@ Put one in your project repository too.
 ### Check in a new chat
 
 ```text
-Check whether the code in src/ follows this repository's rules, and fix anything that breaks them.
+Check whether the code in src/ follows this repository's rules,
+and fix anything that breaks them.
 ```
 
 - A new chat still reads the rules file.
@@ -476,12 +486,14 @@ Verify the result yourself
 ::sub[Measure how probes change with the load factor]
 
 ```text
-Create experiments/probe_experiment.py. Fill a HashTable(max_load=None) of fixed size
-4093 with random URLs up to load factors from 0.1 to 0.9, measure the average number
-of slots probed for successful and unsuccessful searches, and compare them in a table
-with Knuth's approximations from Topic 08:
-hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2.
-Save experiments/results.csv and an SVG chart. Do not use external libraries.
+Create experiments/probe_experiment.py.
+Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
+For load factors from 0.1 to 0.9,
+measure the average number of slots probed for successful and unsuccessful searches.
+Compare them in a table with Knuth's approximations from Topic 08.
+hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2
+Save experiments/results.csv and an SVG chart.
+Do not use external libraries.
 ```
 
 </Slide>
@@ -537,8 +549,9 @@ Serve it
 ### Add a web server
 
 ```text
-Create src/server.py as described in section 5 of SPEC.md. Use only the standard
-http.server module, and make it start on port 8000 with make serve.
+Create src/server.py as described in section 5 of SPEC.md.
+Use only the standard http.server module,
+and make it start on port 8000 with make serve.
 ```
 
 - Start it with `make serve`.
@@ -608,7 +621,8 @@ sh tools/catchup.sh 4
 - `src/`, `tests/`: hash table, shortener, server and tests
 - `experiments/`: experiment script, `results.csv`, chart
 - `AGENT_LOG.md`: step log, two or more mistakes caught, chat comparison, reflections
-- A commit per step: **merge develop into main** before submitting
+- A commit per step: **merge develop into main and push** before submitting
+- Anything not pushed is not submitted. Check on GitHub.
 
 </Slide>
 

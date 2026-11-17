@@ -113,14 +113,17 @@ You could commit with git commands or with VS Code's Source Control view. This t
 **git is the agent's job too.** At the start, ask once:
 
 ```text
-Let us manage this repository with git flow. First create a develop branch from main.
-From now on, for each step, branch feature/step-N off develop, work there, and when the
-step is done, commit and merge it into develop. Write commit messages as "Step N: what was done".
+Let us manage this repository with git flow.
+First create a develop branch from main.
+From now on, for each step, branch feature/step-N off develop and work there.
+When the step is done, commit and merge it into develop.
+Write commit messages as "Step N: what was done".
+Push to GitHub every time you commit or merge.
 ```
 
-- Add "when done, commit and merge into develop" to the end of each step's request, so it costs no extra request.
+- Add "when done, commit, merge into develop and push" to the end of each step's request, so it costs no extra request.
 - A commit is a point to go back to. After the agent commits, check what went in with the Source Control view or `git log`.
-- Before submitting, have it merge develop into main. Grading and the ZIP use main.
+- Before submitting, have it merge develop into main and push. Grading and the ZIP use main on GitHub.
 
 In `AGENT_LOG.md`, write one line per step with the exact request you used and what
 you checked. You can use the example requests below as they are or rewrite them.
@@ -142,10 +145,11 @@ Copy the answer into `src/base62.py` and work out for yourself how to run it.
 Now ask in the **Copilot chat in your Codespace**. Delete the pasted file and ask:
 
 ```text
-In src/base62.py, write encode(n), which turns an integer n >= 0 into a base-62
-string using the characters 0-9, a-z, A-Z in that order, and its inverse decode(s).
-Write unittest tests in tests/test_base62.py, then run make test in the terminal
-and show me that they pass.
+In src/base62.py, write encode(n) and decode(s).
+encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
+and decode(s) is its inverse.
+Write unittest tests in tests/test_base62.py,
+then run make test in the terminal and show me that they pass.
 ```
 
 The agent creates files, runs the tests in the terminal, and fixes failures. With Assisted
@@ -202,8 +206,9 @@ Fixing the plan is much cheaper than fixing the code.
 Ask for the tests only.
 
 ```text
-Turn the edge cases in section 6 of SPEC.md into unittest tests in
-tests/test_hash_table.py and tests/test_shortener.py. Do not implement anything yet.
+Turn the edge cases in section 6 of SPEC.md into unittest tests.
+Put them in tests/test_hash_table.py and tests/test_shortener.py.
+Do not implement anything yet.
 ```
 
 **Read** the tests. Check that every edge case from the specification is there and that
@@ -214,7 +219,8 @@ Then ask for the implementation.
 
 ```text
 Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
-and keep fixing them until make test passes. Do not change the tests.
+and keep fixing them until make test passes.
+Do not change the tests.
 ```
 
 **"Do not change the tests" matters.** Without it the agent sometimes quietly edits a
@@ -242,13 +248,18 @@ repository's rules in it.
 - Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
 - After changing code, run make test and show the result.
 - If a test fails, fix the code, not the test.
+- For each step, work on a feature branch off develop; when done, commit, merge into develop and push.
 - I am a first-year student. Summarize what you changed in at most three lines.
 ```
+
+The git rule, second from last, is what you asked in the chat at the start. A new chat does not
+know the earlier conversation, so move anything that must keep applying into the rules file.
 
 Open a new chat and ask it to check. If anything broke the rules, have it fixed.
 
 ```text
-Check whether the code in src/ follows this repository's rules, and fix anything that breaks them.
+Check whether the code in src/ follows this repository's rules,
+and fix anything that breaks them.
 ```
 
 A rules file is a habit that outlives this assignment. Put one in your project repository too.
@@ -259,12 +270,14 @@ Passing tests do not make a hash table a **good** one. As Topic 08 showed, linea
 slows down sharply as the load factor approaches 1. Measure whether your table does.
 
 ```text
-Create experiments/probe_experiment.py. Fill a HashTable(max_load=None) of fixed size
-4093 with random URLs up to load factors from 0.1 to 0.9, measure the average number
-of slots probed for successful and unsuccessful searches, and compare them in a table
-with Knuth's approximations from Topic 08:
-hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2.
-Save experiments/results.csv and an SVG chart. Do not use external libraries.
+Create experiments/probe_experiment.py.
+Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
+For load factors from 0.1 to 0.9,
+measure the average number of slots probed for successful and unsuccessful searches.
+Compare them in a table with Knuth's approximations from Topic 08.
+hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2
+Save experiments/results.csv and an SVG chart.
+Do not use external libraries.
 ```
 
 Run `make experiment` and **judge the numbers yourself.**
@@ -278,8 +291,9 @@ Run `make experiment` and **judge the numbers yourself.**
 Finally, add a web server.
 
 ```text
-Create src/server.py as described in section 5 of SPEC.md. Use only the standard
-http.server module, and make it start on port 8000 with make serve.
+Create src/server.py as described in section 5 of SPEC.md.
+Use only the standard http.server module,
+and make it start on port 8000 with make serve.
 ```
 
 Start it with `make serve` and open it on your phone.
@@ -325,7 +339,10 @@ The repository must contain:
 - `src/`, `tests/`: your own hash table, shortener, server and their tests
 - `experiments/`: the experiment script, `results.csv` and the chart
 - `AGENT_LOG.md`: the step log, two or more places the agent was wrong, the comparison with chat, and your reflections
-- A commit history with a commit per step (merge develop into main before submitting)
+- A commit history with a commit per step (merge develop into main and push before submitting)
+
+**Anything not pushed is not submitted.** Commits made in the Codespace are not on GitHub until you push.
+Before submitting, open your repository on GitHub and check that the files and commits are there.
 
 Keep the repository public. Commits after the deadline are not graded.
 

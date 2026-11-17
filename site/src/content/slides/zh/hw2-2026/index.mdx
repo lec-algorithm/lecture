@@ -162,9 +162,12 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ::sub[命令和源代码管理界面都可以，今天用智能体来管理]
 
 ```text
-这个仓库用 git flow 管理。先从 main 创建 develop 分支。
-以后每一步都从 develop 拉出 feature/step-N 分支来做，这一步完成后
-提交并合并到 develop。提交信息按 "Step N: 做了什么" 的格式写。
+这个仓库用 git flow 管理。
+先从 main 创建 develop 分支。
+以后每一步都从 develop 拉出 feature/step-N 分支来做，
+这一步完成后提交并合并到 develop。
+提交信息按 "Step N: 做了什么" 的格式写。
+每次提交或合并后都 push 到 GitHub。
 ```
 
 - 开始时**只请求一次**。
@@ -181,13 +184,13 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 | --- | --- | --- |
 | 请求 | 我 | 写清范围 |
 | 检查 | 我 | 测试、diff |
-| 提交 | 智能体 | 请求末尾加上"完成后提交并合并到 develop" |
+| 提交 | 智能体 | 请求末尾加上"完成后提交、合并到 develop 并 push" |
 | 记录 | 我 | 在 `AGENT_LOG.md` 写一行：请求原文和检查了什么 |
 
 <br/>
 
 提交就是**可以回退的点**。用 `git log` 确认放进了什么。  
-提交作业前，让它**把 develop 合并到 main**。
+提交作业前，让它**把 develop 合并到 main 并 push**。
 
 </Slide>
 
@@ -219,9 +222,11 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ::sub[Codespace 的 Copilot 聊天 · 先删掉粘贴的文件]
 
 ```text
-在 src/base62.py 中写 encode(n)，把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成
-62 进制字符串，以及它的逆变换 decode(s)。在 tests/test_base62.py 中用 unittest
-写测试，然后在终端运行 make test，给我看是否通过。
+在 src/base62.py 中写 encode(n) 和 decode(s)。
+encode(n) 把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成 62 进制字符串，
+decode(s) 是它的逆变换。
+在 tests/test_base62.py 中用 unittest 写测试，
+然后在终端运行 make test，给我看是否通过。
 ```
 
 - 它会创建文件、跑测试，失败了就修改。
@@ -359,8 +364,9 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ### 先只要测试
 
 ```text
-把 SPEC.md 第 6 节的边界情况用 unittest 写进 tests/test_hash_table.py 和
-tests/test_shortener.py。现在还不要实现。
+把 SPEC.md 第 6 节的边界情况用 unittest 写成测试。
+文件是 tests/test_hash_table.py 和 tests/test_shortener.py。
+现在还不要实现。
 ```
 
 - **阅读**测试。边界情况都包含了吗？
@@ -375,7 +381,8 @@ tests/test_shortener.py。现在还不要实现。
 
 ```text
 按照 PLAN.md 的顺序实现 src/hash_table.py 和 src/shortener.py，
-一直修改到 make test 全部通过为止。不要修改测试。
+一直修改到 make test 全部通过为止。
+不要修改测试。
 ```
 
 - **"不要修改测试"很重要。**
@@ -443,8 +450,11 @@ grep -n "dict\|set(\|hash(" src/*.py
 - src/ 里不要使用 dict、set 和内置 hash()。使用我们自己实现的哈希表。
 - 改完代码后运行 make test 并展示结果。
 - 测试失败时修改代码，而不是测试。
+- 每一步从 develop 拉 feature 分支来做，完成后提交、合并到 develop 并 push。
 - 我是一年级学生。用三行以内总结你改了什么。
 ```
+
+- 一开始在聊天里交代的 git 规则也移到这里。新的聊天不知道之前的对话。
 
 </Slide>
 
@@ -453,7 +463,8 @@ grep -n "dict\|set(\|hash(" src/*.py
 ### 在新的聊天里检查
 
 ```text
-检查 src/ 里的代码是否遵守本仓库的规则，有违反的地方就修正。
+检查 src/ 里的代码是否遵守本仓库的规则，
+有违反的地方就修正。
 ```
 
 - 新的聊天也会读规则文件。
@@ -475,11 +486,14 @@ grep -n "dict\|set(\|hash(" src/*.py
 ::sub[测量探查次数如何随装载因子变化]
 
 ```text
-创建 experiments/probe_experiment.py。往大小固定为 4093 的 HashTable(max_load=None)
-里放入随机 URL，使装载因子从 0.1 到 0.9，测量成功查找和失败查找平均探查的格子数，
-并用表格与主题 08 的克努斯近似值比较：
-成功 ≈ (1 + 1/(1-α))/2，失败 ≈ (1 + 1/(1-α)²)/2。
-结果保存为 experiments/results.csv 和 SVG 图表。不要使用外部库。
+创建 experiments/probe_experiment.py。
+往大小固定为 4093 的 HashTable(max_load=None) 里放入随机 URL。
+装载因子从 0.1 到 0.9，
+测量成功查找和失败查找平均探查的格子数。
+用表格与主题 08 的克努斯近似值比较。
+成功 ≈ (1 + 1/(1-α))/2，失败 ≈ (1 + 1/(1-α)²)/2
+结果保存为 experiments/results.csv 和 SVG 图表。
+不要使用外部库。
 ```
 
 </Slide>
@@ -535,7 +549,8 @@ grep -n "dict\|set(\|hash(" src/*.py
 ### 加上 Web 服务器
 
 ```text
-按照 SPEC.md 第 5 节创建 src/server.py。只使用标准模块 http.server，
+按照 SPEC.md 第 5 节创建 src/server.py。
+只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
 ```
 
@@ -606,7 +621,8 @@ sh tools/catchup.sh 4
 - `src/`、`tests/`：哈希表、短网址、服务器及测试
 - `experiments/`：实验脚本、`results.csv`、图表
 - `AGENT_LOG.md`：分步骤记录、两处以上的错误、与聊天的比较、感想
-- 每一步的提交历史：提交作业前**把 develop 合并到 main**
+- 每一步的提交历史：提交作业前**把 develop 合并到 main 并 push**
+- 没有 push 的内容不算提交。请在 GitHub 页面上确认。
 
 </Slide>
 

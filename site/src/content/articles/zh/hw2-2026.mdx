@@ -110,14 +110,17 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 开始时请求一次：
 
 ```text
-这个仓库用 git flow 管理。先从 main 创建 develop 分支。
-以后每一步都从 develop 拉出 feature/step-N 分支来做，这一步完成后
-提交并合并到 develop。提交信息按 "Step N: 做了什么" 的格式写。
+这个仓库用 git flow 管理。
+先从 main 创建 develop 分支。
+以后每一步都从 develop 拉出 feature/step-N 分支来做，
+这一步完成后提交并合并到 develop。
+提交信息按 "Step N: 做了什么" 的格式写。
+每次提交或合并后都 push 到 GitHub。
 ```
 
-- 在每一步请求的末尾加上"完成后提交并合并到 develop"，就不会多用请求次数。
+- 在每一步请求的末尾加上"完成后提交、合并到 develop 并 push"，就不会多用请求次数。
 - 提交就是可以回退的点。智能体提交后，用源代码管理界面或 `git log` 确认放进了什么。
-- 提交作业前，让它把 develop 合并到 main。评分和 ZIP 以 main 为准。
+- 提交作业前，让它把 develop 合并到 main 并 push。评分和 ZIP 以 GitHub 仓库的 main 为准。
 
 在 `AGENT_LOG.md` 里，每一步至少写一行：实际用过的请求原文，以及你检查了什么。
 下面的请求示例可以直接用，也可以改写。
@@ -138,9 +141,11 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 然后在 **Codespace 的 Copilot 聊天窗口**里请求。删掉粘贴的文件，再请求：
 
 ```text
-在 src/base62.py 中写 encode(n)，把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成
-62 进制字符串，以及它的逆变换 decode(s)。在 tests/test_base62.py 中用 unittest
-写测试，然后在终端运行 make test，给我看是否通过。
+在 src/base62.py 中写 encode(n) 和 decode(s)。
+encode(n) 把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成 62 进制字符串，
+decode(s) 是它的逆变换。
+在 tests/test_base62.py 中用 unittest 写测试，
+然后在终端运行 make test，给我看是否通过。
 ```
 
 智能体会创建文件，在终端里跑测试，失败了就修改。Permissions 为 Assisted，只有看起来危险的命令
@@ -193,8 +198,9 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 先只让它写测试。
 
 ```text
-把 SPEC.md 第 6 节的边界情况用 unittest 写进 tests/test_hash_table.py 和
-tests/test_shortener.py。现在还不要实现。
+把 SPEC.md 第 6 节的边界情况用 unittest 写成测试。
+文件是 tests/test_hash_table.py 和 tests/test_shortener.py。
+现在还不要实现。
 ```
 
 **阅读**测试。检查规格说明里的边界情况是否全部包含，期望值是否正确。缺的自己补上
@@ -204,7 +210,8 @@ tests/test_shortener.py。现在还不要实现。
 
 ```text
 按照 PLAN.md 的顺序实现 src/hash_table.py 和 src/shortener.py，
-一直修改到 make test 全部通过为止。不要修改测试。
+一直修改到 make test 全部通过为止。
+不要修改测试。
 ```
 
 **"不要修改测试"很重要。** 没有这句话，智能体有时会悄悄改掉它通过不了的测试。
@@ -231,13 +238,18 @@ grep -n "dict\|set(\|hash(" src/*.py
 - src/ 里不要使用 dict、set 和内置 hash()。使用我们自己实现的哈希表。
 - 改完代码后运行 make test 并展示结果。
 - 测试失败时修改代码，而不是测试。
+- 每一步从 develop 拉 feature 分支来做，完成后提交、合并到 develop 并 push。
 - 我是一年级学生。用三行以内总结你改了什么。
 ```
+
+倒数第二行的 git 规则，是一开始在聊天里交代的。新的聊天不知道之前的对话，
+所以需要一直遵守的内容要移到规则文件里。
 
 打开一个新的聊天，让它检查。如果有违规，让它修正。
 
 ```text
-检查 src/ 里的代码是否遵守本仓库的规则，有违反的地方就修正。
+检查 src/ 里的代码是否遵守本仓库的规则，
+有违反的地方就修正。
 ```
 
 规则文件是作业结束后也会留下的习惯。在个人项目的仓库里也放一个吧。
@@ -248,11 +260,14 @@ grep -n "dict\|set(\|hash(" src/*.py
 查找会急剧变慢。测一测你的表是不是这样。
 
 ```text
-创建 experiments/probe_experiment.py。往大小固定为 4093 的 HashTable(max_load=None)
-里放入随机 URL，使装载因子从 0.1 到 0.9，测量成功查找和失败查找平均探查的格子数，
-并用表格与主题 08 的克努斯近似值比较：
-成功 ≈ (1 + 1/(1-α))/2，失败 ≈ (1 + 1/(1-α)²)/2。
-结果保存为 experiments/results.csv 和 SVG 图表。不要使用外部库。
+创建 experiments/probe_experiment.py。
+往大小固定为 4093 的 HashTable(max_load=None) 里放入随机 URL。
+装载因子从 0.1 到 0.9，
+测量成功查找和失败查找平均探查的格子数。
+用表格与主题 08 的克努斯近似值比较。
+成功 ≈ (1 + 1/(1-α))/2，失败 ≈ (1 + 1/(1-α)²)/2
+结果保存为 experiments/results.csv 和 SVG 图表。
+不要使用外部库。
 ```
 
 用 `make experiment` 运行，**自己判断这些数字**。
@@ -266,7 +281,8 @@ grep -n "dict\|set(\|hash(" src/*.py
 最后加上 Web 服务器。
 
 ```text
-按照 SPEC.md 第 5 节创建 src/server.py。只使用标准模块 http.server，
+按照 SPEC.md 第 5 节创建 src/server.py。
+只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
 ```
 
@@ -311,7 +327,10 @@ sh tools/catchup.sh 4
 - `src/`、`tests/`：自己实现的哈希表、短网址、服务器及其测试
 - `experiments/`：实验脚本、`results.csv` 和图表
 - `AGENT_LOG.md`：分步骤记录、两处以上智能体出错的地方、与聊天的比较、感想
-- 每一步的提交历史（提交作业前把 develop 合并到 main）
+- 每一步的提交历史（提交作业前把 develop 合并到 main 并 push）
+
+**没有 push 的内容不算提交。** 在 Codespace 里做的提交，push 之前不会出现在 GitHub 上。
+提交作业前，打开 GitHub 上自己的仓库页面，确认文件和提交都在。
 
 仓库保持 Public。截止后的提交不予查看。
 
