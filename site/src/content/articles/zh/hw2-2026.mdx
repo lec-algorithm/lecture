@@ -121,7 +121,9 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 每次提交或合并后都 push 到 GitHub。
 ```
 
-- 在每一步请求的末尾加上"完成后提交、合并到 develop 并 push"，就不会多用请求次数。
+- 下面的请求示例第一行写着**第几步**，最后一行是"**完成后提交、合并到 develop 并 push**。"
+  直接复制，分支和提交就一起完成。有了步骤编号，智能体才知道 `feature/step-N` 的 N。
+- 在设置 git 的**同一个聊天**里继续。到第 5 步打开新聊天之前不要换聊天。
 - 提交就是可以回退的点。智能体提交后，用源代码管理界面或 `git log` 确认放进了什么。
 - 提交作业前，让它把 develop 合并到 main 并 push。评分和 ZIP 以 GitHub 仓库的 main 为准。
 
@@ -155,11 +157,13 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 然后在 **Codespace 的 Copilot 聊天窗口**里请求。删掉粘贴的文件，再请求：
 
 ```text
+这是第 1 步。
 在 src/base62.py 中写 encode(n) 和 decode(s)。
 encode(n) 把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成 62 进制字符串，
 decode(s) 是它的逆变换。
 在 tests/test_base62.py 中用 unittest 写测试，
 然后在终端运行 make test，给我看是否通过。
+完成后提交、合并到 develop 并 push。
 ```
 
 智能体会创建文件，在终端里跑测试，失败了就修改。Permissions 为 Assisted，只有像前面 push 那样看起来危险的命令
@@ -174,7 +178,13 @@ decode(s) 是它的逆变换。
 ### 第 2 步：规格说明由我来写 \{#step-2}
 
 正如第 1 步看到的，没写下来的东西 AI 会自己决定。所以动手之前，**亲自**写 `SPEC.md`。
-这一步不向智能体发任何请求。
+写规格说明不向智能体发请求。写完后只让它提交。
+
+```text
+这是第 2 步。
+SPEC.md 我已经写好了。
+请提交、合并到 develop 并 push。
+```
 
 删掉最上面的 `TEMPLATE:` 那一行，逐节回答下面的问题。
 
@@ -192,8 +202,10 @@ decode(s) 是它的逆变换。
 不要一上来就说"帮我做"。先拿到计划并审查。
 
 ```text
+这是第 3 步。
 读 SPEC.md，制定分步骤的实现计划并保存到 PLAN.md。
 现在还不要写代码。
+完成后提交、合并到 develop 并 push。
 ```
 
 也可以把 Agent mode 切换为 **Plan** 再请求。Plan 会先给出计划，批准后才执行。
@@ -212,9 +224,11 @@ decode(s) 是它的逆变换。
 先只让它写测试。
 
 ```text
+这是第 4 步。
 把 SPEC.md 第 6 节的边界情况用 unittest 写成测试。
 文件是 tests/test_hash_table.py 和 tests/test_shortener.py。
 现在还不要实现。
+完成后提交、合并到 develop 并 push。
 ```
 
 **阅读**测试。检查规格说明里的边界情况是否全部包含，期望值是否正确。缺的自己补上
@@ -223,9 +237,11 @@ decode(s) 是它的逆变换。
 然后让它实现。
 
 ```text
+继续第 4 步。
 按照 PLAN.md 的顺序实现 src/hash_table.py 和 src/shortener.py，
 一直修改到 make test 全部通过为止。
 不要修改测试。
+完成后提交、合并到 develop 并 push。
 ```
 
 **"不要修改测试"很重要。** 没有这句话，智能体有时会悄悄改掉它通过不了的测试。
@@ -262,8 +278,10 @@ grep -n "dict\|set(\|hash(" src/*.py
 打开一个新的聊天，让它检查。如果有违规，让它修正。
 
 ```text
+这是第 5 步。
 检查 src/ 里的代码是否遵守本仓库的规则，
 有违反的地方就修正。
+完成后提交、合并到 develop 并 push。
 ```
 
 规则文件是作业结束后也会留下的习惯。在个人项目的仓库里也放一个吧。
@@ -274,6 +292,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 查找会急剧变慢。测一测你的表是不是这样。
 
 ```text
+这是第 6 步。
 创建 experiments/probe_experiment.py。
 往大小固定为 4093 的 HashTable(max_load=None) 里放入随机 URL。
 装载因子从 0.1 到 0.9，
@@ -282,6 +301,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 成功 ≈ (1 + 1/(1-α))/2，失败 ≈ (1 + 1/(1-α)²)/2
 结果保存为 experiments/results.csv 和 SVG 图表。
 不要使用外部库。
+完成后提交、合并到 develop 并 push。
 ```
 
 用 `make experiment` 运行，**自己判断这些数字**。
@@ -295,9 +315,11 @@ grep -n "dict\|set(\|hash(" src/*.py
 最后加上 Web 服务器。
 
 ```text
+这是第 7 步。
 按照 SPEC.md 第 5 节创建 src/server.py。
 只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
+完成后提交、合并到 develop 并 push。
 ```
 
 用 `make serve` 启动，然后用手机打开。

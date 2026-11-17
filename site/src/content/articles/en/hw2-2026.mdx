@@ -124,7 +124,9 @@ Write commit messages as "Step N: what was done".
 Push to GitHub every time you commit or merge.
 ```
 
-- Add "when done, commit, merge into develop and push" to the end of each step's request, so it costs no extra request.
+- Each example request below starts with **the step number** and ends with **"When done, commit, merge into develop and push."**
+  Copy it as is and the branch and commit come along. The agent needs the step number to name `feature/step-N`.
+- Keep going in **the same chat** where you set up git. Do not switch chats until step 5 opens a new one.
 - A commit is a point to go back to. After the agent commits, check what went in with the Source Control view or `git log`.
 - Before submitting, have it merge develop into main and push. Grading and the ZIP use main on GitHub.
 
@@ -160,11 +162,13 @@ Copy the answer into `src/base62.py` and work out for yourself how to run it.
 Now ask in the **Copilot chat in your Codespace**. Delete the pasted file and ask:
 
 ```text
+This is step 1.
 In src/base62.py, write encode(n) and decode(s).
 encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
 and decode(s) is its inverse.
 Write unittest tests in tests/test_base62.py,
 then run make test in the terminal and show me that they pass.
+When done, commit, merge into develop and push.
 ```
 
 The agent creates files, runs the tests in the terminal, and fixes failures. With Assisted
@@ -180,7 +184,13 @@ What to check
 ### Step 2. I write the specification \{#step-2}
 
 As step 1 showed, whatever you leave out the AI decides for you. So before building,
-you write `SPEC.md` **yourself**. Make no agent requests in this step.
+you write `SPEC.md` **yourself**. Do not ask the agent to write the specification. When it is done, ask only for the commit.
+
+```text
+This is step 2.
+I have finished writing SPEC.md.
+Commit it, merge into develop and push.
+```
 
 Delete the `TEMPLATE:` line at the top and answer these questions section by section.
 
@@ -199,8 +209,10 @@ on every run, so rerunning the step 6 experiment would give different numbers.
 Do not say "build it" right away. Get a plan first and review it.
 
 ```text
+This is step 3.
 Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
 Do not write any code yet.
+When done, commit, merge into develop and push.
 ```
 
 You may switch the agent mode to **Plan** for this. Plan shows the plan first and runs only
@@ -221,9 +233,11 @@ Fixing the plan is much cheaper than fixing the code.
 Ask for the tests only.
 
 ```text
+This is step 4.
 Turn the edge cases in section 6 of SPEC.md into unittest tests.
 Put them in tests/test_hash_table.py and tests/test_shortener.py.
 Do not implement anything yet.
+When done, commit, merge into develop and push.
 ```
 
 **Read** the tests. Check that every edge case from the specification is there and that
@@ -233,9 +247,11 @@ fails at this point, which is expected: there is no implementation yet.
 Then ask for the implementation.
 
 ```text
+Step 4, continued.
 Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
 and keep fixing them until make test passes.
 Do not change the tests.
+When done, commit, merge into develop and push.
 ```
 
 **"Do not change the tests" matters.** Without it the agent sometimes quietly edits a
@@ -273,8 +289,10 @@ know the earlier conversation, so move anything that must keep applying into the
 Open a new chat and ask it to check. If anything broke the rules, have it fixed.
 
 ```text
+This is step 5.
 Check whether the code in src/ follows this repository's rules,
 and fix anything that breaks them.
+When done, commit, merge into develop and push.
 ```
 
 A rules file is a habit that outlives this assignment. Put one in your project repository too.
@@ -285,6 +303,7 @@ Passing tests do not make a hash table a **good** one. As Topic 08 showed, linea
 slows down sharply as the load factor approaches 1. Measure whether your table does.
 
 ```text
+This is step 6.
 Create experiments/probe_experiment.py.
 Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
 For load factors from 0.1 to 0.9,
@@ -293,6 +312,7 @@ Compare them in a table with Knuth's approximations from Topic 08.
 hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2
 Save experiments/results.csv and an SVG chart.
 Do not use external libraries.
+When done, commit, merge into develop and push.
 ```
 
 Run `make experiment` and **judge the numbers yourself.**
@@ -306,9 +326,11 @@ Run `make experiment` and **judge the numbers yourself.**
 Finally, add a web server.
 
 ```text
+This is step 7.
 Create src/server.py as described in section 5 of SPEC.md.
 Use only the standard http.server module,
 and make it start on port 8000 with make serve.
+When done, commit, merge into develop and push.
 ```
 
 Start it with `make serve` and open it on your phone.

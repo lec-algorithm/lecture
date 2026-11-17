@@ -124,7 +124,9 @@ Copilot Free는 채팅과 에이전트에 쓸 수 있는 양이 정해져 있습
 커밋하고 머지할 때마다 GitHub에도 push해 줘.
 ```
 
-- 단계 요청 끝에 "끝나면 커밋하고 develop에 머지한 뒤 push해 줘"를 붙이면 요청 수가 늘지 않습니다.
+- 아래 요청 예시는 첫 줄에 **몇 단계인지**, 마지막 줄에 **"끝나면 커밋하고 develop에 머지한 뒤 push해 줘"** 가 들어 있습니다.
+  그대로 복사하면 브랜치와 커밋까지 한 번에 됩니다. 단계 번호가 있어야 에이전트가 `feature/step-N`의 N을 압니다.
+- git 설정을 시킨 **같은 채팅**에서 이어 갑니다. 5단계에서 새 채팅을 열기 전까지는 채팅을 바꾸지 않습니다.
 - 커밋은 되돌릴 자리입니다. 에이전트가 커밋한 뒤 소스 제어 화면이나 `git log`로 무엇이 들어갔는지 확인합니다.
 - 제출 전에는 develop을 main에 머지하고 push하게 합니다. 채점과 ZIP은 GitHub 저장소의 main 기준입니다.
 
@@ -159,11 +161,13 @@ Python으로 base62 encode/decode 함수 만들어 줘
 이번에는 **Codespace의 Copilot 채팅 창**에서 시킵니다. 붙여 넣은 파일은 지우고 시킵니다.
 
 ```text
+1단계야.
 src/base62.py에 encode(n)과 decode(s)를 만들어 줘.
 encode(n)은 0 이상의 정수를 0-9, a-z, A-Z 순서의 62진법 문자열로 바꾸고,
 decode(s)는 그 역변환이야.
 tests/test_base62.py에 unittest로 테스트를 만들고,
 터미널에서 make test로 돌려서 통과하는지 보여 줘.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 에이전트가 파일을 만들고, 터미널에서 테스트를 돌리고, 실패하면 고칩니다. Assisted
@@ -179,7 +183,13 @@ permissions라 앞에서 본 push 화면처럼 위험해 보이는 명령만 실
 ### 2단계. 명세는 내가 쓴다 \{#step-2}
 
 1단계에서 본 것처럼, 적지 않은 것은 AI가 마음대로 정합니다. 그래서 만들기 전에
-`SPEC.md`를 **직접** 씁니다. 이 단계에서는 에이전트에게 요청하지 않습니다.
+`SPEC.md`를 **직접** 씁니다. 명세를 쓰는 데는 에이전트에게 요청하지 않습니다. 다 쓰면 커밋만 시킵니다.
+
+```text
+2단계야.
+SPEC.md는 내가 다 썼어.
+커밋하고 develop에 머지한 뒤 push해 줘.
+```
 
 맨 위의 `TEMPLATE:` 줄을 지우고, 절마다 아래 질문에 답합니다.
 
@@ -198,8 +208,10 @@ permissions라 앞에서 본 push 화면처럼 위험해 보이는 명령만 실
 바로 "만들어 줘"라고 하지 않고, 계획부터 받아 검토합니다.
 
 ```text
+3단계야.
 SPEC.md를 읽고 구현 계획을 단계별로 세워서 PLAN.md에 저장해 줘.
 아직 코드는 쓰지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 Agent mode를 **Plan**으로 바꿔서 시켜도 됩니다. Plan은 계획을 먼저 보여 주고, 승인해야
@@ -218,9 +230,11 @@ Agent mode를 **Plan**으로 바꿔서 시켜도 됩니다. Plan은 계획을 �
 먼저 테스트만 만들게 합니다.
 
 ```text
+4단계야.
 SPEC.md 6절의 경계 사례를 unittest로 옮겨 줘.
 파일은 tests/test_hash_table.py와 tests/test_shortener.py야.
 구현은 아직 하지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 테스트를 **읽습니다.** 명세의 경계 사례가 빠짐없이 들어갔는지, 기대값이 맞는지
@@ -230,9 +244,11 @@ SPEC.md 6절의 경계 사례를 unittest로 옮겨 줘.
 그다음 구현을 시킵니다.
 
 ```text
+4단계 이어서야.
 PLAN.md 순서대로 src/hash_table.py와 src/shortener.py를 구현하고,
 make test가 모두 통과할 때까지 고쳐 줘.
 테스트는 고치지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 **"테스트는 고치지 마"가 중요합니다.** 이 말이 없으면 에이전트가 통과하지 못하는
@@ -269,8 +285,10 @@ grep -n "dict\|set(\|hash(" src/*.py
 새 채팅을 열고 확인을 시킵니다. 위반이 있었다면 고치게 합니다.
 
 ```text
+5단계야.
 src/ 안의 코드가 이 저장소의 규칙을 지키는지 검사하고,
 어긴 곳이 있으면 고쳐 줘.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 규칙 파일은 이번 과제가 끝나도 남는 습관입니다. 개인프로젝트 저장소에도 하나 만들어 두면 좋습니다.
@@ -282,6 +300,7 @@ src/ 안의 코드가 이 저장소의 규칙을 지키는지 검사하고,
 테이블이 정말 그런지 잽니다.
 
 ```text
+6단계야.
 experiments/probe_experiment.py를 만들어 줘.
 크기를 4093으로 고정한 HashTable(max_load=None)에 무작위 URL을 넣고,
 적재율을 0.1부터 0.9까지 바꿔 가며,
@@ -290,6 +309,7 @@ experiments/probe_experiment.py를 만들어 줘.
 성공 ≈ (1 + 1/(1-α))/2, 실패 ≈ (1 + 1/(1-α)²)/2
 결과는 experiments/results.csv와 SVG 그래프로 저장해 줘.
 외부 라이브러리는 쓰지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 `make experiment`로 돌리고 숫자를 **직접 판단합니다.**
@@ -303,8 +323,10 @@ experiments/probe_experiment.py를 만들어 줘.
 마지막으로 웹 서버를 붙입니다.
 
 ```text
+7단계야.
 SPEC.md 5절대로 src/server.py를 만들어 줘.
 표준 모듈 http.server만 쓰고, make serve로 포트 8000에서 뜨게 해 줘.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
 `make serve`로 띄우고 휴대폰으로 엽니다.

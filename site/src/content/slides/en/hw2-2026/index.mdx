@@ -149,7 +149,7 @@ On the free plan the model is chosen automatically. Leave it as it is.
 | Step | What you do | Requests |
 | --- | --- | --- |
 | 1 | Chat and agent side by side | 2 |
-| 2 | I write the specification | 0 |
+| 2 | I write the specification | 1 (commit only) |
 | 3 | A plan before code | 1\~2 |
 | 4 | Tests first, implementation by the agent | 3\~5 |
 | 5 | Give the rules as a file | 2\~3 |
@@ -212,7 +212,7 @@ Push to GitHub every time you commit or merge.
 | --- | --- | --- |
 | Request | Me | With a clear scope |
 | Check | Me | Tests, diffs |
-| Commit | Agent | End the request with "when done, commit, merge into develop and push" |
+| Commit | Agent | The last line of each example: "When done, commit, merge into develop and push." |
 | Log | Me | One line in `AGENT_LOG.md`: the request and what I checked |
 
 <br/>
@@ -250,11 +250,13 @@ Write base62 encode/decode functions in Python
 ::sub[Copilot chat in the Codespace · delete the pasted file first]
 
 ```text
+This is step 1.
 In src/base62.py, write encode(n) and decode(s).
 encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
 and decode(s) is its inverse.
 Write unittest tests in tests/test_base62.py,
 then run make test in the terminal and show me that they pass.
+When done, commit, merge into develop and push.
 ```
 
 - It creates the files, runs the tests, and fixes failures.
@@ -294,7 +296,7 @@ I write the specification
 <Slide>
 
 ### Whatever you leave out, the AI decides
-::sub[No requests in this step]
+::sub[No requests for writing the specification]
 
 Delete the `TEMPLATE:` line at the top of `SPEC.md` and write it yourself.
 
@@ -302,6 +304,21 @@ Delete the `TEMPLATE:` line at the top of `SPEC.md` and write it yourself.
 - **Shortener**: the same URL twice? an unknown code?
 - **Bad input**: `ftp://`, spaces, very long addresses?
 - **Edge cases**: write them as a list. They become the step 4 tests.
+
+</Slide>
+
+<Slide class="compact">
+
+### When done, ask only for the commit
+
+```text
+This is step 2.
+I have finished writing SPEC.md.
+Commit it, merge into develop and push.
+```
+
+- Every example request starts with **the step number** and ends with **the commit line**.
+- The agent needs the step number to name `feature/step-N`.
 
 </Slide>
 
@@ -339,8 +356,10 @@ A plan before code
 ### Ask for the plan only
 
 ```text
+This is step 3.
 Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
 Do not write any code yet.
+When done, commit, merge into develop and push.
 ```
 
 - You may switch the agent mode to **Plan** for this, then back to Autopilot.
@@ -375,9 +394,11 @@ Tests first, implementation by the agent
 ### Tests only, first
 
 ```text
+This is step 4.
 Turn the edge cases in section 6 of SPEC.md into unittest tests.
 Put them in tests/test_hash_table.py and tests/test_shortener.py.
 Do not implement anything yet.
+When done, commit, merge into develop and push.
 ```
 
 - **Read** the tests. Is every edge case there?
@@ -391,9 +412,11 @@ Do not implement anything yet.
 ### Then the implementation
 
 ```text
+Step 4, continued.
 Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
 and keep fixing them until make test passes.
 Do not change the tests.
+When done, commit, merge into develop and push.
 ```
 
 - **"Do not change the tests" matters.**
@@ -474,8 +497,10 @@ Put one in your project repository too.
 ### Check in a new chat
 
 ```text
+This is step 5.
 Check whether the code in src/ follows this repository's rules,
 and fix anything that breaks them.
+When done, commit, merge into develop and push.
 ```
 
 - A new chat still reads the rules file.
@@ -497,6 +522,7 @@ Verify the result yourself
 ::sub[Measure how probes change with the load factor]
 
 ```text
+This is step 6.
 Create experiments/probe_experiment.py.
 Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
 For load factors from 0.1 to 0.9,
@@ -505,6 +531,7 @@ Compare them in a table with Knuth's approximations from Topic 08.
 hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2
 Save experiments/results.csv and an SVG chart.
 Do not use external libraries.
+When done, commit, merge into develop and push.
 ```
 
 </Slide>
@@ -560,9 +587,11 @@ Serve it
 ### Add a web server
 
 ```text
+This is step 7.
 Create src/server.py as described in section 5 of SPEC.md.
 Use only the standard http.server module,
 and make it start on port 8000 with make serve.
+When done, commit, merge into develop and push.
 ```
 
 - Start it with `make serve`.
