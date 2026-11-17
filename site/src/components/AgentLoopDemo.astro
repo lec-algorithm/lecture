@@ -1,0 +1,423 @@
+---
+// 같은 일(base62 encode/decode)을 채팅과 에이전트 두 방식으로 하는 과정을 나란히
+// 한 줄씩 진행하는 데모. 과제2 1단계에서 쓴다.
+//
+// 결과는 둘 다 "테스트 통과"로 같다. 데모가 세는 것은 과정이다.
+//  - 요청: AI에게 보낸 횟수(무료 한도가 줄어드는 단위)
+//  - 옮기기: 내가 손으로 복사·붙여넣기·실행한 것
+//  - 확인: 내가 읽고 판단한 것
+//  - AI: AI가 한 것
+// 채팅은 내 손이 바쁘고, 에이전트는 내 일이 "옮기기"에서 "확인"으로 바뀐다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 글자와 칸을 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `al-${Math.random().toString(36).slice(2, 9)}`;
+
+type Row = { k: 'ask' | 'move' | 'check' | 'ai'; t: string; r?: 'fail' | 'pass' };
+
+const STRINGS: Record<string, any> = {
+  ko: {
+    title: '같은 일, 두 방식',
+    back: '뒤로',
+    step: '한 걸음',
+    play: '자동 재생',
+    stop: '멈춤',
+    reset: '처음으로',
+    chat: '채팅',
+    agent: '에이전트',
+    kinds: { ask: '요청', move: '옮기기', check: '확인', ai: 'AI' },
+    who: { ask: '나', move: '나', check: '나', ai: 'AI' },
+    idle: '같은 base62 함수를 두 방식으로 만듭니다. 결과는 같고, 과정이 다릅니다.',
+    done: '둘 다 테스트를 통과했습니다. 에이전트 쪽에서 내 일은 옮기기가 아니라 확인입니다.',
+    chatRows: [
+      { k: 'ask', t: '"base62 함수 만들어 줘"' },
+      { k: 'ai', t: '코드 블록으로 답한다' },
+      { k: 'move', t: '복사해서 src/base62.py에 붙여 넣는다' },
+      { k: 'move', t: '테스트 파일을 직접 만든다' },
+      { k: 'move', t: '터미널에서 돌린다: encode(0)이 ""', r: 'fail' },
+      { k: 'ask', t: '오류와 코드를 다시 붙여 넣고 묻는다' },
+      { k: 'ai', t: '고친 코드로 답한다' },
+      { k: 'move', t: '다시 붙여 넣는다' },
+      { k: 'move', t: '다시 돌린다', r: 'pass' },
+      { k: 'check', t: '코드를 읽고 커밋한다' },
+    ],
+    agentRows: [
+      { k: 'ask', t: '"src/base62.py에 … make test로 돌려 줘"' },
+      { k: 'ai', t: 'Makefile과 폴더 구조를 읽는다' },
+      { k: 'ai', t: 'src/base62.py를 만든다' },
+      { k: 'ai', t: 'tests/test_base62.py를 만든다' },
+      { k: 'ai', t: '테스트 실행: encode(0)이 ""', r: 'fail' },
+      { k: 'ai', t: '실패 메시지를 읽고 고친다' },
+      { k: 'ai', t: '다시 실행한다', r: 'pass' },
+      { k: 'check', t: '실행한 명령과 결과를 읽는다' },
+      { k: 'check', t: 'diff를 읽는다' },
+      { k: 'check', t: '커밋한다' },
+    ],
+  },
+  en: {
+    title: 'Same job, two ways',
+    back: 'Back',
+    step: 'Step',
+    play: 'Play',
+    stop: 'Pause',
+    reset: 'Reset',
+    chat: 'Chat',
+    agent: 'Agent',
+    kinds: { ask: 'requests', move: 'by hand', check: 'checks', ai: 'AI' },
+    who: { ask: 'Me', move: 'Me', check: 'Me', ai: 'AI' },
+    idle: 'Build the same base62 function both ways. Same result, different process.',
+    done: 'Both pass the tests. With the agent, my work is checking, not moving text around.',
+    chatRows: [
+      { k: 'ask', t: '"Write base62 functions"' },
+      { k: 'ai', t: 'Answers with a code block' },
+      { k: 'move', t: 'Copy it into src/base62.py' },
+      { k: 'move', t: 'Write a test file by hand' },
+      { k: 'move', t: 'Run it in the terminal: encode(0) is ""', r: 'fail' },
+      { k: 'ask', t: 'Paste the error and the code back, ask again' },
+      { k: 'ai', t: 'Answers with fixed code' },
+      { k: 'move', t: 'Paste it in again' },
+      { k: 'move', t: 'Run it again', r: 'pass' },
+      { k: 'check', t: 'Read the code and commit' },
+    ],
+    agentRows: [
+      { k: 'ask', t: '"In src/base62.py … run make test"' },
+      { k: 'ai', t: 'Reads the Makefile and the folders' },
+      { k: 'ai', t: 'Creates src/base62.py' },
+      { k: 'ai', t: 'Creates tests/test_base62.py' },
+      { k: 'ai', t: 'Runs the tests: encode(0) is ""', r: 'fail' },
+      { k: 'ai', t: 'Reads the failure and fixes it' },
+      { k: 'ai', t: 'Runs them again', r: 'pass' },
+      { k: 'check', t: 'Reads the commands it ran and their output' },
+      { k: 'check', t: 'Reads the diff' },
+      { k: 'check', t: 'Commits' },
+    ],
+  },
+  zh: {
+    title: '同一件事，两种方式',
+    back: '后退',
+    step: '单步',
+    play: '播放',
+    stop: '暂停',
+    reset: '重置',
+    chat: '聊天',
+    agent: '智能体',
+    kinds: { ask: '请求', move: '手工搬运', check: '检查', ai: 'AI' },
+    who: { ask: '我', move: '我', check: '我', ai: 'AI' },
+    idle: '用两种方式做同一个 base62 函数。结果相同，过程不同。',
+    done: '两边都通过了测试。用智能体时，我的工作从搬运变成了检查。',
+    chatRows: [
+      { k: 'ask', t: '"帮我写 base62 函数"' },
+      { k: 'ai', t: '用代码块回答' },
+      { k: 'move', t: '复制粘贴到 src/base62.py' },
+      { k: 'move', t: '亲手写测试文件' },
+      { k: 'move', t: '在终端运行：encode(0) 是 ""', r: 'fail' },
+      { k: 'ask', t: '把错误和代码贴回去再问' },
+      { k: 'ai', t: '给出修改后的代码' },
+      { k: 'move', t: '再粘贴一次' },
+      { k: 'move', t: '再运行一次', r: 'pass' },
+      { k: 'check', t: '读代码并提交' },
+    ],
+    agentRows: [
+      { k: 'ask', t: '"在 src/base62.py … 运行 make test"' },
+      { k: 'ai', t: '读取 Makefile 和目录结构' },
+      { k: 'ai', t: '创建 src/base62.py' },
+      { k: 'ai', t: '创建 tests/test_base62.py' },
+      { k: 'ai', t: '运行测试：encode(0) 是 ""', r: 'fail' },
+      { k: 'ai', t: '读失败信息并修改' },
+      { k: 'ai', t: '再运行一次', r: 'pass' },
+      { k: 'check', t: '阅读它运行的命令和结果' },
+      { k: 'check', t: '阅读 diff' },
+      { k: 'check', t: '提交' },
+    ],
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const lanes: { key: string; name: string; rows: Row[] }[] = [
+  { key: 'chat', name: t.chat, rows: t.chatRows },
+  { key: 'agent', name: t.agent, rows: t.agentRows },
+];
+const kinds = ['ask', 'move', 'check', 'ai'] as const;
+---
+
+<div
+  class:list={['aas-agent-loop-demo', slide && 'is-slide']}
+  id={id}
+  data-al-strings={JSON.stringify({ play: t.play, stop: t.stop, idle: t.idle, done: t.done })}
+  data-al-steps={Math.max(...lanes.map((l) => l.rows.length))}
+>
+  <div class="al-bar">
+    <span class="al-head"><strong>{t.title}</strong></span>
+    <div class="al-controls">
+      <button type="button" data-act="back" class="al-btn">{t.back}</button>
+      <button type="button" data-act="step" class="al-btn">{t.step}</button>
+      <button type="button" data-act="play" class="al-btn al-btn-primary">{t.play}</button>
+      <button type="button" data-act="reset" class="al-btn">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="al-lanes">
+    {
+      lanes.map((lane) => (
+        <section class="al-lane" data-al-lane={lane.key}>
+          <div class="al-lane-head">
+            <span class="al-lane-name">{lane.name}</span>
+            <span class="al-counts">
+              {kinds.map((k) => (
+                <span class={`al-count al-k-${k}`}>
+                  <strong data-al-count={k}>0</strong>
+                  <span>{t.kinds[k]}</span>
+                </span>
+              ))}
+            </span>
+          </div>
+          <ol class="al-rows">
+            {lane.rows.map((row, i) => (
+              <li class={`al-row al-k-${row.k}`} data-al-row={i} data-al-kind={row.k}>
+                <span class="al-who">{t.who[row.k]}</span>
+                <span class="al-text">{row.t}</span>
+                {row.r && <span class={`al-result is-${row.r}`}>{row.r === 'pass' ? '✓' : '✗'}</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))
+    }
+  </div>
+
+  <p class="al-note" data-al-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const S = JSON.parse(root.dataset.alStrings);
+    const total = Number(root.dataset.alSteps);
+    const lanes = [...root.querySelectorAll('[data-al-lane]')];
+    const note = root.querySelector('[data-al-note]');
+
+    function render(at) {
+      lanes.forEach((lane) => {
+        const counts = { ask: 0, move: 0, check: 0, ai: 0 };
+        lane.querySelectorAll('[data-al-row]').forEach((row) => {
+          const i = Number(row.dataset.alRow);
+          row.classList.toggle('is-shown', i <= at);
+          row.classList.toggle('is-now', i === at);
+          if (i <= at) counts[row.dataset.alKind] += 1;
+        });
+        lane.querySelectorAll('[data-al-count]').forEach((el) => {
+          el.textContent = String(counts[el.dataset.alCount]);
+        });
+      });
+      note.textContent = at < 0 ? S.idle : at >= total - 1 ? S.done : ' ';
+      root.classList.toggle('is-done', at >= total - 1);
+    }
+
+    let at = -1;
+    let timer = null;
+    const playBtn = root.querySelector('[data-act="play"]');
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playBtn.textContent = S.play;
+    }
+    function step() {
+      if (at >= total - 1) return stop();
+      at += 1;
+      render(at);
+      if (at >= total - 1) stop();
+    }
+    root.querySelector('[data-act="back"]').addEventListener('click', () => {
+      stop();
+      if (at > -1) at -= 1;
+      render(at);
+    });
+    root.querySelector('[data-act="step"]').addEventListener('click', () => {
+      stop();
+      step();
+    });
+    root.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      stop();
+      at = -1;
+      render(-1);
+    });
+    playBtn.addEventListener('click', () => {
+      if (timer) return stop();
+      if (at >= total - 1) {
+        at = -1;
+        render(-1);
+      }
+      playBtn.textContent = S.stop;
+      timer = setInterval(step, 1100);
+    });
+    render(-1);
+  })();
+</script>
+
+<style is:global>
+  .aas-agent-loop-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-agent-loop-demo .al-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8em;
+  }
+  .aas-agent-loop-demo .al-controls {
+    display: flex;
+    gap: 0.5em;
+  }
+  .aas-agent-loop-demo .al-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-agent-loop-demo .al-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-agent-loop-demo .al-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+
+  .aas-agent-loop-demo .al-lanes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17em, 1fr));
+    gap: 0.8em;
+  }
+  .aas-agent-loop-demo .al-lane {
+    padding: 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-agent-loop-demo .al-lane-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.3em 0.8em;
+    margin-bottom: 0.5em;
+  }
+  .aas-agent-loop-demo .al-lane-name {
+    font-weight: 700;
+    font-size: 1.05em;
+  }
+  .aas-agent-loop-demo .al-counts {
+    display: flex;
+    gap: 0.7em;
+  }
+  .aas-agent-loop-demo .al-count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.2em;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-agent-loop-demo .al-count strong {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.6em;
+    line-height: 1;
+  }
+  .aas-agent-loop-demo .al-k-ask strong,
+  .aas-agent-loop-demo .al-row.al-k-ask .al-who {
+    color: var(--aas-role-focus);
+  }
+  .aas-agent-loop-demo .al-k-move strong,
+  .aas-agent-loop-demo .al-row.al-k-move .al-who {
+    color: var(--aas-role-guard);
+  }
+  .aas-agent-loop-demo .al-k-check strong,
+  .aas-agent-loop-demo .al-row.al-k-check .al-who {
+    color: var(--aas-role-eval);
+  }
+  .aas-agent-loop-demo .al-k-ai strong,
+  .aas-agent-loop-demo .al-row.al-k-ai .al-who {
+    color: var(--aas-role-model);
+  }
+
+  .aas-agent-loop-demo .al-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+  }
+  .aas-agent-loop-demo .al-row {
+    display: grid;
+    grid-template-columns: 2.4em 1fr auto;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0;
+    padding: 0.2em 0.4em;
+    border-radius: 0.4em;
+    font-size: 0.85em;
+    opacity: 0.12;
+    transition:
+      opacity 0.3s,
+      box-shadow 0.3s;
+  }
+  .aas-agent-loop-demo .al-row.is-shown {
+    opacity: 1;
+  }
+  .aas-agent-loop-demo .al-row.is-now {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-agent-loop-demo .al-row.al-k-move.is-shown {
+    background: color-mix(in srgb, var(--aas-role-guard) 10%, transparent);
+  }
+  .aas-agent-loop-demo .al-who {
+    font-weight: 700;
+    font-size: 0.85em;
+  }
+  .aas-agent-loop-demo .al-result {
+    font-weight: 700;
+  }
+  .aas-agent-loop-demo .al-result.is-fail {
+    color: var(--aas-role-guard);
+  }
+  .aas-agent-loop-demo .al-result.is-pass {
+    color: var(--aas-role-eval);
+  }
+
+  .aas-agent-loop-demo .al-note {
+    margin: 0.7em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 1.4em;
+  }
+  .aas-agent-loop-demo.is-done .al-note {
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+
+  .aas-agent-loop-demo.is-slide {
+    font-size: clamp(0.9rem, 2.5vh, 1.7rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-agent-loop-demo .al-row {
+      transition: none;
+    }
+  }
+</style>
