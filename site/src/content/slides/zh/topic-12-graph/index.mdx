@@ -771,7 +771,7 @@ Kruskal 与 Prim 的例子
 | 起点 | 任意 | 最轻的边 | 指定的一个顶点 |
 | 时间 | 取决于实现 | $$O(E \log E)$$ | $$O(E \log V)$$ |
 | 预处理 | 无 | 边排序 | 无 |
-| 实现 | 难（管理割） | 中等（union-find） | 容易（优先队列） |
+| 实现 | 难（管理割） | 中等（管理分块） | 容易（优先队列） |
 
 </Slide>
 
@@ -868,7 +868,6 @@ total weight = 1.81
 - **时间**
   - 排序 $$O(E \log E)$$
   - 合并 $$O(V)$$ × $$V-1$$ 次 = $$O(V^2)$$
-  - 用 union-find 就是 $$O(E \log E)$$（见讲义）
 
 </div>
 </div>
@@ -1115,8 +1114,8 @@ total weight = 1.81
 
 <Slide>
 
-### 亲手测：MST 的四种方法
-::sub[用标签切换图 · 绿色行是用 union-find 和堆改进后的方法]
+### 亲手测：MST 的三种方法
+::sub[用标签切换图 · 绿色行是用堆的 Prim heap]
 
 <VarLegend set="graph" />
 
@@ -1127,46 +1126,46 @@ total weight = 1.81
 <Slide>
 
 #### 用 C 测的时间：稀疏图
-::sub[`09_mst_timing/` · 毫秒，数值因电脑而异，要看比例]
+::sub[`08_mst_timing/` · 毫秒，数值因电脑而异，要看比例]
 
 <VarLegend set="graph" />
 
 ```console
 sparse, E = 4V (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-   2000      8000         2.968       0.435      0.142       2.287
-   8000     32000        34.831       2.106      0.955      35.513
-  32000    128000       517.287      10.024      5.184     555.430
+      V         E    Kruskal  Prim heap  Prim array
+   2000      8000      3.850      0.178       2.366
+   8000     32000     34.527      0.948      34.920
+  32000    128000    518.085      5.358     556.550
 ```
 
-- V 变 4 倍时，Kruskal comp 约变 15 倍，Prim array 约变 16 倍。二者都受 $$V^2$$ 限制。
-- 换成 union-find 和堆后，在 V = 32,000 时分别快 50 倍和 100 倍以上。
+- V 变 4 倍时，Kruskal 约变 15 倍，Prim array 约变 16 倍。二者都受 $$V^2$$ 限制。
+- 用堆的 Prim heap 在 V = 32,000 时比 Prim array 快约 100 倍。
 
 </Slide>
 
 <Slide class="compact">
 
 #### 用 C 测的时间：完全图
-::sub[`09_mst_timing/` · 上面是随机权重，下面是每条边都让 key 变小、对堆最不利的情况]
+::sub[`08_mst_timing/` · 上面是随机权重，下面是每条边都让 key 变小、对堆最不利的情况]
 
 <VarLegend set="graph" />
 
 ```console
 complete, E = V(V-1)/2 (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         9.306       9.148      0.256       0.491
-   1000    499500        41.711      41.022      0.965       2.106
-   2000   1999000       183.393     180.328      3.413       9.270
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      9.046      0.253       0.486
+   1000    499500     40.496      0.998       2.090
+   2000   1999000    177.934      3.341       8.942
 
 complete, every edge lowers a key (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         2.984       3.002      5.445       0.233
-   1000    499500        13.145      13.253     25.066       0.833
-   2000   1999000        57.362      56.097    109.677       3.222
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      2.962      5.460       0.235
+   1000    499500     13.455     24.799       0.835
+   2000   1999000     55.808    108.868       3.301
 ```
 
 - 权重随机时 Prim heap 最快。key 很少变小，入堆次数远少于 E。
-- 对堆不利时每条边都要入堆。V = 2,000 时 Prim array 快 34 倍。
+- 对堆不利时每条边都要入堆。V = 2,000 时 Prim array 快 33 倍。
 - Kruskal 要对全部 E 条边排序，在稠密图上吃亏。
 
 </Slide>
@@ -1180,9 +1179,9 @@ complete, every edge lowers a key (ms)
 
 | 情况 | 选什么 | 原因 |
 | --- | --- | --- |
-| 稀疏（$$E \approx V$$） | Kruskal UF、Prim heap | 都是 $$O(E \log V)$$。V 大时 $$V^2$$ 的方法用不了 |
+| 稀疏（$$E \approx V$$） | Prim heap | $$O(E \log V)$$。V 大时 $$V^2$$ 的方法用不了 |
 | 稠密（$$E \approx V^2$$） | Prim array | 不论输入都是 $$O(V^2)$$。key 经常变小时堆要 $$E \log V$$ |
-| 只有边的列表 | Kruskal UF | 不必建邻接表 |
+| 只有边的列表 | Kruskal | 不必建邻接表 |
 | 分成 k 块 | Kruskal 在 V-k 条边时停下 | 那时的森林就是答案 |
 
 <br/>

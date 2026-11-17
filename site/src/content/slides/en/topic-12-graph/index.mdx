@@ -771,7 +771,7 @@ Kruskal and Prim are what decide "which cut to pick".
 | Starting point | anywhere | the lightest edge | one chosen vertex |
 | Time | depends | $$O(E \log E)$$ | $$O(E \log V)$$ |
 | Preprocessing | none | sort the edges | none |
-| Implementation | hard (managing cuts) | medium (union-find) | easy (priority queue) |
+| Implementation | hard (managing cuts) | medium (tracking pieces) | easy (priority queue) |
 
 </Slide>
 
@@ -868,7 +868,6 @@ total weight = 1.81
 - **Time**
   - Sorting $$O(E \log E)$$
   - Merging $$O(V)$$ × $$V-1$$ times = $$O(V^2)$$
-  - With union-find, $$O(E \log E)$$ (see the lecture notes)
 
 </div>
 </div>
@@ -1115,8 +1114,8 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 
 <Slide>
 
-### Measure it: four MST methods
-::sub[Tabs change the graph · green rows are the versions fixed with union-find and a heap]
+### Measure it: three MST methods
+::sub[Tabs change the graph · the green row is Prim heap, which uses a heap]
 
 <VarLegend set="graph" />
 
@@ -1127,46 +1126,46 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 <Slide>
 
 #### Timed in C: sparse graphs
-::sub[`09_mst_timing/` · milliseconds; values depend on the computer, so look at the ratios]
+::sub[`08_mst_timing/` · milliseconds; values depend on the computer, so look at the ratios]
 
 <VarLegend set="graph" />
 
 ```console
 sparse, E = 4V (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-   2000      8000         2.968       0.435      0.142       2.287
-   8000     32000        34.831       2.106      0.955      35.513
-  32000    128000       517.287      10.024      5.184     555.430
+      V         E    Kruskal  Prim heap  Prim array
+   2000      8000      3.850      0.178       2.366
+   8000     32000     34.527      0.948      34.920
+  32000    128000    518.085      5.358     556.550
 ```
 
-- When V grows ×4, Kruskal comp grows about ×15 and Prim array about ×16. Both are bounded by $$V^2$$.
-- With union-find and a heap they are over 50 and 100 times faster at V = 32,000.
+- When V grows ×4, Kruskal grows about ×15 and Prim array about ×16. Both are bounded by $$V^2$$.
+- Prim heap, which uses a heap, is about 100 times faster than Prim array at V = 32,000.
 
 </Slide>
 
 <Slide class="compact">
 
 #### Timed in C: complete graphs
-::sub[`09_mst_timing/` · top: random weights; bottom: every edge lowers a key, the worst case for a heap]
+::sub[`08_mst_timing/` · top: random weights; bottom: every edge lowers a key, the worst case for a heap]
 
 <VarLegend set="graph" />
 
 ```console
 complete, E = V(V-1)/2 (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         9.306       9.148      0.256       0.491
-   1000    499500        41.711      41.022      0.965       2.106
-   2000   1999000       183.393     180.328      3.413       9.270
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      9.046      0.253       0.486
+   1000    499500     40.496      0.998       2.090
+   2000   1999000    177.934      3.341       8.942
 
 complete, every edge lowers a key (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         2.984       3.002      5.445       0.233
-   1000    499500        13.145      13.253     25.066       0.833
-   2000   1999000        57.362      56.097    109.677       3.222
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      2.962      5.460       0.235
+   1000    499500     13.455     24.799       0.835
+   2000   1999000     55.808    108.868       3.301
 ```
 
 - With random weights Prim heap is fastest. Keys rarely drop, so it pushes far fewer than E times.
-- In the bad case every edge is pushed. Prim array is 34 times faster at V = 2,000.
+- In the bad case every edge is pushed. Prim array is 33 times faster at V = 2,000.
 - Kruskal must sort all E edges, which hurts on dense graphs.
 
 </Slide>
@@ -1180,9 +1179,9 @@ complete, every edge lowers a key (ms)
 
 | Situation | Pick | Why |
 | --- | --- | --- |
-| Sparse ($$E \approx V$$) | Kruskal UF, Prim heap | Both $$O(E \log V)$$. The $$V^2$$ methods break down for large V |
+| Sparse ($$E \approx V$$) | Prim heap | $$O(E \log V)$$. The $$V^2$$ methods break down for large V |
 | Dense ($$E \approx V^2$$) | Prim array | $$O(V^2)$$ whatever the input. A heap costs $$E \log V$$ when keys drop often |
-| Only an edge list | Kruskal UF | No adjacency list needed |
+| Only an edge list | Kruskal | No adjacency list needed |
 | Split into k groups | Kruskal stopped at V-k edges | That forest is the answer |
 
 <br/>

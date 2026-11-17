@@ -771,7 +771,7 @@ Kruskal과 Prim 예제
 | 시작점 | 아무 데나 | 가장 가벼운 간선 | 정한 정점 하나 |
 | 시간 | 구현에 따라 | $$O(E \log E)$$ | $$O(E \log V)$$ |
 | 전처리 | 없음 | 간선 정렬 | 없음 |
-| 구현 | 어려움 (cut 관리) | 중간 (union-find) | 쉬움 (우선순위 큐) |
+| 구현 | 어려움 (cut 관리) | 중간 (덩어리 관리) | 쉬움 (우선순위 큐) |
 
 </Slide>
 
@@ -868,7 +868,6 @@ total weight = 1.81
 - **시간**
   - 정렬 $$O(E \log E)$$
   - 합치기 $$O(V)$$ × $$V-1$$번 = $$O(V^2)$$
-  - union-find면 $$O(E \log E)$$ (강의 노트 참고)
 
 </div>
 </div>
@@ -1115,8 +1114,8 @@ total weight = 1.81
 
 <Slide>
 
-### 직접 재 보기: MST 네 가지
-::sub[탭으로 그래프를 바꿉니다 · 초록 줄은 union-find와 힙으로 고친 방법]
+### 직접 재 보기: MST 세 가지
+::sub[탭으로 그래프를 바꿉니다 · 초록 줄은 힙을 쓰는 Prim heap]
 
 <VarLegend set="graph" />
 
@@ -1127,46 +1126,46 @@ total weight = 1.81
 <Slide>
 
 #### C로 잰 시간: 희소 그래프
-::sub[`09_mst_timing/` · 밀리초, 값은 컴퓨터마다 다르니 비율을 봅니다]
+::sub[`08_mst_timing/` · 밀리초, 값은 컴퓨터마다 다르니 비율을 봅니다]
 
 <VarLegend set="graph" />
 
 ```console
 sparse, E = 4V (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-   2000      8000         2.968       0.435      0.142       2.287
-   8000     32000        34.831       2.106      0.955      35.513
-  32000    128000       517.287      10.024      5.184     555.430
+      V         E    Kruskal  Prim heap  Prim array
+   2000      8000      3.850      0.178       2.366
+   8000     32000     34.527      0.948      34.920
+  32000    128000    518.085      5.358     556.550
 ```
 
-- V가 4배면 Kruskal comp는 약 15배, Prim array는 약 16배 늘어납니다. 둘 다 $$V^2$$에 묶입니다.
-- union-find와 힙으로 바꾸면 V = 32,000에서 각각 50배, 100배 넘게 빠릅니다.
+- V가 4배면 Kruskal는 약 15배, Prim array는 약 16배 늘어납니다. 둘 다 $$V^2$$에 묶입니다.
+- 힙을 쓰는 Prim heap은 V = 32,000에서 Prim array보다 100배쯤 빠릅니다.
 
 </Slide>
 
 <Slide class="compact">
 
 #### C로 잰 시간: 완전 그래프
-::sub[`09_mst_timing/` · 위는 무작위 가중치, 아래는 간선마다 key가 줄어 힙에 가장 나쁜 경우]
+::sub[`08_mst_timing/` · 위는 무작위 가중치, 아래는 간선마다 key가 줄어 힙에 가장 나쁜 경우]
 
 <VarLegend set="graph" />
 
 ```console
 complete, E = V(V-1)/2 (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         9.306       9.148      0.256       0.491
-   1000    499500        41.711      41.022      0.965       2.106
-   2000   1999000       183.393     180.328      3.413       9.270
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      9.046      0.253       0.486
+   1000    499500     40.496      0.998       2.090
+   2000   1999000    177.934      3.341       8.942
 
 complete, every edge lowers a key (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         2.984       3.002      5.445       0.233
-   1000    499500        13.145      13.253     25.066       0.833
-   2000   1999000        57.362      56.097    109.677       3.222
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      2.962      5.460       0.235
+   1000    499500     13.455     24.799       0.835
+   2000   1999000     55.808    108.868       3.301
 ```
 
 - 무작위면 Prim heap이 가장 빠릅니다. key가 드물게 줄어 힙에 넣는 횟수가 E보다 훨씬 적습니다.
-- 힙에 나쁜 경우에는 간선마다 힙에 넣습니다. Prim array가 V = 2,000에서 34배 빠릅니다.
+- 힙에 나쁜 경우에는 간선마다 힙에 넣습니다. Prim array가 V = 2,000에서 33배 빠릅니다.
 - Kruskal은 간선 E개를 다 정렬해야 해서 밀집 그래프에 불리합니다.
 
 </Slide>
@@ -1180,9 +1179,9 @@ complete, every edge lowers a key (ms)
 
 | 상황 | 고를 것 | 까닭 |
 | --- | --- | --- |
-| 희소 ($$E \approx V$$) | Kruskal UF, Prim heap | 둘 다 $$O(E \log V)$$. $$V^2$$인 방법은 V가 크면 못 씁니다 |
+| 희소 ($$E \approx V$$) | Prim heap | $$O(E \log V)$$. $$V^2$$인 방법은 V가 크면 못 씁니다 |
 | 밀집 ($$E \approx V^2$$) | Prim array | 입력과 상관없이 $$O(V^2)$$. 힙은 key가 자주 줄면 $$E \log V$$ |
-| 간선 목록만 있다 | Kruskal UF | 인접 목록을 만들지 않아도 됩니다 |
+| 간선 목록만 있다 | Kruskal | 인접 목록을 만들지 않아도 됩니다 |
 | 덩어리 k개로 나누기 | Kruskal을 간선 V-k개에서 멈춤 | 그때의 숲이 바로 답입니다 |
 
 <br/>
