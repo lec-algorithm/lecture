@@ -10,6 +10,8 @@ toc_open: false
 import Slide from 'stack-site-builder/components/Slide.astro';
 import Screenshot from '@components/Screenshot.astro';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
 import AgentLoopDemo from '@components/AgentLoopDemo.astro';
 import Base62Demo from '@components/Base62Demo.astro';
 import ShortenerDemo from '@components/ShortenerDemo.astro';
@@ -72,7 +74,7 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ::sub[옮기는 사람에서 확인하는 사람으로]
 
 - **무엇을 만들지는 내가 정합니다.**
-  - 명세를 쓰는 것은 사람의 몫입니다.
+  - 명세 초안은 AI가 써도, 고쳐서 정하는 것은 사람의 몫입니다.
 - **맞는지는 내가 확인합니다.**
   - 에이전트는 그럴듯하게 틀립니다.
   - 테스트와 실행 결과로 잡습니다.
@@ -149,7 +151,7 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 | 단계 | 하는 일 | 요청 |
 | --- | --- | --- |
 | 1 | 채팅과 에이전트를 나란히 | 2 |
-| 2 | 명세는 내가 쓴다 | 1 (커밋만) |
+| 2 | 명세는 AI가 쓰고 내가 고친다 | 2 |
 | 3 | 코드보다 계획을 먼저 | 1\~2 |
 | 4 | 테스트를 먼저, 구현은 에이전트가 | 3\~5 |
 | 5 | 규칙은 파일로 준다 | 2\~3 |
@@ -166,9 +168,11 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ```text
 이 저장소는 git flow로 관리하자.
 먼저 main에서 develop 브랜치를 만들어 줘.
-앞으로 단계마다 develop에서 feature/step-N 브랜치를 따서 작업하고,
-단계가 끝나면 커밋한 뒤 develop에 머지해 줘.
-커밋 메시지는 "Step N: 한 일" 형식으로 써 줘.
+단계마다 GitHub 이슈를 하나씩 만들 거야. 이슈 번호는 단계 번호와 같아.
+단계마다 develop에서 feature/<이슈번호>-<짧은 이름> 브랜치를 따서 작업하고,
+작업하면서 그 이슈에 진행 상황을 댓글로 남겨 줘.
+단계가 끝나면 커밋하고 develop에 머지한 뒤 이슈를 닫아 줘.
+커밋 메시지는 "Step N: 한 일 (#이슈번호)" 형식으로 써 줘.
 커밋하고 머지할 때마다 GitHub에도 push해 줘.
 ```
 
@@ -203,14 +207,39 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 
 </Slide>
 
+<Slide class="compact">
+
+### 단계마다 이슈 하나
+::sub[이슈 하나가 feature 브랜치 하나와 짝입니다]
+
+<Screenshot src={issueList} alt="GitHub 저장소 algorithms-hw2의 Issues 탭. 열린 이슈가 0개이고 오른쪽 위에 New issue 버튼이 있다" maxHeight="52vh" />
+
+- 내 저장소의 **Issues** 탭 → **New issue**
+- 에이전트가 진행 상황을 **이슈 댓글**로 남기고, 끝나면 이슈를 닫습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 이슈 만들기
+::sub[제목은 단계 이름, 설명은 할 일 한 줄]
+
+<Screenshot src={issueNew} alt="Create new issue 화면. 제목 Spec 작성하기, 설명 Spec md를 토대로 스펙 작성해보기" maxHeight="52vh" />
+
+- 1단계부터 차례로 만들면 **이슈 번호 = 단계 번호**
+- 다르면 요청 예시의 이슈 번호를 본인 번호로 바꿉니다.
+
+</Slide>
+
 <Slide>
 
 ### 단계마다 같은 리듬
-::sub[요청 → 확인 → 커밋 → 기록]
+::sub[이슈 → 요청 → 확인 → 커밋 → 기록]
 
 | | 누가 | 어떻게 |
 | --- | --- | --- |
-| 요청 | 나 | 범위를 분명히 적어서 |
+| 이슈 | 나 | GitHub에서 단계마다 하나 |
+| 요청 | 나 | 단계와 이슈 번호, 범위를 분명히 적어서 |
 | 확인 | 나 | 테스트, diff |
 | 커밋 | 에이전트 | 요청 예시의 마지막 줄 "끝나면 커밋하고 develop에 머지한 뒤 push해 줘" |
 | 기록 | 나 | `AGENT_LOG.md`에 요청 문장과 확인한 것 한 줄 |
@@ -250,7 +279,7 @@ Python으로 base62 encode/decode 함수 만들어 줘
 ::sub[Codespace의 Copilot 채팅 · 붙여 넣은 파일은 지우고]
 
 ```text
-1단계야.
+1단계야. 이슈 #1 작업이야.
 src/base62.py에 encode(n)과 decode(s)를 만들어 줘.
 encode(n)은 0 이상의 정수를 0-9, a-z, A-Z 순서의 62진법 문자열로 바꾸고,
 decode(s)는 그 역변환이야.
@@ -289,36 +318,56 @@ tests/test_base62.py에 unittest로 테스트를 만들고,
 
 ## 2단계
 
-명세는 내가 직접
-
-</Slide>
-
-<Slide>
-
-### 적지 않은 것은 AI가 정합니다
-::sub[명세를 쓰는 데는 요청하지 않습니다]
-
-`SPEC.md` 맨 위의 `TEMPLATE:` 줄을 지우고 직접 씁니다.
-
-- **해시 테이블**: 충돌은? 해시 함수는? 언제 늘리나?
-- **단축기**: 같은 URL을 두 번 넣으면? 없는 코드는?
-- **잘못된 입력**: `ftp://`, 공백, 아주 긴 주소는?
-- **경계 사례**: 목록으로 적습니다. 4단계의 테스트가 됩니다.
+AI가 초안, 내가 편집
 
 </Slide>
 
 <Slide class="compact">
 
-### 다 쓰면 커밋만 시킵니다
+### 초안은 AI가
+::sub[명세 초안만 받습니다 · 코드는 아직]
 
 ```text
-2단계야.
-SPEC.md는 내가 다 썼어.
+2단계야. 이슈 #2 작업이야.
+#SPEC.md 틀을 채워서 우리가 만들 URL 단축 서비스의 명세 초안을 써 줘.
+저장은 직접 구현한 해시 테이블(선형 탐지, 호너 해시)로 하고,
+dict, set, 내장 hash()는 쓰지 마.
+초안만 쓰고 코드는 쓰지 마.
+커밋은 내가 고친 뒤에 하자.
+```
+
+- `#SPEC.md`처럼 `#`을 붙이면 파일이 요청에 붙습니다.
+
+</Slide>
+
+<Slide>
+
+### 결정은 내가
+::sub[초안을 읽고 직접 고칩니다]
+
+- **해시 테이블**: 충돌은? 해시 함수는? 언제 늘리나?
+- **단축기**: 같은 URL을 두 번 넣으면? 없는 코드는?
+- **잘못된 입력**: `ftp://`, 공백, 아주 긴 주소는?
+- **경계 사례**: 4단계의 테스트가 됩니다. 빠진 것을 더합니다.
+
+<br/>
+
+AI가 빈칸을 마음대로 채운 곳을 찾아 고치는 것이 이 단계의 일입니다.  
+무엇을 고쳤는지는 `AGENT_LOG.md`에 적습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 고친 뒤 커밋
+
+```text
+2단계 이어서야. 이슈 #2 작업이야.
+SPEC.md를 내가 고쳤어.
 커밋하고 develop에 머지한 뒤 push해 줘.
 ```
 
-- 요청 예시는 모두 첫 줄에 **단계 번호**, 마지막 줄에 **커밋 문장**이 있습니다.
-- 단계 번호가 있어야 에이전트가 `feature/step-N`의 N을 압니다.
+- 요청 예시는 모두 첫 줄에 **단계와 이슈 번호**, 마지막 줄에 **커밋 문장**이 있습니다.
 
 </Slide>
 
@@ -356,7 +405,7 @@ SPEC.md는 내가 다 썼어.
 ### 계획만 받습니다
 
 ```text
-3단계야.
+3단계야. 이슈 #3 작업이야.
 SPEC.md를 읽고 구현 계획을 단계별로 세워서 PLAN.md에 저장해 줘.
 아직 코드는 쓰지 마.
 끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
@@ -394,7 +443,7 @@ SPEC.md를 읽고 구현 계획을 단계별로 세워서 PLAN.md에 저장해 �
 ### 테스트만 먼저
 
 ```text
-4단계야.
+4단계야. 이슈 #4 작업이야.
 SPEC.md 6절의 경계 사례를 unittest로 옮겨 줘.
 파일은 tests/test_hash_table.py와 tests/test_shortener.py야.
 구현은 아직 하지 마.
@@ -412,7 +461,7 @@ SPEC.md 6절의 경계 사례를 unittest로 옮겨 줘.
 ### 그다음 구현
 
 ```text
-4단계 이어서야.
+4단계 이어서야. 이슈 #4 작업이야.
 PLAN.md 순서대로 src/hash_table.py와 src/shortener.py를 구현하고,
 make test가 모두 통과할 때까지 고쳐 줘.
 테스트는 고치지 마.
@@ -484,7 +533,8 @@ grep -n "dict\|set(\|hash(" src/*.py
 - src/ 안에서 dict, set, 내장 hash()를 쓰지 않는다. 해시 테이블은 직접 만든 것을 쓴다.
 - 코드를 고친 뒤에는 make test를 돌리고 결과를 보여 준다.
 - 테스트가 실패하면 테스트가 아니라 코드를 고친다.
-- 단계마다 develop에서 feature 브랜치를 따서 작업하고, 끝나면 커밋하고 develop에 머지한 뒤 push한다.
+- 이슈마다 develop에서 feature/<이슈번호>-<이름> 브랜치를 따서 작업하고, 진행은 이슈 댓글로 남긴다.
+- 끝나면 커밋하고 develop에 머지한 뒤 push하고, 이슈를 닫는다.
 - 나는 1학년이다. 무엇을 바꿨는지 세 줄 이내로 요약한다.
 ```
 
@@ -497,7 +547,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 ### 새 채팅에서 검사
 
 ```text
-5단계야.
+5단계야. 이슈 #5 작업이야.
 src/ 안의 코드가 이 저장소의 규칙을 지키는지 검사하고,
 어긴 곳이 있으면 고쳐 줘.
 끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
@@ -522,7 +572,7 @@ src/ 안의 코드가 이 저장소의 규칙을 지키는지 검사하고,
 ::sub[적재율에 따라 탐지 횟수가 어떻게 바뀌는지 잽니다]
 
 ```text
-6단계야.
+6단계야. 이슈 #6 작업이야.
 experiments/probe_experiment.py를 만들어 줘.
 크기를 4093으로 고정한 HashTable(max_load=None)에 무작위 URL을 넣고,
 적재율을 0.1부터 0.9까지 바꿔 가며,
@@ -587,7 +637,7 @@ experiments/probe_experiment.py를 만들어 줘.
 ### 웹 서버 붙이기
 
 ```text
-7단계야.
+7단계야. 이슈 #7 작업이야.
 SPEC.md 5절대로 src/server.py를 만들어 줘.
 표준 모듈 http.server만 쓰고, make serve로 포트 8000에서 뜨게 해 줘.
 끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
@@ -656,7 +706,8 @@ sh tools/catchup.sh 4
 ### 제출
 ::sub[11월 29일 23:59 · 저장소 URL + ZIP]
 
-- `SPEC.md`, `.github/copilot-instructions.md`: 직접 쓴 것
+- `SPEC.md`: AI 초안을 직접 고친 것
+- `.github/copilot-instructions.md`: 직접 쓴 것
 - `src/`, `tests/`: 해시 테이블, 단축기, 서버와 테스트
 - `experiments/`: 실험 스크립트, `results.csv`, 그래프
 - `AGENT_LOG.md`: 단계별 기록, 틀린 곳 둘 이상, 채팅과의 비교, 소감
@@ -672,7 +723,7 @@ sh tools/catchup.sh 4
 
 | 항목 | 배점 | 보는 것 |
 | --- | --- | --- |
-| 명세와 테스트 | 1 | 경계 사례를 직접 정하고, 테스트가 빠짐없이 검사하는가 |
+| 명세와 테스트 | 1 | AI 초안에서 무엇을 고쳤는지 남겼고, 테스트가 경계 사례를 빠짐없이 검사하는가 |
 | 규칙 파일 | 1 | 규칙이 구체적이고 실제로 효과를 냈는가 |
 | 해시 테이블과 실험 | 1 | `dict` 없이 동작하고, 실험값을 이론과 비교해 해석했는가 |
 | 작업 기록 | 1.5 | 틀린 곳을 어떻게 알아채고 고쳤는지 구체적인가 |
@@ -685,7 +736,8 @@ sh tools/catchup.sh 4
 ### 사람이 맡는 몫
 ::sub[AI를 쓰는 과제여도 정해져 있습니다]
 
-- `SPEC.md`와 `AGENT_LOG.md`는 **직접 씁니다.**
+- `SPEC.md`는 AI 초안을 **직접 고칩니다.**
+- `AGENT_LOG.md`는 **직접 씁니다.**
   - AI가 쓴 기록은 기록이 아닙니다.
 - 규칙 파일은 초안을 받아도 되지만, 무엇을 넣을지는 내가 정합니다.
 - 수업에 오지 못한 학생도 같은 과제, 같은 마감입니다.

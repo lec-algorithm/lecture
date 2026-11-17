@@ -8,6 +8,8 @@ tags: ["Assignment 2", "Submission", "Agent", "Hashing"]
 
 import { Image } from 'astro:assets';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
 
 If you only use AI in a chat window, this assignment is the next step.
 The same AI can do much more **when it works inside your repository**.
@@ -37,7 +39,7 @@ Chat and agent use the same AI, but they work in different places.
 
 The more the agent can do, the clearer the human's part becomes.
 
-- **I decide what to build.** Writing the specification is the human's job.
+- **I decide what to build.** The AI may draft the specification, but editing it and deciding is the human's job.
 - **I check that it is right.** Agents are wrong in convincing ways. Tests and real runs catch it.
 - **I leave points to go back to.** Committing after every step means anything the agent breaks can be undone.
 
@@ -81,7 +83,7 @@ workspace, so if a solution sat next to it, it would copy that and you would lea
 
 | File | Purpose |
 | --- | --- |
-| `SPEC.md` | Specification template. You fill it in |
+| `SPEC.md` | Specification template. The agent drafts it and you edit it |
 | `AGENT_LOG.md` | Work log template for submission |
 | `src/` · `tests/` · `experiments/` | Empty |
 | `tools/catchup.sh` | Catch up on a missed step |
@@ -110,7 +112,7 @@ cannot choose a model; it is picked automatically, so leave it as it is.
 
 ## Seven steps \{#steps}
 
-Each step repeats **request → check → commit → log**.
+Each step repeats **issue → request → check → commit → log**.
 
 You could commit with git commands or with VS Code's Source Control view. This time
 **git is the agent's job too.** At the start, ask once:
@@ -118,14 +120,17 @@ You could commit with git commands or with VS Code's Source Control view. This t
 ```text
 Let us manage this repository with git flow.
 First create a develop branch from main.
-From now on, for each step, branch feature/step-N off develop and work there.
-When the step is done, commit and merge it into develop.
-Write commit messages as "Step N: what was done".
+I will open one GitHub issue per step, numbered the same as the step.
+For each step, branch feature/<issue-number>-<short-name> off develop and work there,
+and leave progress comments on that issue as you go.
+When the step is done, commit, merge it into develop and close the issue.
+Write commit messages as "Step N: what was done (#issue-number)".
 Push to GitHub every time you commit or merge.
 ```
 
-- Each example request below starts with **the step number** and ends with **"When done, commit, merge into develop and push."**
-  Copy it as is and the branch and commit come along. The agent needs the step number to name `feature/step-N`.
+- Each example request below starts with **the step and issue number** and ends with **"When done, commit, merge into develop and push."**
+  Copy it as is and the branch and commit come along. The issue number tells the agent where to comment
+  and which branch to create.
 - Keep going in **the same chat** where you set up git. Do not switch chats until step 5 opens a new one.
 - A commit is a point to go back to. After the agent commits, check what went in with the Source Control view or `git log`.
 - Before submitting, have it merge develop into main and push. Grading and the ZIP use main on GitHub.
@@ -141,6 +146,22 @@ sending work out to GitHub is judged risky, so it asks and gives a reason.
 
 The agent judges the scope against what you asked. This box came from its judgment that
 publishing develop itself was not specifically requested.
+
+### One issue per step \{#issues}
+
+Before starting a step, open an issue in your repository on GitHub. Each issue pairs with one
+feature branch. The agent posts progress comments on that issue while it works and closes it at the end.
+
+1. On the **Issues** tab at the top of your repository, click **New issue**.
+
+<Image src={issueList} alt="Issues tab of the algorithms-hw2 repository on GitHub, with no open issues and a New issue button at the top right" />
+
+2. Put the step name in the title and the task in one line in the description, then create it.
+
+<Image src={issueNew} alt="Create new issue page with the step name as the title and a one-line task as the description" />
+
+- Create them in order from step 1, and issue numbers match step numbers. The example requests assume that.
+- If yours differ, change the issue number in the example requests to yours.
 
 In `AGENT_LOG.md`, write one line per step with the exact request you used and what
 you checked. You can use the example requests below as they are or rewrite them.
@@ -162,7 +183,7 @@ Copy the answer into `src/base62.py` and work out for yourself how to run it.
 Now ask in the **Copilot chat in your Codespace**. Delete the pasted file and ask:
 
 ```text
-This is step 1.
+This is step 1, issue #1.
 In src/base62.py, write encode(n) and decode(s).
 encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
 and decode(s) is its inverse.
@@ -181,18 +202,24 @@ What to check
 - Did the chat answer and the agent answer use the same character order? If you do not say, the AI picks one.
 - What did you do by hand in each approach? That is section 3 of `AGENT_LOG.md`.
 
-### Step 2. I write the specification \{#step-2}
+### Step 2. The AI drafts the specification, I edit it \{#step-2}
 
-As step 1 showed, whatever you leave out the AI decides for you. So before building,
-you write `SPEC.md` **yourself**. Do not ask the agent to write the specification. When it is done, ask only for the commit.
+As step 1 showed, whatever you leave out the AI decides for you. The same goes for the
+specification. Get a draft from the agent, and **decide what to build by editing it yourself.**
 
 ```text
-This is step 2.
-I have finished writing SPEC.md.
-Commit it, merge into develop and push.
+This is step 2, issue #2.
+Fill in the #SPEC.md template with a draft specification of the URL shortener we are building.
+Store data in a hash table we implement ourselves (linear probing, Horner hash),
+and do not use dict, set or the built-in hash().
+Write only the draft, no code.
+We will commit after I edit it.
 ```
 
-Delete the `TEMPLATE:` line at the top and answer these questions section by section.
+Writing `#SPEC.md` with a `#` attaches that file to the request. Check that the file shows up as a chip in the input box.
+
+When the draft arrives, read how it answers each question below and edit anything that differs from what you want.
+Delete the `TEMPLATE:` line at the top if it is still there.
 
 - **Hash table**: how are collisions resolved? What is the hash function? When does the table grow?
 - **Shortener**: does the same URL get the same code twice? Is an unknown code an error or `None`?
@@ -204,12 +231,21 @@ and does not use Python's `dict`, `set` or built-in `hash()`. This assignment is
 building the hash table yourself. The built-in `hash()` gives strings a different value
 on every run, so rerunning the step 6 experiment would give different numbers.
 
+This step is about finding where the AI filled in blanks on its own and fixing them. Write what
+you changed in the step 2 row of `AGENT_LOG.md`. When you are done editing, ask for the commit.
+
+```text
+Step 2, continued (issue #2).
+I have edited SPEC.md.
+Commit it, merge into develop and push.
+```
+
 ### Step 3. A plan before code \{#step-3}
 
 Do not say "build it" right away. Get a plan first and review it.
 
 ```text
-This is step 3.
+This is step 3, issue #3.
 Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
 Do not write any code yet.
 When done, commit, merge into develop and push.
@@ -233,7 +269,7 @@ Fixing the plan is much cheaper than fixing the code.
 Ask for the tests only.
 
 ```text
-This is step 4.
+This is step 4, issue #4.
 Turn the edge cases in section 6 of SPEC.md into unittest tests.
 Put them in tests/test_hash_table.py and tests/test_shortener.py.
 Do not implement anything yet.
@@ -247,7 +283,7 @@ fails at this point, which is expected: there is no implementation yet.
 Then ask for the implementation.
 
 ```text
-Step 4, continued.
+Step 4, continued (issue #4).
 Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
 and keep fixing them until make test passes.
 Do not change the tests.
@@ -279,17 +315,18 @@ repository's rules in it.
 - Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
 - After changing code, run make test and show the result.
 - If a test fails, fix the code, not the test.
-- For each step, work on a feature branch off develop; when done, commit, merge into develop and push.
+- For each issue, work on feature/<issue-number>-<name> off develop and post progress as issue comments.
+- When done, commit, merge into develop, push and close the issue.
 - I am a first-year student. Summarize what you changed in at most three lines.
 ```
 
-The git rule, second from last, is what you asked in the chat at the start. A new chat does not
+The two git rules are what you asked in the chat at the start. A new chat does not
 know the earlier conversation, so move anything that must keep applying into the rules file.
 
 Open a new chat and ask it to check. If anything broke the rules, have it fixed.
 
 ```text
-This is step 5.
+This is step 5, issue #5.
 Check whether the code in src/ follows this repository's rules,
 and fix anything that breaks them.
 When done, commit, merge into develop and push.
@@ -303,7 +340,7 @@ Passing tests do not make a hash table a **good** one. As Topic 08 showed, linea
 slows down sharply as the load factor approaches 1. Measure whether your table does.
 
 ```text
-This is step 6.
+This is step 6, issue #6.
 Create experiments/probe_experiment.py.
 Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
 For load factors from 0.1 to 0.9,
@@ -326,7 +363,7 @@ Run `make experiment` and **judge the numbers yourself.**
 Finally, add a web server.
 
 ```text
-This is step 7.
+This is step 7, issue #7.
 Create src/server.py as described in section 5 of SPEC.md.
 Use only the standard http.server module,
 and make it start on port 8000 with make serve.
@@ -371,7 +408,7 @@ but you cannot use that step for "places the agent was wrong."
 
 The repository must contain:
 
-- `SPEC.md`: the specification you wrote
+- `SPEC.md`: the AI's draft specification, edited by you
 - `.github/copilot-instructions.md`: the rules you wrote
 - `src/`, `tests/`: your own hash table, shortener, server and their tests
 - `experiments/`: the experiment script, `results.csv` and the chart
@@ -391,7 +428,7 @@ let luck decide the score.
 
 | Item | Points | What we look at |
 | --- | --- | --- |
-| Specification and tests | 1 | You chose the edge cases, and the tests check all of them |
+| Specification and tests | 1 | You recorded what you changed in the AI's draft, and the tests check every edge case |
 | Rules file | 1 | The rules are concrete and actually had an effect |
 | Hash table and experiment | 1 | Works without `dict`, and measured values are compared with theory and explained |
 | Work log | 1.5 | Concretely describes how you noticed and fixed mistakes |
@@ -410,6 +447,7 @@ on this page in order. The screens shown in class are in the [slides](/slides/hw
 
 This assignment is about using AI. Some parts are still yours.
 
-- **You write** `SPEC.md` and `AGENT_LOG.md`. A log written by AI is not a log.
+- The AI drafts `SPEC.md` and **you edit it.** Record what you changed in `AGENT_LOG.md`.
+- **You write** `AGENT_LOG.md`. A log written by AI is not a log.
 - You may get a first draft of the rules file from AI, but you decide what goes in it.
 - Do not copy someone else's repository. It shows in the commit history and the log.

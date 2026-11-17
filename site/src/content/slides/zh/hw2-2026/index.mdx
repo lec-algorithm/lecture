@@ -10,6 +10,8 @@ toc_open: false
 import Slide from 'stack-site-builder/components/Slide.astro';
 import Screenshot from '@components/Screenshot.astro';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
 import AgentLoopDemo from '@components/AgentLoopDemo.astro';
 import Base62Demo from '@components/Base62Demo.astro';
 import ShortenerDemo from '@components/ShortenerDemo.astro';
@@ -72,7 +74,7 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ::sub[从搬运的人变成检查的人]
 
 - **做什么由我决定。**
-  - 写规格说明是人的工作。
+  - 规格说明可以由 AI 起草，但由人来修改和决定。
 - **对不对由我检查。**
   - 智能体会错得很像对的。
   - 用测试和运行结果抓出来。
@@ -149,7 +151,7 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 | 步骤 | 做什么 | 请求 |
 | --- | --- | --- |
 | 1 | 聊天与智能体并排比较 | 2 |
-| 2 | 规格说明由我来写 | 1（只提交） |
+| 2 | AI 起草规格说明，我来修改 | 2 |
 | 3 | 先要计划，再写代码 | 1\~2 |
 | 4 | 先写测试，实现交给智能体 | 3\~5 |
 | 5 | 用文件给出规则 | 2\~3 |
@@ -166,9 +168,11 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ```text
 这个仓库用 git flow 管理。
 先从 main 创建 develop 分支。
-以后每一步都从 develop 拉出 feature/step-N 分支来做，
-这一步完成后提交并合并到 develop。
-提交信息按 "Step N: 做了什么" 的格式写。
+每一步我都会建一个 GitHub issue，issue 编号和步骤编号相同。
+每一步都从 develop 拉出 feature/<issue编号>-<简短名称> 分支来做，
+做的过程中在那个 issue 里用评论记录进展。
+这一步完成后提交、合并到 develop，并关闭 issue。
+提交信息按 "Step N: 做了什么 (#issue编号)" 的格式写。
 每次提交或合并后都 push 到 GitHub。
 ```
 
@@ -203,14 +207,39 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 
 </Slide>
 
+<Slide class="compact">
+
+### 每一步一个 issue
+::sub[一个 issue 对应一个 feature 分支]
+
+<Screenshot src={issueList} alt="GitHub 仓库 algorithms-hw2 的 Issues 标签页，没有打开的 issue，右上角有 New issue 按钮" maxHeight="52vh" />
+
+- 自己仓库的 **Issues** 标签页 → **New issue**
+- 智能体用 **issue 评论**记录进展，完成后关闭 issue。
+
+</Slide>
+
+<Slide class="compact">
+
+### 创建 issue
+::sub[标题写步骤名称，描述写一行要做的事]
+
+<Screenshot src={issueNew} alt="Create new issue 页面，标题是步骤名称，描述是一行要做的事" maxHeight="52vh" />
+
+- 从第 1 步按顺序创建，**issue 编号 = 步骤编号**
+- 编号不同的话，把请求示例里的 issue 编号换成自己的。
+
+</Slide>
+
 <Slide>
 
 ### 每一步同样的节奏
-::sub[请求 → 检查 → 提交 → 记录]
+::sub[issue → 请求 → 检查 → 提交 → 记录]
 
 | | 谁 | 怎么做 |
 | --- | --- | --- |
-| 请求 | 我 | 写清范围 |
+| issue | 我 | 每一步在 GitHub 上建一个 |
+| 请求 | 我 | 写清步骤、issue 编号和范围 |
 | 检查 | 我 | 测试、diff |
 | 提交 | 智能体 | 请求示例的最后一行"完成后提交、合并到 develop 并 push。" |
 | 记录 | 我 | 在 `AGENT_LOG.md` 写一行：请求原文和检查了什么 |
@@ -250,7 +279,7 @@ import LoadCostDemo from '@components/LoadCostDemo.astro';
 ::sub[Codespace 的 Copilot 聊天 · 先删掉粘贴的文件]
 
 ```text
-这是第 1 步。
+这是第 1 步，对应 issue #1。
 在 src/base62.py 中写 encode(n) 和 decode(s)。
 encode(n) 把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成 62 进制字符串，
 decode(s) 是它的逆变换。
@@ -289,36 +318,56 @@ decode(s) 是它的逆变换。
 
 ## 第 2 步
 
-规格说明由我来写
-
-</Slide>
-
-<Slide>
-
-### 没写下来的，AI 会自己决定
-::sub[写规格说明不发请求]
-
-删掉 `SPEC.md` 最上面的 `TEMPLATE:` 那一行，亲手写。
-
-- **哈希表**：冲突怎么办？哈希函数是什么？什么时候扩容？
-- **短网址**：同一个 URL 放两次？不存在的代码？
-- **错误输入**：`ftp://`、空格、很长的地址？
-- **边界情况**：列成清单。它们会变成第 4 步的测试。
+AI 起草，我来修改
 
 </Slide>
 
 <Slide class="compact">
 
-### 写完后只让它提交
+### 草稿交给 AI
+::sub[只要规格说明草稿 · 还不写代码]
 
 ```text
-这是第 2 步。
-SPEC.md 我已经写好了。
+这是第 2 步，对应 issue #2。
+请填写 #SPEC.md 模板，写出我们要做的短网址服务的规格说明草稿。
+数据用我们自己实现的哈希表（线性探测、霍纳哈希）保存，
+不要使用 dict、set 和内置 hash()。
+只写草稿，不要写代码。
+等我修改后再提交。
+```
+
+- 像 `#SPEC.md` 这样加上 `#`，文件就会附到请求里。
+
+</Slide>
+
+<Slide>
+
+### 决定由我来做
+::sub[读草稿，亲手修改]
+
+- **哈希表**：冲突怎么办？哈希函数是什么？什么时候扩容？
+- **短网址**：同一个 URL 放两次？不存在的代码？
+- **错误输入**：`ftp://`、空格、很长的地址？
+- **边界情况**：会变成第 4 步的测试。缺的补上。
+
+<br/>
+
+找出 AI 自作主张填上的地方，就是这一步要做的事。  
+改了什么，写进 `AGENT_LOG.md`。
+
+</Slide>
+
+<Slide class="compact">
+
+### 改完后提交
+
+```text
+继续第 2 步（issue #2）。
+SPEC.md 我已经改好了。
 请提交、合并到 develop 并 push。
 ```
 
-- 所有请求示例的第一行是**步骤编号**，最后一行是**提交的话**。
-- 有了步骤编号，智能体才知道 `feature/step-N` 的 N。
+- 所有请求示例的第一行是**步骤和 issue 编号**，最后一行是**提交的话**。
 
 </Slide>
 
@@ -356,7 +405,7 @@ SPEC.md 我已经写好了。
 ### 只要计划
 
 ```text
-这是第 3 步。
+这是第 3 步，对应 issue #3。
 读 SPEC.md，制定分步骤的实现计划并保存到 PLAN.md。
 现在还不要写代码。
 完成后提交、合并到 develop 并 push。
@@ -394,7 +443,7 @@ SPEC.md 我已经写好了。
 ### 先只要测试
 
 ```text
-这是第 4 步。
+这是第 4 步，对应 issue #4。
 把 SPEC.md 第 6 节的边界情况用 unittest 写成测试。
 文件是 tests/test_hash_table.py 和 tests/test_shortener.py。
 现在还不要实现。
@@ -412,7 +461,7 @@ SPEC.md 我已经写好了。
 ### 然后让它实现
 
 ```text
-继续第 4 步。
+继续第 4 步（issue #4）。
 按照 PLAN.md 的顺序实现 src/hash_table.py 和 src/shortener.py，
 一直修改到 make test 全部通过为止。
 不要修改测试。
@@ -484,7 +533,8 @@ grep -n "dict\|set(\|hash(" src/*.py
 - src/ 里不要使用 dict、set 和内置 hash()。使用我们自己实现的哈希表。
 - 改完代码后运行 make test 并展示结果。
 - 测试失败时修改代码，而不是测试。
-- 每一步从 develop 拉 feature 分支来做，完成后提交、合并到 develop 并 push。
+- 每个 issue 从 develop 拉 feature/<issue编号>-<名称> 分支来做，进展用 issue 评论记录。
+- 完成后提交、合并到 develop 并 push，然后关闭 issue。
 - 我是一年级学生。用三行以内总结你改了什么。
 ```
 
@@ -497,7 +547,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 ### 在新的聊天里检查
 
 ```text
-这是第 5 步。
+这是第 5 步，对应 issue #5。
 检查 src/ 里的代码是否遵守本仓库的规则，
 有违反的地方就修正。
 完成后提交、合并到 develop 并 push。
@@ -522,7 +572,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 ::sub[测量探查次数如何随装载因子变化]
 
 ```text
-这是第 6 步。
+这是第 6 步，对应 issue #6。
 创建 experiments/probe_experiment.py。
 往大小固定为 4093 的 HashTable(max_load=None) 里放入随机 URL。
 装载因子从 0.1 到 0.9，
@@ -587,7 +637,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 ### 加上 Web 服务器
 
 ```text
-这是第 7 步。
+这是第 7 步，对应 issue #7。
 按照 SPEC.md 第 5 节创建 src/server.py。
 只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
@@ -657,7 +707,8 @@ sh tools/catchup.sh 4
 ### 提交
 ::sub[11 月 29 日 23:59 · 仓库 URL + ZIP]
 
-- `SPEC.md`、`.github/copilot-instructions.md`：自己写的
+- `SPEC.md`：AI 起草、自己修改的
+- `.github/copilot-instructions.md`：自己写的
 - `src/`、`tests/`：哈希表、短网址、服务器及测试
 - `experiments/`：实验脚本、`results.csv`、图表
 - `AGENT_LOG.md`：分步骤记录、两处以上的错误、与聊天的比较、感想
@@ -673,7 +724,7 @@ sh tools/catchup.sh 4
 
 | 项目 | 分值 | 评价内容 |
 | --- | --- | --- |
-| 规格说明与测试 | 1 | 边界情况由本人确定，测试全部覆盖 |
+| 规格说明与测试 | 1 | 记录了对草稿的修改，测试覆盖全部边界情况 |
 | 规则文件 | 1 | 规则具体，确实起了作用 |
 | 哈希表与实验 | 1 | 不用 `dict` 也能运行，实测值与理论比较并解释 |
 | 工作记录 | 1.5 | 具体写出如何发现并修正错误 |
@@ -686,7 +737,8 @@ sh tools/catchup.sh 4
 ### 人负责的部分
 ::sub[即使是用 AI 的作业，也是定好的]
 
-- `SPEC.md` 和 `AGENT_LOG.md` **由你自己写**。
+- `SPEC.md` 的 AI 草稿**由你来修改**。
+- `AGENT_LOG.md` **由你自己写**。
   - AI 写的记录不算记录。
 - 规则文件可以让 AI 起草，但放什么由你决定。
 - 没能来上课的同学也是同一份作业、同一个截止时间。

@@ -8,6 +8,8 @@ tags: ["作业2", "提交", "智能体", "哈希"]
 
 import { Image } from 'astro:assets';
 import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
 
 如果你只在聊天窗口里用 AI，这次作业就是下一步。
 同样的 AI，**让它在仓库里干活**，能做的事就不一样了。
@@ -37,7 +39,7 @@ import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 
 智能体能做的越多，人该做的事就越清楚。
 
-- **做什么由我决定。** 写规格说明是人的工作。
+- **做什么由我决定。** 规格说明可以由 AI 起草，但修改和决定是人的工作。
 - **对不对由我检查。** 智能体会错得很像对的。用测试和运行结果抓出来。
 - **留好可以回退的点。** 每一步都提交，智能体弄坏的东西随时可以撤回。
 
@@ -78,7 +80,7 @@ Copilot Free 对聊天和智能体的使用量有限制。代码补全单独计�
 
 | 文件 | 作用 |
 | --- | --- |
-| `SPEC.md` | 规格说明模板。由你自己填写 |
+| `SPEC.md` | 规格说明模板。智能体起草，你来修改 |
 | `AGENT_LOG.md` | 用于提交的工作记录模板 |
 | `src/` · `tests/` · `experiments/` | 空的 |
 | `tools/catchup.sh` | 追上漏掉的步骤 |
@@ -107,7 +109,7 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 
 ## 七个步骤 \{#steps}
 
-每一步都重复**请求 → 检查 → 提交 → 记录**。
+每一步都重复**issue → 请求 → 检查 → 提交 → 记录**。
 
 提交可以用 git 命令，也可以用 VS Code 的源代码管理界面。这次**连 git 也交给智能体**。
 开始时请求一次：
@@ -115,14 +117,16 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 ```text
 这个仓库用 git flow 管理。
 先从 main 创建 develop 分支。
-以后每一步都从 develop 拉出 feature/step-N 分支来做，
-这一步完成后提交并合并到 develop。
-提交信息按 "Step N: 做了什么" 的格式写。
+每一步我都会建一个 GitHub issue，issue 编号和步骤编号相同。
+每一步都从 develop 拉出 feature/<issue编号>-<简短名称> 分支来做，
+做的过程中在那个 issue 里用评论记录进展。
+这一步完成后提交、合并到 develop，并关闭 issue。
+提交信息按 "Step N: 做了什么 (#issue编号)" 的格式写。
 每次提交或合并后都 push 到 GitHub。
 ```
 
-- 下面的请求示例第一行写着**第几步**，最后一行是"**完成后提交、合并到 develop 并 push**。"
-  直接复制，分支和提交就一起完成。有了步骤编号，智能体才知道 `feature/step-N` 的 N。
+- 下面的请求示例第一行写着**第几步、哪个 issue**，最后一行是"**完成后提交、合并到 develop 并 push**。"
+  直接复制，分支和提交就一起完成。有了 issue 编号，智能体才知道在哪里评论、创建哪个分支。
 - 在设置 git 的**同一个聊天**里继续。到第 5 步打开新聊天之前不要换聊天。
 - 提交就是可以回退的点。智能体提交后，用源代码管理界面或 `git log` 确认放进了什么。
 - 提交作业前，让它把 develop 合并到 main 并 push。评分和 ZIP 以 GitHub 仓库的 main 为准。
@@ -137,6 +141,22 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 - **Explain**：先听它说明要做什么。不认识的命令先点这个。
 
 智能体以你的请求为准判断范围。这个确认框也是因为它判断"没有特别说明要发布 develop"才弹出的。
+
+### 每一步一个 issue \{#issues}
+
+开始每一步之前，先在 GitHub 上自己的仓库里建一个 issue。一个 issue 对应一个 feature 分支。
+智能体工作时会在这个 issue 里用评论记录进展，完成后关闭它。
+
+1. 在仓库上方的 **Issues** 标签页点击 **New issue**。
+
+<Image src={issueList} alt="GitHub 仓库 algorithms-hw2 的 Issues 标签页，没有打开的 issue，右上角有 New issue 按钮" />
+
+2. 标题写步骤名称，描述用一行写要做的事，然后创建。
+
+<Image src={issueNew} alt="Create new issue 页面，标题是步骤名称，描述是一行要做的事" />
+
+- 从第 1 步开始按顺序创建，issue 编号就和步骤编号相同。请求示例也是这样假设的。
+- 编号不同的话，把请求示例里的 issue 编号换成自己的。
 
 在 `AGENT_LOG.md` 里，每一步至少写一行：实际用过的请求原文，以及你检查了什么。
 下面的请求示例可以直接用，也可以改写。
@@ -157,7 +177,7 @@ Permissions 改为 **Manual**。Agent mode 的 **Plan** 可以在第 3 步使用
 然后在 **Codespace 的 Copilot 聊天窗口**里请求。删掉粘贴的文件，再请求：
 
 ```text
-这是第 1 步。
+这是第 1 步，对应 issue #1。
 在 src/base62.py 中写 encode(n) 和 decode(s)。
 encode(n) 把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成 62 进制字符串，
 decode(s) 是它的逆变换。
@@ -175,18 +195,24 @@ decode(s) 是它的逆变换。
 - 聊天的答案和智能体的答案，字符顺序一样吗？如果你不说，AI 会自己决定。
 - 两种方式里，你各自亲手做了什么？这就是 `AGENT_LOG.md` 第 3 节的内容。
 
-### 第 2 步：规格说明由我来写 \{#step-2}
+### 第 2 步：规格说明由 AI 起草，我来修改 \{#step-2}
 
-正如第 1 步看到的，没写下来的东西 AI 会自己决定。所以动手之前，**亲自**写 `SPEC.md`。
-写规格说明不向智能体发请求。写完后只让它提交。
+正如第 1 步看到的，没写下来的东西 AI 会自己决定。规格说明也一样。
+草稿交给智能体，**做什么由我修改后决定**。
 
 ```text
-这是第 2 步。
-SPEC.md 我已经写好了。
-请提交、合并到 develop 并 push。
+这是第 2 步，对应 issue #2。
+请填写 #SPEC.md 模板，写出我们要做的短网址服务的规格说明草稿。
+数据用我们自己实现的哈希表（线性探测、霍纳哈希）保存，
+不要使用 dict、set 和内置 hash()。
+只写草稿，不要写代码。
+等我修改后再提交。
 ```
 
-删掉最上面的 `TEMPLATE:` 那一行，逐节回答下面的问题。
+像 `#SPEC.md` 这样加上 `#`，这个文件就会附到请求里。确认输入框里出现了文件标签。
+
+草稿出来后，逐个看它对下面问题的回答，和自己的想法不同就亲手修改。
+最上面的 `TEMPLATE:` 那一行如果还在，就删掉。
 
 - **哈希表**：冲突怎么解决？哈希函数是什么？什么时候扩容？
 - **短网址**：同一个 URL 放两次，代码相同吗？查询不存在的代码，是报错还是返回 `None`？
@@ -197,12 +223,21 @@ SPEC.md 我已经写好了。
 和内置 `hash()`。这次作业就是要亲手实现哈希表。内置 `hash()` 每次运行时字符串的
 哈希值都会变，第 6 步的实验重跑一次就会得到不同的数字。
 
+找出 AI 自作主张填上的地方并改正，就是这一步要做的事。改了什么，写在 `AGENT_LOG.md`
+第 2 步那一栏。改完后让它提交。
+
+```text
+继续第 2 步（issue #2）。
+SPEC.md 我已经改好了。
+请提交、合并到 develop 并 push。
+```
+
 ### 第 3 步：先要计划，再写代码 \{#step-3}
 
 不要一上来就说"帮我做"。先拿到计划并审查。
 
 ```text
-这是第 3 步。
+这是第 3 步，对应 issue #3。
 读 SPEC.md，制定分步骤的实现计划并保存到 PLAN.md。
 现在还不要写代码。
 完成后提交、合并到 develop 并 push。
@@ -224,7 +259,7 @@ SPEC.md 我已经写好了。
 先只让它写测试。
 
 ```text
-这是第 4 步。
+这是第 4 步，对应 issue #4。
 把 SPEC.md 第 6 节的边界情况用 unittest 写成测试。
 文件是 tests/test_hash_table.py 和 tests/test_shortener.py。
 现在还不要实现。
@@ -237,7 +272,7 @@ SPEC.md 我已经写好了。
 然后让它实现。
 
 ```text
-继续第 4 步。
+继续第 4 步（issue #4）。
 按照 PLAN.md 的顺序实现 src/hash_table.py 和 src/shortener.py，
 一直修改到 make test 全部通过为止。
 不要修改测试。
@@ -268,17 +303,18 @@ grep -n "dict\|set(\|hash(" src/*.py
 - src/ 里不要使用 dict、set 和内置 hash()。使用我们自己实现的哈希表。
 - 改完代码后运行 make test 并展示结果。
 - 测试失败时修改代码，而不是测试。
-- 每一步从 develop 拉 feature 分支来做，完成后提交、合并到 develop 并 push。
+- 每个 issue 从 develop 拉 feature/<issue编号>-<名称> 分支来做，进展用 issue 评论记录。
+- 完成后提交、合并到 develop 并 push，然后关闭 issue。
 - 我是一年级学生。用三行以内总结你改了什么。
 ```
 
-倒数第二行的 git 规则，是一开始在聊天里交代的。新的聊天不知道之前的对话，
+这两行 git 规则，是一开始在聊天里交代的。新的聊天不知道之前的对话，
 所以需要一直遵守的内容要移到规则文件里。
 
 打开一个新的聊天，让它检查。如果有违规，让它修正。
 
 ```text
-这是第 5 步。
+这是第 5 步，对应 issue #5。
 检查 src/ 里的代码是否遵守本仓库的规则，
 有违反的地方就修正。
 完成后提交、合并到 develop 并 push。
@@ -292,7 +328,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 查找会急剧变慢。测一测你的表是不是这样。
 
 ```text
-这是第 6 步。
+这是第 6 步，对应 issue #6。
 创建 experiments/probe_experiment.py。
 往大小固定为 4093 的 HashTable(max_load=None) 里放入随机 URL。
 装载因子从 0.1 到 0.9，
@@ -315,7 +351,7 @@ grep -n "dict\|set(\|hash(" src/*.py
 最后加上 Web 服务器。
 
 ```text
-这是第 7 步。
+这是第 7 步，对应 issue #7。
 按照 SPEC.md 第 5 节创建 src/server.py。
 只使用标准模块 http.server，
 并让 make serve 在 8000 端口启动。
@@ -358,7 +394,7 @@ sh tools/catchup.sh 4
 
 仓库里必须包含以下内容。
 
-- `SPEC.md`：自己写的规格说明
+- `SPEC.md`：AI 起草、自己修改的规格说明
 - `.github/copilot-instructions.md`：自己写的规则
 - `src/`、`tests/`：自己实现的哈希表、短网址、服务器及其测试
 - `experiments/`：实验脚本、`results.csv` 和图表
@@ -377,7 +413,7 @@ sh tools/catchup.sh 4
 
 | 项目 | 分值 | 评价内容 |
 | --- | --- | --- |
-| 规格说明与测试 | 1 | 边界情况由本人确定，测试覆盖了全部情况 |
+| 规格说明与测试 | 1 | 记录了对 AI 草稿做了哪些修改，测试覆盖了全部边界情况 |
 | 规则文件 | 1 | 规则具体，并且确实起了作用 |
 | 哈希表与实验 | 1 | 不用 `dict` 也能运行，并把实测值与理论比较、加以解释 |
 | 工作记录 | 1.5 | 具体写出如何发现并修正错误 |
@@ -396,6 +432,7 @@ sh tools/catchup.sh 4
 
 这次作业本身就是要用 AI。但仍有一些部分必须由你完成。
 
-- `SPEC.md` 和 `AGENT_LOG.md` **由你自己写**。AI 写的记录不算记录。
+- `SPEC.md` 由 AI 起草，**由你来修改**。改了什么记在 `AGENT_LOG.md` 里。
+- `AGENT_LOG.md` **由你自己写**。AI 写的记录不算记录。
 - 规则文件可以让 AI 起草，但放什么内容由你决定。
 - 不要复制别人的仓库。看提交历史和记录就能看出来。
