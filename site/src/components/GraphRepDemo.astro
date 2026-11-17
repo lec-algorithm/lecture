@@ -102,6 +102,9 @@ const STRINGS: Record<string, Record<string, string>> = {
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+// 영어가 아닌 로케일에서는 표현 이름 옆에 영어 원어를 함께 적는다.
+const en: Record<string, string> =
+  t === STRINGS.en ? {} : { edgeList: 'edge list', matrix: 'adjacency matrix', list: 'adjacency list' };
 const idx = Array.from({ length: n }, (_, v) => v);
 ---
 
@@ -127,7 +130,7 @@ const idx = Array.from({ length: n }, (_, v) => v);
     <div class="gr-panel">
       <div class="gr-two">
         <div>
-          <div class="gr-label">{t.matrix}</div>
+          <div class="gr-label">{t.matrix}{en.matrix && <span class="gr-en">{en.matrix}</span>}</div>
           <div class="gr-matrix" role="grid">
             <span class="gr-corner"></span>
             {idx.map((b) => <span class="gr-colh" data-gr-colh={b}>{b}</span>)}
@@ -147,7 +150,7 @@ const idx = Array.from({ length: n }, (_, v) => v);
           </div>
         </div>
         <div>
-          <div class="gr-label">{t.list}</div>
+          <div class="gr-label">{t.list}{en.list && <span class="gr-en">{en.list}</span>}</div>
           <div class="gr-list">
             {idx.map((v) => (
               <div class="gr-lrow" data-gr-lrow={v}>
@@ -158,7 +161,7 @@ const idx = Array.from({ length: n }, (_, v) => v);
           </div>
         </div>
       </div>
-      <div class="gr-label">{t.edgeList}</div>
+      <div class="gr-label">{t.edgeList}{en.edgeList && <span class="gr-en">{en.edgeList}</span>}</div>
       <div class="gr-edges" data-gr-edgelist></div>
     </div>
   </div>
@@ -405,6 +408,12 @@ const idx = Array.from({ length: n }, (_, v) => v);
     flex-wrap: wrap;
     gap: 0.6em 1.6em;
     margin-bottom: 0.5em;
+  }
+  .aas-graph-rep-demo .gr-en {
+    margin-left: 0.45em;
+    font-size: 0.85em;
+    font-weight: 400;
+    opacity: 0.7;
   }
   .aas-graph-rep-demo .gr-label {
     font-size: 0.8em;
