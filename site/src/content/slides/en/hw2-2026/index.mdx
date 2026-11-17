@@ -159,6 +159,7 @@ On the free plan the model is chosen automatically. Leave it as it is.
 | 5 | Give the rules as a file | 2\~3 |
 | 6 | Verify the result yourself | 2\~3 |
 | 7 | Serve it | 2\~3 |
+| Homework | Linear probing and comparison | on your own |
 
 </Slide>
 
@@ -173,7 +174,7 @@ Issues and git setup
 <Slide class="compact">
 
 ### One issue per step
-::sub[Create seven issues, one per step, before step 1]
+::sub[Create eight issues before step 1: seven steps and the homework]
 
 <Screenshot src={issueList} alt="Issues tab of the algorithms-hw2 repository on GitHub, with no open issues and a New issue button at the top right" maxHeight="52vh" />
 
@@ -197,7 +198,7 @@ Issues and git setup
 <Slide>
 
 ### Issue list
-::sub[Create all seven, in order from step 1]
+::sub[Create all eight, in order from step 1 to the homework]
 
 <IssueTabs slide />
 
@@ -349,7 +350,7 @@ The AI drafts, I edit
 ```text
 This is step 2, issue #2.
 Fill in the #SPEC.md template with a draft specification of the URL shortener we are building.
-Store data in a hash table we implement ourselves (linear probing, Horner hash),
+Store data in a hash table we implement ourselves (separate chaining, Horner hash),
 and do not use dict, set or the built-in hash().
 Write only the draft, no code.
 We will commit after I edit it.
@@ -396,7 +397,8 @@ Commit it, merge into develop and push.
 ### Fixed for this assignment
 ::sub[You build the hash table yourself]
 
-- Collisions by **linear probing**, hashing by the **Horner method** from Topic 08
+- Collisions by **separate chaining** (linked lists), hashing by the **Horner method** from Topic 08
+- **Linear probing** comes in the homework, built and compared.
 - No Python `dict`, `set` or built-in `hash()`.
 - The built-in `hash()` gives strings a different value on every run.
   - Rerunning the step 6 experiment would give different numbers.
@@ -589,16 +591,16 @@ Verify the result yourself
 <Slide class="compact">
 
 ### Passing tests do not make a good table
-::sub[Measure how probes change with the load factor]
+::sub[Measure how the nodes compared change with the load factor]
 
 ```text
 This is step 6, issue #6.
 Create experiments/probe_experiment.py.
-Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
-For load factors from 0.1 to 0.9,
-measure the average number of slots probed for successful and unsuccessful searches.
-Compare them in a table with Knuth's approximations from Topic 08.
-hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2
+Fill a HashTable(max_load=None) with 4093 slots with random URLs.
+For load factors from 0.25 to 4,
+measure the average number of nodes compared for successful and unsuccessful searches.
+Compare them in a table with the theory from Topic 08.
+hit ≈ 1 + α/2, miss ≈ α
 Save experiments/results.csv and an SVG chart.
 Do not use external libraries.
 When done, commit, merge into develop and push.
@@ -609,7 +611,7 @@ When done, commit, merge into develop and push.
 <Slide>
 
 ### The theory
-::sub[Topic 08 · it gets sharply worse near 1]
+::sub[Topic 08 · chaining grows gently, in proportion to the load factor]
 
 <LoadCostDemo slide />
 
@@ -622,13 +624,13 @@ When done, commit, merge into develop and push.
 
 | Load factor | Hit (measured) | Hit (theory) | Miss (measured) | Miss (theory) |
 | --- | --- | --- | --- | --- |
-| 0.5 | 1.55 | 1.50 | 2.62 | 2.50 |
-| 0.7 | 2.19 | 2.17 | 5.63 | 6.06 |
-| 0.8 | 3.07 | 3.00 | 13.11 | 13.00 |
-| 0.9 | 5.14 | 5.50 | 64.44 | 50.50 |
+| 0.5 | 1.24 | 1.25 | 0.47 | 0.50 |
+| 1 | 1.51 | 1.50 | 1.01 | 1.00 |
+| 2 | 2.01 | 2.00 | 1.98 | 2.00 |
+| 4 | 3.00 | 3.00 | 3.99 | 4.00 |
 
-- Up to 0.8 it matches the theory well.
-- At 0.9 the miss cost swings a lot. Why?
+- It matches the theory well even at load factor 4.
+- Linear probing cannot go past load factor 1. The homework measures how it differs.
 
 </Slide>
 
@@ -636,9 +638,9 @@ When done, commit, merge into develop and push.
 
 ### Judge the numbers yourself
 
-- At load factor 1/2, are hits near 1.5 and misses near 2.5?
+- At load factor 1, are hits near 1.5 and misses near 1?
 - If they are far off, find out why.
-  - Was the first slot counted as 0?
+  - Was a search in an empty slot counted as 1?
   - Does the hash function differ from the specification?
 - Can you read the axis labels and the legend?
 
@@ -705,6 +707,66 @@ When done, commit, merge into develop and push.
 
 <Slide class="center">
 
+## Homework
+
+Linear probing and comparison
+
+</Slide>
+
+<Slide>
+
+### Same shortener, different collisions
+::sub[Separate chaining in class, linear probing in the homework]
+
+1. **Linear probing table**: the same interface as `HashTable`
+2. **Tests**: wrapping from the last slot to slot 0, a full table
+3. **Swap it in**: the shortener tests pass with both tables
+4. **Comparison**: same keys, same size, load factors 0.1 to 0.9
+
+<br/>
+
+Work through issue #8 (the Homework tab of the issue list) as in class.
+
+</Slide>
+
+<Slide>
+
+### With linear probing
+::sub[Put the same URLs into a table of the same size]
+
+<ShortenerDemo mode="probe" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### What to compare
+::sub[Nodes compared for chaining, slots probed for linear probing]
+
+| Method | Hit | Miss |
+| --- | --- | --- |
+| Separate chaining | about 1 + α/2 | about α |
+| Linear probing | about (1 + 1/(1-α))/2 | about (1 + 1/(1-α)²)/2 |
+
+- Plot measurements and theory in one chart.
+- See how the two methods part as the load factor approaches 1.
+
+</Slide>
+
+<Slide>
+
+### Report
+::sub[PDF, at most 2 pages · repository URL at the top]
+
+- How you implemented the two methods (briefly)
+- Experiment conditions and the result chart
+- Interpretation: why linear probing gets sharply worse near 1
+- One or two places the agent was wrong, and how you caught them
+
+</Slide>
+
+<Slide class="center">
+
 ## Wrapping up
 
 </Slide>
@@ -732,7 +794,8 @@ sh tools/catchup.sh 4
 - `SPEC.md`: the AI's draft, edited by you
 - `src/`, `tests/`: hash table, shortener, server and tests
 - `experiments/`: experiment script, `results.csv`, chart
-- Report: results, two or more agent mistakes, chat comparison
+- Homework: linear probing table, tests, comparison experiment
+- Report (PDF, at most 2 pages): interpretation, the agent's mistakes
 - A commit per step: **merge develop into main and push** before submitting
 - Anything not pushed is not submitted. Check on GitHub.
 
@@ -745,11 +808,10 @@ sh tools/catchup.sh 4
 
 | Item | Points | What we look at |
 | --- | --- | --- |
-| Specification and tests | 1 | You recorded what you changed in the draft; tests check every edge case |
-| Rules file | 1 | The rules are concrete and actually had an effect |
-| Hash table and experiment | 1 | Works without `dict`; measurements compared with theory |
-| Report | 1.5 | Concretely shows how you noticed and fixed the agent's mistakes |
-| Service | 0.5 | Starts with `make serve` and the short link redirects |
+| Class work | 1 | `make test` and `make serve` work; issues and commits are there |
+| Linear probing | 1.5 | Works without `dict`, passes tests, swaps in |
+| Comparison | 1 | Both measured under the same conditions, with theory |
+| Report | 1.5 | Interprets results; how you caught the agent's mistakes |
 
 </Slide>
 

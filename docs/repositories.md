@@ -196,7 +196,7 @@ gcc -o sequentialSearch.out sequentialSearch.c && ./sequentialSearch.out
 | --- | --- |
 | `hw1-sample-2026` | 과제1 샘플. 코드와 보고서의 모양을 보여 준다 |
 | `hw2-starter-2026` | 과제2 시작 저장소이고 template이다. 수강생이 `Use this template`으로 시작한다 |
-| `hw2-sample-2026` | 과제2 완성본. 수업 일곱 단계마다 `step-1`\~`step-7` 태그 |
+| `hw2-sample-2026` | 과제2 완성본. 수업 일곱 단계마다 `step-1`\~`step-7` 태그(개별 체이닝), 과제 답은 `homework` 태그(선형 탐지와 비교) |
 
 `hw2-starter-2026`은 `algorithm-env`에서 환경 파일을 그대로 가져오고, 과제2에
 필요한 것만 더했다. 포트 8000 포워딩과 Copilot Chat 확장이다. 다음 둘은 넣지 않는다.

@@ -11,6 +11,7 @@ import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
 import issueList from '@assets/slides/hw2-2026/issue-list.png';
 import issueNew from '@assets/slides/hw2-2026/issue-new.png';
 import IssueTabs from '@components/IssueTabs.astro';
+import ShortenerDemo from '@components/ShortenerDemo.astro';
 
 If you only use AI in a chat window, this assignment is the next step.
 The same AI can do much more **when it works inside your repository**.
@@ -45,6 +46,7 @@ The more the agent can do, the clearer the human's part becomes.
 - **I leave points to go back to.** Committing after every step means anything the agent breaks can be undone.
 
 You build a URL shortener on top of the hash table from [Topic 08](/course/topic-08-hashing/).
+In class it uses separate chaining; the homework adds linear probing and compares the two.
 Give it a long URL and it returns a short code such as `1`, `2`, `3`; open that code and
 it sends you to the original address. At the end you run the server in your Codespace
 and **open the short link on your own phone.**
@@ -116,18 +118,18 @@ Each step repeats **issue → request → check → commit → log**.
 
 ### Step 0. Issues and git setup \{#step-0}
 
-Before step 1, prepare two things: create the seven step issues, and hand git over to the agent.
+Before step 1, prepare two things: create eight issues (seven steps and the homework), and hand git over to the agent.
 
-#### Create the seven issues \{#issues}
+#### Create the eight issues \{#issues}
 
-First create all seven step issues in your repository on GitHub. Each issue pairs with one step and one
+First create all eight issues in your repository on GitHub: seven steps and the homework. Each issue pairs with one step and one
 feature branch. The agent posts progress comments on that issue while it works and closes it at the end.
 
 1. On the **Issues** tab at the top of your repository, click **New issue**.
 
 <Image src={issueList} alt="Issues tab of the algorithms-hw2 repository on GitHub, with no open issues and a New issue button at the top right" />
 
-2. Pick step 1 in the issue list below, copy its title and description, paste them in and create the issue. Repeat in order up to step 7.
+2. Pick step 1 in the issue list below, copy its title and description, paste them in and create the issue. Repeat in order up to the Homework tab.
 
 <Image src={issueNew} alt="Create new issue page with the step name as the title and a one-line task as the description" />
 
@@ -218,7 +220,7 @@ specification. Get a draft from the agent, and **decide what to build by editing
 ```text
 This is step 2, issue #2.
 Fill in the #SPEC.md template with a draft specification of the URL shortener we are building.
-Store data in a hash table we implement ourselves (linear probing, Horner hash),
+Store data in a hash table we implement ourselves (separate chaining, Horner hash),
 and do not use dict, set or the built-in hash().
 Write only the draft, no code.
 We will commit after I edit it.
@@ -235,9 +237,9 @@ Delete the `TEMPLATE:` line at the top if it is still there.
 - **Web page**: is there a page in the browser to enter a URL and get a short link? With an API alone you cannot use it on a phone in step 7.
 - **Edge cases**: list everything to turn into tests. This list becomes the tests in step 4.
 
-Decide that the hash table uses **linear probing** and the **Horner hash** from Topic 08,
-and does not use Python's `dict`, `set` or built-in `hash()`. This assignment is about
-building the hash table yourself. The built-in `hash()` gives strings a different value
+Decide that the hash table uses **separate chaining** (a linked list per slot) and the **Horner hash** from Topic 08,
+and does not use Python's `dict`, `set` or built-in `hash()`. The point is to build the hash table yourself.
+**Linear probing** comes in the [homework](#homework), where you build it and compare. The built-in `hash()` gives strings a different value
 on every run, so rerunning the step 6 experiment would give different numbers.
 
 This step is about finding where the AI filled in blanks on its own and fixing them. Leave what
@@ -345,17 +347,17 @@ A rules file is a habit that outlives this assignment. Put one in your project r
 
 ### Step 6. Verify the result yourself \{#step-6}
 
-Passing tests do not make a hash table a **good** one. As Topic 08 showed, linear probing
-slows down sharply as the load factor approaches 1. Measure whether your table does.
+Passing tests do not make a hash table a **good** one. As Topic 08 showed, the search cost of separate
+chaining grows with the list length, that is, in proportion to the load factor α. Measure whether your table does.
 
 ```text
 This is step 6, issue #6.
 Create experiments/probe_experiment.py.
-Fill a HashTable(max_load=None) of fixed size 4093 with random URLs.
-For load factors from 0.1 to 0.9,
-measure the average number of slots probed for successful and unsuccessful searches.
-Compare them in a table with Knuth's approximations from Topic 08.
-hit ≈ (1 + 1/(1-α))/2, miss ≈ (1 + 1/(1-α)²)/2
+Fill a HashTable(max_load=None) with 4093 slots with random URLs.
+For load factors from 0.25 to 4,
+measure the average number of nodes compared for successful and unsuccessful searches.
+Compare them in a table with the theory from Topic 08.
+hit ≈ 1 + α/2, miss ≈ α
 Save experiments/results.csv and an SVG chart.
 Do not use external libraries.
 When done, commit, merge into develop and push.
@@ -363,9 +365,12 @@ When done, commit, merge into develop and push.
 
 Run `make experiment` and **judge the numbers yourself.**
 
-- At load factor 1/2, are hits near 1.5 and misses near 2.5?
-- If they are far from theory, find out why. Check whether the first slot was counted as 0, or whether the hash function differs from the specification.
+- At load factor 1, are hits near 1.5 and misses near 1?
+- Chaining keeps working past load factor 1. Does it still match theory at 4?
+- If they are far from theory, find out why. Check whether a search in an empty slot was counted as 1, or whether the hash function differs from the specification.
 - Can you read the axis labels and the legend?
+
+You reuse this experiment script in the [homework](#homework) to compare with linear probing.
 
 ### Step 7. Serve it \{#step-7}
 
@@ -396,6 +401,35 @@ are the "places the agent was wrong" for the report. Leave it as a comment on is
 **Anyone on the internet can open a public port.** When you are done, stop the server with
 `Ctrl+C` and switch the port back to **Private**. Restarting the Codespace also makes it private again.
 
+## Homework: linear probing and comparison \{#homework}
+
+In class you build the shortener on **separate chaining**. The homework adds a **linear probing** hash table
+to the same repository and compares the two under the same conditions: you build and measure both methods
+from Topic 08 yourself.
+
+<ShortenerDemo mode="probe" />
+
+Create issue #8 from the **Homework** tab of the issue list, and work with an issue and a feature branch as in class.
+There are four tasks.
+
+1. **Linear probing table**: give it the same interface as `HashTable` (`put`, `get`, `find`, `len`, `in`, `load_factor`).
+   Do not use `dict`, `set` or the built-in `hash()`, and keep the Horner hash.
+2. **Tests**: run the hash table tests on linear probing too. Also check wrapping from the last slot to slot 0
+   and a full table.
+3. **Swap it into the shortener**: let the shortener use either table, and make the shortener tests pass
+   with both.
+4. **Comparison experiment**: put the same keys into two tables of the same size and measure hit and miss costs
+   for load factors from 0.1 to 0.9. Count nodes compared for chaining and slots probed for linear probing.
+   Plot them with the theory.
+
+| Method | Hit | Miss |
+| --- | --- | --- |
+| Separate chaining | about 1 + α/2 | about α |
+| Linear probing | about (1 + 1/(1-α))/2 | about (1 + 1/(1-α)²)/2 |
+
+Write the requests yourself. As in class, include the step and issue number, the scope, and "do not change the tests".
+If you get stuck, see the `homework` tag of the [sample repository](https://github.com/lec-algorithm/hw2-sample-2026).
+
 ## Catching up on a missed step \{#catchup}
 
 If you miss a step in class you can still go on. Commit what you have, then give the
@@ -416,21 +450,23 @@ but you cannot use that step for "places the agent was wrong."
 | What | How |
 | --- | --- |
 | Repository URL | On the first page of the report |
-| Report | PDF, 2\~4 pages, uploaded to the LearnUs assignment box |
+| Report | PDF, at most 2 pages, uploaded to the LearnUs assignment box |
 
 The repository must contain:
 
 - `SPEC.md`: the AI's draft specification, edited by you
 - `src/`, `tests/`: your own hash table, shortener, server and their tests
 - `experiments/`: the experiment script, `results.csv` and the chart
+- Homework: the linear probing table, its tests and the comparison experiment
 - A commit history with a commit per step (merge develop into main and push before submitting)
 - The step issues and their comments
 
-The report covers:
+Write the report as a PDF of **at most 2 pages**, with the repository URL at the top of the first page.
 
-- The step 6 results and their interpretation
-- Two or more places the agent was wrong: what was wrong, how you noticed, how you fixed it
-- How chat and the agent compared, and your reflections
+- How you implemented the two methods (briefly)
+- Experiment conditions and results: hit and miss costs by load factor, both methods and the theory in one chart
+- Interpretation: why linear probing gets sharply worse near load factor 1, and how chaining differs
+- One or two places the agent was wrong, and how you noticed and fixed them
 
 **Anything not pushed is not submitted.** Commits made in the Codespace are not on GitHub until you push.
 Before submitting, open your repository on GitHub and check that the files and commits are there.
@@ -445,16 +481,15 @@ let luck decide the score.
 
 | Item | Points | What we look at |
 | --- | --- | --- |
-| Specification and tests | 1 | You recorded what you changed in the AI's draft, and the tests check every edge case |
-| Rules file | 1 | The rules are concrete and actually had an effect |
-| Hash table and experiment | 1 | Works without `dict`, and measured values are compared with theory and explained |
-| Report | 1.5 | Concretely describes how you noticed and fixed the agent's mistakes |
-| Service | 0.5 | Starts with `make serve` and the short link redirects |
+| Class work | 1 | `make test` and `make serve` work, and the step issues and commits are there |
+| Linear probing | 1.5 | Works without `dict`, passes the tests, and swaps into the shortener |
+| Comparison | 1 | Both methods measured with the same keys and size, shown with the theory |
+| Report | 1.5 | Interprets the results and says how you caught the agent's mistakes |
 
 ## If you missed the class \{#absent}
 
 Hand in **the same assignment with the same deadline**. Follow the [seven steps](#steps)
-on this page in order. The screens shown in class are in the [slides](/slides/hw2-2026/).
+on this page in order, then do the [homework](#homework). The screens shown in class are in the [slides](/slides/hw2-2026/).
 
 - Working alone, commit even more carefully after each step. Your commit history stands in for class attendance.
 - If you get stuck, you may move on with `tools/catchup.sh`.
