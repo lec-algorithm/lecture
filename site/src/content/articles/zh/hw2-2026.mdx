@@ -67,7 +67,8 @@ Copilot Free 对聊天和智能体的使用量有限制。代码补全单独计�
 1. 在 [hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026) 顶部点击 **Use this template** → **Create a new repository**
 2. 仓库名取 `algorithms-hw2` 之类，设为 **Public**。
 3. 在新建好的**自己的仓库**里点击 **Code** → **Codespaces** → **Create codespace on main**
-4. 用侧边栏或标题栏的 Copilot 图标打开聊天窗口，把输入框下方的模式切换为 **Agent**。
+4. 用侧边栏或标题栏的 Copilot 图标打开聊天窗口。
+5. 按照[智能体设置](#agent-settings)调整输入框下方的菜单。
 
 起始仓库里没有答案。智能体会读取工作区的文件，如果答案就在旁边，它会照抄过来，
 练习就没有意义了。
@@ -79,6 +80,25 @@ Copilot Free 对聊天和智能体的使用量有限制。代码补全单独计�
 | `src/` · `tests/` · `experiments/` | 空的 |
 | `tools/catchup.sh` | 追上漏掉的步骤 |
 | `Makefile` | `make test` · `make serve` · `make experiment` |
+
+### 智能体设置 \{#agent-settings}
+
+在输入框下方的菜单里设置三项。
+
+| 菜单 | 选择 | 含义 |
+| --- | --- | --- |
+| Agent mode | **Interactive** | 一步一步和你一起进行 |
+| Permissions | **Manual** | 每次运行命令前都请求许可 |
+| 模型 | 能选的话选 **Copilot Fusion** | 根据任务自动挑选模型 |
+
+**Permissions 的 Manual 是教学用设置。**
+
+- 特意选它，是为了每次都读一读智能体要做什么。
+- 熟悉之后实际使用时，设为 **Assisted** 或 **Allow all** 即可。
+- 那时用测试、diff 和提交来检查，而不是靠许可按钮。
+
+Agent mode 的 **Plan** 在第 3 步使用。**Autopilot** 会自己一直做到底，熟悉之后再用。
+免费方案不能选择模型，会自动决定，保持原样即可。
 
 ## 七个步骤 \{#steps}
 
@@ -96,7 +116,7 @@ git add -A && git commit -m "Step 1: base62 encode/decode"
 用两种方式做同一个功能，看看区别。要做的是 base62 编码，把整数变成短字符串：
 用 `0-9`、`a-z`、`A-Z` 这 62 个字符表示的 62 进制。
 
-先用**聊天方式**。模式保持 **Ask**，提问：
+先用**聊天方式**。向平时用的**浏览器里的聊天 AI**（ChatGPT、Gemini 等）提问：
 
 ```text
 用 Python 写 base62 的 encode/decode 函数
@@ -104,7 +124,7 @@ git add -A && git commit -m "Step 1: base62 encode/decode"
 
 把答案复制到 `src/base62.py`，自己想办法运行它。
 
-然后把模式切换为 **Agent**。删掉粘贴的文件，再请求：
+然后在 **Codespace 的 Copilot 聊天窗口**里请求。删掉粘贴的文件，再请求：
 
 ```text
 在 src/base62.py 中写 encode(n)，把 0 以上的整数按 0-9、a-z、A-Z 的顺序转换成
@@ -112,7 +132,7 @@ git add -A && git commit -m "Step 1: base62 encode/decode"
 写测试，然后在终端运行 make test，给我看是否通过。
 ```
 
-智能体会创建文件，并询问是否可以运行终端命令。**点 Allow 的人是你。**
+智能体会创建文件，并询问是否可以运行终端命令，因为 Permissions 设成了 Manual。**批准的人是你。**
 先读清楚它要运行什么，再点。
 
 要检查的地方
@@ -145,6 +165,9 @@ git add -A && git commit -m "Step 1: base62 encode/decode"
 读 SPEC.md，制定分步骤的实现计划并保存到 PLAN.md。
 现在还不要写代码。
 ```
+
+也可以把 Agent mode 切换为 **Plan** 再请求。Plan 会先给出计划，批准后才执行。
+无论哪种方式，都让它把计划保存到 `PLAN.md`，结束后切回 **Interactive**。
 
 阅读 `PLAN.md`，找出与规格说明不一致的地方，亲手修改。常见的有这些。
 
