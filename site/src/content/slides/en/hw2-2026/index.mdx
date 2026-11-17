@@ -1,0 +1,857 @@
+---
+title: "Assignment 2 · Building a URL shortener with an agent"
+description: "From chat to agent: specification, plan, tests, rules file, verification and a live service in seven steps"
+order: 150
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import Screenshot from '@components/Screenshot.astro';
+import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
+import IssueTabs from '@components/IssueTabs.astro';
+import AgentLoopDemo from '@components/AgentLoopDemo.astro';
+import Base62Demo from '@components/Base62Demo.astro';
+import ShortenerDemo from '@components/ShortenerDemo.astro';
+import ProxyLinkDemo from '@components/ProxyLinkDemo.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
+
+{/* Slides follow the "Slide rules" in docs/writing-rules.md.
+    The content must match the /article/hw2-2026/ page.
+    The experiment numbers must match experiments/results.csv in hw2-sample-2026. */}
+
+<Slide class="cover">
+
+# Assignment 2
+
+Building a URL shortener with an agent
+
+*Advanced Algorithms*
+
+</Slide>
+
+<Slide>
+
+## Today
+::sub[From the chat window into the repository]
+
+- One step beyond using AI **only in a chat window**.
+- Let the same AI read, edit and test files **inside the repository**.
+- Build a URL shortener in seven steps.
+- At the end, open the short link on **your own phone**.
+
+</Slide>
+
+<Slide class="compact">
+
+## Chat and agent
+::sub[Same AI, different place]
+
+| | Chat | Agent |
+| --- | --- | --- |
+| Knows my code | Only what I paste | Reads the repository files itself |
+| Where results go | I copy and paste them | It creates and edits files itself |
+| Runs anything | No | Runs the tests and reads failures |
+| Remembers rules | Forgets after the conversation | Reads the rules file every time |
+
+</Slide>
+
+<Slide>
+
+### The same job, two ways
+::sub[Same result. What we count is the process]
+
+<AgentLoopDemo slide />
+
+</Slide>
+
+<Slide>
+
+## My job changes
+::sub[From moving text around to checking]
+
+- **I decide what to build.**
+  - The AI may draft the specification, but you edit it and decide.
+- **I check that it is right.**
+  - Agents are wrong in convincing ways.
+  - Tests and real runs catch it.
+- **I leave points to go back to.**
+  - Commit after every step and you can always undo.
+
+</Slide>
+
+<Slide>
+
+## Getting started
+::sub[Copy the assignment's starter repository into your own]
+
+Starter repository: [github.com/lec-algorithm/hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026)
+
+1. On that repository, **Use this template** → **Create a new repository**
+2. Name it `algorithms-hw2`, make it **Public**
+3. In your repository: **Code** → **Codespaces** → **Create codespace on main**
+4. Open the Copilot chat and set it up as on the next slide
+
+<br/>
+
+The starter repository has no solution in it.  
+If it did, the agent would simply copy it.
+
+</Slide>
+
+<Slide class="compact">
+
+### Agent settings
+::sub[Set them in the menus under the input box]
+
+| Menu | Choose | Meaning |
+| --- | --- | --- |
+| Agent mode | **Autopilot** | Carries on to the end |
+| Permissions | **Assisted permissions** | Asks only about risky commands |
+| Model (if you can choose) | **Copilot Fusion** · Standard | Picks or combines models |
+
+On the free plan the model is chosen automatically. Leave it as it is.
+
+</Slide>
+
+<Slide>
+
+### Check results, not prompts
+::sub[Do not rely on the approval button]
+
+- Assisted asks only about **commands that look risky**.
+- Autopilot sometimes goes further than you asked.
+  - So state **the scope** of every request.
+- Check what it did with **tests, diffs and commits**.
+- To watch each step, **Interactive**; to approve everything yourself, **Manual**
+
+</Slide>
+
+<Slide>
+
+### Within the free allowance
+::sub[This assignment fits in about 20 agent requests]
+
+- **One thing at a time, and specific.**
+  - A vague request spends a turn on a clarifying question.
+- **Paste failure messages as they are.**
+  - It gets fixed in one go, unlike "it doesn't work."
+- **Make small edits yourself.**
+  - Do not spend a request on renaming a variable.
+
+</Slide>
+
+<Slide class="compact">
+
+## Seven steps
+
+| Step | What you do | Requests |
+| --- | --- | --- |
+| 0 | Issues and git setup | 1 |
+| 1 | Chat and agent side by side | 2 |
+| 2 | The AI drafts the spec, I edit it | 2 |
+| 3 | A plan before code | 1\~2 |
+| 4 | Tests first, implementation by the agent | 3\~5 |
+| 5 | Give the rules as a file | 2\~3 |
+| 6 | Verify the result yourself | 2\~3 |
+| 7 | Serve it | 2\~3 |
+| Homework | Linear probing and comparison | on your own |
+
+</Slide>
+
+<Slide class="center">
+
+## Step 0
+
+Issues and git setup
+
+</Slide>
+
+<Slide class="compact">
+
+### One issue per step
+::sub[Create eight issues before step 1: seven steps and the homework]
+
+<Screenshot src={issueList} alt="Issues tab of the algorithms-hw2 repository on GitHub, with no open issues and a New issue button at the top right" maxHeight="52vh" />
+
+- Your repository's **Issues** tab → **New issue**
+- The agent posts progress as **issue comments** and closes the issue at the end.
+
+</Slide>
+
+<Slide class="compact">
+
+### Creating an issue
+::sub[Copy the title and description from the issue list on the next slide]
+
+<Screenshot src={issueNew} alt="Create new issue page with the step name as the title and a one-line task as the description" maxHeight="52vh" />
+
+- Create them in order from step 1, and **issue number = step number**
+- If yours differ, change the issue number in the example requests.
+
+</Slide>
+
+<Slide>
+
+### Issue list
+::sub[Create all eight, in order from step 1 to the homework]
+
+<IssueTabs slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### git is the agent's job too
+::sub[Commands or the Source Control view would work; today the agent manages it]
+
+```text
+Let us manage this repository with git flow.
+First create a develop branch from main.
+I have opened one GitHub issue per step, numbered the same as the step.
+For each step, branch feature/<issue-number>-<short-name> off develop and work there,
+and leave progress comments on that issue as you go.
+When the step is done, commit, merge it into develop and close the issue.
+Write commit messages as "Step N: what was done (#issue-number)".
+Push to GitHub every time you commit or merge.
+```
+
+- Ask **once**, at the start.
+- The agent creates branches, commits and merges.
+
+</Slide>
+
+<Slide class="compact">
+
+### You are the one who decides
+::sub[Assisted stops and asks only before commands that look risky]
+
+<Screenshot src={assistedPush} alt="Approval box in the Copilot chat: Run in terminal: Publish the develop branch to GitHub, command git push -u origin develop, reason Publishing develop itself was not specifically authorized, buttons Allow Once, Skip, Explain" maxHeight="40vh" />
+
+- **Allow Once**: allow just this once
+- **Skip**: do not run it
+- **Explain**: hear what it is about to do first. Start here if you do not know the command
+
+</Slide>
+
+<Slide>
+
+### Why it stopped at push
+::sub[Because it reaches outside your Codespace]
+
+- **Creating** the develop branch went ahead without asking. It stays inside the Codespace.
+- **Pushing** to GitHub stopped to ask. It leaves the Codespace and is hard to undo.
+- It also gives a reason: "publishing develop itself was not specifically authorized"
+  - The agent judges the scope **against what you asked**.
+- Commands it ran without asking are still recorded in the chat. Read what it ran.
+
+</Slide>
+
+<Slide>
+
+### The same rhythm every step
+::sub[issue → request → check → commit → log]
+
+| | Who | How |
+| --- | --- | --- |
+| Issue | Me | One per step on GitHub |
+| Request | Me | With the step and issue number and a clear scope |
+| Check | Me | Tests, diffs |
+| Commit | Agent | The last line of each example: "When done, commit, merge into develop and push." |
+| Log | Agent, me | Issue comments: the agent's progress, what I checked |
+
+<br/>
+
+A commit is **a point to go back to**. Check what went in with `git log`.  
+Before submitting, have it **merge develop into main and push**.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 1
+
+Chat and agent side by side
+
+</Slide>
+
+<Slide class="compact">
+
+### First, the chat way
+::sub[The chat AI in your browser (ChatGPT, Gemini and so on)]
+
+```text
+Write base62 encode/decode functions in Python
+```
+
+- Copy the answer into `src/base62.py`.
+- Work out **yourself** how to run it.
+
+</Slide>
+
+<Slide class="compact">
+
+### Now the agent
+::sub[Copilot chat in the Codespace · delete the pasted file first]
+
+```text
+This is step 1, issue #1.
+In src/base62.py, write encode(n) and decode(s).
+encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
+and decode(s) is its inverse.
+Write unittest tests in tests/test_base62.py,
+then run make test in the terminal and show me that they pass.
+When done, commit, merge into develop and push.
+```
+
+- It creates the files, runs the tests, and fixes failures.
+- The request says **where, what, and how to check**.
+
+</Slide>
+
+<Slide>
+
+### base62 is dividing by 62
+::sub[Try 0]
+
+<Base62Demo slide />
+
+</Slide>
+
+<Slide>
+
+### What to check in step 1
+
+- What does `encode(0)` return?
+- Did both ways use the same character order?
+  - If you do not say, the AI picks one.
+- What did **you do by hand** in each way?
+  - Leave it as a comment on issue #1.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 2
+
+The AI drafts, I edit
+
+</Slide>
+
+<Slide class="compact">
+
+### The AI drafts
+::sub[Only a draft of the specification · no code yet]
+
+```text
+This is step 2, issue #2.
+Fill in the #SPEC.md template with a draft specification of the URL shortener we are building.
+Store data in a hash table we implement ourselves (separate chaining, Horner hash),
+and do not use dict, set or the built-in hash().
+Write only the draft, no code.
+We will commit after I edit it.
+```
+
+- Writing `#SPEC.md` with a `#` attaches the file to the request.
+
+</Slide>
+
+<Slide>
+
+### I decide
+::sub[Read the draft and edit it yourself]
+
+- **Hash table**: collisions? hash function? when does it grow?
+- **Shortener**: the same URL twice? an unknown code?
+- **Bad input**: `ftp://`, spaces, very long addresses?
+- **Web page**: only an API, or a page to use in the browser?
+- **Edge cases**: they become the step 4 tests. Add what is missing.
+
+<br/>
+
+This step is about finding where the AI filled in blanks on its own.  
+Leave what you changed as a comment on issue #2.
+
+</Slide>
+
+<Slide class="compact">
+
+### Commit after editing
+
+```text
+Step 2, continued (issue #2).
+I have edited SPEC.md.
+Commit it, merge into develop and push.
+```
+
+- Every example request starts with **the step and issue number** and ends with **the commit line**.
+
+</Slide>
+
+<Slide>
+
+### Fixed for this assignment
+::sub[You build the hash table yourself]
+
+- Collisions by **separate chaining** (linked lists), hashing by the **Horner method** from Topic 08
+- **Linear probing** comes in the homework, built and compared.
+- No Python `dict`, `set` or built-in `hash()`.
+- The built-in `hash()` gives strings a different value on every run.
+  - Rerunning the step 6 experiment would give different numbers.
+
+</Slide>
+
+<Slide>
+
+### Horner hash, again
+::sub[h ← (31 · h + character code) mod M]
+
+<StringHashDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## Step 3
+
+A plan before code
+
+</Slide>
+
+<Slide class="compact">
+
+### Ask for the plan only
+
+```text
+This is step 3, issue #3.
+Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
+Do not write any code yet.
+When done, commit, merge into develop and push.
+```
+
+- You may switch the agent mode to **Plan** for this, then back to Autopilot.
+- Fixing the plan is much cheaper than fixing the code.
+
+</Slide>
+
+<Slide>
+
+### What you often catch in the plan
+
+- It plans to store URL→code in a **`dict`**.
+  - That breaks the specification.
+- It plans to make the code **a hash of the URL**.
+  - Two different URLs can then get the same code.
+  - A serial number in base62 never collides.
+- It plans to write the tests **last**.
+  - Change the order.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 4
+
+Tests first, implementation by the agent
+
+</Slide>
+
+<Slide class="compact">
+
+### Tests only, first
+
+```text
+This is step 4, issue #4.
+Turn the edge cases in section 6 of SPEC.md into unittest tests.
+Put them in tests/test_hash_table.py and tests/test_shortener.py.
+Do not implement anything yet.
+When done, commit, merge into develop and push.
+```
+
+- **Read** the tests. Is every edge case there?
+- Add what is missing yourself and commit.
+- `make test` failing right now is expected.
+
+</Slide>
+
+<Slide class="compact">
+
+### Then the implementation
+
+```text
+Step 4, continued (issue #4).
+Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
+and keep fixing them until make test passes.
+Do not change the tests.
+When done, commit, merge into develop and push.
+```
+
+- **"Do not change the tests" matters.**
+  - Without it the agent sometimes quietly edits a test it cannot pass.
+- When it finishes, read the diff and commit.
+
+</Slide>
+
+<Slide>
+
+### What happens inside
+::sub[URLs find a slot by Horner hash; codes are serial numbers]
+
+<ShortenerDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## Step 5
+
+Give the rules as a file
+
+</Slide>
+
+<Slide class="compact">
+
+### Did it follow the specification
+
+```sh
+grep -n "dict\|set(\|hash(" src/*.py
+```
+
+- A rule in the specification does nothing if the agent never reads `SPEC.md`.
+- The agent reads only **the files that look relevant at the moment**.
+
+</Slide>
+
+<Slide>
+
+### One file is read every time
+::sub[.github/copilot-instructions.md]
+
+| File | When the agent reads it |
+| --- | --- |
+| `SPEC.md` | When it looks relevant, or when told to |
+| `.github/copilot-instructions.md` | **With every request** |
+
+<br/>
+
+Keep the repository's rules in the rules file.  
+Put one in your project repository too.
+
+</Slide>
+
+<Slide class="compact">
+
+### A rules file
+::sub[Write it yourself]
+
+```md
+# To the agent working in this repository
+
+- Read SPEC.md before writing code.
+- Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
+- After changing code, run make test and show the result.
+- If a test fails, fix the code, not the test.
+- For each issue, work on feature/<issue-number>-<name> off develop and post progress as issue comments.
+- When done, commit, merge into develop, push and close the issue.
+- I am a first-year student. Summarize what you changed in at most three lines.
+```
+
+- Move the git rule from the first chat here too. A new chat does not know the earlier conversation.
+
+</Slide>
+
+<Slide class="compact">
+
+### Check in a new chat
+
+```text
+This is step 5, issue #5.
+Check whether the code in src/ follows this repository's rules,
+and fix anything that breaks them.
+When done, commit, merge into develop and push.
+```
+
+- A new chat still reads the rules file.
+- Comment on issue #5 which rules had an effect.
+
+</Slide>
+
+<Slide class="center">
+
+## Step 6
+
+Verify the result yourself
+
+</Slide>
+
+<Slide class="compact">
+
+### Passing tests do not make a good table
+::sub[Measure how the nodes compared change with the load factor]
+
+```text
+This is step 6, issue #6.
+Create experiments/probe_experiment.py.
+Fill a HashTable(max_load=None) with 4093 slots with random URLs.
+For load factors from 0.25 to 4,
+measure the average number of nodes compared for successful and unsuccessful searches.
+Compare them in a table with the theory from Topic 08.
+hit ≈ 1 + α/2, miss ≈ α
+Save experiments/results.csv and an SVG chart.
+Do not use external libraries.
+When done, commit, merge into develop and push.
+```
+
+</Slide>
+
+<Slide>
+
+### The theory
+::sub[Topic 08 · chaining grows gently, in proportion to the load factor]
+
+<LoadCostDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### Measured in the sample repository
+::sub[M = 4093, random URLs, 2000 unsuccessful searches]
+
+| Load factor | Hit (measured) | Hit (theory) | Miss (measured) | Miss (theory) |
+| --- | --- | --- | --- | --- |
+| 0.5 | 1.24 | 1.25 | 0.47 | 0.50 |
+| 1 | 1.51 | 1.50 | 1.01 | 1.00 |
+| 2 | 2.01 | 2.00 | 1.98 | 2.00 |
+| 4 | 3.00 | 3.00 | 3.99 | 4.00 |
+
+- It matches the theory well even at load factor 4.
+- Linear probing cannot go past load factor 1. The homework measures how it differs.
+
+</Slide>
+
+<Slide>
+
+### Judge the numbers yourself
+
+- At load factor 1, are hits near 1.5 and misses near 1?
+- If they are far off, find out why.
+  - Was a search in an empty slot counted as 1?
+  - Does the hash function differ from the specification?
+- Can you read the axis labels and the legend?
+
+</Slide>
+
+<Slide class="center">
+
+## Step 7
+
+Serve it
+
+</Slide>
+
+<Slide class="compact">
+
+### Add a web server
+
+```text
+This is step 7, issue #7.
+Build the URL shortener web service in src/server.py.
+Opening / in a browser should show a form to enter a URL,
+and pressing Shorten should show a page with the short link.
+Opening the short link should go to the original address.
+At /table, show the current hash table.
+For each slot, chain the nodes (URL key, short code, short link) with arrows,
+and let each node unfold its Horner hash steps.
+Use only the standard http.server module,
+and make it start on port 8000 with make serve.
+When done, commit, merge into develop and push.
+```
+
+- Start it with `make serve`.
+- Port 8000 shows up on the **Ports** tab of the bottom panel.
+
+</Slide>
+
+<Slide class="compact">
+
+### The hash table on screen too
+::sub[/table · a linked list per slot, ending in NULL]
+
+<Screenshot src={hashViewChain} alt="Current hash table page: each slot shows its chain length and nodes with the URL key, short code and short link joined by arrows and ending in NULL" maxHeight="58vh" />
+
+- See with your own eyes that URLs in the same slot form a linked list.
+
+</Slide>
+
+<Slide class="compact">
+
+### And why that slot
+::sub[Unfold a node to see its Horner hash steps]
+
+<Screenshot src={hashViewTrace} alt="A node with its hash calculation unfolded: (h * 31 + ord(char)) % 16 for each character, ending in 5, the slot number" maxHeight="40vh" />
+
+- Topic 08's h ← (31·h + char code) mod M, one character at a time.
+- The last value is the slot the URL went into.
+
+</Slide>
+
+<Slide>
+
+### Open it on your phone
+
+1. On the **Ports** tab, right-click the row for port 8000
+2. **Port Visibility** → **Public**
+3. Open the **Forwarded Address** on your phone.
+4. Enter a long URL and tap the short link you get.
+
+</Slide>
+
+<Slide>
+
+### If the short link does not open
+::sub[The agent may not have known about the proxy]
+
+<ProxyLinkDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Anyone can open a public port
+
+- Anyone on the internet who knows the address can open it.
+- When you are done, stop the server with `Ctrl+C`.
+- Switch the port back to **Private**.
+  - Restarting the Codespace also makes it private again.
+
+</Slide>
+
+<Slide class="center">
+
+## Homework
+
+Linear probing and comparison
+
+</Slide>
+
+<Slide>
+
+### Same shortener, different collisions
+::sub[Separate chaining in class, linear probing in the homework]
+
+1. **Linear probing table**: the same interface as `HashTable`
+2. **Tests**: wrapping from the last slot to slot 0, a full table
+3. **Swap it in**: the shortener tests pass with both tables
+4. **Comparison**: same keys, same size, load factors 0.1 to 0.9
+5. **View**: the probing table at `/table`, with probed slots and hash steps
+
+<br/>
+
+Work through issue #8 (the Homework tab of the issue list) as in class.
+
+</Slide>
+
+<Slide>
+
+### With linear probing
+::sub[Put the same URLs into a table of the same size]
+
+<ShortenerDemo mode="probe" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### What to compare
+::sub[Nodes compared for chaining, slots probed for linear probing]
+
+| Method | Hit | Miss |
+| --- | --- | --- |
+| Separate chaining | about 1 + α/2 | about α |
+| Linear probing | about (1 + 1/(1-α))/2 | about (1 + 1/(1-α)²)/2 |
+
+- Plot measurements and theory in one chart.
+- See how the two methods part as the load factor approaches 1.
+
+</Slide>
+
+<Slide>
+
+### Report
+::sub[PDF, at most 2 pages · repository URL at the top]
+
+- How you implemented the two methods (briefly)
+- Experiment conditions and the result chart
+- Interpretation: why linear probing gets sharply worse near 1
+- One or two places the agent was wrong, and how you caught them
+
+</Slide>
+
+<Slide class="center">
+
+## Wrapping up
+
+</Slide>
+
+<Slide class="compact">
+
+### Catching up on a missed step
+::sub[Commit what you have, then give the step number]
+
+```sh
+git add -A && git commit -m "WIP"
+sh tools/catchup.sh 4
+```
+
+- Sets your code to the `step-4` state of the sample repository.
+- Leave a "caught up" comment on that step's issue.
+
+</Slide>
+
+<Slide class="compact">
+
+### Submission
+::sub[November 29, 23:59 · repository URL + report (PDF)]
+
+- `SPEC.md`: the AI's draft, edited by you
+- `src/`, `tests/`: hash table, shortener, server and tests
+- `experiments/`: experiment script, `results.csv`, chart
+- Homework: linear probing table, tests, comparison experiment
+- Report (PDF, at most 2 pages): interpretation, the agent's mistakes
+- A commit per step: **merge develop into main and push** before submitting
+- Anything not pushed is not submitted. Check on GitHub.
+
+</Slide>
+
+<Slide>
+
+### The human's part
+::sub[Fixed even in an assignment about AI]
+
+- **You edit** the AI's draft of `SPEC.md`.
+- **You write** the report.
+  - A reflection written by AI is not a reflection.
+- You may get a draft of the rules file, but you decide what goes in it.
+- Students who miss class do the same assignment with the same deadline.
+  - The article alone is enough to finish it.
+
+</Slide>
+
+<Slide>
+
+## Habits to take home
+
+1. Decide what to build **in a specification** first.
+2. Get **a plan** before code.
+3. Speak **in tests**, and say not to change them.
+4. Keep rules **in a rules file**.
+5. Check results **by running them**, and **commit** every step.
+
+</Slide>

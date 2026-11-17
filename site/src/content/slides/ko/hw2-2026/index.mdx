@@ -1,0 +1,856 @@
+---
+title: "과제2 · 에이전트와 함께 만드는 URL 단축기"
+description: "채팅에서 에이전트로: 명세, 계획, 테스트, 규칙 파일, 검증, 서비스까지 일곱 단계 실습"
+order: 150
+transition: none
+toc_level: 3
+toc_open: false
+---
+
+import Slide from 'stack-site-builder/components/Slide.astro';
+import Screenshot from '@components/Screenshot.astro';
+import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
+import IssueTabs from '@components/IssueTabs.astro';
+import AgentLoopDemo from '@components/AgentLoopDemo.astro';
+import Base62Demo from '@components/Base62Demo.astro';
+import ShortenerDemo from '@components/ShortenerDemo.astro';
+import ProxyLinkDemo from '@components/ProxyLinkDemo.astro';
+import StringHashDemo from '@components/StringHashDemo.astro';
+import LoadCostDemo from '@components/LoadCostDemo.astro';
+
+{/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
+    내용은 /article/hw2-2026/ 안내 글과 같아야 합니다.
+    실험 숫자는 hw2-sample-2026의 experiments/results.csv와 같아야 합니다. */}
+
+<Slide class="cover">
+
+# 과제2
+
+에이전트와 함께 만드는 URL 단축기
+
+*고급알고리즘*
+
+</Slide>
+
+<Slide>
+
+## 오늘 할 일
+::sub[채팅창에서 저장소 안으로]
+
+- AI를 **채팅창에서만** 쓰던 방식에서 한 걸음 나갑니다.
+- 같은 AI가 **저장소 안에서** 파일을 읽고, 고치고, 테스트를 돌리게 합니다.
+- 일곱 단계를 따라 URL 단축기를 만듭니다.
+- 마지막에는 **내 휴대폰**으로 짧은 링크를 열어 봅니다.
+
+</Slide>
+
+<Slide class="compact">
+
+## 채팅과 에이전트
+::sub[같은 AI, 다른 자리]
+
+| | 채팅 | 에이전트 |
+| --- | --- | --- |
+| 내 코드를 아는가 | 붙여 넣은 만큼만 | 저장소의 파일을 직접 읽음 |
+| 결과를 어디에 두나 | 내가 복사해서 붙여 넣음 | 파일을 직접 만들고 고침 |
+| 돌려 보는가 | 돌려 보지 않음 | 테스트를 돌리고 실패를 봄 |
+| 규칙을 기억하나 | 대화가 끝나면 잊음 | 규칙 파일을 매번 읽음 |
+
+</Slide>
+
+<Slide>
+
+### 같은 일을 두 방식으로
+::sub[결과는 같습니다. 세어 볼 것은 과정입니다]
+
+<AgentLoopDemo slide />
+
+</Slide>
+
+<Slide>
+
+## 내 일이 바뀝니다
+::sub[옮기는 사람에서 확인하는 사람으로]
+
+- **무엇을 만들지는 내가 정합니다.**
+  - 명세 초안은 AI가 써도, 고쳐서 정하는 것은 사람의 몫입니다.
+- **맞는지는 내가 확인합니다.**
+  - 에이전트는 그럴듯하게 틀립니다.
+  - 테스트와 실행 결과로 잡습니다.
+- **되돌릴 자리를 만들어 둡니다.**
+  - 단계마다 커밋하면 언제든 되돌릴 수 있습니다.
+
+</Slide>
+
+<Slide>
+
+## 시작하기
+::sub[과제용 시작 저장소를 복사해 내 저장소를 만듭니다]
+
+시작 저장소: [github.com/lec-algorithm/hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026)
+
+1. 위 저장소에서 **Use this template** → **Create a new repository**
+2. 이름은 `algorithms-hw2`, **Public**으로
+3. 내 저장소에서 **Code** → **Codespaces** → **Create codespace on main**
+4. Copilot 채팅 창을 열고 다음 장의 설정대로
+
+<br/>
+
+시작 저장소에는 정답이 없습니다.  
+옆에 정답이 있으면 에이전트가 그대로 베껴 옵니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 에이전트 설정
+::sub[입력창 아래 메뉴에서 맞춥니다]
+
+| 메뉴 | 고를 것 | 뜻 |
+| --- | --- | --- |
+| Agent mode | **Autopilot** | 권한 안에서 끝까지 진행 |
+| Permissions | **Assisted permissions** | 위험해 보이는 명령만 물음 |
+| 모델 (고를 수 있으면) | **Copilot Fusion** · Standard | 작업에 맞게 고르거나 섞음 |
+
+무료 플랜은 모델이 자동으로 정해집니다. 그대로 두면 됩니다.
+
+</Slide>
+
+<Slide>
+
+### 확인은 결과로 합니다
+::sub[허락 버튼에 기대지 않습니다]
+
+- Assisted는 **위험해 보이는 명령만** 묻습니다.
+- Autopilot은 말하지 않은 일까지 진행하기도 합니다.
+  - 그래서 요청마다 **범위를 분명히** 적습니다.
+- 무엇을 했는지는 **테스트, diff, 커밋**으로 확인합니다.
+- 지켜보고 싶으면 **Interactive**, 모두 직접 허락하고 싶으면 **Manual**
+
+</Slide>
+
+<Slide>
+
+### 무료 한도 안에서
+::sub[이 과제는 에이전트 요청 20회 안쪽으로 끝납니다]
+
+- **한 번에 하나만, 구체적으로** 시킵니다.
+  - 모호한 요청은 되묻는 데 한 번을 씁니다.
+- **실패 메시지는 그대로** 붙여 넣습니다.
+  - "안 돼요"보다 한 번에 고칩니다.
+- **간단한 수정은 직접** 합니다.
+  - 변수 이름 바꾸기에 요청을 쓰지 않습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+## 일곱 단계
+
+| 단계 | 하는 일 | 요청 |
+| --- | --- | --- |
+| 0 | 이슈와 git 준비 | 1 |
+| 1 | 채팅과 에이전트를 나란히 | 2 |
+| 2 | 명세는 AI가 쓰고 내가 고친다 | 2 |
+| 3 | 코드보다 계획을 먼저 | 1\~2 |
+| 4 | 테스트를 먼저, 구현은 에이전트가 | 3\~5 |
+| 5 | 규칙은 파일로 준다 | 2\~3 |
+| 6 | 결과는 직접 검증한다 | 2\~3 |
+| 7 | 서비스로 띄운다 | 2\~3 |
+| 과제 | 선형 탐지 구현과 비교 | 직접 |
+
+</Slide>
+
+<Slide class="center">
+
+## 0단계
+
+이슈와 git 준비
+
+</Slide>
+
+<Slide class="compact">
+
+### 단계마다 이슈 하나
+::sub[1단계 전에 이슈 8개(단계 7개와 과제)를 만듭니다]
+
+<Screenshot src={issueList} alt="GitHub 저장소 algorithms-hw2의 Issues 탭. 열린 이슈가 0개이고 오른쪽 위에 New issue 버튼이 있다" maxHeight="52vh" />
+
+- 내 저장소의 **Issues** 탭 → **New issue**
+- 에이전트가 진행 상황을 **이슈 댓글**로 남기고, 끝나면 이슈를 닫습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 이슈 만들기
+::sub[제목과 내용은 다음 장의 이슈 목록에서 복사합니다]
+
+<Screenshot src={issueNew} alt="Create new issue 화면. 제목 Spec 작성하기, 설명 Spec md를 토대로 스펙 작성해보기" maxHeight="52vh" />
+
+- 1단계부터 차례로 만들면 **이슈 번호 = 단계 번호**
+- 다르면 요청 예시의 이슈 번호를 본인 번호로 바꿉니다.
+
+</Slide>
+
+<Slide>
+
+### 이슈 목록
+::sub[1단계부터 과제까지 차례로 8개를 모두 만듭니다]
+
+<IssueTabs slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### git도 에이전트에게
+::sub[명령어로도, 소스 제어 화면으로도 되지만 오늘은 에이전트로 관리합니다]
+
+```text
+이 저장소는 git flow로 관리하자.
+먼저 main에서 develop 브랜치를 만들어 줘.
+단계마다 GitHub 이슈를 하나씩 만들어 두었어. 이슈 번호는 단계 번호와 같아.
+단계마다 develop에서 feature/<이슈번호>-<짧은 이름> 브랜치를 따서 작업하고,
+작업하면서 그 이슈에 진행 상황을 댓글로 남겨 줘.
+단계가 끝나면 커밋하고 develop에 머지한 뒤 이슈를 닫아 줘.
+커밋 메시지는 "Step N: 한 일 (#이슈번호)" 형식으로 써 줘.
+커밋하고 머지할 때마다 GitHub에도 push해 줘.
+```
+
+- 시작할 때 **한 번만** 시킵니다.
+- 브랜치를 만들고, 커밋하고, 머지하는 일을 에이전트가 합니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 결정은 내가 합니다
+::sub[Assisted는 위험해 보이는 명령만 멈추고 묻습니다]
+
+<Screenshot src={assistedPush} alt="Copilot 채팅에 뜬 확인 창. Run in terminal: Publish the develop branch to GitHub, 명령 git push -u origin develop, 이유 Publishing develop itself was not specifically authorized, 버튼 Allow Once·Skip·Explain" maxHeight="40vh" />
+
+- **Allow Once**: 이번 한 번만 허락
+- **Skip**: 실행하지 않음
+- **Explain**: 무엇을 하려는지 먼저 설명을 들음. 모르는 명령이면 이것부터
+
+</Slide>
+
+<Slide>
+
+### 왜 push에서 멈췄나
+::sub[내 Codespace 밖으로 나가는 일이기 때문입니다]
+
+- develop 브랜치를 **만드는 일은 묻지 않았습니다.** Codespace 안의 일입니다.
+- GitHub로 **push하는 일은 멈추고 물었습니다.** 밖으로 나가 되돌리기 어렵습니다.
+- 이유도 적어 줍니다: "develop을 올리라고는 따로 말하지 않았다"
+  - 에이전트는 **내 요청을 기준으로** 범위를 따집니다.
+- 묻지 않고 실행한 명령도 채팅에 남습니다. 무엇을 돌렸는지 읽어 봅니다.
+
+</Slide>
+
+<Slide>
+
+### 단계마다 같은 리듬
+::sub[이슈 → 요청 → 확인 → 커밋 → 기록]
+
+| | 누가 | 어떻게 |
+| --- | --- | --- |
+| 이슈 | 나 | GitHub에서 단계마다 하나 |
+| 요청 | 나 | 단계와 이슈 번호, 범위를 분명히 적어서 |
+| 확인 | 나 | 테스트, diff |
+| 커밋 | 에이전트 | 요청 예시의 마지막 줄 "끝나면 커밋하고 develop에 머지한 뒤 push해 줘" |
+| 기록 | 에이전트·나 | 이슈 댓글: 에이전트는 진행 상황, 나는 확인한 것 |
+
+<br/>
+
+커밋은 **되돌릴 자리**입니다. 무엇이 들어갔는지 `git log`로 확인합니다.  
+제출 전에는 develop을 **main에 머지하고 push**하게 합니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 1단계
+
+채팅과 에이전트를 나란히
+
+</Slide>
+
+<Slide class="compact">
+
+### 먼저 채팅 방식
+::sub[브라우저의 채팅 AI (ChatGPT, Gemini 등)]
+
+```text
+Python으로 base62 encode/decode 함수 만들어 줘
+```
+
+- 답을 복사해 `src/base62.py`에 붙여 넣습니다.
+- 돌려 볼 방법은 **직접** 찾습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 이번에는 에이전트
+::sub[Codespace의 Copilot 채팅 · 붙여 넣은 파일은 지우고]
+
+```text
+1단계야. 이슈 #1 작업이야.
+src/base62.py에 encode(n)과 decode(s)를 만들어 줘.
+encode(n)은 0 이상의 정수를 0-9, a-z, A-Z 순서의 62진법 문자열로 바꾸고,
+decode(s)는 그 역변환이야.
+tests/test_base62.py에 unittest로 테스트를 만들고,
+터미널에서 make test로 돌려서 통과하는지 보여 줘.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- 파일을 만들고, 테스트를 돌리고, 실패하면 고칩니다.
+- **어디에, 무엇을, 어떻게 확인할지**를 요청에 다 넣었습니다.
+
+</Slide>
+
+<Slide>
+
+### base62는 62로 나누기
+::sub[0을 넣어 보세요]
+
+<Base62Demo slide />
+
+</Slide>
+
+<Slide>
+
+### 1단계에서 확인할 것
+
+- `encode(0)`은 무엇을 돌려주나요?
+- 두 방식의 글자 순서가 같았나요?
+  - 말하지 않으면 AI가 마음대로 정합니다.
+- 두 방식에서 **내가 손으로 한 일**은 각각 무엇이었나요?
+  - 이슈 #1에 댓글로 남깁니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 2단계
+
+AI가 초안, 내가 편집
+
+</Slide>
+
+<Slide class="compact">
+
+### 초안은 AI가
+::sub[명세 초안만 받습니다 · 코드는 아직]
+
+```text
+2단계야. 이슈 #2 작업이야.
+#SPEC.md 틀을 채워서 우리가 만들 URL 단축 서비스의 명세 초안을 써 줘.
+저장은 직접 구현한 해시 테이블(개별 체이닝, 호너 해시)로 하고,
+dict, set, 내장 hash()는 쓰지 마.
+초안만 쓰고 코드는 쓰지 마.
+커밋은 내가 고친 뒤에 하자.
+```
+
+- `#SPEC.md`처럼 `#`을 붙이면 파일이 요청에 붙습니다.
+
+</Slide>
+
+<Slide>
+
+### 결정은 내가
+::sub[초안을 읽고 직접 고칩니다]
+
+- **해시 테이블**: 충돌은? 해시 함수는? 언제 늘리나?
+- **단축기**: 같은 URL을 두 번 넣으면? 없는 코드는?
+- **잘못된 입력**: `ftp://`, 공백, 아주 긴 주소는?
+- **웹 화면**: API만 있나, 브라우저에서 쓸 화면도 있나?
+- **경계 사례**: 4단계의 테스트가 됩니다. 빠진 것을 더합니다.
+
+<br/>
+
+AI가 빈칸을 마음대로 채운 곳을 찾아 고치는 것이 이 단계의 일입니다.  
+무엇을 고쳤는지는 이슈 #2에 댓글로 남깁니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 고친 뒤 커밋
+
+```text
+2단계 이어서야. 이슈 #2 작업이야.
+SPEC.md를 내가 고쳤어.
+커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- 요청 예시는 모두 첫 줄에 **단계와 이슈 번호**, 마지막 줄에 **커밋 문장**이 있습니다.
+
+</Slide>
+
+<Slide>
+
+### 이 과제에서 정해 둔 것
+::sub[해시 테이블을 직접 만드는 과제입니다]
+
+- 충돌은 **개별 체이닝**(연결 리스트), 해시는 주제 08의 **호너 방식**
+- **선형 탐지**는 수업 뒤 과제에서 만들어 비교합니다.
+- Python의 `dict`, `set`, 내장 `hash()`는 쓰지 않습니다.
+- 내장 `hash()`는 실행할 때마다 문자열의 해시값이 바뀝니다.
+  - 6단계의 실험을 다시 돌리면 다른 숫자가 나옵니다.
+
+</Slide>
+
+<Slide>
+
+### 호너 해시 복습
+::sub[h ← (31 · h + 글자 코드) mod M]
+
+<StringHashDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 3단계
+
+코드보다 계획을 먼저
+
+</Slide>
+
+<Slide class="compact">
+
+### 계획만 받습니다
+
+```text
+3단계야. 이슈 #3 작업이야.
+SPEC.md를 읽고 구현 계획을 단계별로 세워서 PLAN.md에 저장해 줘.
+아직 코드는 쓰지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- Agent mode를 **Plan**으로 바꿔서 시켜도 됩니다. 끝나면 Autopilot으로 돌아옵니다.
+- 계획에서 고친 것은 코드에서 고치는 것보다 훨씬 쌉니다.
+
+</Slide>
+
+<Slide>
+
+### 계획에서 자주 잡는 것
+
+- URL→코드 저장에 **`dict`** 를 쓰겠다고 합니다.
+  - 명세 위반입니다.
+- 코드를 **URL의 해시값**으로 만들겠다고 합니다.
+  - 서로 다른 URL이 같은 코드를 받을 수 있습니다.
+  - 일련번호를 base62로 바꾸면 겹치지 않습니다.
+- 테스트를 **맨 마지막**에 쓰겠다고 합니다.
+  - 순서를 바꿉니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 4단계
+
+테스트를 먼저, 구현은 에이전트가
+
+</Slide>
+
+<Slide class="compact">
+
+### 테스트만 먼저
+
+```text
+4단계야. 이슈 #4 작업이야.
+SPEC.md 6절의 경계 사례를 unittest로 옮겨 줘.
+파일은 tests/test_hash_table.py와 tests/test_shortener.py야.
+구현은 아직 하지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- 테스트를 **읽습니다.** 경계 사례가 빠짐없이 들어갔나요?
+- 빠진 것은 직접 더하고 커밋합니다.
+- 지금 `make test`가 실패하는 것은 정상입니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 그다음 구현
+
+```text
+4단계 이어서야. 이슈 #4 작업이야.
+PLAN.md 순서대로 src/hash_table.py와 src/shortener.py를 구현하고,
+make test가 모두 통과할 때까지 고쳐 줘.
+테스트는 고치지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- **"테스트는 고치지 마"가 중요합니다.**
+  - 없으면 통과하지 못하는 테스트를 슬쩍 고쳐 놓기도 합니다.
+- 끝나면 diff를 읽고 커밋합니다.
+
+</Slide>
+
+<Slide>
+
+### 안에서 일어나는 일
+::sub[URL은 호너 해시로 자리를 찾고, 코드는 일련번호입니다]
+
+<ShortenerDemo slide />
+
+</Slide>
+
+<Slide class="center">
+
+## 5단계
+
+규칙은 파일로
+
+</Slide>
+
+<Slide class="compact">
+
+### 명세를 지켰나요
+
+```sh
+grep -n "dict\|set(\|hash(" src/*.py
+```
+
+- 명세에 적었어도 에이전트가 `SPEC.md`를 읽지 않으면 소용이 없습니다.
+- 에이전트는 **그때그때 필요해 보이는 파일**만 읽습니다.
+
+</Slide>
+
+<Slide>
+
+### 매번 읽는 파일이 있습니다
+::sub[.github/copilot-instructions.md]
+
+| 파일 | 에이전트가 읽는 때 |
+| --- | --- |
+| `SPEC.md` | 필요해 보일 때, 또는 시켰을 때 |
+| `.github/copilot-instructions.md` | **요청할 때마다 항상** |
+
+<br/>
+
+저장소의 규칙은 규칙 파일에 둡니다.  
+개인프로젝트 저장소에도 하나 만들어 두면 좋습니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 규칙 파일 예시
+::sub[직접 씁니다]
+
+```md
+# 이 저장소에서 일하는 에이전트에게
+
+- 코드를 쓰기 전에 SPEC.md를 읽는다.
+- src/ 안에서 dict, set, 내장 hash()를 쓰지 않는다. 해시 테이블은 직접 만든 것을 쓴다.
+- 코드를 고친 뒤에는 make test를 돌리고 결과를 보여 준다.
+- 테스트가 실패하면 테스트가 아니라 코드를 고친다.
+- 이슈마다 develop에서 feature/<이슈번호>-<이름> 브랜치를 따서 작업하고, 진행은 이슈 댓글로 남긴다.
+- 끝나면 커밋하고 develop에 머지한 뒤 push하고, 이슈를 닫는다.
+- 나는 1학년이다. 무엇을 바꿨는지 세 줄 이내로 요약한다.
+```
+
+- 처음에 채팅으로 시킨 git 규칙도 옮겨 둡니다. 새 채팅은 이전 대화를 모릅니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 새 채팅에서 검사
+
+```text
+5단계야. 이슈 #5 작업이야.
+src/ 안의 코드가 이 저장소의 규칙을 지키는지 검사하고,
+어긴 곳이 있으면 고쳐 줘.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- 새 채팅이어도 규칙 파일은 읽습니다.
+- 어떤 규칙이 효과를 냈는지 이슈 #5에 댓글로 남깁니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 6단계
+
+결과는 직접 검증
+
+</Slide>
+
+<Slide class="compact">
+
+### 통과했다고 좋은 테이블은 아닙니다
+::sub[적재율에 따라 비교하는 노드 수가 어떻게 바뀌는지 잽니다]
+
+```text
+6단계야. 이슈 #6 작업이야.
+experiments/probe_experiment.py를 만들어 줘.
+칸 수를 4093으로 고정한 HashTable(max_load=None)에 무작위 URL을 넣고,
+적재율을 0.25부터 4까지 바꿔 가며,
+성공 탐색과 실패 탐색에서 비교한 노드 수의 평균을 재 줘.
+그 값을 주제 08의 이론값과 표로 비교해 줘.
+성공 ≈ 1 + α/2, 실패 ≈ α
+결과는 experiments/results.csv와 SVG 그래프로 저장해 줘.
+외부 라이브러리는 쓰지 마.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+</Slide>
+
+<Slide>
+
+### 이론은 이렇습니다
+::sub[주제 08 · 체이닝은 적재율에 비례해 완만하게 늘어납니다]
+
+<LoadCostDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### 샘플 저장소에서 잰 값
+::sub[M = 4093, 무작위 URL, 실패 탐색 2000회]
+
+| 적재율 | 성공 (실험) | 성공 (이론) | 실패 (실험) | 실패 (이론) |
+| --- | --- | --- | --- | --- |
+| 0.5 | 1.24 | 1.25 | 0.47 | 0.50 |
+| 1 | 1.51 | 1.50 | 1.01 | 1.00 |
+| 2 | 2.01 | 2.00 | 1.98 | 2.00 |
+| 4 | 3.00 | 3.00 | 3.99 | 4.00 |
+
+- 적재율이 4가 되어도 이론과 잘 맞습니다.
+- 선형 탐지는 적재율 1을 넘을 수 없습니다. 어떻게 다른지는 과제에서 잽니다.
+
+</Slide>
+
+<Slide>
+
+### 숫자를 직접 판단합니다
+
+- 적재율 1에서 성공 1.5, 실패 1 근처인가요?
+- 크게 어긋나면 원인을 찾습니다.
+  - 빈 칸에서 찾을 때를 1로 세지 않았나요?
+  - 해시 함수가 명세와 다르지 않나요?
+- 그래프의 축 이름과 범례가 읽히나요?
+
+</Slide>
+
+<Slide class="center">
+
+## 7단계
+
+서비스로 띄우기
+
+</Slide>
+
+<Slide class="compact">
+
+### 웹 서버 붙이기
+
+```text
+7단계야. 이슈 #7 작업이야.
+src/server.py에 단축 URL 웹 서비스를 만들어 줘.
+브라우저에서 / 에 들어가면 URL을 넣는 폼이 나오고,
+줄이기를 누르면 짧은 링크를 보여 주는 화면이 나와야 해.
+짧은 링크를 열면 원래 주소로 이동해야 해.
+/table 에서는 현재 해시 테이블을 보여 줘.
+칸마다 연결 리스트의 노드(URL 키, 짧은 코드, 짧은 링크)를 화살표로 잇고,
+노드마다 호너 해시 계산 과정을 펼쳐 볼 수 있게 해 줘.
+표준 모듈 http.server만 쓰고, make serve로 포트 8000에서 뜨게 해 줘.
+끝나면 커밋하고 develop에 머지한 뒤 push해 줘.
+```
+
+- `make serve`로 띄웁니다.
+- 아래쪽 패널의 **포트** 탭에 8000번이 나타납니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 해시 테이블도 화면에
+::sub[/table · 칸마다 연결 리스트, 끝은 NULL]
+
+<Screenshot src={hashViewChain} alt="현재 해시 테이블 화면. 칸마다 체인 길이와, URL 키·짧은 코드·짧은 링크가 담긴 노드가 화살표로 이어지고 끝에 NULL이 붙는다" maxHeight="58vh" />
+
+- 같은 칸에 떨어진 URL이 연결 리스트로 이어지는지 눈으로 확인합니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 왜 그 칸인지도
+::sub[노드를 펼치면 호너 해시 계산 근거]
+
+<Screenshot src={hashViewTrace} alt="노드의 해시 계산을 펼친 모습. 글자마다 (h * 31 + ord(글자)) % 16 계산이 이어져 마지막 값 5가 칸 번호가 된다" maxHeight="40vh" />
+
+- 주제 08의 h ← (31·h + 글자 코드) mod M을 글자마다 적습니다.
+- 마지막 값이 그 URL이 들어간 칸 번호입니다.
+
+</Slide>
+
+<Slide>
+
+### 휴대폰으로 열기
+
+1. **포트** 탭에서 8000번 줄을 오른쪽 클릭
+2. **Port Visibility** → **Public**
+3. **Forwarded Address**를 휴대폰으로 엽니다.
+4. 긴 URL을 넣고, 받은 짧은 링크를 눌러 봅니다.
+
+</Slide>
+
+<Slide>
+
+### 짧은 링크가 열리지 않는다면
+::sub[에이전트가 프록시를 몰랐을 수 있습니다]
+
+<ProxyLinkDemo slide />
+
+</Slide>
+
+<Slide>
+
+### Public 포트는 누구나 엽니다
+
+- 인터넷의 누구나 주소만 알면 열 수 있습니다.
+- 확인이 끝나면 `Ctrl+C`로 서버를 끕니다.
+- 포트를 다시 **Private**으로 돌립니다.
+  - Codespace를 다시 시작해도 Private으로 돌아갑니다.
+
+</Slide>
+
+<Slide class="center">
+
+## 과제
+
+선형 탐지 구현과 비교
+
+</Slide>
+
+<Slide>
+
+### 같은 단축기, 다른 충돌 처리
+::sub[수업은 개별 체이닝, 과제는 선형 탐지]
+
+1. **선형 탐지 테이블**: `HashTable`과 같은 인터페이스로
+2. **테스트**: 끝 칸에서 0번 칸으로 넘어가기, 가득 찬 테이블까지
+3. **바꿔 끼우기**: 단축기 테스트가 두 테이블 모두에서 통과
+4. **비교 실험**: 같은 키, 같은 크기, 적재율 0.1부터 0.9까지
+5. **화면**: `/table`에 선형 탐지 테이블도, 들여다본 칸과 계산 근거까지
+
+<br/>
+
+이슈 #8(이슈 목록의 과제 탭)로 수업과 같은 방식으로 진행합니다.
+
+</Slide>
+
+<Slide>
+
+### 선형 탐지로 바꾸면
+::sub[같은 URL을 같은 크기의 테이블에 넣어 봅니다]
+
+<ShortenerDemo mode="probe" slide />
+
+</Slide>
+
+<Slide class="compact">
+
+### 비교할 것
+::sub[체이닝은 비교한 노드 수, 선형 탐지는 들여다본 칸 수]
+
+| 방식 | 성공 탐색 | 실패 탐색 |
+| --- | --- | --- |
+| 개별 체이닝 | 약 1 + α/2 | 약 α |
+| 선형 탐지 | 약 (1 + 1/(1-α))/2 | 약 (1 + 1/(1-α)²)/2 |
+
+- 실험값과 이론값을 한 그래프에 그립니다.
+- 적재율이 1에 가까워질 때 두 방식이 어떻게 갈라지는지 봅니다.
+
+</Slide>
+
+<Slide>
+
+### 보고서
+::sub[PDF 2쪽 이내 · 첫 장 맨 위에 저장소 URL]
+
+- 두 방식을 어떻게 구현했는지 (짧게)
+- 실험 조건과 결과 그래프
+- 해석: 선형 탐지가 1 근처에서 급격히 나빠지는 이유
+- 에이전트가 틀린 곳 한두 개와 어떻게 잡았는지
+
+</Slide>
+
+<Slide class="center">
+
+## 마무리
+
+</Slide>
+
+<Slide class="compact">
+
+### 놓친 단계 따라잡기
+::sub[지금까지를 커밋하고, 단계 번호를 줍니다]
+
+```sh
+git add -A && git commit -m "WIP"
+sh tools/catchup.sh 4
+```
+
+- 샘플 저장소의 `step-4` 상태로 코드를 맞춥니다.
+- 따라잡은 단계는 그 이슈에 "따라잡음"이라고 댓글을 남깁니다.
+
+</Slide>
+
+<Slide class="compact">
+
+### 제출
+::sub[11월 29일 23:59 · 저장소 URL + 보고서 (PDF)]
+
+- `SPEC.md`: AI 초안을 직접 고친 것
+- `src/`, `tests/`: 해시 테이블, 단축기, 서버와 테스트
+- `experiments/`: 실험 스크립트, `results.csv`, 그래프
+- 과제: 선형 탐지 테이블과 테스트, 두 방식 비교 실험
+- 보고서 (PDF 2쪽 이내): 비교 결과 해석, 에이전트가 틀린 곳
+- 단계별 커밋 이력: 제출 전에 develop을 **main에 머지하고 push**
+- push하지 않은 것은 제출되지 않습니다. GitHub 화면에서 확인합니다.
+
+</Slide>
+
+<Slide>
+
+### 사람이 맡는 몫
+::sub[AI를 쓰는 과제여도 정해져 있습니다]
+
+- `SPEC.md`는 AI 초안을 **직접 고칩니다.**
+- 보고서는 **직접 씁니다.**
+  - AI가 쓴 회고는 회고가 아닙니다.
+- 규칙 파일은 초안을 받아도 되지만, 무엇을 넣을지는 내가 정합니다.
+- 수업에 오지 못한 학생도 같은 과제, 같은 마감입니다.
+  - 안내 글만 보고 끝까지 할 수 있습니다.
+
+</Slide>
+
+<Slide>
+
+## 오늘 가져갈 습관
+
+1. 무엇을 만들지는 **명세로** 먼저 정한다.
+2. 코드보다 **계획을** 먼저 받는다.
+3. **테스트로** 말하고, 테스트는 고치지 말라고 한다.
+4. 규칙은 **규칙 파일에** 둔다.
+5. 결과는 **실행해서** 확인하고, 단계마다 **커밋**한다.
+
+</Slide>

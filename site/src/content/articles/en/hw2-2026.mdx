@@ -1,0 +1,519 @@
+---
+title: Assignment 2 · Building a URL shortener with an agent
+description: Move past asking a chat window and pasting the answer. Let an agent inside your Codespace read the repository, edit files and run the tests. We start together in class on November 20; submit by November 29
+date: 2026-11-20
+category: assignment
+tags: ["Assignment 2", "Submission", "Agent", "Hashing"]
+---
+
+import { Image } from 'astro:assets';
+import assistedPush from '@assets/slides/hw2-2026/assisted-push.png';
+import issueList from '@assets/slides/hw2-2026/issue-list.png';
+import issueNew from '@assets/slides/hw2-2026/issue-new.png';
+import hashViewChain from '@assets/slides/hw2-2026/hash-view-chain.png';
+import hashViewTrace from '@assets/slides/hw2-2026/hash-view-trace.png';
+import IssueTabs from '@components/IssueTabs.astro';
+import ShortenerDemo from '@components/ShortenerDemo.astro';
+
+If you only use AI in a chat window, this assignment is the next step.
+The same AI can do much more **when it works inside your repository**.
+You learn how by building one URL shortener.
+
+| Item | Details |
+| --- | --- |
+| Class | November 20, 2026, after the graph lecture, we follow along together |
+| Deadline | November 29, 2026, 23:59 |
+| What you hand in | Repository URL + report (PDF) |
+| Starter repository | [hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026) |
+| Slides | [Assignment 2 lab slides](/slides/hw2-2026/) |
+
+Students who miss the class hand in **the same assignment**. This page is written so
+you can follow it to the end on your own. See [If you missed the class](#absent).
+
+## What the assignment is about \{#what}
+
+Chat and agent use the same AI, but they work in different places.
+
+| | Chat | Agent |
+| --- | --- | --- |
+| Does it know my code | Only what I paste in | Reads the files in the repository itself |
+| Where does the result go | I copy the answer and paste it | It creates and edits files itself |
+| Does it run anything | No | Runs the tests in the terminal and reads the failures |
+| Does it remember rules | Forgets when the conversation ends | Reads the rules file every time |
+
+The more the agent can do, the clearer the human's part becomes.
+
+- **I decide what to build.** The AI may draft the specification, but editing it and deciding is the human's job.
+- **I check that it is right.** Agents are wrong in convincing ways. Tests and real runs catch it.
+- **I leave points to go back to.** Committing after every step means anything the agent breaks can be undone.
+
+You build a URL shortener on top of the hash table from [Topic 08](/course/topic-08-hashing/).
+In class it uses separate chaining; the homework adds linear probing and compares the two.
+Give it a long URL and it returns a short code such as `1`, `2`, `3`; open that code and
+it sends you to the original address. At the end you run the server in your Codespace
+and **open the short link on your own phone.**
+
+## Before class \{#prepare}
+
+Do these three things before class. Doing them in class costs ten minutes of waiting.
+
+1. A laptop where you can **sign in to GitHub**. Bring a phone too.
+2. **Turn on Copilot Free** at [github.com/settings/copilot](https://github.com/settings/copilot). It is free and needs no payment details.
+3. **Open a Codespace once**: follow [Setting up the lab environment](/article/setup-guide/) and open a Codespace on `algorithm-code`. The first one takes a few minutes.
+
+### Free allowance \{#quota}
+
+Copilot Free limits how much you can use chat and the agent. Completions are counted
+separately, 2,000 per month. This assignment is designed to fit in **about 20 agent
+requests**. Some ways to save them:
+
+- Ask for one thing at a time, and say exactly what you want. A vague request spends one turn on a clarifying question.
+- Paste the failure message as it is. It gets fixed in one go, unlike "it doesn't work."
+- Make small edits yourself. Do not spend a request on renaming a variable.
+
+Verified students can get the Copilot Student plan through GitHub Education. Its
+availability changes, so check [GitHub Education](https://education.github.com/).
+**You can finish the assignment without it.**
+
+## Getting started \{#start}
+
+1. On [hw2-starter-2026](https://github.com/lec-algorithm/hw2-starter-2026), click **Use this template** → **Create a new repository**
+2. Name it something like `algorithms-hw2` and make it **Public**.
+3. In **your new repository**, click **Code** → **Codespaces** → **Create codespace on main**
+4. Open the chat with the Copilot icon in the side bar or the title bar.
+5. Set the menus under the input box as in [Agent settings](#agent-settings).
+
+The starter repository has no solution in it. The agent reads the files in the
+workspace, so if a solution sat next to it, it would copy that and you would learn nothing.
+
+| File | Purpose |
+| --- | --- |
+| `SPEC.md` | Specification template. The agent drafts it and you edit it |
+| `src/` · `tests/` · `experiments/` | Empty |
+| `tools/catchup.sh` | Catch up on a missed step |
+| `Makefile` | `make test` · `make serve` · `make experiment` |
+
+### Agent settings \{#agent-settings}
+
+Set three things in the menus under the input box.
+
+| Menu | Choose | Meaning |
+| --- | --- | --- |
+| Agent mode | **Autopilot** | Carries on to the end by itself, within its permissions |
+| Permissions | **Assisted permissions** | Weighs the risk and asks only about risky commands |
+| Model | **Copilot Fusion** (Standard) | Picks or combines models to fit the task |
+
+**You check results, not approval prompts.**
+
+- With Assisted, most commands run without asking. When it does ask, read what it wants to do and decide.
+- Autopilot sometimes goes further than you asked, so state the scope of every request.
+  Sentences such as "do not implement anything yet" and "do not change the tests" do that job.
+- Check what the agent did with tests, diffs and commits.
+
+To watch each step, switch the agent mode to **Interactive**; to approve every command yourself,
+switch permissions to **Manual**. The **Plan** agent mode is available for step 3. The free plan
+cannot choose a model; it is picked automatically, so leave it as it is.
+
+## Seven steps \{#steps}
+
+Each step repeats **issue → request → check → commit → log**.
+
+### Step 0. Issues and git setup \{#step-0}
+
+Before step 1, prepare two things: create eight issues (seven steps and the homework), and hand git over to the agent.
+
+#### Create the eight issues \{#issues}
+
+First create all eight issues in your repository on GitHub: seven steps and the homework. Each issue pairs with one step and one
+feature branch. The agent posts progress comments on that issue while it works and closes it at the end.
+
+1. On the **Issues** tab at the top of your repository, click **New issue**.
+
+<Image src={issueList} alt="Issues tab of the algorithms-hw2 repository on GitHub, with no open issues and a New issue button at the top right" />
+
+2. Pick step 1 in the issue list below, copy its title and description, paste them in and create the issue. Repeat in order up to the Homework tab.
+
+<Image src={issueNew} alt="Create new issue page with the step name as the title and a one-line task as the description" />
+
+<IssueTabs />
+
+- Create them in order from step 1, and issue numbers match step numbers. The example requests assume that.
+- If yours differ, change the issue number in the example requests to yours.
+
+#### Hand git over to the agent \{#git}
+
+You could commit with git commands or with VS Code's Source Control view. This time
+**git is the agent's job too.** At the start, ask once:
+
+```text
+Let us manage this repository with git flow.
+First create a develop branch from main.
+I have opened one GitHub issue per step, numbered the same as the step.
+For each step, branch feature/<issue-number>-<short-name> off develop and work there,
+and leave progress comments on that issue as you go.
+When the step is done, commit, merge it into develop and close the issue.
+Write commit messages as "Step N: what was done (#issue-number)".
+Push to GitHub every time you commit or merge.
+```
+
+- Each example request below starts with **the step and issue number** and ends with **"When done, commit, merge into develop and push."**
+  Copy it as is and the branch and commit come along. The issue number tells the agent where to comment
+  and which branch to create.
+- Keep going in **the same chat** where you set up git. Do not switch chats until step 5 opens a new one.
+- A commit is a point to go back to. After the agent commits, check what went in with the Source Control view or `git log`.
+- Before submitting, have it merge develop into main and push. Grading uses main on GitHub.
+
+The first push may stop and ask, as below. Creating the branch went ahead without asking, but
+sending work out to GitHub is judged risky, so it asks and gives a reason.
+
+<Image src={assistedPush} alt="Approval box in the Copilot chat: Run in terminal: Publish the develop branch to GitHub, command git push -u origin develop, reason Publishing develop itself was not specifically authorized, buttons Allow Once, Skip, Explain" />
+
+- **Allow Once**: allows it just this once.
+- **Skip**: does not run it.
+- **Explain**: explains what it is about to do first. Start here if you do not know the command.
+
+The agent judges the scope against what you asked. This box came from its judgment that
+publishing develop itself was not specifically requested.
+
+Leave what you checked and where the agent went wrong **as your own comments** on that step's issue. The agent's
+progress comments and yours end up in one issue, ready for the report. You can use the example requests below as they are or rewrite them.
+
+### Step 1. Chat and agent side by side \{#step-1}
+
+Build the same feature both ways and see the difference. The feature is base62
+encoding, which turns an integer into short text: base 62 written with the 62
+characters `0-9`, `a-z`, `A-Z`.
+
+First the **chat way**. Ask the **chat AI you usually use in the browser** (ChatGPT, Gemini and so on):
+
+```text
+Write base62 encode/decode functions in Python
+```
+
+Copy the answer into `src/base62.py` and work out for yourself how to run it.
+
+Now ask in the **Copilot chat in your Codespace**. Delete the pasted file and ask:
+
+```text
+This is step 1, issue #1.
+In src/base62.py, write encode(n) and decode(s).
+encode(n) turns an integer n >= 0 into a base-62 string using 0-9, a-z, A-Z in that order,
+and decode(s) is its inverse.
+Write unittest tests in tests/test_base62.py,
+then run make test in the terminal and show me that they pass.
+When done, commit, merge into develop and push.
+```
+
+The agent creates files, runs the tests in the terminal, and fixes failures. With Assisted
+permissions it asks only before commands that look risky, like the push shown earlier. **You are the one who decides.**
+When it asks, read and decide; for commands it ran without asking, read the record in the chat.
+
+What to check
+
+- What does `encode(0)` return? An empty string is a common bug.
+- Did the chat answer and the agent answer use the same character order? If you do not say, the AI picks one.
+- What did you do by hand in each approach? Leave it as a comment on issue #1. It goes into the report.
+
+### Step 2. The AI drafts the specification, I edit it \{#step-2}
+
+As step 1 showed, whatever you leave out the AI decides for you. The same goes for the
+specification. Get a draft from the agent, and **decide what to build by editing it yourself.**
+
+```text
+This is step 2, issue #2.
+Fill in the #SPEC.md template with a draft specification of the URL shortener we are building.
+Store data in a hash table we implement ourselves (separate chaining, Horner hash),
+and do not use dict, set or the built-in hash().
+Write only the draft, no code.
+We will commit after I edit it.
+```
+
+Writing `#SPEC.md` with a `#` attaches that file to the request. Check that the file shows up as a chip in the input box.
+
+When the draft arrives, read how it answers each question below and edit anything that differs from what you want.
+Delete the `TEMPLATE:` line at the top if it is still there.
+
+- **Hash table**: how are collisions resolved? What is the hash function? When does the table grow?
+- **Shortener**: does the same URL get the same code twice? Is an unknown code an error or `None`?
+- **Bad input**: what happens to an address starting with `ftp://`, one with a space, a very long one?
+- **Web page**: is there a page in the browser to enter a URL and get a short link? With an API alone you cannot use it on a phone in step 7.
+- **Edge cases**: list everything to turn into tests. This list becomes the tests in step 4.
+
+Decide that the hash table uses **separate chaining** (a linked list per slot) and the **Horner hash** from Topic 08,
+and does not use Python's `dict`, `set` or built-in `hash()`. The point is to build the hash table yourself.
+**Linear probing** comes in the [homework](#homework), where you build it and compare. The built-in `hash()` gives strings a different value
+on every run, so rerunning the step 6 experiment would give different numbers.
+
+This step is about finding where the AI filled in blanks on its own and fixing them. Leave what
+you changed as a comment on issue #2. When you are done editing, ask for the commit.
+
+```text
+Step 2, continued (issue #2).
+I have edited SPEC.md.
+Commit it, merge into develop and push.
+```
+
+### Step 3. A plan before code \{#step-3}
+
+Do not say "build it" right away. Get a plan first and review it.
+
+```text
+This is step 3, issue #3.
+Read SPEC.md, write a step-by-step implementation plan and save it to PLAN.md.
+Do not write any code yet.
+When done, commit, merge into develop and push.
+```
+
+You may switch the agent mode to **Plan** for this. Plan shows the plan first and runs only
+after you approve. Either way, have the plan saved to `PLAN.md`, and switch back to
+**Autopilot** afterwards.
+
+Read `PLAN.md`, find where it disagrees with the specification, and fix it yourself.
+These come up often:
+
+- It plans to store URL→code in a `dict`. That breaks the specification.
+- It plans to make the code a hash of the URL. Then two different URLs can get the same code.
+- It plans to write the tests last. Change the order.
+
+Fixing the plan is much cheaper than fixing the code.
+
+### Step 4. Tests first, implementation by the agent \{#step-4}
+
+Ask for the tests only.
+
+```text
+This is step 4, issue #4.
+Turn the edge cases in section 6 of SPEC.md into unittest tests.
+Put them in tests/test_hash_table.py and tests/test_shortener.py.
+Do not implement anything yet.
+When done, commit, merge into develop and push.
+```
+
+**Read** the tests. Check that every edge case from the specification is there and that
+the expected values are right. Add whatever is missing yourself and commit. `make test`
+fails at this point, which is expected: there is no implementation yet.
+
+Then ask for the implementation.
+
+```text
+Step 4, continued (issue #4).
+Implement src/hash_table.py and src/shortener.py in the order of PLAN.md,
+and keep fixing them until make test passes.
+Do not change the tests.
+When done, commit, merge into develop and push.
+```
+
+**"Do not change the tests" matters.** Without it the agent sometimes quietly edits a
+test it cannot pass. When it finishes, open the changed files, read the diff and commit.
+
+### Step 5. Give the rules as a file \{#step-5}
+
+Check in the terminal whether the agent followed the specification.
+
+```sh
+grep -n "dict\|set(\|hash(" src/*.py
+```
+
+A rule in the specification does nothing if the agent never reads `SPEC.md`. The agent
+reads only the files that look relevant at the moment. **`.github/copilot-instructions.md`,
+on the other hand, is read with every request.** Create this file yourself and write the
+repository's rules in it.
+
+- `.github/copilot-instructions.md` (part of an example)
+
+```md
+# To the agent working in this repository
+
+- Read SPEC.md before writing code.
+- Do not use dict, set or the built-in hash() inside src/. Use the hash table we built.
+- After changing code, run make test and show the result.
+- If a test fails, fix the code, not the test.
+- For each issue, work on feature/<issue-number>-<name> off develop and post progress as issue comments.
+- When done, commit, merge into develop, push and close the issue.
+- I am a first-year student. Summarize what you changed in at most three lines.
+```
+
+The two git rules are what you asked in the chat at the start. A new chat does not
+know the earlier conversation, so move anything that must keep applying into the rules file.
+
+Open a new chat and ask it to check. If anything broke the rules, have it fixed.
+
+```text
+This is step 5, issue #5.
+Check whether the code in src/ follows this repository's rules,
+and fix anything that breaks them.
+When done, commit, merge into develop and push.
+```
+
+A rules file is a habit that outlives this assignment. Put one in your project repository too.
+
+### Step 6. Verify the result yourself \{#step-6}
+
+Passing tests do not make a hash table a **good** one. As Topic 08 showed, the search cost of separate
+chaining grows with the list length, that is, in proportion to the load factor α. Measure whether your table does.
+
+```text
+This is step 6, issue #6.
+Create experiments/probe_experiment.py.
+Fill a HashTable(max_load=None) with 4093 slots with random URLs.
+For load factors from 0.25 to 4,
+measure the average number of nodes compared for successful and unsuccessful searches.
+Compare them in a table with the theory from Topic 08.
+hit ≈ 1 + α/2, miss ≈ α
+Save experiments/results.csv and an SVG chart.
+Do not use external libraries.
+When done, commit, merge into develop and push.
+```
+
+Run `make experiment` and **judge the numbers yourself.**
+
+- At load factor 1, are hits near 1.5 and misses near 1?
+- Chaining keeps working past load factor 1. Does it still match theory at 4?
+- If they are far from theory, find out why. Check whether a search in an empty slot was counted as 1, or whether the hash function differs from the specification.
+- Can you read the axis labels and the legend?
+
+You reuse this experiment script in the [homework](#homework) to compare with linear probing.
+
+### Step 7. Serve it \{#step-7}
+
+Finally, add a web server.
+
+```text
+This is step 7, issue #7.
+Build the URL shortener web service in src/server.py.
+Opening / in a browser should show a form to enter a URL,
+and pressing Shorten should show a page with the short link.
+Opening the short link should go to the original address.
+At /table, show the current hash table.
+For each slot, chain the nodes (URL key, short code, short link) with arrows,
+and let each node unfold its Horner hash steps.
+Use only the standard http.server module,
+and make it start on port 8000 with make serve.
+When done, commit, merge into develop and push.
+```
+
+At `/table` you should be able to look inside the hash table. URLs that land in the same slot are joined
+in a linked list, and unfolding a node shows why it landed there: the Horner hash worked out one character at a time.
+
+<Image src={hashViewChain} alt="Current hash table page: each slot shows its chain length and nodes with the URL key, short code and short link joined by arrows and ending in NULL" />
+
+<Image src={hashViewTrace} alt="A node with its hash calculation unfolded: (h * 31 + ord(char)) % 16 for each character, ending in 5, the slot number" />
+
+Start it with `make serve` and open it on your phone.
+
+1. In the bottom panel, find port 8000 on the **Ports** tab.
+2. Right-click the row → **Port Visibility** → **Public**
+3. Open the **Forwarded Address** on your phone.
+4. Enter a long URL, get a short link, and tap it to see that it goes to the original address.
+
+If the short link shows `localhost:8000`, the agent did not know about the proxy.
+Codespaces passes the requested address in the `X-Forwarded-Host` header. Things like this
+are the "places the agent was wrong" for the report. Leave it as a comment on issue #7.
+
+**Anyone on the internet can open a public port.** When you are done, stop the server with
+`Ctrl+C` and switch the port back to **Private**. Restarting the Codespace also makes it private again.
+
+## Homework: linear probing and comparison \{#homework}
+
+In class you build the shortener on **separate chaining**. The homework adds a **linear probing** hash table
+to the same repository and compares the two under the same conditions: you build and measure both methods
+from Topic 08 yourself.
+
+<ShortenerDemo mode="probe" />
+
+Create issue #8 from the **Homework** tab of the issue list, and work with an issue and a feature branch as in class.
+There are five tasks.
+
+1. **Linear probing table**: give it the same interface as `HashTable` (`put`, `get`, `find`, `len`, `in`, `load_factor`).
+   Do not use `dict`, `set` or the built-in `hash()`, and keep the Horner hash.
+2. **Tests**: run the hash table tests on linear probing too. Also check wrapping from the last slot to slot 0
+   and a full table.
+3. **Swap it into the shortener**: let the shortener use either table, and make the shortener tests pass
+   with both.
+4. **Comparison experiment**: put the same keys into two tables of the same size and measure hit and miss costs
+   for load factors from 0.1 to 0.9. Count nodes compared for chaining and slots probed for linear probing.
+   Plot them with the theory.
+5. **Linear probing view**: let `make serve` run on linear probing too, and show it at `/table` the same way:
+   one key per slot, how many slots were probed from its home slot, and the Horner hash steps.
+
+| Method | Hit | Miss |
+| --- | --- | --- |
+| Separate chaining | about 1 + α/2 | about α |
+| Linear probing | about (1 + 1/(1-α))/2 | about (1 + 1/(1-α)²)/2 |
+
+Write the requests yourself. As in class, include the step and issue number, the scope, and "do not change the tests".
+If you get stuck, see the `homework` tag of the [sample repository](https://github.com/lec-algorithm/hw2-sample-2026).
+
+## Catching up on a missed step \{#catchup}
+
+If you miss a step in class you can still go on. Commit what you have, then give the
+step number to catch up to.
+
+```sh
+git add -A && git commit -m "WIP"
+sh tools/catchup.sh 4
+```
+
+This sets `src/`, `tests/`, `experiments/` and so on to the `step-4` tag of the
+[sample repository](https://github.com/lec-algorithm/hw2-sample-2026). Leave a "caught up"
+comment on that step's issue. Catching up costs no points,
+but you cannot use that step for "places the agent was wrong."
+
+## Submission \{#submit}
+
+| What | How |
+| --- | --- |
+| Repository URL | On the first page of the report |
+| Report | PDF, at most 2 pages, uploaded to the LearnUs assignment box |
+
+The repository must contain:
+
+- `SPEC.md`: the AI's draft specification, edited by you
+- `src/`, `tests/`: your own hash table, shortener, server and their tests
+- `experiments/`: the experiment script, `results.csv` and the chart
+- Homework: the linear probing table, its tests and the comparison experiment
+- A commit history with a commit per step (merge develop into main and push before submitting)
+- The step issues and their comments
+
+Write the report as a PDF of **at most 2 pages**, with the repository URL at the top of the first page.
+
+- How you implemented the two methods (briefly)
+- Experiment conditions and results: hit and miss costs by load factor, both methods and the theory in one chart
+- Interpretation: why linear probing gets sharply worse near load factor 1, and how chaining differs
+- One or two places the agent was wrong, and how you noticed and fixed them
+
+**Anything not pushed is not submitted.** Commits made in the Codespace are not on GitHub until you push.
+Before submitting, open your repository on GitHub and check that the files and commits are there.
+
+Keep the repository public. Commits after the deadline are not graded.
+
+## Grading \{#grading}
+
+We look at **what you decided and what you caught**, not at how well the agent did.
+Agent output differs from person to person, so grading only the finished product would
+let luck decide the score.
+
+| Item | Points | What we look at |
+| --- | --- | --- |
+| Class work | 1 | `make test` and `make serve` work, and the step issues and commits are there |
+| Linear probing | 1.5 | Works without `dict`, passes the tests, and swaps into the shortener and the `/table` view |
+| Comparison | 1 | Both methods measured with the same keys and size, shown with the theory |
+| Report | 1.5 | Interprets the results and says how you caught the agent's mistakes |
+
+## If you missed the class \{#absent}
+
+Hand in **the same assignment with the same deadline**. Follow the [seven steps](#steps)
+on this page in order, then do the [homework](#homework). The screens shown in class are in the [slides](/slides/hw2-2026/).
+
+- Working alone, commit even more carefully after each step. Your commit history stands in for class attendance.
+- If you get stuck, you may move on with `tools/catchup.sh`.
+- Post questions on the LearnUs board.
+
+## Rules for using AI \{#ai-rules}
+
+This assignment is about using AI. Some parts are still yours.
+
+- The AI drafts `SPEC.md` and **you edit it.** Leave what you changed as an issue comment.
+- **You write** the report. A reflection written by AI is not a reflection.
+- You may get a first draft of the rules file from AI, but you decide what goes in it.
+- Do not copy someone else's repository. It shows in the commit history and the log.
