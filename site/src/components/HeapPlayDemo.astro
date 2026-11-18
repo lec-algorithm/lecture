@@ -39,13 +39,15 @@ const STRINGS: Record<string, Record<string, string>> = {
     out: '꺼낸 값',
     idle: '값을 넣거나 최솟값을 꺼내 보세요. 칸을 누르면 부모와 자식의 인덱스가 보입니다.',
     ins: 'insert {x}: 맨 끝 빈자리인 인덱스 {i}에 놓습니다.',
-    upSwap: '값 {x}, 인덱스 {i}: 부모 {p}보다 작아서 인덱스 {j}로 올라갑니다.',
+    upSwap: '값 {x}, 인덱스 {i}: 부모 {p}보다 작아서 바꿔야 합니다.',
+    upDid: '값 {x}: 부모와 자리를 바꿨습니다. 이제 인덱스 {j}에 있습니다.',
     upStay: '값 {x}, 인덱스 {i}: 부모 {p}보다 작지 않아서 제자리입니다.',
     root: '값 {x}: 루트에 닿았습니다.',
     take: 'extract min: 최솟값은 루트의 {x}입니다. 루트에서 꺼냅니다.',
     takeLast: 'extract min: 하나 남은 값 {x}. 꺼내면 힙이 빕니다.',
     move: '마지막 값 {x}: 루트로 옮겨 내려 보냅니다.',
-    downSwap: '값 {x}, 인덱스 {i}: 자식 {kids} 중 더 작은 {c} 쪽이 {x}보다 작으니 바꾸고 내려갑니다.',
+    downSwap: '값 {x}, 인덱스 {i}: 자식 {kids} 중 더 작은 {c} 쪽이 {x}보다 작으니 바꿔야 합니다.',
+    downDid: '값 {x}: 자식 {c} 쪽과 자리를 바꿨습니다. 이제 인덱스 {m}에 있습니다.',
     downStay: '값 {x}, 인덱스 {i}: 자식 {kids}보다 크지 않아서 제자리입니다.',
     leaf: '값 {x}, 인덱스 {i}: 자식이 없어 제자리입니다.',
     doneIns: '끝: 비교 {c}번. 높이가 {h}이니 삽입은 {w}번을 넘지 않습니다.',
@@ -75,13 +77,15 @@ const STRINGS: Record<string, Record<string, string>> = {
     out: 'extracted',
     idle: 'Insert a value or extract the minimum. Click a cell to see the indices of its parent and children.',
     ins: 'insert {x}: place it in the empty slot at the end, index {i}.',
-    upSwap: 'Value {x}, index {i}: smaller than its parent {p}, so it moves up to index {j}.',
+    upSwap: 'Value {x}, index {i}: smaller than its parent {p}, so they must swap.',
+    upDid: 'Value {x}: swapped with its parent, now up at index {j}.',
     upStay: 'Value {x}, index {i}: not smaller than its parent {p}, so it stays.',
     root: 'Value {x}: reached the root.',
     take: 'extract min: take {x} from the root.',
     takeLast: 'extract min: take the last element, {x}.',
     move: 'Last value {x}: move it to the root and sift it down.',
-    downSwap: 'Value {x}, index {i}: of its children {kids}, the smaller one, {c}, is less than {x}, so swap and go down.',
+    downSwap: 'Value {x}, index {i}: of its children {kids}, the smaller one, {c}, is less than {x}, so they must swap.',
+    downDid: 'Value {x}: swapped with the child {c}, now down at index {m}.',
     downStay: 'Value {x}, index {i}: not larger than its children {kids}, so it stays.',
     leaf: 'Value {x}, index {i}: no children, so it stays.',
     doneIns: 'Done: {c} comparisons. With height {h}, an insert takes at most {w}.',
@@ -111,13 +115,15 @@ const STRINGS: Record<string, Record<string, string>> = {
     out: '取出的值',
     idle: '插入一个值或取出最小值。点击格子可以看到父节点和子节点的下标。',
     ins: 'insert {x}：放到末尾的空位，下标 {i}。',
-    upSwap: '值 {x}，下标 {i}：比父节点 {p} 小，上移到下标 {j}。',
+    upSwap: '值 {x}，下标 {i}：比父节点 {p} 小，需要交换。',
+    upDid: '值 {x}：和父节点交换，上移到下标 {j}。',
     upStay: '值 {x}，下标 {i}：不比父节点 {p} 小，留在原位。',
     root: '值 {x}：到达根。',
     take: 'extract min：从根取出 {x}。',
     takeLast: 'extract min：取出最后一个元素 {x}。',
     move: '最后的值 {x}：移到根，然后向下调整。',
-    downSwap: '值 {x}，下标 {i}：子节点 {kids} 中较小的 {c} 比 {x} 小，交换后下移。',
+    downSwap: '值 {x}，下标 {i}：子节点 {kids} 中较小的 {c} 比 {x} 小，需要交换。',
+    downDid: '值 {x}：和子节点 {c} 交换，下移到下标 {m}。',
     downStay: '值 {x}，下标 {i}：不大于子节点 {kids}，留在原位。',
     leaf: '值 {x}，下标 {i}：没有子节点，留在原位。',
     doneIns: '结束，比较 {c} 次。高度是 {h}，所以插入不超过 {w} 次。',
@@ -224,9 +230,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           push(fill(S.upStay, { x: a[i], i, p: a[p] }), i, [p]);
           break;
         }
-        const note = fill(S.upSwap, { x: a[i], i, p: a[p], j: p });
+        /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
+        push(fill(S.upSwap, { x: a[i], i, p: a[p], j: p }), i, [p]);
+        const did = fill(S.upDid, { x: a[i], j: p });
         [a[i], a[p]] = [a[p], a[i]];
-        push(note, p, [i]);
+        push(did, p, [i]);
         i = p;
         if (i === 0) push(fill(S.root, { x: a[0] }), 0);
       }
@@ -266,9 +274,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
           push(fill(S.downStay, { x: a[i], i, kids: text }), i, kids);
           break;
         }
-        const note = fill(S.downSwap, { x: a[i], i, kids: text, c: a[m] });
+        /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
+        push(fill(S.downSwap, { x: a[i], i, kids: text, c: a[m] }), i, kids);
+        const did = fill(S.downDid, { x: a[i], c: a[m], m });
         [a[i], a[m]] = [a[m], a[i]];
-        push(note, m, [i]);
+        push(did, m, [i]);
         i = m;
       }
       const h = heightOf(a.length);

@@ -2,8 +2,8 @@
 // 최소 힙의 삽입(sift up)과 최솟값 꺼내기(sift down)를 한 걸음씩 보는 데모.
 //
 // 위는 트리, 아래는 같은 힙을 담은 배열이다. 인덱스 i의 부모는 (i-1)/2,
-// 자식은 2i+1과 2i+2다. 한 걸음에 비교 한 번을 하고, 바꾸면 두 원소가
-// 트리와 배열에서 함께 자리를 바꾼다. 주황이 움직이는 원소, 파랑이 그와
+// 자식은 2i+1과 2i+2다. 한 걸음에 비교 한 번을 하고, 바꿔야 하면 다음 걸음에 두
+// 원소가 트리와 배열에서 함께 자리를 바꾼다. 주황이 움직이는 원소, 파랑이 그와
 // 비교하는 부모 또는 자식이다.
 //
 // 절차와 결과는 algorithm-code의 04_min_heap과 같다. 기본 입력은 1~9가 든
@@ -52,12 +52,14 @@ const STRINGS: Record<string, Record<string, string>> = {
     size: '크기',
     idle: '부모 값 ≤ 자식 값인 최소 힙입니다. 루트가 최솟값입니다.',
     insert: 'insert {x}: 맨 끝 빈자리 index {i}에 넣습니다.',
-    upSwap: '{x}(index {i}) < 부모 {p}(index {j}). 순서가 어긋나서 바꿉니다.',
+    upSwap: '{x}(index {i}) < 부모 {p}(index {j}). 순서가 어긋났으니 바꿔야 합니다.',
+    upDid: '{x|과} {p|을} 바꿨습니다. {x|은} 이제 index {j}에 있습니다.',
     upStay: '{x}(index {i}) ≥ 부모 {p}(index {j}). 제자리입니다.',
     root: '{x|이} 루트에 닿았습니다. 더 올라갈 곳이 없습니다.',
     take: 'extract min: 루트 {x|이} 최솟값입니다. 꺼냅니다.',
     move: '마지막 원소 {x|을} 루트로 옮깁니다. 이제 아래로 내려 보냅니다.',
-    downSwap: '{x}(index {i})의 자식은 {kids}. 그중 더 작은 {c|이} {x}보다 작으니 바꿉니다.',
+    downSwap: '{x}(index {i})의 자식은 {kids}. 그중 더 작은 {c|이} {x}보다 작으니 바꿔야 합니다.',
+    downDid: '{x|과} {c|을} 바꿨습니다. {x|은} 이제 index {m}에 있습니다.',
     downStay: '{x}(index {i})의 자식은 {kids}. 자식보다 크지 않으니 제자리입니다.',
     leaf: '{x}(index {i}){~x|은} 자식이 없습니다. 제자리입니다.',
     done: '끝. 힙 성질이 다시 맞습니다.',
@@ -75,12 +77,14 @@ const STRINGS: Record<string, Record<string, string>> = {
     size: 'size',
     idle: 'A min heap: parent ≤ child. The root is the minimum.',
     insert: 'insert {x}: put it in the first free slot, index {i}.',
-    upSwap: '{x} (index {i}) < parent {p} (index {j}). Out of order, swap.',
+    upSwap: '{x} (index {i}) < parent {p} (index {j}). Out of order, so they must swap.',
+    upDid: 'Swapped {x} and {p}. {x} is now at index {j}.',
     upStay: '{x} (index {i}) ≥ parent {p} (index {j}). It stays.',
     root: '{x} reached the root. Nowhere higher to go.',
     take: 'extract min: the root {x} is the minimum. Take it out.',
     move: 'Move the last element {x} to the root, then sink it.',
-    downSwap: '{x} (index {i}) has children {kids}. The smaller one, {c}, is less than {x}, so swap.',
+    downSwap: '{x} (index {i}) has children {kids}. The smaller one, {c}, is less than {x}, so they must swap.',
+    downDid: 'Swapped {x} and {c}. {x} is now at index {m}.',
     downStay: '{x} (index {i}) vs children {kids}. Not larger than them, it stays.',
     leaf: '{x} (index {i}) has no children. It stays.',
     done: 'Done. The heap property holds again.',
@@ -98,12 +102,14 @@ const STRINGS: Record<string, Record<string, string>> = {
     size: '大小',
     idle: '父 ≤ 子的最小堆。根就是最小值。',
     insert: 'insert {x}：放到末尾的空位，下标 {i}。',
-    upSwap: '{x}（下标 {i}）< 父 {p}（下标 {j}）。顺序不对，交换。',
+    upSwap: '{x}（下标 {i}）< 父 {p}（下标 {j}）。顺序不对，需要交换。',
+    upDid: '交换了 {x} 和 {p}。{x} 现在在下标 {j}。',
     upStay: '{x}（下标 {i}）≥ 父 {p}（下标 {j}）。留在原位。',
     root: '{x} 到达根，无法再上移。',
     take: 'extract min：根 {x} 是最小值，取出。',
     move: '把最后一个元素 {x} 移到根，然后向下调整。',
-    downSwap: '{x}（下标 {i}）的子节点是 {kids}。其中较小的 {c} 比 {x} 小，交换。',
+    downSwap: '{x}（下标 {i}）的子节点是 {kids}。其中较小的 {c} 比 {x} 小，需要交换。',
+    downDid: '交换了 {x} 和 {c}。{x} 现在在下标 {m}。',
     downStay: '{x}（下标 {i}）与子 {kids} 比较，不大于子，留在原位。',
     leaf: '{x}（下标 {i}）没有子节点，留在原位。',
     done: '结束。堆性质重新成立。',
@@ -221,9 +227,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
               push(fill(S.upStay, { x: a[i], i, p: a[p], j: p }), i, [p]);
               return;
             }
-            const note = fill(S.upSwap, { x: a[i], i, p: a[p], j: p });
+            /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
+            push(fill(S.upSwap, { x: a[i], i, p: a[p], j: p }), i, [p]);
+            const did = fill(S.upDid, { x: a[i], p: a[p], j: p });
             [a[i], a[p]] = [a[p], a[i]];
-            push(note, p, [i]);
+            push(did, p, [i]);
             i = p;
           }
           push(fill(S.root, { x: a[0] }), 0);
@@ -251,9 +259,11 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
               push(fill(S.downStay, { x: a[i], i, kids: kidsText }), i, kids);
               break;
             }
-            const note = fill(S.downSwap, { x: a[i], i, kids: kidsText, c: a[m] });
+            /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
+            push(fill(S.downSwap, { x: a[i], i, kids: kidsText, c: a[m] }), i, kids);
+            const did = fill(S.downDid, { x: a[i], c: a[m], m });
             [a[i], a[m]] = [a[m], a[i]];
-            push(note, m, [i]);
+            push(did, m, [i]);
             i = m;
           }
         }

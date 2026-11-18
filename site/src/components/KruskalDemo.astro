@@ -3,7 +3,8 @@
 //
 // 왼쪽은 그래프, 오른쪽은 간선 목록과 comp 배열이다. 첫 걸음에서 간선
 // 목록이 가중치 순으로 다시 줄 선다. 그다음 가벼운 간선부터 하나씩
-// 보며, 두 끝의 comp(덩어리 번호)가 다르면 넣고(초록) 두 덩어리를 합친다.
+// 보며, 두 끝의 comp(덩어리 번호)가 다르면 넣고(초록) 다음 걸음에 두 덩어리를 합친다
+// (번호가 바뀐 comp 칸을 주황으로 강조한다).
 // 같으면 사이클이 생기므로 버린다(빨간 점선). 정점 옆 파란 숫자가 comp다.
 //
 // 절차와 결과는 algorithm-code의 03_mst_kruskal과 같다. 덩어리를 합칠 때는
@@ -39,7 +40,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     total: '총 가중치',
     idle: '간선 {m}개가 입력 순서대로 있습니다. 먼저 가중치 순으로 정렬합니다.',
     sorted: '가중치 오름차순으로 줄 섰습니다. 정점마다 자기 혼자 한 덩어리입니다.',
-    add: '{e} ({w}): {u|은} 덩어리 {cu}, {v|은} 덩어리 {cv}. 다르므로 넣고 덩어리 {m|으로} 합칩니다.',
+    add: '{e} ({w}): {u|은} 덩어리 {cu}, {v|은} 덩어리 {cv}. 다르므로 넣습니다.',
+    merge: '{e|을} 넣고 덩어리 {cu|과} {cv|을} {m|으로} 합쳤습니다. comp 배열에서 {list}의 번호가 {m|으로} 바뀌었습니다.',
     skip: '{e} ({w}): {u|과} {v|이} 모두 덩어리 {c}에 있습니다. 넣으면 사이클이므로 버립니다.',
     done: '간선이 V-1 = {k}개가 되어 멈춥니다. 남은 {rest}개는 보지 않습니다. 총 가중치 {total}',
   },
@@ -57,7 +59,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     total: 'total weight',
     idle: 'The {m} edges are in input order. First sort them by weight.',
     sorted: 'Lined up by weight. Every vertex is a component of its own.',
-    add: '{e} ({w}): {u} is in {cu}, {v} is in {cv}. Different, so add it and merge into {m}.',
+    add: '{e} ({w}): {u} is in {cu}, {v} is in {cv}. Different, so add it.',
+    merge: 'Added {e} and merged {cu} and {cv} into {m}. In the comp array, {list} now read {m}.',
     skip: '{e} ({w}): {u} and {v} are both in {c}. Adding it makes a cycle, so drop it.',
     done: 'V-1 = {k} edges, stop. The other {rest} are never looked at. Total weight {total}',
   },
@@ -75,7 +78,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     total: '总权重',
     idle: '{m} 条边按输入顺序排列。先按权重排序。',
     sorted: '已按权重升序排好。每个顶点各自是一个分量。',
-    add: '{e}（{w}）：{u} 在分量 {cu}，{v} 在分量 {cv}。不同，加入并合并为 {m}。',
+    add: '{e}（{w}）：{u} 在分量 {cu}，{v} 在分量 {cv}。不同，加入。',
+    merge: '加入 {e}，把分量 {cu} 和 {cv} 合并为 {m}。comp 数组里 {list} 的编号变成了 {m}。',
     skip: '{e}（{w}）：{u} 和 {v} 都在分量 {c}。加入会成环，丢弃。',
     done: '边数达到 V-1 = {k}，停止。其余 {rest} 条不再查看。总权重 {total}',
   },
@@ -199,11 +203,19 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
           const cu = comp[u];
           const cv = comp[v];
           const small = Math.min(cu, cv);
-          for (let x = 0; x < n; x++) if (comp[x] === cu || comp[x] === cv) comp[x] = small;
+          /* 판단과 합치기를 두 걸음으로 나눈다. 먼저 간선을 보고, 다음 걸음에 comp를 고친다. */
+          push({ cur: i, note: fill(S.add, { e, w: fmt(w), u, v, cu, cv, m: small }) });
+          const changed = [];
+          for (let x = 0; x < n; x++) {
+            if (comp[x] === cu || comp[x] === cv) {
+              if (comp[x] !== small) changed.push(x);
+              comp[x] = small;
+            }
+          }
           status[i] = 'add';
           k += 1;
           total += w;
-          push({ cur: i, note: fill(S.add, { e, w: fmt(w), u, v, cu, cv, m: small }) });
+          push({ cur: i, merged: true, changed, note: fill(S.merge, { e, cu, cv, m: small, list: changed.join(', ') }) });
           if (k === n - 1) {
             push({ done: true, note: fill(S.done, { k, rest: m - j - 1, total: fmt(total) }) });
             break;
@@ -243,8 +255,8 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
       edgeEls.forEach((el, i) => {
         const status = st ? st.status[i] : null;
         const now = !!st && st.cur === i;
-        el.classList.toggle('is-tree', status === 'add' && !now);
-        el.classList.toggle('is-focus', now);
+        el.classList.toggle('is-tree', status === 'add' && (!now || !!st.merged));
+        el.classList.toggle('is-focus', now && !st.merged);
         el.classList.toggle('is-reject', status === 'skip' && !now);
         el.classList.toggle('is-dim', !!st && !!st.done && status !== 'add');
         if (status === 'add') {
@@ -258,6 +270,7 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
         const c = st ? st.comp[v] : v;
         el.textContent = String(c);
         el.classList.toggle('is-merged', c !== v);
+        el.classList.toggle('is-changed', !!st && !!st.merged && st.changed.includes(v));
       });
       countEl.textContent = String(st ? st.k : 0);
       totalEl.textContent = fmt(st ? st.total : 0);
@@ -441,6 +454,13 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
   }
   .aas-kruskal-demo .kr-cell b.is-merged {
     background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  /* 이번 걸음에 번호가 바뀐 칸 */
+  .aas-kruskal-demo .kr-cell b.is-changed {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    color: var(--aas-role-focus);
+    font-weight: 800;
   }
   .aas-kruskal-demo .kr-foot {
     display: flex;
