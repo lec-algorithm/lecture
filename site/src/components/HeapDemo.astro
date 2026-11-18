@@ -50,6 +50,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     index: '인덱스',
     out: '꺼낸 값',
     size: '크기',
+    ph_place: '① 넣기·꺼내기',
+    ph_cmp: '② 견주기',
+    ph_swap: '③ 바꾸기',
+    ph_stop: '제자리',
+    ph_done: '끝',
+    phRepeat: '되풀이',
+    stepOf: '걸음 {k} / {n}',
     idle: '부모 값 ≤ 자식 값인 최소 힙입니다. 루트가 최솟값입니다.',
     insert: 'insert {x}: 맨 끝 빈자리 index {i}에 넣습니다.',
     upSwap: '{x}(index {i}) < 부모 {p}(index {j}). 순서가 어긋났으니 바꿔야 합니다.',
@@ -75,6 +82,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     index: 'index',
     out: 'extracted',
     size: 'size',
+    ph_place: '① Insert / take out',
+    ph_cmp: '② Compare',
+    ph_swap: '③ Swap',
+    ph_stop: 'Stays',
+    ph_done: 'Done',
+    phRepeat: 'repeat',
+    stepOf: 'Step {k} / {n}',
     idle: 'A min heap: parent ≤ child. The root is the minimum.',
     insert: 'insert {x}: put it in the first free slot, index {i}.',
     upSwap: '{x} (index {i}) < parent {p} (index {j}). Out of order, so they must swap.',
@@ -100,6 +114,13 @@ const STRINGS: Record<string, Record<string, string>> = {
     index: '下标',
     out: '取出的值',
     size: '大小',
+    ph_place: '① 放入/取出',
+    ph_cmp: '② 比较',
+    ph_swap: '③ 交换',
+    ph_stop: '留在原位',
+    ph_done: '结束',
+    phRepeat: '重复',
+    stepOf: '第 {k} / {n} 步',
     idle: '父 ≤ 子的最小堆。根就是最小值。',
     insert: 'insert {x}：放到末尾的空位，下标 {i}。',
     upSwap: '{x}（下标 {i}）< 父 {p}（下标 {j}）。顺序不对，需要交换。',
@@ -167,6 +188,17 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     ))}
   </div>
 
+  <div class="ph-strip" aria-live="polite">
+    <span class="ph-chip" data-ph="place">{t.ph_place}</span>
+    <span class="ph-arrow" aria-hidden="true">→</span>
+    <span class="ph-chip" data-ph="cmp">{t.ph_cmp}</span>
+    <span class="ph-arrow" aria-hidden="true">→</span>
+    <span class="ph-chip" data-ph="swap">{t.ph_swap}</span>
+    <span class="ph-arrow" aria-hidden="true">↺ {t.phRepeat}</span>
+    <span class="ph-chip is-side" data-ph="stop">{t.ph_stop}</span>
+    <span class="ph-chip is-side" data-ph="done">{t.ph_done}</span>
+    <span class="ph-stepno" data-ph-stepno></span>
+  </div>
   <p class="hp-note" data-hp-note></p>
 </div>
 
@@ -208,40 +240,41 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       );
 
     /* 절차는 minHeap.pseudo와 같다. 한 걸음에 비교 한 번. */
+    let cur = 'place';
     function plan() {
       const a = start.slice();
       const steps = [];
       let out = null;
       const push = (note, move, cmp) =>
-        steps.push({ a: a.slice(), note, move: move ?? null, cmp: cmp ?? [], out });
+        steps.push({ a: a.slice(), note, move: move ?? null, cmp: cmp ?? [], out, phase: cur });
 
       ops.forEach((op) => {
         if ('insert' in op) {
           const x = op.insert;
           a.push(x);
           let i = a.length - 1;
-          push(fill(S.insert, { x, i }), i);
+          (cur = 'place'), push(fill(S.insert, { x, i }), i);
           while (i > 0) {
             const p = Math.floor((i - 1) / 2);
             if (a[i] >= a[p]) {
-              push(fill(S.upStay, { x: a[i], i, p: a[p], j: p }), i, [p]);
+              (cur = 'stop'), push(fill(S.upStay, { x: a[i], i, p: a[p], j: p }), i, [p]);
               return;
             }
             /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
-            push(fill(S.upSwap, { x: a[i], i, p: a[p], j: p }), i, [p]);
+            (cur = 'cmp'), push(fill(S.upSwap, { x: a[i], i, p: a[p], j: p }), i, [p]);
             const did = fill(S.upDid, { x: a[i], p: a[p], j: p });
             [a[i], a[p]] = [a[p], a[i]];
-            push(did, p, [i]);
+            (cur = 'swap'), push(did, p, [i]);
             i = p;
           }
-          push(fill(S.root, { x: a[0] }), 0);
+          (cur = 'stop'), push(fill(S.root, { x: a[0] }), 0);
         } else {
           out = a[0];
-          push(fill(S.take, { x: out }), 0);
+          (cur = 'place'), push(fill(S.take, { x: out }), 0);
           const last = a.pop();
           if (!a.length) return;
           a[0] = last;
-          push(fill(S.move, { x: last }), 0);
+          (cur = 'place'), push(fill(S.move, { x: last }), 0);
           let i = 0;
           for (;;) {
             let m = i;
@@ -252,24 +285,24 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
             const kids = [l, r].filter((c) => c < a.length);
             const kidsText = kids.map((c) => a[c]).join(', ');
             if (!kids.length) {
-              push(fill(S.leaf, { x: a[i], i }), i);
+              (cur = 'stop'), push(fill(S.leaf, { x: a[i], i }), i);
               break;
             }
             if (m === i) {
-              push(fill(S.downStay, { x: a[i], i, kids: kidsText }), i, kids);
+              (cur = 'stop'), push(fill(S.downStay, { x: a[i], i, kids: kidsText }), i, kids);
               break;
             }
             /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
-            push(fill(S.downSwap, { x: a[i], i, kids: kidsText, c: a[m] }), i, kids);
+            (cur = 'cmp'), push(fill(S.downSwap, { x: a[i], i, kids: kidsText, c: a[m] }), i, kids);
             const did = fill(S.downDid, { x: a[i], c: a[m], m });
             [a[i], a[m]] = [a[m], a[i]];
-            push(did, m, [i]);
+            (cur = 'swap'), push(did, m, [i]);
             i = m;
           }
         }
       });
       const lastStep = steps[steps.length - 1];
-      steps.push({ ...lastStep, note: S.done, move: null, cmp: [], end: true });
+      steps.push({ ...lastStep, note: S.done, move: null, cmp: [], end: true, phase: 'done' });
       return steps;
     }
 
@@ -317,6 +350,10 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       });
       outEl.textContent = st.out === null ? '' : String(st.out);
       outEl.classList.toggle('is-empty', st.out === null);
+      const PHST = s >= 0 ? st : null;
+      const PHK = s;
+      root.querySelectorAll('[data-ph]').forEach((c) => c.classList.toggle('is-on', !!PHST && PHST.phase === c.dataset.ph));
+      root.querySelector('[data-ph-stepno]').textContent = PHST ? fill(S.stepOf, { k: PHK + 1, n: steps.length }) : fill(S.stepOf, { k: 0, n: steps.length });
       setLines(note, st.note);
       root.classList.toggle('is-done', !!st.end);
     }
@@ -363,6 +400,40 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 </script>
 
 <style is:global>
+  /* 지금 걸음이 절차의 어느 단계인지 보이는 줄 */
+  .aas-heap-demo .ph-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.45em;
+    align-items: center;
+    margin-top: 0.5em;
+    font-size: 0.78em;
+  }
+  .aas-heap-demo .ph-chip {
+    padding: 0.15em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+  }
+  .aas-heap-demo .ph-chip.is-side {
+    border-style: dashed;
+  }
+  .aas-heap-demo .ph-chip.is-on {
+    background: var(--aas-role-focus);
+    border-color: var(--aas-role-focus);
+    border-style: solid;
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-heap-demo .ph-arrow {
+    color: var(--aas-muted);
+  }
+  .aas-heap-demo .ph-stepno {
+    margin-left: auto;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
   .aas-heap-demo {
     font-size: 1rem;
     margin: 1.5rem 0;
