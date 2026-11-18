@@ -2,6 +2,9 @@
 // cut 속성과 Greedy MST를 직접 해 보는 데모.
 //
 // 정점을 누르면 그 정점이 cut의 반대편으로 옮겨 간다(초록 편, 파랑 편).
+// 색이 방문 여부로 읽히지 않도록 같은 편의 정점을 테두리로 묶어 보인다.
+// 테두리는 같은 편 정점을 가까운 것끼리 이은 굵은 띠다. 띠가 반대편 정점을
+// 덮게 되는 쌍은 잇지 않으므로, 한 편이 테두리 여러 개로 나뉘어 보일 수 있다.
 // 두 편을 잇는 간선(crossing edge)이 파란 점선으로 보이고, 그중 가장 가벼운
 // 것이 주황이다. "칠하기"를 누르면 그 간선을 칠한다(초록 굵게). cut 속성에
 // 따라 칠한 간선은 언제나 MST의 간선이므로, cut을 바꿔 가며 일곱 번 칠하면
@@ -28,7 +31,7 @@ const id = `ct-${Math.random().toString(36).slice(2, 9)}`;
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
     title: 'cut 속성과 Greedy MST',
-    hint: '정점을 누르면 반대편으로 옮겨 갑니다.',
+    hint: '테두리로 묶은 것이 cut의 한 편입니다. 정점을 누르면 반대편으로 옮겨 갑니다.',
     paint: '가장 가벼운 간선 칠하기',
     reset: '처음으로',
     crossing: 'crossing edge (가벼운 순)',
@@ -44,7 +47,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   },
   en: {
     title: 'Cut property and greedy MST',
-    hint: 'Click a vertex to move it to the other side.',
+    hint: 'Each outline is one side of the cut. Click a vertex to move it to the other side.',
     paint: 'Colour the lightest edge',
     reset: 'Reset',
     crossing: 'Crossing edges (lightest first)',
@@ -55,12 +58,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     statusPainted: 'Coloured crossing edges: {list}',
     did: 'Coloured {e} ({w}). By the cut property this edge is in the MST.',
     again: '{e} ({w}) is already coloured. Pick a cut with no coloured crossing edge to get a new one.',
-    tipGrow: 'Splitting off one coloured cluster from the rest always gives such a cut.',
+    tipGrow: 'Splitting off one piece joined by coloured edges from the rest always gives such a cut.',
     done: '{k} edges coloured. Total weight {total}, the same MST as Kruskal and Prim.',
   },
   zh: {
     title: '割的性质与 Greedy MST',
-    hint: '点击顶点，把它移到另一边。',
+    hint: '轮廓圈起来的是割的一边。点击顶点，把它移到另一边。',
     paint: '给最轻的边涂色',
     reset: '重置',
     crossing: '横切边（由轻到重）',
@@ -71,7 +74,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     statusPainted: '已涂色的横切边：{list}',
     did: '已涂色：{e}（{w}）。根据割的性质，这条边在 MST 中。',
     again: '{e}（{w}）已经涂过色。要选没有已涂色横切边的割，才能得到新边。',
-    tipGrow: '把一个已涂色的连通块和其余顶点分开，总能得到这样的割。',
+    tipGrow: '把由已涂色的边连成的一块和其余顶点分开，总能得到这样的割。',
     done: '已给 {k} 条边涂色。总权重 {total}，与 Kruskal、Prim 得到的 MST 相同。',
   },
 };
@@ -161,7 +164,75 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     const noteEl = root.querySelector('[data-ct-note]');
     const paintBtn = root.querySelector('[data-act="paint"]');
 
+    /* cut의 두 편을 감싸는 테두리. 그래프 맨 아래 층에 그린다. */
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = root.querySelector('.aas-graph-figure svg');
+    const hulls = document.createElementNS(NS, 'g');
+    hulls.setAttribute('class', 'ct-hulls');
+    svg.insertBefore(hulls, svg.firstChild);
+    const pos = nodeEls.map((el) => {
+      const c = el.querySelector('circle');
+      return [Number(c.getAttribute('cx')), Number(c.getAttribute('cy'))];
+    });
+    const nodeR = Number(nodeEls[0].querySelector('circle').getAttribute('r'));
+    const HR = nodeR + 13; // 테두리 띠의 반지름
+    const LINE = 2.5; // 테두리 선의 굵기
+    /* 점 p에서 선분 ab까지의 거리 */
+    const segDist = (p, a, b) => {
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)));
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    };
+    /* 같은 편 정점을 가까운 쌍부터 잇는다(Kruskal). 반대편 정점을 덮는 쌍은 건너뛴다. */
+    function hullLinks(mine, others) {
+      const pairs = [];
+      mine.forEach((a, i) => mine.slice(i + 1).forEach((b) => pairs.push([a, b])));
+      pairs.sort((x, y) => Math.hypot(pos[x[0]][0] - pos[x[1]][0], pos[x[0]][1] - pos[x[1]][1])
+        - Math.hypot(pos[y[0]][0] - pos[y[1]][0], pos[y[0]][1] - pos[y[1]][1]));
+      const root_ = new Map(mine.map((v) => [v, v]));
+      const find = (v) => (root_.get(v) === v ? v : find(root_.get(v)));
+      return pairs.filter(([a, b]) => {
+        if (find(a) === find(b)) return false;
+        if (others.some((o) => segDist(pos[o], pos[a], pos[b]) < HR + nodeR + 4)) return false;
+        root_.set(find(a), find(b));
+        return true;
+      });
+    }
+    function drawHulls() {
+      hulls.replaceChildren();
+      [false, true].forEach((side) => {
+        const mine = [];
+        const others = [];
+        blue.forEach((b, v) => (b === side ? mine : others).push(v));
+        const links = hullLinks(mine, others);
+        /* 굵은 띠를 먼저 색으로, 그 위에 조금 가는 띠를 바탕색으로 그리면 합친 모양의 테두리만 남는다. */
+        [['ct-hull-line', LINE], ['ct-hull-fill', 0]].forEach(([cls, extra]) => {
+          const layer = document.createElementNS(NS, 'g');
+          layer.setAttribute('class', `${cls} ${side ? 'is-b' : 'is-a'}`);
+          links.forEach(([a, b]) => {
+            const ln = document.createElementNS(NS, 'line');
+            ln.setAttribute('x1', pos[a][0]);
+            ln.setAttribute('y1', pos[a][1]);
+            ln.setAttribute('x2', pos[b][0]);
+            ln.setAttribute('y2', pos[b][1]);
+            ln.setAttribute('stroke-width', 2 * (HR + extra));
+            layer.appendChild(ln);
+          });
+          mine.forEach((v) => {
+            const c = document.createElementNS(NS, 'circle');
+            c.setAttribute('cx', pos[v][0]);
+            c.setAttribute('cy', pos[v][1]);
+            c.setAttribute('r', HR + extra);
+            layer.appendChild(c);
+          });
+          hulls.appendChild(layer);
+        });
+      });
+    }
+
     function render() {
+      drawHulls();
       const cr = crossing();
       const light = cr[0];
       nodeEls.forEach((el, v) => setTones(el, blue[v] ? 'open' : 'done'));
@@ -250,6 +321,34 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     border: 1px solid var(--aas-border);
     border-radius: 0.9em;
     background: var(--aas-panel);
+  }
+  /* cut의 두 편을 감싸는 테두리. 초록 편(is-a)과 파랑 편(is-b) */
+  .aas-cut-demo .aas-graph-figure svg {
+    overflow: visible;
+  }
+  .aas-cut-demo .ct-hulls .is-a {
+    --ct-side: var(--aas-role-eval);
+  }
+  .aas-cut-demo .ct-hulls .is-b {
+    --ct-side: var(--aas-role-model);
+  }
+  .aas-cut-demo .ct-hulls line {
+    stroke-linecap: round;
+    fill: none;
+  }
+  .aas-cut-demo .ct-hulls .ct-hull-line line {
+    stroke: var(--ct-side);
+  }
+  .aas-cut-demo .ct-hulls .ct-hull-line circle {
+    fill: var(--ct-side);
+    stroke: none;
+  }
+  .aas-cut-demo .ct-hulls .ct-hull-fill line {
+    stroke: color-mix(in srgb, var(--ct-side) 13%, var(--aas-panel));
+  }
+  .aas-cut-demo .ct-hulls .ct-hull-fill circle {
+    fill: color-mix(in srgb, var(--ct-side) 13%, var(--aas-panel));
+    stroke: none;
   }
   .aas-cut-demo .ct-bar {
     display: flex;

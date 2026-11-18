@@ -20,17 +20,24 @@ import DfsAppDemo from '@components/DfsAppDemo.astro';
 import CutDemo from '@components/CutDemo.astro';
 import DensityDemo from '@components/DensityDemo.astro';
 import FrontierDemo from '@components/FrontierDemo.astro';
+import GenericSearchDemo from '@components/GenericSearchDemo.astro';
+import BfsPathDemo from '@components/BfsPathDemo.astro';
+import BfsComponentsDemo from '@components/BfsComponentsDemo.astro';
+import SearchProofDemo from '@components/SearchProofDemo.astro';
 import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
 import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
+import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
 import NegWeightDemo from '@components/NegWeightDemo.astro';
-import UnionFindDemo from '@components/UnionFindDemo.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
 import MapRouteDemo from '@components/MapRouteDemo.astro';
+import MapFriendsDemo from '@components/MapFriendsDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
@@ -94,7 +101,7 @@ edges. What is the smallest and the largest number of edges it can have?
 This gap decides what graph algorithms cost.
 
 - **Sparse** graph: the number of edges is close to the number of vertices. $$E = O(V)$$, as in social networks.
-- **Dense** graph: the number of edges is close to the square of the number of vertices. $$E = O(V^2)$$, as in complete graphs.
+- **Dense** graph: the number of edges is close to the square of the number of vertices. $$E = \Theta(V^2)$$, as in complete graphs.
 
 Graphs are also classified by whether edges have direction (directed/undirected)
 and whether there are cycles (cyclic/acyclic). A directed graph with no cycles is
@@ -156,7 +163,7 @@ array of edges, and pointers between edges and vertices. The space needed is
 $$\Theta(V + E)$$: one slot per vertex, plus $$2E$$ slots because each undirected edge
 appears in the lists of both of its endpoints.
 
-Here is the same graph stored three ways at once. It is the graph from the terms demo,
+Here is the 7-vertex graph stored three ways at once. It is the graph from the terms demo,
 and the BFS and DFS examples keep using it. Click an edge of the graph to remove it, and
 click a matrix cell to add or remove the edge for that pair. Click a vertex to see how
 many slots each representation reads to find its neighbours: the matrix reads all 7
@@ -246,7 +253,7 @@ graph = {
 | Add an edge | $$O(1)$$ | $$O(1)$$ (append to the list) |
 | Remove an edge | $$O(1)$$ | $$O(\text{degree})$$ (must find it in the list) |
 
-All the practice code in this topic uses adjacency lists. The question search
+All the practice code in this topic uses adjacency lists, because the question search
 algorithms ask most often is "who are this vertex's neighbours?"
 
 ## Graph search \{#search}
@@ -268,6 +275,11 @@ Given a graph G and a start vertex s, the most general form is this.
 
 **Claim**: when the algorithm ends, v is explored ⇔ G has a path from s to v.
 
+Run it with edges picked at random. Each run differs only in the order; the vertices explored
+at the end are exactly those with a path. Click a vertex to start over from it.
+
+<GenericSearchDemo />
+
 We prove the right-to-left direction (⇐) by contradiction. Suppose there is a path from
 s to v but v is unexplored at the end.
 
@@ -275,6 +287,14 @@ s to v but v is unexplored at the end.
 - Then somewhere on that path there must be an edge (u, x) where an explored u is
   followed by an unexplored x. x may be v, and u may be s.
 - But while such an edge remains, the algorithm does not stop. Contradiction.
+
+Follow the argument on a picture. Click vertices to choose which ones are explored.
+Whenever a v with a path is left unexplored, its path always contains an orange edge (u, x).
+
+<SearchProofDemo />
+
+- Initially only 0, 1 and 2 are explored. On the path 0 → 5 → 3 to vertex 3, the edge 0-5 remains.
+- The frontier becomes empty only when 0 through 6 are all explored. The remaining 7 through 12 have no path.
 
 One question remains. **When several edges cross the frontier, which comes first?**
 Picking the ones closest to the explored region gives BFS; going deeper from where you
@@ -416,6 +436,14 @@ discovered only after every vertex at distance k-1 has been taken out. But that 
 **only when every edge has the same length**. When edges have different weights, a path
 with fewer edges need not be shorter. That calls for Dijkstra, later in this topic.
 
+Check both claims and the shortest path on one picture. Click a vertex to change the target;
+the chips at the top let you change the start as well.
+
+<BfsPathDemo />
+
+- Starting from 0, 7 of the 13 vertices enter the queue and 16 = 2 × 8 edge ends are looked at. Only the component of 0 counts.
+- Pick 7 or 9 as the target and there is no path and no dist, exactly as Claim 1 says.
+
 ### Application: connected components \{#bfs-components}
 
 To find all connected components of an undirected graph, go through the vertices in turn
@@ -423,13 +451,20 @@ and start one BFS from each vertex not yet explored.
 
 ```plaintext
 mark every vertex unexplored
-for i <- 1 to n do
+for each vertex i do
     if i is not explored yet then
         BFS(G, i)                       // vertices reached from i form one component
 ```
 
 BFS is called several times, but each vertex and edge is seen only once in total, so
 this is $$O(V + E)$$. DFS can do the same job, and the practice code uses DFS.
+
+Step through the outer loop. Click an edge to remove or restore it.
+
+<BfsComponentsDemo />
+
+- On the original graph BFS is called three times, from 0, 7 and 9, and the components are 0\~6, 7 8 and 9\~12.
+- Remove the edge 7-8 and run again: BFS is called four times. The same happens if you remove 0-1.
 
 ## Example 2. Depth-first search \{#dfs}
 
@@ -592,8 +627,8 @@ Only a course whose prerequisites are done can be picked.
 A topological order of a directed graph G labels the vertices with numbers
 $$f(v) \in \{1, 2, \dots, V\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
 produces these numbers directly. A vertex gets its number **after all its outgoing
-edges have been explored**, and numbers are handed out backwards from the largest. A
-vertex that finishes first is one with nothing left to come after it. Blue vertices
+edges have been explored**, and numbers are handed out backwards from the largest,
+because a vertex that finishes first is one with nothing left to come after it. Blue vertices
 are still on the call stack and have not finished; green ones have finished and have
 their number.
 
@@ -665,10 +700,10 @@ Shaded cells are vertices whose DFS tree depth differs from their distance.
 | Property | BFS | DFS |
 | --- | --- | --- |
 | Data structure | queue (FIFO) | stack (LIFO) or recursion |
-| Memory | the width of one layer (grows on wide graphs) | the depth of the path (grows on deep graphs) |
+| Memory | the width of one layer (grows on wide graphs) | the depth of the path, if recursive (grows on deep graphs) |
 | Shortest path | guaranteed on unweighted graphs | not guaranteed |
 | Implementation | loop | recursion or loop |
-| Example uses | friend suggestions (nearest people first) | maze solving, web crawling, topological sort |
+| Example uses | friend suggestions (nearest people first), web crawling | maze solving, cycle detection, topological sort |
 
 ## Minimum spanning trees \{#mst}
 
@@ -705,7 +740,7 @@ Clicking an edge outside the tree makes a cycle. Clicking an edge on that cycle 
 
 <SpanSwapDemo />
 
-- This graph has 3108 spanning trees. The starting tree is the heaviest, 3.51, and the rank is its place among them.
+- This graph has 3,108 spanning trees. The starting tree is the heaviest, 3.51, and the rank is its place among them.
 - Keep swapping until no swap helps and you reach the total 1.81. The next lightest tree is 1.83.
 - "Make a tie" changes 2-7 to 0.26, equal to 0-2. Then 2 trees have the total 1.81. That is why we assume all weights differ.
 - This exchange returns in the proof of the cut property below.
@@ -748,7 +783,7 @@ In the example graph, choosing cuts so that edges are coloured in the order 0-2,
 
 The demo's **Colour the lightest edge** button is exactly this general form. If the
 lightest edge is already coloured there is nothing new to colour, so keep changing the
-cut to one coloured cluster against the rest and colour seven times. The total weight
+cut to one coloured piece against the rest and colour seven times. The total weight
 comes to 1.81.
 
 This general form does not say "which cut to pick". Kruskal and Prim are the ones that decide.
@@ -757,16 +792,16 @@ This general form does not say "which cut to pick". Kruskal and Prim are the one
 | --- | --- | --- | --- |
 | Approach | uses the cut property directly | edge-centred, lightest edge overall | vertex-centred, grows the tree one vertex at a time |
 | Starting point | anywhere | the lightest edge | one chosen vertex |
-| Time | depends on the implementation | $$O(E \log E)$$ | $$O(E \log V)$$ |
+| Time | depends on the implementation | $$O(E \log E + V^2)$$ | $$O(E \log V)$$ |
 | Preprocessing | none | sort the edges | none |
-| Implementation | hard (managing cuts) | medium (union-find) | easy (priority queue) |
+| Implementation | hard (managing cuts) | medium (tracking pieces) | easy (priority queue) |
 
 ## Example 3. Kruskal's algorithm \{#kruskal}
 
 Kruskal's algorithm (1956) looks at the edges in increasing order of weight and adds each
 to the tree **unless it makes a cycle**.
 
-Cycles are detected with component numbers. Each vertex has a `comp` (which piece it
+Cycles are detected with piece numbers. Each vertex has a `comp` (which piece it
 belongs to), and at first every vertex is a piece of its own. If the two ends of an edge
 are in different pieces, add the edge and merge the pieces. If they are in the same piece,
 a path already exists, so adding the edge would make a cycle.
@@ -869,113 +904,7 @@ total weight = 1.81
   piece. So e is the lightest crossing edge of this cut.
 - **Time**: sorting is $$O(E \log E)$$. Checking pieces is $$O(1)$$, and merging scans the
   whole array in $$O(V)$$, but merging happens only $$V - 1$$ times, so $$O(V^2)$$ in total.
-  Replacing the merge with **union-find** (disjoint sets) makes both checking and merging
-  nearly constant time, and the total is bounded by the sorting cost, $$O(E \log E)$$.
-  The next section shows how.
-
-### union-find \{#union-find}
-
-The weak spot of the comp array is the merge. Every merge scans all V cells to rewrite
-component ids. With V = 100,000 that is 100,000 cells per merge, and with V-1 merges, ten
-billion cells.
-
-**union-find** (disjoint sets) keeps each component as a tree. Each vertex has one
-**parent**, and the **root** you reach by following parents is the component's name.
-
-- **Find(x)**: climb from x up to the root. Two ends with the same root are in the same component.
-- **Union(a, b)**: hang one of the roots a, b under the other. Only one cell is rewritten.
-
-On its own this can grow a tree into a long line, and then Find climbs V cells. Two tricks
-prevent that.
-
-- **Union by size**: hang the smaller tree's root under the larger tree's root. On a tie,
-  hang the larger-numbered root under the smaller one.
-- **Path compression**: hang every vertex that Find passed directly on the root. The next
-  Find reaches the root in one link.
-
-<UnionFindDemo />
-
-It adds the same seven edges and stops at the same 1.81. Only the way components are held has
-changed. At 1-3, vertex 3 climbs two links, 3→2→0. Path compression hangs 3 directly on 0,
-and after that one link reaches the root. Links are followed 16 times in all. The comp array
-scans 8 cells on each of 7 merges, 56 cells.
-
-- Pseudocode (from `08_union_find/unionFind.pseudo`)
-
-```plaintext
-ALGORITHM Find(x)                       // root of the tree x is in
-    root <- x
-    while parent[root] != root do       // follow parents up to the root
-        root <- parent[root]
-    while parent[x] != root do          // path compression: hang passed vertices on the root
-        next <- parent[x]
-        parent[x] <- root
-        x <- next
-    return root
-
-ALGORITHM Union(a, b)                   // a, b are different roots
-    if size[a] < size[b] or (size[a] = size[b] and a > b) then
-        swap(a, b)                      // a is the larger (on a tie, the smaller number)
-    parent[b] <- a                      // hang the smaller tree under the larger root
-    size[a] <- size[a] + size[b]
-```
-
-Kruskal stays as it was; it calls `Find(u) != Find(v)` instead of `comp[u] != comp[v]`, and
-`Union` instead of the merge.
-
-- Run
-
-```sh
-cd src/topic-12-graph/08_union_find
-make -f /work/Makefile unionFind.out && ./unionFind.out
-```
-
-- Output
-
-```console
-V = 8, E = 16, union by size + path compression
-edge      find u    find v    result
-0-7 0.16  0         7         add   7 under 0  parent [0 1 2 3 4 5 6 0]
-2-3 0.17  2         3         add   3 under 2  parent [0 1 2 2 4 5 6 0]
-1-7 0.19  1         7>0       add   1 under 0  parent [0 0 2 2 4 5 6 0]
-0-2 0.26  0         2         add   2 under 0  parent [0 0 0 2 4 5 6 0]
-5-7 0.28  5         7>0       add   5 under 0  parent [0 0 0 2 4 0 6 0]
-1-3 0.29  1>0       3>2>0     skip  root 0     parent [0 0 0 0 4 0 6 0]
-1-5 0.32  1>0       5>0       skip  root 0
-2-7 0.34  2>0       7>0       skip  root 0
-4-5 0.35  4         5>0       add   4 under 0  parent [0 0 0 0 0 0 6 0]
-1-2 0.36  1>0       2>0       skip  root 0
-4-7 0.37  4>0       7>0       skip  root 0
-0-4 0.38  0         4>0       skip  root 0
-6-2 0.40  6         2>0       add   6 under 0  parent [0 0 0 0 0 0 0 0]
-7 edges = V - 1, stop
-mst: 0-7 2-3 1-7 0-2 5-7 4-5 6-2
-total weight = 1.81
-links followed = 16 (comp array: 7 merges x 8 cells = 56)
-
-random connected graphs, E = 4V, seed 2026
-        V       comp cells     finds     links links/find
-    1,000          999,000     7,040     6,447       0.92
-   10,000       99,990,000    78,228    72,834       0.93
-  100,000    9,999,900,000   788,952   737,258       0.93
-```
-
-The `find u` and `find v` columns are the paths from each end up to the root. `7>0` means
-7's parent is 0 and 0 is a root. `parent` is printed only on lines where a parent changed.
-
-The table at the end counts work on large random graphs. `comp cells` is the cells a comp
-array scans, V cells on each of V-1 merges, and `links` is the total parent links union-find's
-Find followed. These are counts, not times, so C and Python print the same thing.
-
-- **Tree height**: with union by size, no tree is taller than $$\log_2 V$$. A vertex moves
-  down a level only when its tree is hung under a tree at least as large, and each time its
-  tree at least doubles. A tree cannot exceed V vertices, so there are at most
-  $$\log_2 V$$ levels.
-- **With path compression**: one Find is effectively constant. Precisely, it is proportional
-  to the inverse Ackermann function $$\alpha(V)$$, which stays at most 4 even if V were the
-  number of atoms in the universe. In the table, too, a Find averages under one link.
-- **Kruskal as a whole**: when V grows ×10, the comp array grows ×100 and union-find ×10.
-  Checking and merging become nearly free, and the total is bounded by sorting, $$O(E \log E)$$.
+  The total is $$O(E \log E + V^2)$$.
 
 ## Example 4. Priority queues and the min heap \{#heap}
 
@@ -998,6 +927,14 @@ guarantee the order among equal priorities. Taking A(3), B(1), C(2), D(2) larges
 may give A → C → D → B or A → D → C → B, depending on how the heap stored them. The
 practice code and demos in this topic fix the order: among equal values, **the one put
 in first** comes out first.
+
+Insert the same elements into a queue and a priority queue and take them out. The orange
+outline is the next one out. You can insert your own values, and the chips switch to largest first.
+
+<PriorityQueueDemo />
+
+- The initial elements A(3), B(1), C(5), D(2) leave the queue as A → B → C → D and the priority queue as B → D → A → C.
+- The priority queue in this demo scans every element each time it takes one out. Taking out all four looks at 4 + 3 + 2 + 1 = 10 cells. The heap, coming next, cuts this cost.
 
 ### Heaps \{#heap-def}
 
@@ -1159,16 +1096,57 @@ extract all: 1 2 3 4 5 6 7 8 9 10
   forest each time cost $$O(k^2)$$ for $$k$$ symbols. With the forest in a min heap, two
   extractions and one insertion each cost $$O(\log k)$$, so the total is $$O(k \log k)$$.
 
+### Heap and BST \{#heap-vs-bst}
+
+The BST from Topic 07 also finds the smallest value quickly: the leftmost node is the
+minimum and the rightmost node is the maximum. Here is how it differs from a heap.
+
+- A **heap** keeps only "a parent is less than or equal to its children". Siblings have no
+  order. So the minimum is at the root, but nothing says where any other value is.
+- A **BST** keeps "left < parent < right". Every value has its place, so you can search
+  and walk in order. In exchange, the height depends on the insertion order.
+
+|  | Min heap | Max heap | BST (balanced) | BST (worst) |
+| --- | --- | --- | --- | --- |
+| Where the smallest value is | root | some leaf | leftmost | leftmost |
+| Peek min | $$O(1)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Extract min | $$O(\log n)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Peek max | $$O(n)$$ | $$O(1)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Insert | $$O(\log n)$$ | $$O(\log n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Search for any value | $$O(n)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Visit all in sorted order | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | $$O(n)$$ |
+
+- A max heap is a min heap with the comparison reversed. It is just as fast; what comes out
+  quickly changes from the minimum to the maximum. Finding the maximum in a min heap means
+  looking at every leaf.
+- A BST extracts both the minimum and the maximum in $$O(h)$$. When balanced, $$h$$ is
+  $$\log n$$, but inserting in sorted order makes one long chain with $$h = n$$.
+- A heap is always a complete binary tree, so its height is $$\log n$$ whatever the
+  insertion order. Fitting in one array without pointers is another advantage.
+
+Time inserting n values and extracting n times in this browser. Use the tabs to change the insertion order.
+
+<HeapBstRaceDemo />
+
+- With random order the BST is also about $$\log n$$ high and grows like the heap.
+- With ascending order the BST gets about 4 times slower when n doubles. The heap does not change.
+- Prim and Dijkstra only keep extracting the minimum, so a heap is enough for them.
+
 ## Example 5. Prim's algorithm \{#prim}
 
-Prim's algorithm (1959) starts from one vertex and **greedily grows** a tree T.
+Prim's algorithm (1957) starts from one vertex and **greedily grows** a tree T.
 
-- Start at vertex 0.
+- Start at any vertex. The examples and practice code in this topic start at vertex 0.
 - Add to T **the lightest** edge with exactly one end in T.
 - Repeat until there are $$V - 1$$ edges.
 
 Topic 06 said "Prim is a greedy algorithm that picks whatever is closest right now". That
 "closest" is exactly the vertex that joins the tree by the lightest edge.
+
+Nothing requires the start to be 0. Take the tree so far and the rest as the cut: the edge
+Prim picks is always the lightest crossing edge of that cut, and this argument works from
+any start. The example graph has all-distinct weights, so its MST is unique; from any start
+you get the same seven edges and 1.81, and only the order in which vertices join changes.
 
 Each vertex has a `key` (the weight of the lightest edge joining it to the tree) and a
 `via` (the tree end of that edge), and the vertex with the smallest key is taken from a min
@@ -1176,12 +1154,13 @@ heap. Attaching one vertex can lower its neighbours' keys. When a key drops, upd
 and via and **insert a new entry** into the heap. The entry put in earlier stays in the
 heap, and when it is eventually taken out it is dropped if the vertex is already in the tree.
 
-<HeapGraphDemo mode="prim" />
+<HeapGraphDemo mode="prim" pickStart />
 
 In the priority queue box, `0.26:2` is the entry "vertex 2 with key 0.26". Struck-through
 entries are stale. Vertex 4's key dropped twice, from 0.38 to 0.37 to 0.35; the stale
-0.37 and 0.38 are taken out later and dropped. Dashed blue lines are the via edges of
-vertices not yet in the tree.
+0.37 and 0.38 are taken out later and dropped. A solid orange line is an edge whose key the vertex
+just taken out lowered; a dashed orange line is a via edge lowered earlier. Both are candidates
+not yet in the tree, and their weights are exactly the keys the heap compares.
 
 - Pseudocode
 
@@ -1298,27 +1277,40 @@ piece grows from start to finish.
   total is $$O(E \log E)$$, and since $$E \le V^2$$ gives $$\log E \le 2 \log V$$, it is
   $$O(E \log V)$$.
 
+Run Kruskal and Prim side by side on the same graph. Each step, both add one edge. The solid
+orange line is the edge added next, and the dashed orange lines are the other crossing edges of
+the cut it crosses. Kruskal's cut is "the piece holding one end of the next edge" and the rest;
+Prim's cut is "the tree so far" and the rest. Either way, the solid orange edge is the lightest
+in its cut.
+
+<MstSideDemo />
+
+- Kruskal starts with 8 pieces that grow and merge; Prim has one piece from start to finish.
+- Prim's heap pushes are 11 starting from 0 and 15 starting from 6, never more than E = 16.
+  Edge (u, v) pushes only once, when u joins the tree first and v has not yet.
+- $$E \le V^2$$, so $$\log E \le 2 \log V$$. In the example $$\log_2 16 = 4 \le 2 \log_2 8 = 6$$,
+  and the constant 2 vanishes in O notation, so $$O(E \log E) = O(E \log V)$$.
+
 ## Kruskal or Prim, and when \{#mst-when}
 
-Kruskal and Prim produce the same MST, but their cost depends heavily on the graph. Each also
-has two implementations. Kruskal can hold components in a comp array or in union-find; Prim
-can take the nearest vertex from a heap, or scan a key array of V cells without one.
+Kruskal and Prim produce the same MST, but their cost depends heavily on the graph. Prim also
+has two implementations: it can take the nearest vertex from a heap, or scan a key array
+of V cells without one.
 
-| Method | Holding components or picking the next vertex | Time |
+| Method | Tracking pieces or picking the next vertex | Time |
 | --- | --- | --- |
-| Kruskal comp | rewrite V cells on every merge | $$O(E \log E + V^2)$$ |
-| Kruskal UF | union-find | $$O(E \log E)$$ |
+| Kruskal | rewrite V cells on every merge | $$O(E \log E + V^2)$$ |
 | Prim heap | take from a min heap | $$O(E \log V)$$ |
 | Prim array | scan V cells of the key array | $$O(V^2 + E)$$ |
 
-The demo below times all four in this browser. Tabs change the graph. There are two complete
+The demo below times all three in this browser. Tabs change the graph. There are two complete
 graphs. One has random weights. The other gives the edge u < v the weight
 $$(V - u) \times V + v$$, so every time Prim adds a vertex, the key of every remaining vertex
 drops. That is the worst case for a heap.
 
 <MstRaceDemo />
 
-`09_mst_timing` does the same in C. Prim array in pseudocode:
+`08_mst_timing` does the same in C. Prim array in pseudocode:
 
 ```plaintext
 ALGORITHM PrimArray(G)
@@ -1335,7 +1327,7 @@ ALGORITHM PrimArray(G)
 - Run
 
 ```sh
-cd src/topic-12-graph/09_mst_timing
+cd src/topic-12-graph/08_mst_timing
 make -f /work/Makefile mstTiming.out && ./mstTiming.out
 ```
 
@@ -1343,32 +1335,32 @@ make -f /work/Makefile mstTiming.out && ./mstTiming.out
 
 ```console
 sparse, E = 4V (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-   2000      8000         2.968       0.435      0.142       2.287
-   8000     32000        34.831       2.106      0.955      35.513
-  32000    128000       517.287      10.024      5.184     555.430
+      V         E    Kruskal  Prim heap  Prim array
+   2000      8000      3.850      0.178       2.366
+   8000     32000     34.527      0.948      34.920
+  32000    128000    518.085      5.358     556.550
 
 complete, E = V(V-1)/2 (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         9.306       9.148      0.256       0.491
-   1000    499500        41.711      41.022      0.965       2.106
-   2000   1999000       183.393     180.328      3.413       9.270
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      9.046      0.253       0.486
+   1000    499500     40.496      0.998       2.090
+   2000   1999000    177.934      3.341       8.942
 
 complete, every edge lowers a key (ms)
-      V         E  Kruskal comp  Kruskal UF  Prim heap  Prim array
-    500    124750         2.984       3.002      5.445       0.233
-   1000    499500        13.145      13.253     25.066       0.833
-   2000   1999000        57.362      56.097    109.677       3.222
+      V         E    Kruskal  Prim heap  Prim array
+    500    124750      2.962      5.460       0.235
+   1000    499500     13.455     24.799       0.835
+   2000   1999000     55.808    108.868       3.301
 ```
 
-- **Sparse graphs**: when V grows ×4, Kruskal comp and Prim array grow about ×15. Both are
-  bounded by $$V^2$$. The two methods fixed with union-find and a heap are over 50 and 100
-  times faster at V = 32,000.
+- **Sparse graphs**: when V grows ×4 from 8,000 to 32,000, Kruskal and Prim array grow ×15
+  to ×16. Both are bounded by $$V^2$$. Prim heap, which uses a heap, is about 100 times faster
+  at V = 32,000.
 - **Random complete graphs**: Prim heap is fastest. With random weights a new tree vertex
   rarely lowers a remaining key, so the heap takes far fewer than E pushes. At V = 2,000 in
   the demo it is under 1% of about two million edges. Kruskal has to sort every edge and is slowest.
 - **Complete graphs that are worst for a heap**: every edge lowers a key, so the heap takes E
-  pushes. Now Prim array is 34 times faster at V = 2,000. $$O(V^2)$$ is an upper bound that
+  pushes. Now Prim array is 33 times faster than Prim heap at V = 2,000. $$O(V^2)$$ is an upper bound that
   holds whatever the input, and on a complete graph it is the same size as looking at each
   edge once.
 
@@ -1376,13 +1368,13 @@ In short:
 
 | Situation | Pick | Why |
 | --- | --- | --- |
-| Sparse ($$E \approx V$$) | Kruskal UF, Prim heap | Both $$O(E \log V)$$. The $$V^2$$ methods break down for large V |
+| Sparse ($$E \approx V$$) | Prim heap | $$O(E \log V)$$. The $$V^2$$ methods break down for large V |
 | Dense ($$E \approx V^2$$) | Prim array | $$O(V^2)$$ whatever the input. A heap costs $$E \log V$$ when keys drop often |
-| Only an edge list | Kruskal UF | No adjacency list needed |
-| Split into k groups | Kruskal stopped at V-k edges | That forest is the answer |
+| Only an edge list | Kruskal | No adjacency list needed |
+| Split into k pieces | Kruskal stopped at V-k edges | That forest is the answer |
 
-The last row is clustering. Stop Kruskal at V-k edges instead of V-1 and k components remain,
-and the distance between the closest two vertices in different components is the largest of
+The last row is clustering. Stop Kruskal at V-k edges instead of V-1 and k pieces remain,
+and the distance between the closest two vertices in different pieces is the largest of
 any split. The heap's speed on random complete graphs is a gift of the input, not a
 guaranteed bound.
 
@@ -1462,7 +1454,7 @@ blue number beside a vertex is the distance found so far, and from in the table 
 vertex just before it on that path. Green edges are the from edges of finalised vertices;
 dashed blue lines are the from edges of vertices not yet finalised.
 
-<HeapGraphDemo mode="dijkstra" />
+<HeapGraphDemo mode="dijkstra" pickEnds />
 
 Vertex 2's distance dropped three times: 17, 15, 14. The first path found, 0 → 1 → 2,
 is 17; the next, 0 → 7 → 2, is 15; and the last, 0 → 4 → 5 → 2, is 14. By the time 2
@@ -1585,20 +1577,23 @@ The finalising order is 0, 1, 7, 4, 5, 2, 3, 6, and the finalised distances 0, 5
 
 Dijkstra's algorithm computes a shortest-path tree in a directed graph with non-negative weights.
 
-- Edge v → w is relaxed **exactly once**, when v is finalised. Right after that,
-  $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$ holds.
+- Edge u → v is looked at once, when u is finalised.
+  - If v is not final yet, it is relaxed, so right after that $$\text{dist}[v] \le \text{dist}[u] + w(u, v)$$ holds.
+  - If v is already final, it is not relaxed. Still, v was finalised before u, so
+    $$\text{dist}[v] \le \text{dist}[u]$$, and since weights are non-negative,
+    $$\text{dist}[v] \le \text{dist}[u] + w(u, v)$$ already holds. This is exactly where
+    Dijkstra goes wrong with negative weights.
 - This inequality holds until the algorithm ends.
-  - $$\text{dist}[w]$$ only decreases, never increases.
-  - $$\text{dist}[v]$$ does not change after v is finalised. Each step picks the vertex
-    with the smallest distance, and with non-negative weights, a path back to v through a
-    vertex finalised later cannot be shorter than the current $$\text{dist}[v]$$.
-- So at the end $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$ for every edge, and no path
+  - $$\text{dist}[v]$$ only decreases, never increases.
+  - A finalised $$\text{dist}[u]$$ is never changed again.
+- So at the end $$\text{dist}[v] \le \text{dist}[u] + w(u, v)$$ for every edge, and no path
   can be shorter than $$\text{dist}$$. Therefore $$\text{dist}$$ is the shortest distance.
 
 ### Running time \{#dijkstra-time}
 
-Each vertex is inserted and extracted once, and each edge may trigger one update-key. So
-the cost depends on what the priority queue is built from.
+Each vertex is inserted and extracted once, and each edge may trigger one update-key. The
+practice code inserts a new entry instead of updating the value, so the heap gets one entry
+per edge, but the totals are of the same order. So the cost depends on what the priority queue is built from.
 
 Compute the total formulas of the table below by moving $$V$$ and $$E$$. The bars use a log scale and the values drop constants.
 
@@ -1615,7 +1610,7 @@ Compute the total formulas of the table below by moving $$V$$ and $$E$$. The bar
 | d-way heap | $$\log_d V$$ | $$d \log_d V$$ | $$\log_d V$$ | $$E \log_{E/V} V$$ |
 | Fibonacci heap | $$1^*$$ | $$\log V^*$$ | $$1^*$$ | $$E + V \log V$$ |
 
-$$^*$$ marks amortized cost.
+$$^*$$ marks amortised cost.
 
 - For **dense** graphs with very many edges, the array implementation ($$O(V^2)$$) is best.
 - For **sparse** graphs, the binary heap is much faster. The practice code uses it.
@@ -1691,11 +1686,11 @@ The A* algorithm uses an **estimate** of the remaining distance to the goal (a h
 to search towards the goal first. It is widely used in games, robot path planning and
 geographic information systems (GIS).
 
-- $$g(n)$$: the **actual** distance from the start to the current node n (cost so far)
+- $$g(n)$$: the **actual** distance from the start vertex to the current vertex n (cost so far)
 - $$h(n)$$: an **estimate** of the remaining distance from n to the goal (the heuristic)
-- $$f(n) = g(n) + h(n)$$: the expected total cost of a path through this node
+- $$f(n) = g(n) + h(n)$$: the expected total cost of a path through this vertex
 
-Dijkstra opens the node with the smallest $$g$$; A* opens the node with the smallest $$f$$.
+Dijkstra takes out and closes the vertex with the smallest $$g$$ first; A* the vertex with the smallest $$f$$.
 How accurate $$h$$ is changes performance dramatically, so $$h$$ is the heart of A*.
 
 ### The heuristic function \{#heuristic}
@@ -1947,15 +1942,36 @@ There are many ways to refine A* further.
   hierarchical pathfinding, which first searches a map divided into large regions
 - **Better heuristics**: precomputed pattern databases, heuristics learned with machine learning
 
-## On a real map \{#real-map}
+### Example: two friends guess the way \{#map-friends}
+
+On the real walking network around the Songdo campus (1,323 intersections, 1,980 street
+segments), suppose two friends look for a way from Campus Town Station to Main Hall. The same
+map returns in "Wrap-up: on a real map" to compare all four algorithms.
+Both widen the route like A*, taking the smallest "distance walked so far + guessed remaining
+distance" first. The only difference is how they guess the remaining distance.
+
+- **Friend A** guesses "Main Hall is about 1km away in a straight line, so at least 1km remains on foot".
+  $$h$$ is the straight-line distance to the goal; no route is shorter than a straight line, so it never exceeds the true remaining distance.
+- **Friend B** has no sense of distance and inflates it: "Must be about 3km to go". $$h$$ is three times the straight-line distance.
+
+<MapFriendsDemo />
+
+- A closes 91 intersections and finds the shortest route, 1,057m.
+- B closes only 29 and decides much faster, but walks 1,259m, 202m (19%) more. Inflating the
+  remaining distance makes B rush towards the goal and miss the route that is actually shorter.
+- Set B's factor to 1 and it matches A; inflate only a little, 1.5 or 2, and it walks 1,058m,
+  nearly the shortest. This trade is sometimes made on purpose: a slightly longer route found much faster.
+- A good heuristic is a guess as close as possible without exceeding the truth.
+
+## Wrap-up: on a real map \{#real-map}
 
 The graphs so far had eight vertices. What happens on a real map? The demo below is the
 walking network around Yonsei University's International Campus in Songdo and the Campus Town
 and Technopark stations on Incheon Line 1, about 2.7 km × 2.2 km. From OpenStreetMap street
 data, intersections become vertices and each street segment between two intersections becomes
-an edge whose weight is its real length in meters. There are 1,323 vertices and 1,980 edges.
+an edge whose weight is its real length in metres. There are 1,323 vertices and 1,980 edges.
 
-The four algorithms are the same as in the demo above. A*'s $$h$$ is the straight-line
+The four algorithms are the same as in the earlier "Measure it: four algorithms" demo. A*'s $$h$$ is the straight-line
 distance to the goal. No street is shorter than a straight line, so this $$h$$ is admissible
 and consistent, and A* finds the same shortest route as Dijkstra without reopening.
 
@@ -1965,21 +1981,21 @@ From Campus Town Station to Main Hall:
 
 | Algorithm | Closed | Length | Segments |
 | --- | --- | --- | --- |
-| BFS | 872 | 1,286 m | 21 |
-| Dijkstra | 710 | 1,057 m | 25 |
-| A* | 91 | 1,057 m | 25 |
-| Greedy | 33 | 1,259 m | 27 |
+| BFS | 872 | 1,286m | 21 |
+| Dijkstra | 710 | 1,057m | 25 |
+| A* | 91 | 1,057m | 25 |
+| Greedy | 33 | 1,259m | 27 |
 
 - **Dijkstra** spreads evenly in every direction from the start. Even with the goal to the
   southeast, it closes the streets to the north and west just the same.
-- <strong>A*</strong> spreads in a long shape toward the goal. It finds the same 1,057 m route
+- <strong>A*</strong> spreads in a long shape towards the goal. It finds the same 1,057m route
   while closing a little over an eighth as many intersections as Dijkstra.
-- **BFS** counts only segments. It picks the route with the fewest, 21, but it is 229 m
+- **BFS** counts only segments. It picks the route with the fewest, 21, but it is 229m
   longer. Segments vary in length, so fewer segments does not mean a shorter route.
-- **Greedy** closes only 33 and is the fastest, but it heads only toward the goal, backs out
-  when blocked, and walks 202 m more. Sometimes it gets lucky and comes within 1 m of the
+- **Greedy** closes only 33 and is the fastest, but it heads only towards the goal, backs out
+  when blocked, and walks 202m more. Sometimes it gets lucky and comes within 1m of the
   shortest, as from Campus Town Station to Underwood Memorial Library; sometimes it detours
-  492 m, as from Technopark Station to Songdo Dorm A.
+  492m, as from Technopark Station to Songdo Dorm A.
 
 Change the route or click the map to move the start and goal, and the order mostly stays.
 Greedy closes the fewest, A* the next fewest, and Dijkstra and A* always find the same,
@@ -1987,7 +2003,7 @@ shortest length.
 
 Real map services have road networks with millions of intersections. A* alone still closes
 too many for a single query, so they also precompute shortcuts over the map (hierarchical
-route finding and similar methods). Map data © OpenStreetMap contributors, under the ODbL.
+pathfinding and similar methods). Map data © OpenStreetMap contributors, under the ODbL.
 
 ## What to keep \{#takeaway}
 
@@ -1999,9 +2015,8 @@ route finding and similar methods). Map data © OpenStreetMap contributors, unde
   topological sort and cycle detection. Both are $$O(V + E)$$.
 - **Cut property**: for any cut, the lightest crossing edge is in the MST. Kruskal and Prim
   are greedy algorithms that differ only in how they pick the cut. The example's MST is 1.81.
-- **union-find**: with union by size and path compression, Find is effectively constant, so
-  Kruskal is bounded by sorting, $$O(E \log E)$$. Use Kruskal UF or Prim heap on sparse
-  graphs, and Prim array, which scans V cells without a heap, on dense ones.
+- **Choosing between Kruskal and Prim**: use Prim heap on sparse graphs and Prim array, which
+  scans V cells without a heap, on dense ones.
 - **Min heap**: insert sifts up, extract sifts down. Both are $$O(\log n)$$, and it is the
   basis of the priority queue.
 - **Prim and Dijkstra share one framework**. The only difference is whether the heap holds
@@ -2024,8 +2039,7 @@ src/topic-12-graph/
 ├── 05_mst_prim/         # from vertex 0 with a min heap, MST 1.81
 ├── 06_dijkstra/         # 25 from 0 to 6, and a negative-weight failure
 ├── 07_a_star/           # 26 without reopening, 25 with reopening
-├── 08_union_find/       # Kruskal with union-find, 16 links vs 56 comp-array cells
-└── 09_mst_timing/       # time of two Kruskals and two Prims, sparse and complete graphs
+└── 08_mst_timing/       # time of Kruskal, Prim heap and Prim array, sparse and complete graphs
 ```
 
 Open a file and press the **▶ button** at the top right of the editor
@@ -2040,7 +2054,6 @@ run things.
 - In `02_dfs`, push neighbours largest first. The visit order becomes `0 1 2 3 4 5 6`.
 - Change the start vertex of `05_mst_prim`. The order in which vertices join changes, but
   the MST and 1.81 do not.
-- Remove the size comparison from `unite` in `08_union_find`. `links` grows in the table at the end.
 - Set every `h` in `07_a_star` to 0 and it closes vertices in the same order as Dijkstra;
   set it to the true remaining distances (`25 22 11 9 16 12 0 18`) and it closes only four
   vertices before reaching the goal.
@@ -2048,10 +2061,11 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v3**, shown at the bottom left of the slides.
+**v4**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-11-04 | Added 13 hands-on demos (edges and cells, picking frontier edges, BFS and DFS side by side, topological sort, swapping spanning-tree edges, min heap, the paths of BFS and Dijkstra, Prim and Dijkstra side by side, choosing the priority queue, negative weights, negative cycles, editing h, measuring four algorithms). Added an adjacency-list table inside the search demos |
 | v3 | 2026-11-13 | Wrote graph sizes as V and E throughout and added top-right legends for V and E and for A*'s g, h and f. Added a union-find section with a step-by-step demo, a section on when to use Kruskal or Prim, a demo timing four MST methods in the browser, and a map demo comparing the four route-finding algorithms on the real walking network around Yonsei's International Campus in Songdo (OpenStreetMap), citing `08_union_find` and `09_mst_timing` output from `algorithm-code` |
+| v4 | 2026-11-18 | Removed the union-find section, its demo and the `08_union_find` citation, and replaced them with `08_mst_timing` (three methods: Kruskal, Prim heap, Prim array). Added hands-on demos: English names of graph terms, running the generic search, BFS distances and paths, counting connected components, queue and priority queue, measuring heap and BST, Kruskal and Prim side by side, a second cut example, and the two friends' A* on a real map. Split the step-by-step demos into finalising and updating values, and comparing and swapping, and marked the current phase. Made the start and goal changeable in the Prim and Dijkstra demos. Fixed the Dijkstra correctness argument |

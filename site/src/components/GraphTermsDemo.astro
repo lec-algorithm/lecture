@@ -109,6 +109,8 @@ const STRINGS: Record<string, Record<string, string>> = {
 };
 const lang = Astro.currentLocale ?? defaultLang;
 const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+// 영어가 아닌 로케일에서는 용어 옆에 영어 원어를 함께 적는다.
+const EN: Record<string, string> = t === STRINGS.en ? {} : Object.fromEntries(TERMS.map((k) => [k, STRINGS.en[k]]));
 ---
 
 <div
@@ -119,13 +121,14 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
   data-gt-term={term}
   data-gt-vertex={vertex}
   data-gt-strings={JSON.stringify(t)}
+  data-gt-en={JSON.stringify(EN)}
 >
   <div class="gt-bar">
     <span class="gt-head"><strong>{t.title}</strong> <span class="gt-hint">{t.hint}</span></span>
   </div>
   <div class="gt-chips" role="tablist">
     {TERMS.map((k) => (
-      <button type="button" class="gt-chip" data-gt-chip={k} role="tab">{t[k]}</button>
+      <button type="button" class="gt-chip" data-gt-chip={k} role="tab">{t[k]}{EN[k] && <span class="gt-en">{EN[k]}</span>}</button>
     ))}
   </div>
   <div class="gt-body">
@@ -133,7 +136,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       <GraphFigure graph={graph} bare slide={slide} />
     </div>
     <div class="gt-panel">
-      <p class="gt-term" data-gt-name></p>
+      <p class="gt-term"><span data-gt-name></span><span class="gt-en" data-gt-name-en></span></p>
       <p class="gt-def" data-gt-def></p>
       <p class="gt-fact" data-gt-fact></p>
     </div>
@@ -153,6 +156,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     };
 
     const S = JSON.parse(root.dataset.gtStrings);
+    const EN = JSON.parse(root.dataset.gtEn);
     const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
     const n = Number(root.dataset.gtN);
     const edges = JSON.parse(root.dataset.gtEdges);
@@ -204,6 +208,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     });
     const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
     const nameEl = root.querySelector('[data-gt-name]');
+    const nameEnEl = root.querySelector('[data-gt-name-en]');
     const defEl = root.querySelector('[data-gt-def]');
     const factEl = root.querySelector('[data-gt-fact]');
     const cardEl = root.querySelector('[data-gt-card]');
@@ -301,6 +306,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         c.setAttribute('aria-selected', String(on));
       });
       nameEl.textContent = S[cur];
+      nameEnEl.textContent = EN[cur] ?? '';
       setLines(defEl, DEF[cur]);
       setLines(factEl, fact);
       cardEl.textContent = fill(S.cardLine, { v: sel, d: adj[sel].length, list: adj[sel].join(', ') });
@@ -396,6 +402,16 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     font-size: 1.25em;
     font-weight: 800;
     color: var(--aas-accent);
+  }
+  .aas-graph-terms-demo .gt-en {
+    margin-left: 0.45em;
+    font-size: 0.8em;
+    font-weight: 500;
+    opacity: 0.7;
+  }
+  .aas-graph-terms-demo .gt-term .gt-en {
+    color: var(--aas-muted);
+    opacity: 1;
   }
   .aas-graph-terms-demo .gt-def {
     margin: 0.35em 0 0;

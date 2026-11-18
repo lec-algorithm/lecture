@@ -1,0 +1,427 @@
+---
+// 일반 탐색 알고리즘을 무작위로 돌려 보는 데모. 알고리즘 두 줄을 데모 안에
+// 함께 두고, 지금 하는 줄을 강조한다.
+//
+// 그래프는 연결 요소가 셋인 g13이다. "한 걸음"은 경계 간선(한 끝만 탐색함)
+// 가운데 하나를 무작위로 골라 반대쪽 정점을 탐색한다. 몇 번을 돌려도 순서만
+// 다르고, 끝에 탐색한 정점은 s에서 경로가 있는 정점과 같다. 아래 두 줄
+// ("경로가 있는 정점", "탐색한 정점")이 같아지는 것으로 주장을 확인한다.
+// 정점을 누르면 그 정점에서 다시 시작한다. 직접 간선을 고르는 것은
+// FrontierDemo가 맡는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 시작 정점 */
+  start?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { start = 0, slide = false } = Astro.props;
+const g = getGraph('g13');
+const id = `gen-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '일반 탐색 돌려 보기',
+    step: '한 걸음',
+    run: '끝까지',
+    reset: '처음으로',
+    algo1: '처음에 s만 탐색했습니다.',
+    algo2: '가능한 동안 되풀이합니다.',
+    algo2a: 'u는 탐색했고 v는 탐색하지 않은 간선 (u, v)를 고릅니다.',
+    algo2b: 'v를 탐색한 것으로 표시합니다.',
+    reach: '경로가 있는 정점',
+    seen: '탐색한 정점',
+    idle: 's = {s}만 탐색했습니다. 파란 점선이 고를 수 있는 간선입니다. 정점을 누르면 거기서 다시 시작합니다.',
+    pick: '{k}개 가운데 {e}를 골라 {v}를 탐색했습니다.',
+    done: '고를 간선이 없어 끝났습니다. 두 줄이 같습니다. {rest}에는 경로가 없어 탐색하지 않았습니다.',
+    doneAll: '고를 간선이 없어 끝났습니다. 두 줄이 같습니다.',
+    runs: '{n}번 돌렸고 순서는 {k}가지였지만, 탐색한 정점은 매번 같았습니다.',
+    order: '순서',
+  },
+  en: {
+    title: 'Run the generic search',
+    step: 'One step',
+    run: 'To the end',
+    reset: 'Reset',
+    algo1: 'Initially only s is explored.',
+    algo2: 'Repeat while possible:',
+    algo2a: 'Pick an edge (u, v) with u explored and v unexplored.',
+    algo2b: 'Mark v as explored.',
+    reach: 'Vertices with a path',
+    seen: 'Explored vertices',
+    idle: 'Only s = {s} is explored. The dashed blue edges are the ones we may pick. Click a vertex to start over from it.',
+    pick: 'Out of {k}, picked {e} and explored {v}.',
+    done: 'No edge left to pick, so it stops. The two rows match. No path leads to {rest}, so they stay unexplored.',
+    doneAll: 'No edge left to pick, so it stops. The two rows match.',
+    runs: '{n} runs gave {k} different orders, but the explored vertices were the same every time.',
+    order: 'Order',
+  },
+  zh: {
+    title: '运行通用搜索',
+    step: '走一步',
+    run: '走到底',
+    reset: '重置',
+    algo1: '一开始只探索了 s。',
+    algo2: '只要还能做就重复：',
+    algo2a: '选一条 u 已探索、v 未探索的边 (u, v)。',
+    algo2b: '把 v 标记为已探索。',
+    reach: '有路径的顶点',
+    seen: '已探索的顶点',
+    idle: '只探索了 s = {s}。蓝色虚线是可以选的边。点击顶点可从那里重新开始。',
+    pick: '从 {k} 条中选了 {e}，探索了 {v}。',
+    done: '没有可选的边，结束。两行相同。没有通往 {rest} 的路径，所以没有探索。',
+    doneAll: '没有可选的边，结束。两行相同。',
+    runs: '运行了 {n} 次，顺序有 {k} 种，但探索到的顶点每次都相同。',
+    order: '顺序',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-generic-search-demo', slide && 'is-slide']}
+  id={id}
+  data-gen-n={g.nodes.length}
+  data-gen-edges={JSON.stringify(g.edges)}
+  data-gen-start={start}
+  data-gen-strings={JSON.stringify(t)}
+>
+  <div class="gen-bar">
+    <span class="gen-head"><strong>{t.title}</strong></span>
+    <div class="gen-controls">
+      <button type="button" class="gen-btn gen-btn-primary" data-gen-act="step">{t.step}</button>
+      <button type="button" class="gen-btn gen-btn-primary" data-gen-act="run">{t.run}</button>
+      <button type="button" class="gen-btn" data-gen-act="reset">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="gen-body">
+    <div class="gen-graph">
+      <GraphFigure graph="g13" bare slide={slide} />
+    </div>
+    <div class="gen-panel">
+      <ol class="gen-algo">
+        <li data-gen-line="1">{t.algo1}</li>
+        <li>
+          {t.algo2}
+          <ul>
+            <li data-gen-line="2a">{t.algo2a}</li>
+            <li data-gen-line="2b">{t.algo2b}</li>
+          </ul>
+        </li>
+      </ol>
+      <div class="gen-sets">
+        <span class="gen-label">{t.reach}</span><strong data-gen-reach></strong>
+        <span class="gen-label">{t.seen}</span><strong data-gen-seen></strong>
+        <span class="gen-label">{t.order}</span><strong data-gen-order></strong>
+      </div>
+      <p class="gen-note" data-gen-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.genStrings);
+    const n = Number(root.dataset.genN);
+    const edges = JSON.parse(root.dataset.genEdges);
+
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+
+    let s = Number(root.dataset.genStart);
+    let picks = []; // 고른 간선 [u, v]의 순서
+    let orders = new Set(); // 끝까지 간 순서들(같은 시작 정점)
+    let runs = 0;
+    let timer = null;
+
+    /* s에서 경로가 있는 정점. 알고리즘과 따로 BFS로 구해 둔다. */
+    function reachable() {
+      const seen = new Array(n).fill(false);
+      seen[s] = true;
+      const q = [s];
+      while (q.length) {
+        const v = q.shift();
+        adj[v].forEach((w) => {
+          if (!seen[w]) {
+            seen[w] = true;
+            q.push(w);
+          }
+        });
+      }
+      return seen;
+    }
+    function state() {
+      const seen = new Array(n).fill(false);
+      const order = [s];
+      seen[s] = true;
+      picks.forEach(([, v]) => {
+        seen[v] = true;
+        order.push(v);
+      });
+      const fr = [];
+      seen.forEach((x, u) => x && adj[u].forEach((w) => !seen[w] && fr.push([u, w])));
+      return { seen, order, fr };
+    }
+    const list = (flags, want) =>
+      flags
+        .map((x, v) => (x === want ? v : -1))
+        .filter((v) => v >= 0)
+        .join(' ');
+
+    const edgeEls = [...root.querySelectorAll('[data-gf-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const lineEls = {};
+    root.querySelectorAll('[data-gen-line]').forEach((el) => (lineEls[el.dataset.genLine] = el));
+    const noteEl = root.querySelector('[data-gen-note]');
+    const buttons = {};
+    root.querySelectorAll('[data-gen-act]').forEach((b) => (buttons[b.dataset.genAct] = b));
+
+    function render() {
+      const { seen, order, fr } = state();
+      const reach = reachable();
+      const last = picks[picks.length - 1];
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', seen[v]);
+        el.classList.toggle('is-ring', v === s);
+        el.classList.toggle('is-focus', !!last && v === last[1]);
+      });
+      const tree = new Set(picks.map(([u, v]) => `${u}-${v}`));
+      const cand = new Set(fr.map(([u, v]) => `${u}-${v}`));
+      edgeEls.forEach((el) => {
+        const [a, b] = el.dataset.gfEdge.split('-');
+        el.classList.toggle('is-tree', tree.has(`${a}-${b}`) || tree.has(`${b}-${a}`));
+        el.classList.toggle('is-cand', cand.has(`${a}-${b}`) || cand.has(`${b}-${a}`));
+      });
+      const done = !fr.length;
+      lineEls['1'].classList.toggle('is-on', !picks.length);
+      lineEls['2a'].classList.toggle('is-on', !!picks.length && !done);
+      lineEls['2b'].classList.toggle('is-on', !!picks.length && !done);
+      root.querySelector('[data-gen-reach]').textContent = list(reach, true);
+      root.querySelector('[data-gen-seen]').textContent = list(seen, true);
+      root.querySelector('[data-gen-order]').textContent = order.join(' ');
+      root.classList.toggle('is-done', done);
+      buttons.step.disabled = done;
+      buttons.run.disabled = done;
+      let note;
+      if (done) {
+        const rest = list(reach, false);
+        note = join(
+          rest ? fill(S.done, { rest }) : S.doneAll,
+          runs > 1 && fill(S.runs, { n: runs, k: orders.size }),
+        );
+      } else if (last) {
+        /* 방금 고르기 전의 경계 간선 수는 지금 상태에서 되돌려 계산한다. */
+        const before = picks.slice(0, -1);
+        const seenB = new Array(n).fill(false);
+        seenB[s] = true;
+        before.forEach(([, v]) => (seenB[v] = true));
+        let k = 0;
+        seenB.forEach((x, u) => x && adj[u].forEach((w) => !seenB[w] && k++));
+        note = fill(S.pick, { k, e: `${last[0]}-${last[1]}`, v: last[1] });
+      } else {
+        note = fill(S.idle, { s });
+      }
+      setLines(noteEl, note);
+    }
+
+    function step() {
+      const { fr } = state();
+      if (!fr.length) return false;
+      picks.push(fr[Math.floor(Math.random() * fr.length)]);
+      const after = state();
+      if (!after.fr.length) {
+        runs += 1;
+        orders.add(after.order.join(' '));
+      }
+      render();
+      return after.fr.length > 0;
+    }
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    buttons.step.addEventListener('click', () => {
+      stop();
+      step();
+    });
+    buttons.run.addEventListener('click', () => {
+      stop();
+      if (step()) timer = setInterval(() => step() || stop(), 350);
+    });
+    buttons.reset.addEventListener('click', () => {
+      stop();
+      picks = [];
+      render();
+    });
+    const restart = (v) => {
+      stop();
+      if (v !== s) {
+        orders = new Set();
+        runs = 0;
+      }
+      s = v;
+      picks = [];
+      render();
+    };
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => restart(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          restart(v);
+        }
+      });
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-generic-search-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-generic-search-demo .gen-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-generic-search-demo .gen-head {
+    font-size: 0.95em;
+  }
+  .aas-generic-search-demo .gen-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-generic-search-demo .gen-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-generic-search-demo .gen-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-generic-search-demo .gen-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-generic-search-demo .gen-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-generic-search-demo .gen-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-generic-search-demo .gen-graph {
+    flex: 0 1 19em;
+    min-width: 12em;
+  }
+  .aas-generic-search-demo .gf-node {
+    cursor: pointer;
+  }
+  .aas-generic-search-demo .gen-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    min-width: 0;
+  }
+  .aas-generic-search-demo .gen-algo {
+    margin: 0;
+    padding-left: 1.3em;
+    font-size: 0.85em;
+    line-height: 1.5;
+  }
+  .aas-generic-search-demo .gen-algo ul {
+    margin: 0;
+    padding-left: 1.1em;
+  }
+  .aas-generic-search-demo .gen-algo li {
+    margin: 0;
+  }
+  .aas-generic-search-demo .gen-algo .is-on {
+    font-weight: 700;
+    color: var(--aas-role-focus);
+  }
+  .aas-generic-search-demo .gen-sets {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15em 0.8em;
+    align-items: baseline;
+    font-size: 0.85em;
+  }
+  .aas-generic-search-demo .gen-label {
+    color: var(--aas-muted);
+  }
+  .aas-generic-search-demo .gen-sets strong {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-generic-search-demo.is-done [data-gen-reach],
+  .aas-generic-search-demo.is-done [data-gen-seen] {
+    color: var(--aas-role-eval);
+  }
+  .aas-generic-search-demo .gen-note {
+    margin: 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+    min-height: 3.6em;
+  }
+  .aas-generic-search-demo.is-done .gen-note {
+    color: var(--aas-text);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-generic-search-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-generic-search-demo.is-slide .gen-body {
+    flex-wrap: nowrap;
+  }
+  .aas-generic-search-demo.is-slide .gen-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+</style>

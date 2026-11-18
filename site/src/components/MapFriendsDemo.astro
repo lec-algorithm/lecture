@@ -1,0 +1,654 @@
+---
+// 실제 지도에서 휴리스틱을 잘 잡은 친구와 부풀린 친구의 A*를 나란히 견주는 데모.
+//
+// 지도는 MapRouteDemo와 같은 송도 국제캠퍼스 일대 보행 도로망(map-songdo.json)이다.
+//   A: 남은 거리를 목표까지의 직선거리로 어림한다. 어떤 길도 직선보다 짧지 않으니 실제를
+//      넘지 않는다(허용적, 일관적). 그래서 최단 경로를 찾는다.
+//   B: 거리 감각이 없어 남은 거리를 직선거리의 k배로 부풀린다(슬라이더). 목표 쪽으로 서둘러
+//      교차로를 덜 닫지만, 최단 경로를 놓칠 수 있다. k = 1이면 A와 같다.
+// 둘 다 g + h가 가장 작은 교차로부터 닫고, 목표를 꺼내면 멈춘다(MapRouteDemo의 A*와 같다).
+// 기본은 캠퍼스타운역 → 종합관, k = 3이다. A는 1,057m 길을 교차로 91개를 닫고 찾고,
+// B는 29개만 닫지만 1,259m 길을 고른다.
+// 지도를 누르면 가장 가까운 교차로가 출발, 도착으로 번갈아 바뀐다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import MAP from '../data/map-songdo.json';
+
+interface Props {
+  /** B가 남은 거리를 부풀리는 배수의 처음 값 */
+  k?: number;
+  /** 슬라이드용: 두 지도를 높이에 맞춘다. */
+  slide?: boolean;
+}
+const { k = 3, slide = false } = Astro.props;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '두 친구의 길 어림',
+    a: '친구 A',
+    aRule: '남은 거리 = 직선거리',
+    b: '친구 B',
+    bRule: '남은 거리 = 직선거리 × {k}',
+    k: 'B의 부풀림',
+    closed: '닫은 교차로',
+    dist: '걸은 거리',
+    over: '최단보다',
+    best: '최단',
+    campusTown: '캠퍼스타운역',
+    technopark: '테크노파크역',
+    library: '언더우드 기념도서관',
+    mainHall: '종합관',
+    dormA: '송도학사 A',
+    dormE: '송도학사 E',
+    start: '출발',
+    goal: '도착',
+    noteMiss: 'B는 교차로를 {bc}개만 닫아 A({ac}개)보다 빨리 정했지만, {bd}m를 걸어 최단인 {ad}m보다 {diff}m 더 걷습니다. 남은 거리를 부풀리면 목표 쪽으로 서두르다 돌아가는 길을 놓칩니다.',
+    noteSame: 'B는 교차로를 {bc}개만 닫아 A({ac}개)보다 빨리 정했고, 이번에는 운 좋게 최단인 {ad}m 길을 찾았습니다. 부풀린 어림은 최단을 보장하지 않습니다. 다른 경로나 더 큰 배수로 바꿔 보세요.',
+    noteEq: 'k = 1이면 B도 직선거리로 어림하므로 A와 똑같이 움직입니다.',
+    hint: '지도를 누르면 출발과 도착이 번갈아 바뀝니다.',
+    source: '지도 데이터 © OpenStreetMap contributors (ODbL)',
+  },
+  en: {
+    title: 'How two friends guess the way',
+    a: 'Friend A',
+    aRule: 'remaining = straight-line distance',
+    b: 'Friend B',
+    bRule: 'remaining = straight line × {k}',
+    k: "B's inflation",
+    closed: 'closed',
+    dist: 'walked',
+    over: 'over shortest',
+    best: 'shortest',
+    campusTown: 'Campus Town Stn.',
+    technopark: 'Technopark Stn.',
+    library: 'Underwood Memorial Library',
+    mainHall: 'Main Hall',
+    dormA: 'Songdo Dorm A',
+    dormE: 'Songdo Dorm E',
+    start: 'Start',
+    goal: 'Goal',
+    noteMiss: 'B closed only {bc} intersections, deciding faster than A ({ac}), but walks {bd}m, {diff}m more than the shortest {ad}m. Inflating the remaining distance makes B rush towards the goal and miss the detour that is actually shorter.',
+    noteSame: 'B closed only {bc} intersections, deciding faster than A ({ac}), and this time happened to find the shortest {ad}m route. An inflated guess does not guarantee the shortest route. Try another route or a larger factor.',
+    noteEq: 'With k = 1, B also guesses the straight-line distance and moves exactly like A.',
+    hint: 'Click the map to move the start and the goal in turn.',
+    source: 'Map data © OpenStreetMap contributors (ODbL)',
+  },
+  zh: {
+    title: '两个朋友估路',
+    a: '朋友 A',
+    aRule: '剩余距离 = 直线距离',
+    b: '朋友 B',
+    bRule: '剩余距离 = 直线距离 × {k}',
+    k: 'B 的夸大倍数',
+    closed: '关闭的路口',
+    dist: '走的距离',
+    over: '比最短多',
+    best: '最短',
+    campusTown: '大学城站',
+    technopark: '科技公园站',
+    library: '安德伍德纪念图书馆',
+    mainHall: '综合馆',
+    dormA: '松岛学舍 A',
+    dormE: '松岛学舍 E',
+    start: '起点',
+    goal: '终点',
+    noteMiss: 'B 只关闭了 {bc} 个路口，比 A（{ac} 个）更快做出决定，但要走 {bd}m，比最短的 {ad}m 多走 {diff}m。把剩余距离估大，就会急着朝终点走，错过其实更短的绕行路线。',
+    noteSame: 'B 只关闭了 {bc} 个路口，比 A（{ac} 个）更快做出决定，这次碰巧找到了最短的 {ad}m 路线。夸大的估计并不保证最短。换一条路线或更大的倍数试试。',
+    noteEq: 'k = 1 时 B 也按直线距离估计，和 A 走法完全相同。',
+    hint: '点击地图，起点和终点会轮流更换。',
+    source: '地图数据 © OpenStreetMap contributors (ODbL)',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+/* 고를 수 있는 경로. 랜드마크 키는 map-songdo.json의 marks와 같다. */
+const ROUTES: [string, string][] = [
+  ['campusTown', 'mainHall'],
+  ['technopark', 'dormA'],
+  ['technopark', 'library'],
+  ['dormA', 'dormE'],
+];
+---
+
+<div
+  class:list={['aas-map-friends-demo', slide && 'is-slide']}
+  style={`--mf-ratio: ${MAP.width} / ${MAP.height}`}
+  data-mf-strings={JSON.stringify(t)}
+  data-mf-routes={JSON.stringify(ROUTES)}
+  data-mf-k={k}
+>
+  <div class="mf-bar">
+    <strong class="mf-head">{t.title}</strong>
+    <div class="mf-routes">
+      {
+        ROUTES.map(([a, b], i) => (
+          <button type="button" class="mf-chip" data-mf-route={i}>
+            {t[a]} → {t[b]}
+          </button>
+        ))
+      }
+    </div>
+    <label class="mf-k">
+      {t.k} <input type="range" min="1" max="5" step="0.5" value={k} data-mf-slider /> <strong data-mf-kval></strong>
+    </label>
+  </div>
+  <div class="mf-cols">
+    {
+      ['a', 'b'].map((who) => (
+        <figure class={`mf-col is-${who}`}>
+          <figcaption>
+            <strong>{t[who]}</strong> <span data-mf-rule={who}>{who === 'a' ? t.aRule : ''}</span>
+          </figcaption>
+          <canvas data-mf-canvas={who} />
+          <div class="mf-stats">
+            <span>{t.closed} <strong data-mf-closed={who}>-</strong></span>
+            <span>{t.dist} <strong data-mf-dist={who}>-</strong></span>
+            <span data-mf-over={who} />
+          </div>
+        </figure>
+      ))
+    }
+  </div>
+  <p class="mf-note" data-mf-note></p>
+  <p class="mf-hint">{t.hint} <span>{t.source}</span></p>
+</div>
+
+<script>
+  import MAP from '../data/map-songdo.json';
+
+  type Run = { order: number[]; parentEdge: Int32Array; pathEdges: number[]; dist: number };
+  type Mark = { x: number; y: number; v: number };
+
+  /* ---- 그래프: 좌표와 길이는 0.1m 단위 정수로 저장되어 있다(MapRouteDemo와 같다). ---- */
+  const V = MAP.xy.length / 2;
+  const X = new Float64Array(V);
+  const Y = new Float64Array(V);
+  for (let i = 0; i < V; i++) {
+    X[i] = MAP.xy[2 * i] / 10;
+    Y[i] = MAP.xy[2 * i + 1] / 10;
+  }
+  const W = MAP.width / 10;
+  const EDGES = MAP.edges as number[][];
+  const E = EDGES.length;
+  const EA = new Int32Array(E);
+  const EB = new Int32Array(E);
+  const LEN = new Float64Array(E);
+  const KIND = new Uint8Array(E);
+  for (let e = 0; e < E; e++) {
+    EA[e] = EDGES[e][0];
+    EB[e] = EDGES[e][1];
+    LEN[e] = EDGES[e][2] / 10;
+    KIND[e] = EDGES[e][3];
+  }
+  const START = new Int32Array(V + 1);
+  for (let e = 0; e < E; e++) {
+    START[EA[e] + 1]++;
+    START[EB[e] + 1]++;
+  }
+  for (let u = 0; u < V; u++) START[u + 1] += START[u];
+  const ADJ = new Int32Array(2 * E);
+  {
+    const at = START.slice(0, V);
+    for (let e = 0; e < E; e++) {
+      ADJ[at[EA[e]]++] = e;
+      ADJ[at[EB[e]]++] = e;
+    }
+  }
+  const other = (e: number, u: number) => (EA[e] === u ? EB[e] : EA[e]);
+  const MARKS = MAP.marks as Record<string, Mark>;
+
+  /* 최소 힙: (key, 정점). key가 같으면 먼저 넣은 것부터 */
+  class Heap {
+    k: number[] = [];
+    v: number[] = [];
+    s: number[] = [];
+    n = 0;
+    seq = 0;
+    less(i: number, j: number) {
+      return this.k[i] !== this.k[j] ? this.k[i] < this.k[j] : this.s[i] < this.s[j];
+    }
+    swap(i: number, j: number) {
+      [this.k[i], this.k[j]] = [this.k[j], this.k[i]];
+      [this.v[i], this.v[j]] = [this.v[j], this.v[i]];
+      [this.s[i], this.s[j]] = [this.s[j], this.s[i]];
+    }
+    push(key: number, v: number) {
+      let i = this.n++;
+      this.k[i] = key;
+      this.v[i] = v;
+      this.s[i] = this.seq++;
+      while (i > 0 && this.less(i, (i - 1) >> 1)) {
+        this.swap(i, (i - 1) >> 1);
+        i = (i - 1) >> 1;
+      }
+    }
+    pop() {
+      const top = this.v[0];
+      this.n--;
+      this.k[0] = this.k[this.n];
+      this.v[0] = this.v[this.n];
+      this.s[0] = this.s[this.n];
+      for (let i = 0; ; ) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < this.n && this.less(l, m)) m = l;
+        if (r < this.n && this.less(r, m)) m = r;
+        if (m === i) break;
+        this.swap(i, m);
+        i = m;
+      }
+      return top;
+    }
+  }
+
+  /* A*: h = 직선거리 x k. k = 1이면 허용적이고 일관적이다. 목표를 꺼내면 멈춘다. */
+  function astar(s: number, t: number, k: number): Run {
+    const parentEdge = new Int32Array(V).fill(-1);
+    const closed = new Uint8Array(V);
+    const g = new Float64Array(V).fill(Infinity);
+    const h = (v: number) => k * Math.hypot(X[v] - X[t], Y[v] - Y[t]);
+    const order: number[] = [];
+    const heap = new Heap();
+    g[s] = 0;
+    heap.push(h(s), s);
+    while (heap.n > 0) {
+      const u = heap.pop();
+      if (closed[u]) continue;
+      closed[u] = 1;
+      order.push(u);
+      if (u === t) break;
+      for (let p = START[u]; p < START[u + 1]; p++) {
+        const e = ADJ[p];
+        const w = other(e, u);
+        if (closed[w]) continue;
+        if (g[u] + LEN[e] < g[w]) {
+          g[w] = g[u] + LEN[e];
+          parentEdge[w] = e;
+          heap.push(g[w] + h(w), w);
+        }
+      }
+    }
+    const pathEdges: number[] = [];
+    for (let v = t; v !== s; ) {
+      const e = parentEdge[v];
+      pathEdges.push(e);
+      v = other(e, v);
+    }
+    return { order, parentEdge, pathEdges, dist: g[t] };
+  }
+
+  const css = (el: Element, name: string) => getComputedStyle(el).getPropertyValue(name).trim();
+  const fill = (tpl: string, vars: Record<string, string | number>) => tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+  const setLines = (node: HTMLElement, text: string) => {
+    const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+    node.replaceChildren(...parts.flatMap((p, i) => (i ? [document.createElement('br'), p] : [p])));
+  };
+  const n0 = (x: number) => Math.round(x).toLocaleString('en-US');
+
+  type View = { who: 'a' | 'b'; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; base: HTMLCanvasElement; trail: HTMLCanvasElement; shown: number; scale: number; unit: number };
+
+  function init(root: HTMLElement) {
+    const S = JSON.parse(root.dataset.mfStrings ?? '{}') as Record<string, string>;
+    const routes = JSON.parse(root.dataset.mfRoutes ?? '[]') as [string, string][];
+    const slider = root.querySelector<HTMLInputElement>('[data-mf-slider]')!;
+    const note = root.querySelector<HTMLElement>('[data-mf-note]')!;
+    const COLOR = { a: '--aas-role-eval', b: '--aas-role-focus' };
+
+    const views: View[] = (['a', 'b'] as const).map((who) => {
+      const canvas = root.querySelector<HTMLCanvasElement>(`[data-mf-canvas="${who}"]`)!;
+      return { who, canvas, ctx: canvas.getContext('2d')!, base: document.createElement('canvas'), trail: document.createElement('canvas'), shown: 0, scale: 1, unit: 1 };
+    });
+    let k = Number(root.dataset.mfK);
+    let start = MARKS[routes[0][0]].v;
+    let goal = MARKS[routes[0][1]].v;
+    let labels: [string, string] = [S[routes[0][0]], S[routes[0][1]]];
+    let runs: Record<'a' | 'b', Run> | null = null;
+    let frame = 0;
+    let nextIsStart = true;
+
+    function sizeView(v: View) {
+      const box = v.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(box.width * dpr));
+      const h = Math.max(1, Math.round(box.height * dpr));
+      if (v.canvas.width === w && v.canvas.height === h) return false;
+      for (const c of [v.canvas, v.base, v.trail]) {
+        c.width = w;
+        c.height = h;
+      }
+      v.scale = w / W;
+      v.unit = w / 520;
+      return true;
+    }
+    function strokeEdge(c: CanvasRenderingContext2D, v: View, e: number) {
+      const pts = EDGES[e];
+      const s = v.scale;
+      c.moveTo(X[EA[e]] * s, Y[EA[e]] * s);
+      for (let i = 4; i < pts.length; i += 2) c.lineTo((pts[i] / 10) * s, (pts[i + 1] / 10) * s);
+      c.lineTo(X[EB[e]] * s, Y[EB[e]] * s);
+    }
+    function drawBase(v: View) {
+      const c = v.base.getContext('2d')!;
+      c.clearRect(0, 0, v.base.width, v.base.height);
+      c.fillStyle = css(root, '--aas-bg');
+      c.fillRect(0, 0, v.base.width, v.base.height);
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      c.strokeStyle = css(root, '--aas-muted');
+      for (const [kind, width, alpha] of [[0, 0.9, 0.35], [1, 1.6, 0.5], [2, 3.6, 0.55]] as const) {
+        c.beginPath();
+        for (let e = 0; e < E; e++) if (KIND[e] === kind) strokeEdge(c, v, e);
+        c.globalAlpha = alpha;
+        c.lineWidth = Math.max(1, width * v.unit);
+        c.stroke();
+      }
+      c.globalAlpha = 1;
+    }
+    function drawTrail(v: View, upto: number) {
+      const run = runs![v.who];
+      const c = v.trail.getContext('2d')!;
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      c.strokeStyle = css(root, COLOR[v.who]);
+      c.globalAlpha = 0.8;
+      c.lineWidth = Math.max(1.5, 2.4 * v.unit);
+      c.beginPath();
+      for (let i = v.shown; i < upto; i++) {
+        const e = run.parentEdge[run.order[i]];
+        if (e >= 0) strokeEdge(c, v, e);
+      }
+      c.stroke();
+      v.shown = upto;
+    }
+    function drawMarker(v: View, at: number, color: string, label: string) {
+      const c = v.ctx;
+      const x = X[at] * v.scale;
+      const y = Y[at] * v.scale;
+      const r = Math.max(4, 7 * v.unit);
+      c.beginPath();
+      c.arc(x, y, r, 0, 2 * Math.PI);
+      c.fillStyle = color;
+      c.fill();
+      c.lineWidth = r * 0.35;
+      c.strokeStyle = css(root, '--aas-bg');
+      c.stroke();
+      const fs = Math.max(10, 12 * v.unit);
+      c.font = `700 ${fs}px ${css(root, '--aas-sans') || 'sans-serif'}`;
+      const tw = c.measureText(label).width;
+      let lx = x + r * 1.4;
+      if (lx + tw + fs * 0.6 > v.canvas.width) lx = x - r * 1.4 - tw - fs * 0.3;
+      c.fillStyle = css(root, '--aas-bg');
+      c.globalAlpha = 0.85;
+      c.fillRect(lx - fs * 0.3, y - fs * 0.75, tw + fs * 0.6, fs * 1.5);
+      c.globalAlpha = 1;
+      c.fillStyle = css(root, '--aas-text');
+      c.fillText(label, lx, y + fs * 0.35);
+    }
+    function compose(v: View) {
+      const run = runs![v.who];
+      const c = v.ctx;
+      c.clearRect(0, 0, v.canvas.width, v.canvas.height);
+      c.drawImage(v.base, 0, 0);
+      c.drawImage(v.trail, 0, 0);
+      if (v.shown >= run.order.length) {
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath();
+        for (const e of run.pathEdges) strokeEdge(c, v, e);
+        c.strokeStyle = css(root, '--aas-bg');
+        c.lineWidth = Math.max(4, 9 * v.unit);
+        c.stroke();
+        c.strokeStyle = css(root, '--aas-text');
+        c.lineWidth = Math.max(2, 5 * v.unit);
+        c.stroke();
+      }
+      drawMarker(v, start, css(root, '--aas-role-eval'), labels[0]);
+      drawMarker(v, goal, css(root, '--aas-role-guard'), labels[1]);
+    }
+    /* 두 지도를 한 프레임에 같은 수만큼 닫아, 적게 닫는 쪽이 먼저 끝나는 것이 보이게 한다. */
+    function animate() {
+      cancelAnimationFrame(frame);
+      if (!runs) return;
+      for (const v of views) {
+        v.trail.getContext('2d')!.clearRect(0, 0, v.trail.width, v.trail.height);
+        v.shown = 0;
+      }
+      const most = Math.max(runs.a.order.length, runs.b.order.length);
+      const per = Math.max(1, Math.ceil(most / 90));
+      const tick = () => {
+        let busy = false;
+        for (const v of views) {
+          const total = runs![v.who].order.length;
+          if (v.shown < total) drawTrail(v, Math.min(total, v.shown + per));
+          compose(v);
+          if (v.shown < total) busy = true;
+        }
+        if (busy) frame = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+    function solve() {
+      runs = { a: astar(start, goal, 1), b: astar(start, goal, k) };
+      const best = runs.a.dist;
+      root.querySelector('[data-mf-kval]')!.textContent = `× ${k}`;
+      root.querySelector('[data-mf-rule="b"]')!.textContent = fill(S.bRule, { k });
+      for (const who of ['a', 'b'] as const) {
+        const r = runs[who];
+        root.querySelector(`[data-mf-closed="${who}"]`)!.textContent = n0(r.order.length);
+        root.querySelector(`[data-mf-dist="${who}"]`)!.textContent = `${n0(r.dist)}m`;
+        const diff = r.dist - best;
+        const over = root.querySelector<HTMLElement>(`[data-mf-over="${who}"]`)!;
+        over.textContent = diff > 0.5 ? `${S.over} +${n0(diff)}m (+${((100 * diff) / best).toFixed(0)}%)` : S.best;
+        over.classList.toggle('is-worse', diff > 0.5);
+      }
+      const vars = { ac: n0(runs.a.order.length), bc: n0(runs.b.order.length), ad: n0(best), bd: n0(runs.b.dist), diff: n0(runs.b.dist - best) };
+      setLines(note, k === 1 ? S.noteEq : runs.b.dist - best > 0.5 ? fill(S.noteMiss, vars) : fill(S.noteSame, vars));
+      animate();
+    }
+    function setRoute(i: number) {
+      const [a, b] = routes[i];
+      start = MARKS[a].v;
+      goal = MARKS[b].v;
+      labels = [S[a], S[b]];
+      nextIsStart = true;
+      root.querySelectorAll<HTMLElement>('[data-mf-route]').forEach((c) => c.classList.toggle('is-on', Number(c.dataset.mfRoute) === i));
+      solve();
+    }
+
+    root.querySelectorAll<HTMLElement>('[data-mf-route]').forEach((c) => c.addEventListener('click', () => setRoute(Number(c.dataset.mfRoute))));
+    slider.addEventListener('input', () => {
+      k = Number(slider.value);
+      solve();
+    });
+    /* 슬라이드의 방향키 넘기기와 겹치지 않게 슬라이더 위의 키는 여기서 멈춘다. */
+    slider.addEventListener('keydown', (ev) => ev.stopPropagation());
+    for (const v of views) {
+      v.canvas.addEventListener('click', (ev) => {
+        const box = v.canvas.getBoundingClientRect();
+        const mx = ((ev.clientX - box.left) / box.width) * W;
+        const my = ((ev.clientY - box.top) / box.height) * (MAP.height / 10);
+        let best = 0;
+        let bd = Infinity;
+        for (let u = 0; u < V; u++) {
+          const d = (X[u] - mx) ** 2 + (Y[u] - my) ** 2;
+          if (d < bd) {
+            bd = d;
+            best = u;
+          }
+        }
+        if (nextIsStart) {
+          if (best === goal) return;
+          start = best;
+          labels[0] = S.start;
+        } else {
+          if (best === start) return;
+          goal = best;
+          labels[1] = S.goal;
+        }
+        nextIsStart = !nextIsStart;
+        root.querySelectorAll<HTMLElement>('[data-mf-route]').forEach((c) => c.classList.remove('is-on'));
+        solve();
+      });
+    }
+    const redraw = () => {
+      let changed = false;
+      for (const v of views) {
+        if (sizeView(v)) {
+          drawBase(v);
+          changed = true;
+        }
+      }
+      if (changed) animate();
+    };
+    new ResizeObserver(redraw).observe(root);
+    new MutationObserver(() => {
+      for (const v of views) drawBase(v);
+      animate();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+    for (const v of views) {
+      sizeView(v);
+      drawBase(v);
+    }
+    setRoute(0);
+  }
+
+  document.querySelectorAll<HTMLElement>('.aas-map-friends-demo').forEach(init);
+</script>
+
+<style is:global>
+  .aas-map-friends-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-map-friends-demo .mf-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    margin-bottom: 0.6em;
+  }
+  .aas-map-friends-demo .mf-head {
+    font-size: 0.95em;
+  }
+  .aas-map-friends-demo .mf-routes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
+  .aas-map-friends-demo .mf-chip {
+    padding: 0.2em 0.7em;
+    font-size: 0.78em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-map-friends-demo .mf-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-map-friends-demo .mf-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-map-friends-demo .mf-k {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+    margin-left: auto;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-map-friends-demo .mf-k strong {
+    min-width: 2.6em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-role-focus);
+  }
+  .aas-map-friends-demo .mf-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em 1.2em;
+  }
+  .aas-map-friends-demo .mf-col {
+    flex: 1 1 18em;
+    min-width: 0;
+    margin: 0;
+  }
+  .aas-map-friends-demo .mf-col figcaption {
+    margin-bottom: 0.3em;
+    font-size: 0.85em;
+  }
+  .aas-map-friends-demo .mf-col.is-a figcaption strong {
+    color: var(--aas-role-eval);
+  }
+  .aas-map-friends-demo .mf-col.is-b figcaption strong {
+    color: var(--aas-role-focus);
+  }
+  .aas-map-friends-demo .mf-col figcaption span {
+    color: var(--aas-muted);
+  }
+  .aas-map-friends-demo canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: var(--mf-ratio);
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    cursor: crosshair;
+  }
+  .aas-map-friends-demo .mf-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 1em;
+    margin-top: 0.3em;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+  .aas-map-friends-demo .mf-stats strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-map-friends-demo [data-mf-over] {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-map-friends-demo [data-mf-over].is-worse {
+    color: var(--aas-role-guard);
+  }
+  .aas-map-friends-demo .mf-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 3.6em;
+  }
+  .aas-map-friends-demo .mf-hint {
+    margin: 0.3em 0 0;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-map-friends-demo .mf-hint span {
+    margin-left: 0.6em;
+    font-size: 0.9em;
+  }
+
+  /* 슬라이드용: 두 지도를 나란히, 높이에 맞춘다. */
+  .aas-map-friends-demo.is-slide {
+    font-size: clamp(0.9rem, 2.3vh, 1.5rem);
+    margin: 0.3rem 0;
+    padding: 0.6em 0.9em;
+  }
+  .aas-map-friends-demo.is-slide .mf-cols {
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
+  .aas-map-friends-demo.is-slide .mf-col {
+    flex: 0 1 auto;
+  }
+  .aas-map-friends-demo.is-slide canvas {
+    width: auto;
+    height: 40vh;
+  }
+</style>
