@@ -15,6 +15,9 @@
 // 오른쪽 인접 목록(GraphAdjTable)에 꺼낸 정점의 줄과 값을 고친 이웃을 칠한다.
 // prim에서는 key가 곧 간선의 가중치라, 힙이 견주는 후보 간선을 모두 주황으로 칠한다.
 // 방금 꺼낸 정점이 key를 고친 간선은 주황 실선, 그 전에 고쳐 둔 후보는 주황 점선이다.
+// dijkstra에서 pickEnds를 켜면 칩으로 출발이나 도착을 고르고 정점을 눌러 바꾼다. Dijkstra는
+// 큐가 빌 때까지 돌아 모든 정점의 거리를 구하지만, 도착 정점이 확정되는 순간을 알려 주고
+// 끝에는 출발에서 도착까지의 최단 경로만 남겨 칠한다.
 // prim에서 pickStart를 켜면 정점을 눌러 시작 정점을 바꾼다. 어디서 시작해도 MST는
 // 같고(가중치가 모두 달라 MST가 하나뿐이다) 붙는 순서만 달라진다는 것을 보이려는 것이다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
@@ -37,6 +40,8 @@ interface Props {
   hChoices?: boolean;
   /** prim: 정점을 눌러 시작 정점을 바꿀 수 있게 한다. 기본은 끔 */
   pickStart?: boolean;
+  /** dijkstra: 출발과 도착을 골라 바꿀 수 있게 한다. 기본은 끔 */
+  pickEnds?: boolean;
   /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
   initial?: number;
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
@@ -51,6 +56,7 @@ const {
   reopen = true,
   hChoices = false,
   pickStart = false,
+  pickEnds = false,
   initial = -1,
   slide = false,
 } = Astro.props;
@@ -99,6 +105,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     dNone: ' 나가는 간선으로 고칠 거리가 없습니다.',
     dSkip: '{v}(거리 {d}){~v|은} 이미 확정했습니다. 낡은 항목이라 버립니다.',
     dDone: '큐가 비었습니다. 확정 순서는 {order}입니다.',
+    chipS: '출발',
+    chipT: '도착',
+    idleEnds: '{s}에서 출발해 {t}까지 갑니다. 출발이나 도착 칩을 고르고 정점을 누르면 바뀝니다.',
+    dGoal: ' 도착 {t}의 거리 {d|이} 확정되었습니다. 도착 정점만 필요하면 여기서 멈춰도 됩니다.',
+    dPath: ' {s}에서 {t}까지 최단 경로는 {path}, 거리 {d}입니다.',
+    dNoPath: ' {s}에서 {t|으로} 가는 경로는 없습니다. 간선에 방향이 있기 때문입니다.',
     upd: '{v} ← {d} ({u} 경유)',
     keep: '{u}→{v} {nd} ≥ {old}',
     aPop: 'f가 가장 작은 {v}(f {f} = {g} + {h}){~v|을} 닫습니다.',
@@ -161,6 +173,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     dNone: ' No distance to update.',
     dSkip: '{v} (distance {d}) is already final. A stale entry, drop it.',
     dDone: 'The queue is empty. Final order: {order}',
+    chipS: 'Start',
+    chipT: 'Goal',
+    idleEnds: 'From {s} to {t}. Pick the start or goal chip and click a vertex to change it.',
+    dGoal: ' The goal {t} is final at distance {d}. If only the goal matters, you could stop here.',
+    dPath: '. The shortest path from {s} to {t} is {path}, distance {d}.',
+    dNoPath: '. There is no path from {s} to {t}: the edges have directions.',
     upd: '{v} ← {d} (via {u})',
     keep: '{u}→{v} {nd} ≥ {old}',
     aPop: 'Close {v}, the smallest f ({f} = {g} + {h}).',
@@ -223,6 +241,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     dNone: '没有要更新的距离。',
     dSkip: '{v}（距离 {d}）已确定。是过时的项，丢弃。',
     dDone: '队列已空。确定顺序为 {order}。',
+    chipS: '起点',
+    chipT: '终点',
+    idleEnds: '从 {s} 出发到 {t}。选起点或终点按钮，再点击顶点即可更换。',
+    dGoal: '终点 {t} 的距离 {d} 已确定。只关心终点的话，可以在这里停下。',
+    dPath: '从 {s} 到 {t} 的最短路径是 {path}，距离 {d}。',
+    dNoPath: '没有从 {s} 到 {t} 的路径，因为边有方向。',
     upd: '{v} ← {d}（经 {u}）',
     keep: '{u}→{v} {nd} ≥ {old}',
     aPop: '关闭 f 最小的 {v}（f {f} = {g} + {h}）。',
@@ -273,11 +297,18 @@ const rows = Array.from({ length: n }, (_, v) => v);
   data-hg-choices={mode === 'astar' && hChoices ? '1' : '0'}
   data-hg-initial={initial}
   data-hg-pick={mode === 'prim' && pickStart ? '1' : '0'}
+  data-hg-ends={mode === 'dijkstra' && pickEnds ? '1' : '0'}
   data-hg-strings={JSON.stringify(t)}
   style={`--hg-cols: ${cols.length}`}
 >
   <div class="hg-bar">
     <span class="hg-head"><strong>{title}</strong></span>
+    {mode === 'dijkstra' && pickEnds && (
+      <span class="hg-ends" role="tablist">
+        <button type="button" class="hg-hchip is-on" data-hg-end="s" role="tab"></button>
+        <button type="button" class="hg-hchip" data-hg-end="t" role="tab"></button>
+      </span>
+    )}
     {mode === 'prim' && (
       <span class="hg-legend">
         <span><i class="hg-sw is-now"></i>{t.legNow}</span>
@@ -355,7 +386,9 @@ const rows = Array.from({ length: n }, (_, v) => v);
     const scale = Number(root.dataset.hgScale);
     let s = Number(root.dataset.hgStart);
     const pick = root.dataset.hgPick === '1';
-    const goal = Number(root.dataset.hgGoal);
+    let goal = Number(root.dataset.hgGoal);
+    const ends = root.dataset.hgEnds === '1';
+    let endPick = 's';
     const H0 = JSON.parse(root.dataset.hgH);
     let H = H0;
     const choices = root.dataset.hgChoices === '1';
@@ -510,7 +543,12 @@ const rows = Array.from({ length: n }, (_, v) => v);
           if (from[v] >= 0) edge[edgeKey(from[v], v)] = done[v] ? 'tree' : 'cand';
         }
         look.forEach(([u, v]) => (edge[edgeKey(u, v)] = 'focus'));
+        if (end && ends && dist[goal] < INF) {
+          for (const k of Object.keys(edge)) edge[k] = 'dim';
+          for (let x = goal; from[x] >= 0; x = from[x]) edge[edgeKey(from[x], x)] = 'tree';
+        }
         node[s] += ' ring';
+        if (ends && goal !== s) node[goal] += ' ring';
         snap({
           node,
           edge,
@@ -555,9 +593,18 @@ const rows = Array.from({ length: n }, (_, v) => v);
         if (keeps.length) note += fill(S.dKeeps, { keeps: keeps.join(S.sep) });
         note += late;
         if (!ups.length && !keeps.length && !late) note += S.dNone;
+        if (ends && u === goal) note += fill(S.dGoal, { t: goal, d: fmt(dist[u]) });
         view(u, look, note);
       }
-      view(null, [], fill(S.dDone, { order: order.join(' ') }), true);
+      let last = fill(S.dDone, { order: order.join(' ') });
+      if (ends) {
+        if (dist[goal] < INF) {
+          const path = [];
+          for (let x = goal; x >= 0; x = from[x]) path.unshift(x);
+          last += fill(S.dPath, { s, t: goal, path: path.join('→'), d: fmt(dist[goal]) });
+        } else last += fill(S.dNoPath, { s, t: goal });
+      }
+      view(null, [], last, true);
     }
 
     function planAstar() {
@@ -692,7 +739,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
       const st = i >= 0 ? steps[i] : null;
       nodeEls.forEach((el, v) => {
         let tones = st ? st.node[v] : '';
-        if (!st && (v === s || (mode === 'astar' && v === goal))) tones = 'ring';
+        if (!st && (v === s || ((mode === 'astar' || ends) && v === goal))) tones = 'ring';
         setTones(el, tones);
       });
       const edgeTone = new Map();
@@ -736,7 +783,15 @@ const rows = Array.from({ length: n }, (_, v) => v);
           c.classList.toggle('is-look', now && st.look.includes(Number(c.dataset.atTo))),
         );
       });
-      setLines(note, st ? st.note : fill(pick ? S.idlePick : S.idle, { s }));
+      setLines(note, st ? st.note : ends ? fill(S.idleEnds, { s, t: goal }) : fill(pick ? S.idlePick : S.idle, { s }));
+      if (ends) {
+        root.querySelectorAll('[data-hg-end]').forEach((c) => {
+          const isS = c.dataset.hgEnd === 's';
+          c.textContent = `${isS ? S.chipS : S.chipT} ${isS ? s : goal}`;
+          c.classList.toggle('is-on', c.dataset.hgEnd === endPick);
+          c.setAttribute('aria-selected', String(c.dataset.hgEnd === endPick));
+        });
+      }
       countEl.textContent = st ? st.count : '';
       root.classList.toggle('is-done', !!(st && st.end));
     }
@@ -822,6 +877,36 @@ const rows = Array.from({ length: n }, (_, v) => v);
       playBtn.textContent = S.stop;
       timer = setInterval(step, 1600);
     });
+    /* dijkstra: 칩으로 출발이나 도착을 고르고, 정점을 누르면 바꿔 처음부터 다시 짠다. */
+    if (ends) {
+      root.querySelectorAll('[data-hg-end]').forEach((c) =>
+        c.addEventListener('click', () => {
+          endPick = c.dataset.hgEnd;
+          render(at);
+        }),
+      );
+      nodeEls.forEach((el, v) => {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', String(v));
+        const change = () => {
+          stop();
+          if (endPick === 's') s = v;
+          else goal = v;
+          plan();
+          at = -1;
+          render(-1);
+        };
+        el.addEventListener('click', change);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            change();
+          }
+        });
+      });
+      root.classList.add('is-pick');
+    }
     /* prim: 정점을 누르면 그 정점에서 처음부터 다시 짠다. */
     if (pick) {
       nodeEls.forEach((el, v) => {
@@ -883,6 +968,12 @@ const rows = Array.from({ length: n }, (_, v) => v);
   }
   .aas-heap-graph-demo[data-hg-mode='prim'] .aas-graph-figure .gf-edge.is-cand .gf-weight {
     fill: var(--aas-role-focus);
+  }
+  .aas-heap-graph-demo .hg-ends {
+    display: inline-flex;
+    gap: 0.4em;
+    margin-left: 1em;
+    vertical-align: middle;
   }
   .aas-heap-graph-demo .hg-legend {
     display: inline-flex;
