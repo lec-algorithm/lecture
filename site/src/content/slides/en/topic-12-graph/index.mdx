@@ -1,7 +1,7 @@
 ---
 title: "Topic 12. Graphs and Shortest Paths"
 description: "Graphs write the world as vertices and edges. Representing and traversing them (BFS, DFS), minimum spanning trees (Kruskal, Prim), the min heap behind both, and shortest paths (Dijkstra, A*)"
-date: "Topic 12 · v3"
+date: "Topic 12 · v4"
 order: 12
 transition: none
 toc_level: 4
@@ -137,7 +137,7 @@ This gap decides what graph algorithms cost.
 
 - **Sparse**: $$E = O(V)$$
   - Social networks
-- **Dense**: $$E = O(V^2)$$
+- **Dense**: $$E = \Theta(V^2)$$
   - Complete graphs
 - **Directed / undirected**
 - **Cyclic / acyclic**
@@ -253,7 +253,8 @@ means scanning the whole list.
 
 <br/>
 
-Search asks "who are the neighbours?" most often. All the practice code uses adjacency lists.
+Search asks "who are the neighbours?" most often.  
+All the practice code uses adjacency lists.
 
 </Slide>
 
@@ -331,7 +332,7 @@ The matrix knows where the cell is; the list looks only at that vertex's neighbo
 
 1. Initially only s is explored.
 2. Repeat while possible:
-   - Pick an edge (u, v) with u explored and v unexplored.
+   - Pick an edge (u, v) with u explored and v unexplored, that is, a **frontier edge**.
    - Mark v as explored.
 
 <br/>
@@ -426,7 +427,7 @@ while Q is not empty do
 #### Run
 ::sub[`01_bfs/` · 3 and 4 only after 1, 2, 5, 6 at distance 1]
 
-- Run
+- Result
 
 ```console
 visit 0, queue [0]
@@ -446,7 +447,7 @@ path 0 -> 4: 0 5 4 (2 edges)
 <Slide>
 
 #### Properties of BFS and shortest paths
-::sub[n_s, m_s: vertices and edges reachable from s]
+::sub[V_s, E_s: vertices and edges reachable from s]
 
 <VarLegend set="graph" />
 
@@ -463,7 +464,7 @@ path 0 -> 4: 0 5 4 (2 edges)
 <Slide>
 
 ### Try it: BFS distances and paths
-::sub[Click a vertex to pick the target · the number by each vertex is dist, the green route follows from backwards]
+::sub[A 13-vertex graph (no edge 2-3) · click a vertex to pick the target · the number by each vertex is dist, the green route follows from backwards]
 
 <BfsPathDemo slide />
 
@@ -478,7 +479,7 @@ path 0 -> 4: 0 5 4 (2 edges)
 
 ```plaintext
 mark every vertex unexplored
-for i <- 1 to n do
+for each vertex i do
     if i is not explored yet then
         BFS(G, i)                       // vertices reached from i form one component
 ```
@@ -554,7 +555,7 @@ while S is not empty do
 #### Run
 ::sub[`02_dfs/` · push largest first and you get 0 1 2 3 4 5 6, the recursive order]
 
-- Run
+- Result
 
 ```console
 push 0, stack [0]
@@ -605,6 +606,8 @@ order: 0 6 4 5 3 2 1
 #### [Aside] Topological sort: number a vertex after its outgoing edges
 ::sub[f(u) smaller than f(v) for every edge (u, v) · numbers handed out backwards from the largest]
 
+- Pseudocode
+
 ```plaintext
 Finish(s):
     marked[s] <- true
@@ -613,7 +616,7 @@ Finish(s):
     f[s] <- label,  label <- label - 1     // first to finish gets a later number
 ```
 
-- Run
+- Result
 
 ```console
 topological sort (V = 7, E = 11, directed)
@@ -658,10 +661,10 @@ With a directed cycle there is no topological order.
 | Property | BFS | DFS |
 | --- | --- | --- |
 | Data structure | queue (FIFO) | stack (LIFO) or recursion |
-| Memory | the width of one layer | the depth of the path |
+| Memory | the width of one layer | the depth of the path, if recursive |
 | Shortest path | guaranteed on unweighted graphs | not guaranteed |
 | Implementation | loop | recursion or loop |
-| Example uses | friend suggestions | maze solving, web crawling, topological sort |
+| Example uses | friend suggestions, web crawling | maze solving, cycle detection, topological sort |
 
 </Slide>
 
@@ -772,7 +775,7 @@ Kruskal and Prim are what decide "which cut to pick".
 | --- | --- | --- | --- |
 | Approach | the cut property directly | edge-centred, global choice | vertex-centred, local growth |
 | Starting point | anywhere | the lightest edge | one chosen vertex |
-| Time | depends | $$O(E \log E)$$ | $$O(E \log V)$$ |
+| Time | depends | $$O(E \log E + V^2)$$ | $$O(E \log V)$$ |
 | Preprocessing | none | sort the edges | none |
 | Implementation | hard (managing cuts) | medium (tracking pieces) | easy (priority queue) |
 
@@ -831,6 +834,8 @@ for each (u, v, w) in edges do
 
 #### Run
 ::sub[`03_mst_kruskal/` · weights are integers times 100, turned into decimals only when printed]
+
+- Result
 
 ```console
   0-7 0.16  add   comp [0 1 2 3 4 5 6 0]
@@ -988,7 +993,7 @@ HeapifyDown(heap, i):                     // sift down
 #### Run
 ::sub[`04_min_heap/` · 0 reaches the root after three swaps]
 
-- Run
+- Result
 
 ```console
 insert 0 at index 10
@@ -1040,7 +1045,8 @@ extract all: 1 2 3 4 5 6 7 8 9 10
 
 <br/>
 
-If you only keep extracting the minimum, a heap is enough. If you need search or order, use a BST.
+If you only keep extracting the minimum, a heap is enough.  
+If you need search or order, use a BST.
 
 </Slide>
 
@@ -1056,7 +1062,7 @@ If you only keep extracting the minimum, a heap is enough. If you need search or
 <Slide class="center">
 
 ## Example 5. Prim's algorithm
-::sub[Prim's Algorithm, 1959]
+::sub[Prim's Algorithm, 1957]
 
 </Slide>
 
@@ -1112,7 +1118,7 @@ while PQ is not empty and |mst| < V - 1 do
 #### Run
 ::sub[`05_mst_prim/` · vertex 4's key dropped twice: 0.38, 0.37, 0.35]
 
-- Run (last part)
+- Result (last part)
 
 ```console
 pop 3 (key 0.17): add 2-3
@@ -1140,9 +1146,8 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 
 - **Correctness**: a special case of Greedy MST
   - Take "the current tree" and "the rest" as the cut; the chosen edge is its lightest crossing edge
-- **Time**: $$O(E \log E) = O(E \log V)$$
-  - At most one heap entry per edge
-  - $$E \le V^2$$, so $$\log E \le 2 \log V$$
+- **Time**: $$O(E \log V)$$
+  - Two slides on, we look at why in detail.
 - **How it differs from Kruskal**
   - In Kruskal several pieces grow and then merge.
   - In Prim a single piece grows from start to finish.
@@ -1167,8 +1172,10 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 
 - **Pushing**: only when a key drops.
   - Edge (u, v) pushes once at most: when u joins the tree first and v has not yet.
-  - So there are at most E pushes. The example makes 11 starting from 0 and 15 starting from 6
-- **Popping**: only what was pushed. Stale entries are popped and dropped too.
+  - So there are at most E pushes.
+  - Example (excluding the start vertex): 11 starting from 0, 15 starting from 6
+- **Popping**: only what was pushed.
+  - Stale entries are popped and dropped too.
 - The heap holds at most E entries, so each push or pop is $$O(\log E)$$
   - In total, $$O(E \log E)$$
 - **$$E \le V^2$$, so $$\log E \le 2 \log V$$**
@@ -1186,8 +1193,27 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 
 <Slide>
 
+#### Three methods
+::sub[Kruskal is one; Prim comes in two, by how it picks the next vertex]
+
+<VarLegend set="graph" />
+
+| Method | Tracking pieces or picking the next vertex | Time |
+| --- | --- | --- |
+| Kruskal | rewrites all V slots of the comp array at every merge | $$O(E \log E + V^2)$$ |
+| Prim heap | extracts from a min heap | $$O(E \log V)$$ |
+| Prim array | scans all V slots of the key array, no heap | $$O(V^2 + E)$$ |
+
+<br/>
+
+Prim array scans V slots for every vertex, so it costs $$V^2$$, but with no heap it stays the same whatever the input.
+
+</Slide>
+
+<Slide>
+
 ### Measure it: three MST methods
-::sub[Tabs change the graph · the green row is Prim heap, which uses a heap]
+::sub[Prim heap picks the next vertex from a min heap; Prim array scans the V slots of the key array without a heap · tabs change the graph]
 
 <VarLegend set="graph" />
 
@@ -1210,7 +1236,8 @@ sparse, E = 4V (ms)
   32000    128000    518.085      5.358     556.550
 ```
 
-- When V grows ×4, Kruskal grows about ×15 and Prim array about ×16. Both are bounded by $$V^2$$.
+- When V grows ×4, Kruskal grows about ×15 and Prim array about ×16.
+  - Both are bounded by $$V^2$$.
 - Prim heap, which uses a heap, is about 100 times faster than Prim array at V = 32,000.
 
 </Slide>
@@ -1236,8 +1263,10 @@ complete, every edge lowers a key (ms)
    2000   1999000     55.808    108.868       3.301
 ```
 
-- With random weights Prim heap is fastest. Keys rarely drop, so it pushes far fewer than E times.
-- In the bad case every edge is pushed. Prim array is 33 times faster at V = 2,000.
+- With random weights Prim heap is fastest.
+  - Keys rarely drop, so it pushes far fewer than E times.
+- In the bad case every edge is pushed.
+  - Prim array is 33 times faster than Prim heap at V = 2,000.
 - Kruskal must sort all E edges, which hurts on dense graphs.
 
 </Slide>
@@ -1258,7 +1287,8 @@ complete, every edge lowers a key (ms)
 
 <br/>
 
-Prim heap is fast on random complete graphs because keys rarely drop. Nothing guarantees it.
+Prim heap is fast on random complete graphs because keys rarely drop.  
+Nothing guarantees it.
 
 </Slide>
 
@@ -1399,7 +1429,7 @@ while PQ is not empty do
 #### Run
 ::sub[`06_dijkstra/` · vertex 2's distance dropped to 17, 15, 14]
 
-- Run (last part)
+- Result (last part)
 
 ```console
   v  dist  from
@@ -1424,18 +1454,20 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 #### Why it works
 ::sub[A directed graph with non-negative weights]
 
-- Edge v → w is relaxed **exactly once**, when v is finalised.
-  - Right after, $$\text{dist}[w] \le \text{dist}[v] + w(v, w)$$
+- Edge u → v is looked at once, when u is finalised.
+  - If v is not final yet, it is relaxed, so $$\text{dist}[v] \le \text{dist}[u] + w(u, v)$$.
+  - If v is already final, $$\text{dist}[v] \le \text{dist}[u]$$, and since weights are non-negative the inequality already holds.
 - This inequality holds until the end.
-  - $$\text{dist}[w]$$ only decreases.
-  - $$\text{dist}[v]$$ does not change once final, because weights are non-negative.
+  - $$\text{dist}[v]$$ only decreases, and a finalised $$\text{dist}[u]$$ is never changed again.
 - At the end it holds for every edge, so dist is the shortest distance.
+- **Time**: the same framework as Prim
+  - $$O(E \log V)$$ with a binary heap, $$O(V^2)$$ scanning the dist array without a heap
 
 </Slide>
 
 <Slide>
 
-### Negative weights
+### One step at a time: negative weights
 ::sub[Dijkstra finalises 3 right after 0. But 0 → 1 → 2 → 3 is 4 + 6 − 9 = 1]
 
 <HeapGraphDemo mode="dijkstra" graph="neg" slide />
@@ -1447,7 +1479,7 @@ The finalised distances 0, 5, 8, 9, 13, 14, 17, 25 never decrease.
 #### Wrong with negative weights
 ::sub[Last part of `06_dijkstra/`]
 
-- Run
+- Result
 
 ```console
 negative weight: 0->1 4, 0->3 2, 1->2 6, 2->3 -9
@@ -1511,11 +1543,11 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 - Dijkstra finds paths to **every** vertex. Route finding usually needs **one goal**.
 - Games, robot path planning, geographic information systems (GIS)
-- Three values per node
+- Three values per vertex
   - $$g(n)$$: the **actual** distance from the start to n
   - $$h(n)$$: an **estimate** of the remaining distance to the goal (heuristic)
-  - $$f(n) = g(n) + h(n)$$: the expected total cost through this node
-- Open the node with the smallest $$f$$ first.
+  - $$f(n) = g(n) + h(n)$$: the expected total cost through this vertex
+- Take out and close the vertex with the smallest $$f$$ first.
 
 </Slide>
 
@@ -1528,8 +1560,8 @@ dijkstra says dist[3] = 2, but 0->1->2->3 costs 1
 
 - "About ten minutes." Close to the truth and not over it. **A good estimate**
 - "Two minutes." Not over, but so optimistic it **cannot guide you.**
-  - 0 everywhere is the same as Dijkstra.
-- Calling a fifteen-minute route "thirty minutes" makes you avoid it and **miss the shortest path.**
+  - If h is 0 everywhere, it is the same as Dijkstra.
+- Calling a fifteen-minute route "thirty minutes" makes you avoid it, and you **may miss the shortest path.**
 
 <br/>
 
@@ -1552,7 +1584,8 @@ Distance heuristics: Euclidean, Manhattan, Chebyshev
 
 <br/>
 
-The nearest, Main Hall, lies away from the goal. A* picks Building C.
+The nearest, Main Hall, lies away from the goal.  
+A* picks Building C.
 
 </Slide>
 
@@ -1720,6 +1753,46 @@ path: 0 4 5 2 6, cost 25
 
 <Slide>
 
+#### Analysis
+::sub[b: branching factor, d: depth of the optimal solution]
+
+<VarLegend set="astar" />
+
+- **Time**: $$O(b^d)$$ in the worst case; in practice it depends on the heuristic.
+  - Perfect heuristic ($$h = h^*$$): $$O(d)$$, on the example graph (0 → 6) it closes only 0, 4, 5, 2.
+  - Uninformative heuristic ($$h = 0$$): the same as Dijkstra.
+- **Space**: $$O(b^d)$$, keeping both the open and closed lists.
+- **Refinements**
+  - IDA* (memory), bidirectional A*, hierarchical pathfinding
+  - Pattern databases, machine-learned heuristics
+
+</Slide>
+
+<Slide>
+
+### Measure it: four algorithms
+::sub[Same graph, from 0 to 6 · Greedy picks by h alone, without g · click a row and step through it]
+
+<SearchRaceDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Side by side with other algorithms
+::sub[BFS, Dijkstra, A*, Greedy Best-First]
+
+| Algorithm | Search style | Optimality | Efficiency | Memory |
+| --- | --- | --- | --- | --- |
+| BFS | blind | guaranteed (unit weights) | low | high |
+| Dijkstra | by distance | guaranteed (non-negative weights) | medium | medium |
+| A* | goal-directed | conditional | high | high |
+| Greedy Best-First | $$h$$ only | not guaranteed | very high | low |
+
+</Slide>
+
+<Slide>
+
 #### Example: two friends guess the way
 ::sub[The real walking network around the Songdo campus · from Campus Town Stn. to Main Hall]
 
@@ -1757,50 +1830,11 @@ Who decides faster, and who walks the shorter route?
 <VarLegend set="astar" />
 
 - **A** closes 91 intersections and finds the shortest route, 1,057m.
-- **B** closes only 29 and decides much faster, but walks 1,259m: 202m (19%) more.
+- **B** closes only 29 and decides much faster, but walks 1,259m.
+  - 202m (19%) more than the shortest.
   - Inflating the remaining distance rushes toward the goal and misses the route that is actually shorter.
 - Set B's factor to 1 and it matches A; inflate only a little, 1.5 or 2, and it walks 1,058m, nearly the shortest.
 - A good heuristic is a guess **as close as possible without exceeding the truth**.
-
-</Slide>
-
-<Slide>
-
-#### Analysis
-::sub[b: branching factor, d: depth of the optimal solution]
-
-<VarLegend set="astar" />
-
-- **Time**: $$O(b^d)$$ in the worst case; in practice it depends on the heuristic.
-  - Perfect heuristic ($$h = h^*$$): $$O(d)$$, here it closes only 0, 4, 5, 2.
-  - Uninformative heuristic ($$h = 0$$): the same as Dijkstra.
-- **Space**: $$O(b^d)$$, keeping both the open and closed lists.
-- **Refinements**
-  - IDA* (memory), bidirectional A*, hierarchical pathfinding
-  - Pattern databases, machine-learned heuristics
-
-</Slide>
-
-<Slide>
-
-### Try it: measure the four algorithms
-::sub[Same graph, from 0 to 6 · click a row and step through it]
-
-<SearchRaceDemo slide />
-
-</Slide>
-
-<Slide>
-
-#### Side by side with other algorithms
-::sub[BFS, Dijkstra, A*, Greedy Best-First]
-
-| Algorithm | Search style | Optimality | Efficiency | Memory |
-| --- | --- | --- | --- | --- |
-| BFS | blind | guaranteed (unit weights) | low | high |
-| Dijkstra | by distance | guaranteed (non-negative weights) | medium | medium |
-| A* | goal-directed | conditional | high | high |
-| Greedy Best-First | $$h$$ only | not guaranteed | very high | low |
 
 </Slide>
 
@@ -1842,7 +1876,7 @@ Who decides faster, and who walks the shorter route?
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-12-graph/`  
 Open a file and press the **▶ button** at the top right of the editor.
 
-1. **Change the edge order in `01_bfs`.**
+1. **Delete the sorting line in `01_bfs` first, then change the edge order.**
    - The visit order and from may change, but dist stays the same.
 2. **Change the start vertex of `05_mst_prim`.**
    - The joining order changes, but the MST and 1.81 do not.
@@ -1858,11 +1892,15 @@ Open a file and press the **▶ button** at the top right of the editor.
 1. **An adjacency list is $$\Theta(V + E)$$, an adjacency matrix $$\Theta(V^2)$$.**
    - Lists suit search.
 2. **BFS and DFS are the same generic search.**
-   - A queue goes layer by layer (shortest paths), a stack goes deep first (topological sort). Both $$O(V + E)$$
+   - A queue goes layer by layer and finds shortest paths; a stack or recursion goes deep first and serves cycle detection.
+   - Both $$O(V + E)$$
 3. **Kruskal and Prim stand on the cut property.**
    - Greedy algorithms that differ only in the cut they pick; the example's MST is 1.81
+   - Sparse: Prim heap; dense: Prim array
 4. **A min heap sifts up and sifts down in $$O(\log n)$$.**
 5. <strong>Prim, Dijkstra and A* share one framework.</strong>
    - The heap key is one edge, an accumulated distance, or an accumulated distance plus an estimate
+6. **Dijkstra can miss the shortest path with negative weights, and A* with an inflated h.**
+   - If h never exceeds the truth and reopening is allowed, or if h is consistent, A* finds the shortest path too.
 
 </Slide>
