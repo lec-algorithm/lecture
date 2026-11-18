@@ -253,7 +253,7 @@ graph = {
 | Add an edge | $$O(1)$$ | $$O(1)$$ (append to the list) |
 | Remove an edge | $$O(1)$$ | $$O(\text{degree})$$ (must find it in the list) |
 
-All the practice code in this topic uses adjacency lists. The question search
+All the practice code in this topic uses adjacency lists, because the question search
 algorithms ask most often is "who are this vertex's neighbours?"
 
 ## Graph search \{#search}
@@ -627,8 +627,8 @@ Only a course whose prerequisites are done can be picked.
 A topological order of a directed graph G labels the vertices with numbers
 $$f(v) \in \{1, 2, \dots, V\}$$ such that $$f(u) < f(v)$$ for every edge (u, v). DFS
 produces these numbers directly. A vertex gets its number **after all its outgoing
-edges have been explored**, and numbers are handed out backwards from the largest. A
-vertex that finishes first is one with nothing left to come after it. Blue vertices
+edges have been explored**, and numbers are handed out backwards from the largest,
+because a vertex that finishes first is one with nothing left to come after it. Blue vertices
 are still on the call stack and have not finished; green ones have finished and have
 their number.
 
@@ -783,7 +783,7 @@ In the example graph, choosing cuts so that edges are coloured in the order 0-2,
 
 The demo's **Colour the lightest edge** button is exactly this general form. If the
 lightest edge is already coloured there is nothing new to colour, so keep changing the
-cut to one coloured cluster against the rest and colour seven times. The total weight
+cut to one coloured piece against the rest and colour seven times. The total weight
 comes to 1.81.
 
 This general form does not say "which cut to pick". Kruskal and Prim are the ones that decide.
@@ -801,7 +801,7 @@ This general form does not say "which cut to pick". Kruskal and Prim are the one
 Kruskal's algorithm (1956) looks at the edges in increasing order of weight and adds each
 to the tree **unless it makes a cycle**.
 
-Cycles are detected with component numbers. Each vertex has a `comp` (which piece it
+Cycles are detected with piece numbers. Each vertex has a `comp` (which piece it
 belongs to), and at first every vertex is a piece of its own. If the two ends of an edge
 are in different pieces, add the edge and merge the pieces. If they are in the same piece,
 a path already exists, so adding the edge would make a cycle.
@@ -1297,7 +1297,7 @@ Kruskal and Prim produce the same MST, but their cost depends heavily on the gra
 has two implementations: it can take the nearest vertex from a heap, or scan a key array
 of V cells without one.
 
-| Method | Holding components or picking the next vertex | Time |
+| Method | Tracking pieces or picking the next vertex | Time |
 | --- | --- | --- |
 | Kruskal | rewrite V cells on every merge | $$O(E \log E + V^2)$$ |
 | Prim heap | take from a min heap | $$O(E \log V)$$ |
@@ -1371,10 +1371,10 @@ In short:
 | Sparse ($$E \approx V$$) | Prim heap | $$O(E \log V)$$. The $$V^2$$ methods break down for large V |
 | Dense ($$E \approx V^2$$) | Prim array | $$O(V^2)$$ whatever the input. A heap costs $$E \log V$$ when keys drop often |
 | Only an edge list | Kruskal | No adjacency list needed |
-| Split into k groups | Kruskal stopped at V-k edges | That forest is the answer |
+| Split into k pieces | Kruskal stopped at V-k edges | That forest is the answer |
 
-The last row is clustering. Stop Kruskal at V-k edges instead of V-1 and k components remain,
-and the distance between the closest two vertices in different components is the largest of
+The last row is clustering. Stop Kruskal at V-k edges instead of V-1 and k pieces remain,
+and the distance between the closest two vertices in different pieces is the largest of
 any split. The heap's speed on random complete graphs is a gift of the input, not a
 guaranteed bound.
 
@@ -1610,7 +1610,7 @@ Compute the total formulas of the table below by moving $$V$$ and $$E$$. The bar
 | d-way heap | $$\log_d V$$ | $$d \log_d V$$ | $$\log_d V$$ | $$E \log_{E/V} V$$ |
 | Fibonacci heap | $$1^*$$ | $$\log V^*$$ | $$1^*$$ | $$E + V \log V$$ |
 
-$$^*$$ marks amortized cost.
+$$^*$$ marks amortised cost.
 
 - For **dense** graphs with very many edges, the array implementation ($$O(V^2)$$) is best.
 - For **sparse** graphs, the binary heap is much faster. The practice code uses it.
@@ -1958,7 +1958,7 @@ distance" first. The only difference is how they guess the remaining distance.
 
 - A closes 91 intersections and finds the shortest route, 1,057m.
 - B closes only 29 and decides much faster, but walks 1,259m, 202m (19%) more. Inflating the
-  remaining distance rushes toward the goal and misses the route that is actually shorter.
+  remaining distance makes B rush towards the goal and miss the route that is actually shorter.
 - Set B's factor to 1 and it matches A; inflate only a little, 1.5 or 2, and it walks 1,058m,
   nearly the shortest. This trade is sometimes made on purpose: a slightly longer route found much faster.
 - A good heuristic is a guess as close as possible without exceeding the truth.
@@ -1969,7 +1969,7 @@ The graphs so far had eight vertices. What happens on a real map? The demo below
 walking network around Yonsei University's International Campus in Songdo and the Campus Town
 and Technopark stations on Incheon Line 1, about 2.7 km × 2.2 km. From OpenStreetMap street
 data, intersections become vertices and each street segment between two intersections becomes
-an edge whose weight is its real length in meters. There are 1,323 vertices and 1,980 edges.
+an edge whose weight is its real length in metres. There are 1,323 vertices and 1,980 edges.
 
 The four algorithms are the same as in the earlier "Measure it: four algorithms" demo. A*'s $$h$$ is the straight-line
 distance to the goal. No street is shorter than a straight line, so this $$h$$ is admissible
@@ -1981,21 +1981,21 @@ From Campus Town Station to Main Hall:
 
 | Algorithm | Closed | Length | Segments |
 | --- | --- | --- | --- |
-| BFS | 872 | 1,286 m | 21 |
-| Dijkstra | 710 | 1,057 m | 25 |
-| A* | 91 | 1,057 m | 25 |
-| Greedy | 33 | 1,259 m | 27 |
+| BFS | 872 | 1,286m | 21 |
+| Dijkstra | 710 | 1,057m | 25 |
+| A* | 91 | 1,057m | 25 |
+| Greedy | 33 | 1,259m | 27 |
 
 - **Dijkstra** spreads evenly in every direction from the start. Even with the goal to the
   southeast, it closes the streets to the north and west just the same.
-- <strong>A*</strong> spreads in a long shape toward the goal. It finds the same 1,057 m route
+- <strong>A*</strong> spreads in a long shape towards the goal. It finds the same 1,057m route
   while closing a little over an eighth as many intersections as Dijkstra.
-- **BFS** counts only segments. It picks the route with the fewest, 21, but it is 229 m
+- **BFS** counts only segments. It picks the route with the fewest, 21, but it is 229m
   longer. Segments vary in length, so fewer segments does not mean a shorter route.
-- **Greedy** closes only 33 and is the fastest, but it heads only toward the goal, backs out
-  when blocked, and walks 202 m more. Sometimes it gets lucky and comes within 1 m of the
+- **Greedy** closes only 33 and is the fastest, but it heads only towards the goal, backs out
+  when blocked, and walks 202m more. Sometimes it gets lucky and comes within 1m of the
   shortest, as from Campus Town Station to Underwood Memorial Library; sometimes it detours
-  492 m, as from Technopark Station to Songdo Dorm A.
+  492m, as from Technopark Station to Songdo Dorm A.
 
 Change the route or click the map to move the start and goal, and the order mostly stays.
 Greedy closes the fewest, A* the next fewest, and Dijkstra and A* always find the same,
@@ -2003,7 +2003,7 @@ shortest length.
 
 Real map services have road networks with millions of intersections. A* alone still closes
 too many for a single query, so they also precompute shortcuts over the map (hierarchical
-route finding and similar methods). Map data © OpenStreetMap contributors, under the ODbL.
+pathfinding and similar methods). Map data © OpenStreetMap contributors, under the ODbL.
 
 ## What to keep \{#takeaway}
 
