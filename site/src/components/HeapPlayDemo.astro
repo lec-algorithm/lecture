@@ -37,15 +37,24 @@ const STRINGS: Record<string, Record<string, string>> = {
     height: '높이',
     cmps: '이번 연산의 비교',
     out: '꺼낸 값',
+    ph_place: '① 넣기·꺼내기',
+    ph_cmp: '② 견주기',
+    ph_swap: '③ 바꾸기',
+    ph_stop: '제자리',
+    ph_done: '끝',
+    phRepeat: '되풀이',
+    stepOf: '걸음 {k} / {n}',
     idle: '값을 넣거나 최솟값을 꺼내 보세요. 칸을 누르면 부모와 자식의 인덱스가 보입니다.',
     ins: 'insert {x}: 맨 끝 빈자리인 인덱스 {i}에 놓습니다.',
-    upSwap: '값 {x}, 인덱스 {i}: 부모 {p}보다 작아서 인덱스 {j}로 올라갑니다.',
+    upSwap: '값 {x}, 인덱스 {i}: 부모 {p}보다 작아서 바꿔야 합니다.',
+    upDid: '값 {x}: 부모와 자리를 바꿨습니다. 이제 인덱스 {j}에 있습니다.',
     upStay: '값 {x}, 인덱스 {i}: 부모 {p}보다 작지 않아서 제자리입니다.',
     root: '값 {x}: 루트에 닿았습니다.',
     take: 'extract min: 최솟값은 루트의 {x}입니다. 루트에서 꺼냅니다.',
     takeLast: 'extract min: 하나 남은 값 {x}. 꺼내면 힙이 빕니다.',
     move: '마지막 값 {x}: 루트로 옮겨 내려 보냅니다.',
-    downSwap: '값 {x}, 인덱스 {i}: 자식 {kids} 중 더 작은 {c} 쪽으로 내려갑니다.',
+    downSwap: '값 {x}, 인덱스 {i}: 자식 {kids} 중 더 작은 {c} 쪽이 {x}보다 작으니 바꿔야 합니다.',
+    downDid: '값 {x}: 자식 {c} 쪽과 자리를 바꿨습니다. 이제 인덱스 {m}에 있습니다.',
     downStay: '값 {x}, 인덱스 {i}: 자식 {kids}보다 크지 않아서 제자리입니다.',
     leaf: '값 {x}, 인덱스 {i}: 자식이 없어 제자리입니다.',
     doneIns: '끝: 비교 {c}번. 높이가 {h}이니 삽입은 {w}번을 넘지 않습니다.',
@@ -73,15 +82,24 @@ const STRINGS: Record<string, Record<string, string>> = {
     height: 'height',
     cmps: 'comparisons in this operation',
     out: 'extracted',
+    ph_place: '① Insert / take out',
+    ph_cmp: '② Compare',
+    ph_swap: '③ Swap',
+    ph_stop: 'Stays',
+    ph_done: 'Done',
+    phRepeat: 'repeat',
+    stepOf: 'Step {k} / {n}',
     idle: 'Insert a value or extract the minimum. Click a cell to see the indices of its parent and children.',
     ins: 'insert {x}: place it in the empty slot at the end, index {i}.',
-    upSwap: 'Value {x}, index {i}: smaller than its parent {p}, so it moves up to index {j}.',
+    upSwap: 'Value {x}, index {i}: smaller than its parent {p}, so they must swap.',
+    upDid: 'Value {x}: swapped with its parent, now up at index {j}.',
     upStay: 'Value {x}, index {i}: not smaller than its parent {p}, so it stays.',
     root: 'Value {x}: reached the root.',
     take: 'extract min: take {x} from the root.',
-    takeLast: 'extract min: take the last element, {x}.',
+    takeLast: 'extract min: take {x}, the only value left. The heap is now empty.',
     move: 'Last value {x}: move it to the root and sift it down.',
-    downSwap: 'Value {x}, index {i}: of its children {kids}, go down towards the smaller, {c}.',
+    downSwap: 'Value {x}, index {i}: of its children {kids}, the smaller one, {c}, is less than {x}, so they must swap.',
+    downDid: 'Value {x}: swapped with the child {c}, now down at index {m}.',
     downStay: 'Value {x}, index {i}: not larger than its children {kids}, so it stays.',
     leaf: 'Value {x}, index {i}: no children, so it stays.',
     doneIns: 'Done: {c} comparisons. With height {h}, an insert takes at most {w}.',
@@ -109,15 +127,24 @@ const STRINGS: Record<string, Record<string, string>> = {
     height: '高度',
     cmps: '本次操作的比较',
     out: '取出的值',
+    ph_place: '① 放入/取出',
+    ph_cmp: '② 比较',
+    ph_swap: '③ 交换',
+    ph_stop: '留在原位',
+    ph_done: '结束',
+    phRepeat: '重复',
+    stepOf: '第 {k} / {n} 步',
     idle: '插入一个值或取出最小值。点击格子可以看到父节点和子节点的下标。',
     ins: 'insert {x}：放到末尾的空位，下标 {i}。',
-    upSwap: '值 {x}，下标 {i}：比父节点 {p} 小，上移到下标 {j}。',
+    upSwap: '值 {x}，下标 {i}：比父节点 {p} 小，需要交换。',
+    upDid: '值 {x}：和父节点交换，上移到下标 {j}。',
     upStay: '值 {x}，下标 {i}：不比父节点 {p} 小，留在原位。',
     root: '值 {x}：到达根。',
     take: 'extract min：从根取出 {x}。',
-    takeLast: 'extract min：取出最后一个元素 {x}。',
+    takeLast: 'extract min：取出仅剩的值 {x}，堆变空。',
     move: '最后的值 {x}：移到根，然后向下调整。',
-    downSwap: '值 {x}，下标 {i}：子节点 {kids} 中往较小的 {c} 一侧下移。',
+    downSwap: '值 {x}，下标 {i}：子节点 {kids} 中较小的 {c} 比 {x} 小，需要交换。',
+    downDid: '值 {x}：和子节点 {c} 交换，下移到下标 {m}。',
     downStay: '值 {x}，下标 {i}：不大于子节点 {kids}，留在原位。',
     leaf: '值 {x}，下标 {i}：没有子节点，留在原位。',
     doneIns: '结束，比较 {c} 次。高度是 {h}，所以插入不超过 {w} 次。',
@@ -176,6 +203,17 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
     <span class="hy-big"><span>{t.height}</span><strong data-hy-h class="is-plain"></strong></span>
     <span class="hy-big"><span>{t.out}</span><strong data-hy-out class="is-plain"></strong></span>
   </div>
+  <div class="ph-strip" aria-live="polite">
+    <span class="ph-chip" data-ph="place">{t.ph_place}</span>
+    <span class="ph-arrow" aria-hidden="true">→</span>
+    <span class="ph-chip" data-ph="cmp">{t.ph_cmp}</span>
+    <span class="ph-arrow" aria-hidden="true">→</span>
+    <span class="ph-chip" data-ph="swap">{t.ph_swap}</span>
+    <span class="ph-arrow" aria-hidden="true">↺ {t.phRepeat}</span>
+    <span class="ph-chip is-side" data-ph="stop">{t.ph_stop}</span>
+    <span class="ph-chip is-side" data-ph="done">{t.ph_done}</span>
+    <span class="ph-stepno" data-ph-stepno></span>
+  </div>
   <p class="hy-note" data-hy-note></p>
 </div>
 
@@ -213,47 +251,49 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       const a = steps[steps.length - 1].a.slice();
       const out = null;
       let count = 0;
-      const push = (note, move, cmp) => steps.push({ a: a.slice(), move: move ?? null, cmp: cmp ?? [], out, count, note });
+      const push = (note, move, cmp) => steps.push({ a: a.slice(), move: move ?? null, cmp: cmp ?? [], out, count, note, phase: cur });
       a.push(x);
       let i = a.length - 1;
-      push(fill(S.ins, { x, i }), i);
+      (cur = 'place'), push(fill(S.ins, { x, i }), i);
       while (i > 0) {
         const p = Math.floor((i - 1) / 2);
         count += 1;
         if (a[i] >= a[p]) {
-          push(fill(S.upStay, { x: a[i], i, p: a[p] }), i, [p]);
+          (cur = 'stop'), push(fill(S.upStay, { x: a[i], i, p: a[p] }), i, [p]);
           break;
         }
-        const note = fill(S.upSwap, { x: a[i], i, p: a[p], j: p });
+        /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
+        (cur = 'cmp'), push(fill(S.upSwap, { x: a[i], i, p: a[p], j: p }), i, [p]);
+        const did = fill(S.upDid, { x: a[i], j: p });
         [a[i], a[p]] = [a[p], a[i]];
-        push(note, p, [i]);
+        (cur = 'swap'), push(did, p, [i]);
         i = p;
-        if (i === 0) push(fill(S.root, { x: a[0] }), 0);
+        if (i === 0) (cur = 'stop'), push(fill(S.root, { x: a[0] }), 0);
       }
       const h = heightOf(a.length);
-      push(fill(S.doneIns, { c: count, h, w: h }));
+      (cur = 'done'), push(fill(S.doneIns, { c: count, h, w: h }));
     }
     function planExtract() {
       const a = steps[steps.length - 1].a.slice();
       const out = a[0];
       let count = 0;
-      const push = (note, move, cmp) => steps.push({ a: a.slice(), move: move ?? null, cmp: cmp ?? [], out, count, note });
+      const push = (note, move, cmp) => steps.push({ a: a.slice(), move: move ?? null, cmp: cmp ?? [], out, count, note, phase: cur });
       if (a.length === 1) {
         a.pop();
-        push(fill(S.takeLast, { x: out }));
-        push(fill(S.doneExt, { c: 0, h: 0, w: 0 }));
+        (cur = 'place'), push(fill(S.takeLast, { x: out }));
+        (cur = 'done'), push(fill(S.doneExt, { c: 0, h: 0, w: 0 }));
         return;
       }
-      push(fill(S.take, { x: out }), 0);
+      (cur = 'place'), push(fill(S.take, { x: out }), 0);
       a[0] = a.pop();
-      push(fill(S.move, { x: a[0] }), 0);
+      (cur = 'place'), push(fill(S.move, { x: a[0] }), 0);
       let i = 0;
       for (;;) {
         const l = 2 * i + 1;
         const r = 2 * i + 2;
         const kids = [l, r].filter((c) => c < a.length);
         if (!kids.length) {
-          push(fill(S.leaf, { x: a[i], i }), i);
+          (cur = 'stop'), push(fill(S.leaf, { x: a[i], i }), i);
           break;
         }
         let m = i;
@@ -263,16 +303,18 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         });
         const text = kids.map((c) => a[c]).join(', ');
         if (m === i) {
-          push(fill(S.downStay, { x: a[i], i, kids: text }), i, kids);
+          (cur = 'stop'), push(fill(S.downStay, { x: a[i], i, kids: text }), i, kids);
           break;
         }
-        const note = fill(S.downSwap, { x: a[i], i, kids: text, c: a[m] });
+        /* 견주기와 바꾸기를 두 걸음으로 나눈다. */
+        (cur = 'cmp'), push(fill(S.downSwap, { x: a[i], i, kids: text, c: a[m] }), i, kids);
+        const did = fill(S.downDid, { x: a[i], c: a[m], m });
         [a[i], a[m]] = [a[m], a[i]];
-        push(note, m, [i]);
+        (cur = 'swap'), push(did, m, [i]);
         i = m;
       }
       const h = heightOf(a.length);
-      push(fill(S.doneExt, { c: count, h, w: 2 * h }));
+      (cur = 'done'), push(fill(S.doneExt, { c: count, h, w: 2 * h }));
     }
 
     const svg = root.querySelector('[data-hy-svg]');
@@ -289,6 +331,7 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
       return out;
     };
 
+    let cur = 'place';
     function render() {
       const st = steps[at];
       const n = st.a.length;
@@ -344,6 +387,9 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
         const r = 2 * sel + 2 < n ? 2 * sel + 2 : S.noKid;
         text = fill(S.rel, { i: sel, p, l, r });
       }
+      root.querySelectorAll('[data-ph]').forEach((c) => c.classList.toggle('is-on', st.phase === c.dataset.ph));
+      /* 걸음 번호는 이번 연산 안에서 센다. 맨 앞(연산 전 상태)은 0이다. */
+      root.querySelector('[data-ph-stepno]').textContent = fill(S.stepOf, { k: at, n: steps.length - 1 });
       setLines(noteEl, text);
     }
     function choose(i) {
@@ -438,6 +484,40 @@ const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
 </script>
 
 <style is:global>
+  /* 지금 걸음이 절차의 어느 단계인지 보이는 줄 */
+  .aas-heap-play-demo .ph-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.45em;
+    align-items: center;
+    margin-top: 0.5em;
+    font-size: 0.78em;
+  }
+  .aas-heap-play-demo .ph-chip {
+    padding: 0.15em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+  }
+  .aas-heap-play-demo .ph-chip.is-side {
+    border-style: dashed;
+  }
+  .aas-heap-play-demo .ph-chip.is-on {
+    background: var(--aas-role-focus);
+    border-color: var(--aas-role-focus);
+    border-style: solid;
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-heap-play-demo .ph-arrow {
+    color: var(--aas-muted);
+  }
+  .aas-heap-play-demo .ph-stepno {
+    margin-left: auto;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
+  }
   .aas-heap-play-demo {
     /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
     font-size: 1rem;

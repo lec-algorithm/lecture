@@ -1,0 +1,435 @@
+---
+// 일반 탐색이 왜 맞는지(귀류법)를 그림으로 따라가는 데모.
+//
+// 학생이 "탐색한 정점"을 마음대로 정한다. 그 상태에서 알고리즘이 끝났다고
+// 우길 수 있는지를 본다. 경로가 있는데 탐색하지 않은 정점 v를 고르면,
+// s에서 v로 가는 경로를 따라가다 처음으로 "탐색한 u 다음에 탐색하지 않은 x"가
+// 되는 간선 (u, x)를 주황으로 칠한다. 그런 간선이 남아 있으면 알고리즘은 끝난
+// 것이 아니다. 경계 간선이 하나도 없게 만들면 경로가 있는 정점은 모두 탐색한
+// 상태다. 증명에 나오는 이름 s, u, x, v는 정점 옆 배지로 적는다.
+//
+// 그래프는 연결 요소가 셋인 g13이다. s에서 경로가 없는 정점은 탐색한 것으로
+// 바꿀 수 없다(알고리즘은 간선을 따라서만 넓힌다). 경로는 간선 수가 가장 적은
+// 것을 BFS로 구한다(이웃은 작은 번호부터).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** 시작 정점 */
+  start?: number;
+  /** 처음에 탐색한 것으로 둘 정점들 (시작 정점은 늘 포함) */
+  explored?: number[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { start = 0, explored = [1, 2], slide = false } = Astro.props;
+const g = getGraph('g13');
+const id = `prf-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '끝났다고 할 수 있는가',
+    hint: '정점을 눌러 탐색한 정점을 바꿔 보세요.',
+    random: '무작위',
+    all: '전부 탐색',
+    reset: '처음으로',
+    targets: '경로가 있는데 탐색하지 않은 정점 v',
+    frontier: '경계 간선',
+    none: '없음',
+    cross: '{s}에서 {v}로 가는 경로 {path}를 따라갑니다. {u}는 탐색했고 {x}는 탐색하지 않았습니다. 간선 {u}-{x}가 남아 있으므로 알고리즘은 아직 끝나지 않았습니다.',
+    closed: '경계 간선이 없으니 알고리즘이 끝난 상태입니다. 경로가 있는 정점은 모두 탐색했습니다. 남은 {rest}에는 {s}에서 가는 경로가 없습니다.',
+    closedAll: '경계 간선이 없으니 알고리즘이 끝난 상태입니다. 모든 정점을 탐색했습니다.',
+    unreach: '{v}에는 {s}에서 가는 경로가 없습니다. 알고리즘은 탐색한 정점에서 간선을 따라 넓히므로 {v}를 탐색할 수 없습니다.',
+    isStart: '{s}는 시작 정점이라 처음부터 탐색한 상태입니다.',
+  },
+  en: {
+    title: 'Can it have stopped?',
+    hint: 'Click vertices to change which ones are explored.',
+    random: 'Random',
+    all: 'Explore all',
+    reset: 'Reset',
+    targets: 'Vertices v with a path but unexplored',
+    frontier: 'Frontier edges',
+    none: 'none',
+    cross: 'Follow the path {path} from {s} to {v}. {u} is explored and {x} is not. The edge {u}-{x} remains, so the algorithm has not stopped yet.',
+    closed: 'No frontier edges, so the algorithm has stopped. Every vertex with a path is explored. No path leads from {s} to {rest}.',
+    closedAll: 'No frontier edges, so the algorithm has stopped. Every vertex is explored.',
+    unreach: 'No path leads from {s} to {v}. The algorithm only grows along edges from explored vertices, so it cannot explore {v}.',
+    isStart: '{s} is the start vertex, so it is explored from the beginning.',
+  },
+  zh: {
+    title: '能说已经结束了吗',
+    hint: '点击顶点，改变已探索的顶点。',
+    random: '随机',
+    all: '全部探索',
+    reset: '重置',
+    targets: '有路径却未探索的顶点 v',
+    frontier: '边界边',
+    none: '无',
+    cross: '沿着从 {s} 到 {v} 的路径 {path} 走。{u} 已探索，{x} 未探索。边 {u}-{x} 还在，所以算法还没有结束。',
+    closed: '没有边界边，算法已经结束。有路径的顶点都已探索。剩下的 {rest} 没有从 {s} 出发的路径。',
+    closedAll: '没有边界边，算法已经结束。所有顶点都已探索。',
+    unreach: '没有从 {s} 到 {v} 的路径。算法只从已探索的顶点沿边扩展，所以无法探索 {v}。',
+    isStart: '{s} 是起点，一开始就已探索。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-search-proof-demo', slide && 'is-slide']}
+  id={id}
+  data-prf-n={g.nodes.length}
+  data-prf-edges={JSON.stringify(g.edges)}
+  data-prf-start={start}
+  data-prf-explored={JSON.stringify(explored)}
+  data-prf-strings={JSON.stringify(t)}
+>
+  <div class="prf-bar">
+    <span class="prf-head"><strong>{t.title}</strong> <span class="prf-hint">{t.hint}</span></span>
+    <div class="prf-controls">
+      <button type="button" class="prf-btn prf-btn-primary" data-prf-act="random">{t.random}</button>
+      <button type="button" class="prf-btn" data-prf-act="all">{t.all}</button>
+      <button type="button" class="prf-btn" data-prf-act="reset">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="prf-body">
+    <div class="prf-graph">
+      <GraphFigure graph="g13" bare slide={slide} />
+    </div>
+    <div class="prf-panel">
+      <div class="prf-label">{t.targets}</div>
+      <div class="prf-list" data-prf-targets></div>
+      <div class="prf-label">{t.frontier}</div>
+      <div class="prf-edges" data-prf-frontier></div>
+      <p class="prf-note" data-prf-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.prfStrings);
+    const n = Number(root.dataset.prfN);
+    const edges = JSON.parse(root.dataset.prfEdges);
+    const s = Number(root.dataset.prfStart);
+    const initial = JSON.parse(root.dataset.prfExplored);
+
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach(([u, v]) => {
+      adj[u].push(v);
+      adj[v].push(u);
+    });
+    adj.forEach((a) => a.sort((x, y) => x - y));
+
+    /* s에서 BFS. from으로 간선 수가 가장 적은 경로를 되짚는다. */
+    const from = new Array(n).fill(-2);
+    from[s] = -1;
+    for (const q = [s]; q.length; ) {
+      const v = q.shift();
+      adj[v].forEach((w) => {
+        if (from[w] === -2) {
+          from[w] = v;
+          q.push(w);
+        }
+      });
+    }
+    const reach = from.map((f) => f !== -2);
+    const pathTo = (v) => {
+      const p = [];
+      for (let x = v; x !== -1; x = from[x]) p.unshift(x);
+      return p;
+    };
+
+    let seen;
+    let target = null; // 고른 v
+    let flash = ''; // 누를 수 없는 정점을 눌렀을 때의 한마디
+    const setInitial = () => {
+      seen = new Array(n).fill(false);
+      seen[s] = true;
+      initial.forEach((v) => reach[v] && (seen[v] = true));
+      target = null;
+    };
+
+    const edgeEls = [...root.querySelectorAll('[data-gf-edge]')];
+    const nodeEls = [...root.querySelectorAll('[data-gf-node]')];
+    const badgeEls = [...root.querySelectorAll('[data-gf-badge]')];
+    const targetsEl = root.querySelector('[data-prf-targets]');
+    const frontierEl = root.querySelector('[data-prf-frontier]');
+    const noteEl = root.querySelector('[data-prf-note]');
+    const empty = () =>
+      Object.assign(document.createElement('span'), { className: 'prf-empty', textContent: S.none });
+
+    function render() {
+      const targets = [];
+      reach.forEach((r, v) => r && !seen[v] && targets.push(v));
+      if (target === null || seen[target] || !reach[target]) target = targets.length ? targets[0] : null;
+
+      const fr = [];
+      seen.forEach((x, u) => x && adj[u].forEach((w) => !seen[w] && fr.push([u, w])));
+
+      /* 경로 위에서 처음으로 탐색함 → 탐색하지 않음이 되는 간선 */
+      let path = [];
+      let cut = -1;
+      if (target !== null) {
+        path = pathTo(target);
+        cut = path.findIndex((v, i) => i + 1 < path.length && seen[v] && !seen[path[i + 1]]);
+      }
+      const onPath = new Set();
+      for (let i = 1; i < path.length; i++) onPath.add(`${path[i - 1]}-${path[i]}`);
+      const cutKey = cut >= 0 ? `${path[cut]}-${path[cut + 1]}` : '';
+      const cand = new Set(fr.map(([u, v]) => `${u}-${v}`));
+      const has = (set, a, b) => set.has(`${a}-${b}`) || set.has(`${b}-${a}`);
+
+      nodeEls.forEach((el, v) => {
+        el.classList.toggle('is-done', seen[v]);
+        el.classList.toggle('is-ring', v === s || v === target);
+        el.classList.toggle('is-open', cut >= 0 && v === path[cut + 1]);
+        el.classList.toggle('is-dim', !reach[v]);
+        el.setAttribute('aria-pressed', String(seen[v]));
+      });
+      /* 증명에 나오는 이름을 정점 옆에 적는다. 겹치면 s=u처럼 잇는다. */
+      const names = Array.from({ length: n }, () => []);
+      names[s].push('s');
+      if (cut >= 0) {
+        names[path[cut]].push('u');
+        names[path[cut + 1]].push('x');
+      }
+      if (target !== null) names[target].push('v');
+      badgeEls.forEach((el, v) => (el.textContent = names[v].join('=')));
+      edgeEls.forEach((el) => {
+        const [a, b] = el.dataset.gfEdge.split('-');
+        const isCut = cutKey === `${a}-${b}` || cutKey === `${b}-${a}`;
+        el.classList.toggle('is-focus', isCut);
+        el.classList.toggle('is-tree', !isCut && has(onPath, a, b));
+        el.classList.toggle('is-cand', !isCut && !has(onPath, a, b) && has(cand, a, b));
+        el.classList.toggle('is-dim', !reach[+a]);
+      });
+
+      targetsEl.replaceChildren(
+        ...(targets.length
+          ? targets.map((v) => {
+              const c = document.createElement('button');
+              c.type = 'button';
+              c.className = 'prf-chip';
+              c.classList.toggle('is-on', v === target);
+              c.textContent = String(v);
+              c.addEventListener('click', () => {
+                target = v;
+                flash = '';
+                render();
+              });
+              return c;
+            })
+          : [empty()]),
+      );
+      if (fr.length) frontierEl.textContent = fr.map(([u, v]) => `${u}-${v}`).join('  ');
+      else frontierEl.replaceChildren(empty());
+
+      let note;
+      if (flash) {
+        note = flash;
+      } else if (cut >= 0) {
+        note = fill(S.cross, { s, v: target, path: path.join(' → '), u: path[cut], x: path[cut + 1] });
+      } else {
+        const rest = reach
+          .map((r, v) => (r ? -1 : v))
+          .filter((v) => v >= 0)
+          .join(' ');
+        note = rest ? fill(S.closed, { s, rest }) : S.closedAll;
+      }
+      root.classList.toggle('is-closed', !flash && cut < 0);
+      setLines(noteEl, note);
+    }
+
+    function toggle(v) {
+      flash = '';
+      if (v === s) flash = fill(S.isStart, { s });
+      else if (!reach[v]) flash = fill(S.unreach, { s, v });
+      else {
+        seen[v] = !seen[v];
+        if (!seen[v]) target = v;
+      }
+      render();
+    }
+    nodeEls.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      el.addEventListener('click', () => toggle(v));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle(v);
+        }
+      });
+    });
+    root.querySelector('[data-prf-act="random"]').addEventListener('click', () => {
+      flash = '';
+      /* 하나는 꼭 남겨서 따라갈 경로가 있게 한다. */
+      const cands = reach.map((r, v) => (r && v !== s ? v : -1)).filter((v) => v >= 0);
+      const keep = cands[Math.floor(Math.random() * cands.length)];
+      cands.forEach((v) => (seen[v] = v !== keep && Math.random() < 0.5));
+      target = null;
+      render();
+    });
+    root.querySelector('[data-prf-act="all"]').addEventListener('click', () => {
+      flash = '';
+      reach.forEach((r, v) => r && (seen[v] = true));
+      render();
+    });
+    root.querySelector('[data-prf-act="reset"]').addEventListener('click', () => {
+      flash = '';
+      setInitial();
+      render();
+    });
+    setInitial();
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-search-proof-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-search-proof-demo .prf-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6em;
+  }
+  .aas-search-proof-demo .prf-head {
+    font-size: 0.95em;
+  }
+  .aas-search-proof-demo .prf-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-search-proof-demo .prf-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .aas-search-proof-demo .prf-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-search-proof-demo .prf-btn:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-search-proof-demo .prf-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-search-proof-demo .prf-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    align-items: flex-start;
+  }
+  .aas-search-proof-demo .prf-graph {
+    flex: 0 1 19em;
+    min-width: 12em;
+  }
+  .aas-search-proof-demo .gf-node {
+    cursor: pointer;
+  }
+  .aas-search-proof-demo .prf-panel {
+    flex: 1 1 16em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    min-width: 0;
+  }
+  .aas-search-proof-demo .prf-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-search-proof-demo .prf-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    min-height: 1.9em;
+  }
+  .aas-search-proof-demo .prf-chip {
+    min-width: 2em;
+    padding: 0.1em 0.55em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-search-proof-demo .prf-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-search-proof-demo .prf-chip.is-on {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-search-proof-demo .prf-edges {
+    min-height: 1.6em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+  }
+  .aas-search-proof-demo .prf-empty {
+    font-family: inherit;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-search-proof-demo .prf-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    min-height: 4.8em;
+  }
+  .aas-search-proof-demo.is-closed .prf-note {
+    color: var(--aas-role-eval);
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-search-proof-demo.is-slide {
+    font-size: clamp(1rem, 2.9vh, 2rem);
+    margin: 0.5rem 0;
+  }
+  .aas-search-proof-demo.is-slide .prf-body {
+    flex-wrap: nowrap;
+  }
+  .aas-search-proof-demo.is-slide .prf-graph {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    --gf-slide-h: 46vh;
+  }
+</style>

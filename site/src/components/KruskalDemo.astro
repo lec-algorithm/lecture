@@ -3,7 +3,8 @@
 //
 // 왼쪽은 그래프, 오른쪽은 간선 목록과 comp 배열이다. 첫 걸음에서 간선
 // 목록이 가중치 순으로 다시 줄 선다. 그다음 가벼운 간선부터 하나씩
-// 보며, 두 끝의 comp(덩어리 번호)가 다르면 넣고(초록) 두 덩어리를 합친다.
+// 보며, 두 끝의 comp(덩어리 번호)가 다르면 넣고(초록) 다음 걸음에 두 덩어리를 합친다
+// (번호가 바뀐 comp 칸을 주황으로 강조한다).
 // 같으면 사이클이 생기므로 버린다(빨간 점선). 정점 옆 파란 숫자가 comp다.
 //
 // 절차와 결과는 algorithm-code의 03_mst_kruskal과 같다. 덩어리를 합칠 때는
@@ -37,9 +38,17 @@ const STRINGS: Record<string, Record<string, string>> = {
     countPre: 'MST 간선 ',
     countPost: '',
     total: '총 가중치',
+    ph_sort: '정렬',
+    ph_check: '① 다음 간선 보기',
+    ph_merge: '② 덩어리 합치기',
+    ph_skip: '사이클이라 버림',
+    ph_done: '끝',
+    phRepeat: '되풀이',
+    stepOf: '걸음 {k} / {n}',
     idle: '간선 {m}개가 입력 순서대로 있습니다. 먼저 가중치 순으로 정렬합니다.',
     sorted: '가중치 오름차순으로 줄 섰습니다. 정점마다 자기 혼자 한 덩어리입니다.',
-    add: '{e} ({w}): {u|은} 덩어리 {cu}, {v|은} 덩어리 {cv}. 다르므로 넣고 덩어리 {m|으로} 합칩니다.',
+    add: '{e} ({w}): {u|은} 덩어리 {cu}, {v|은} 덩어리 {cv}. 다르므로 넣습니다.',
+    merge: '{e|을} 넣고 덩어리 {cu|과} {cv|을} {m|으로} 합쳤습니다. comp 배열에서 {list}의 번호가 {m|으로} 바뀌었습니다.',
     skip: '{e} ({w}): {u|과} {v|이} 모두 덩어리 {c}에 있습니다. 넣으면 사이클이므로 버립니다.',
     done: '간선이 V-1 = {k}개가 되어 멈춥니다. 남은 {rest}개는 보지 않습니다. 총 가중치 {total}',
   },
@@ -51,14 +60,22 @@ const STRINGS: Record<string, Record<string, string>> = {
     stop: 'Pause',
     reset: 'Reset',
     edges: 'Edges',
-    comp: 'comp (component id)',
+    comp: 'comp (piece id)',
     countPre: 'MST edges ',
     countPost: '',
     total: 'total weight',
+    ph_sort: 'Sort',
+    ph_check: '① Look at the next edge',
+    ph_merge: '② Merge pieces',
+    ph_skip: 'Drop (cycle)',
+    ph_done: 'Done',
+    phRepeat: 'repeat',
+    stepOf: 'Step {k} / {n}',
     idle: 'The {m} edges are in input order. First sort them by weight.',
-    sorted: 'Lined up by weight. Every vertex is a component of its own.',
-    add: '{e} ({w}): {u} is in {cu}, {v} is in {cv}. Different, so add it and merge into {m}.',
-    skip: '{e} ({w}): {u} and {v} are both in {c}. Adding it makes a cycle, so drop it.',
+    sorted: 'Lined up by weight. Every vertex is a piece of its own.',
+    add: '{e} ({w}): {u} is in piece {cu}, {v} is in piece {cv}. Different, so add it.',
+    merge: 'Added {e} and merged pieces {cu} and {cv} into {m}. In the comp array, {list} now read {m}.',
+    skip: '{e} ({w}): {u} and {v} are both in piece {c}. Adding it makes a cycle, so drop it.',
     done: 'V-1 = {k} edges, stop. The other {rest} are never looked at. Total weight {total}',
   },
   zh: {
@@ -69,14 +86,22 @@ const STRINGS: Record<string, Record<string, string>> = {
     stop: '暂停',
     reset: '重置',
     edges: '边',
-    comp: 'comp（分量编号）',
+    comp: 'comp（块编号）',
     countPre: 'MST 边 ',
     countPost: '',
     total: '总权重',
+    ph_sort: '排序',
+    ph_check: '① 看下一条边',
+    ph_merge: '② 合并块',
+    ph_skip: '成环，丢弃',
+    ph_done: '结束',
+    phRepeat: '重复',
+    stepOf: '第 {k} / {n} 步',
     idle: '{m} 条边按输入顺序排列。先按权重排序。',
-    sorted: '已按权重升序排好。每个顶点各自是一个分量。',
-    add: '{e}（{w}）：{u} 在分量 {cu}，{v} 在分量 {cv}。不同，加入并合并为 {m}。',
-    skip: '{e}（{w}）：{u} 和 {v} 都在分量 {c}。加入会成环，丢弃。',
+    sorted: '已按权重升序排好。每个顶点各自是一块。',
+    add: '{e}（{w}）：{u} 在块 {cu}，{v} 在块 {cv}。不同，加入。',
+    merge: '加入 {e}，把块 {cu} 和 {cv} 合并为 {m}。comp 数组里 {list} 的编号变成了 {m}。',
+    skip: '{e}（{w}）：{u} 和 {v} 都在块 {c}。加入会成环，丢弃。',
     done: '边数达到 V-1 = {k}，停止。其余 {rest} 条不再查看。总权重 {total}',
   },
 };
@@ -131,8 +156,19 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
   </div>
 
   <div class="kr-foot">
+    <div class="ph-strip" style="flex: 1 1 100%" aria-live="polite">
+      <span class="ph-chip" data-ph="sort">{t.ph_sort}</span>
+      <span class="ph-arrow" aria-hidden="true">→</span>
+      <span class="ph-chip" data-ph="check">{t.ph_check}</span>
+      <span class="ph-arrow" aria-hidden="true">→</span>
+      <span class="ph-chip" data-ph="merge">{t.ph_merge}</span>
+      <span class="ph-arrow" aria-hidden="true">↺ {t.phRepeat}</span>
+      <span class="ph-chip is-side" data-ph="skip">{t.ph_skip}</span>
+      <span class="ph-chip is-side" data-ph="done">{t.ph_done}</span>
+    </div>
     <p class="kr-note" data-kr-note></p>
     <span class="kr-count">
+      <span class="ph-stepno" data-ph-stepno></span>
       {t.countPre}<strong data-kr-count>0</strong> / {n - 1} · {t.total} <strong data-kr-total>0.00</strong>
     </span>
   </div>
@@ -190,7 +226,7 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
       const push = (extra) =>
         steps.push({ slot, comp: comp.slice(), status: status.slice(), k, total, cur: null, ...extra });
 
-      push({ note: S.sorted });
+      push({ phase: 'sort', note: S.sorted });
       for (let j = 0; j < m; j++) {
         const i = order[j];
         const [u, v, w] = edges[i];
@@ -199,18 +235,26 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
           const cu = comp[u];
           const cv = comp[v];
           const small = Math.min(cu, cv);
-          for (let x = 0; x < n; x++) if (comp[x] === cu || comp[x] === cv) comp[x] = small;
+          /* 판단과 합치기를 두 걸음으로 나눈다. 먼저 간선을 보고, 다음 걸음에 comp를 고친다. */
+          push({ cur: i, phase: 'check', note: fill(S.add, { e, w: fmt(w), u, v, cu, cv, m: small }) });
+          const changed = [];
+          for (let x = 0; x < n; x++) {
+            if (comp[x] === cu || comp[x] === cv) {
+              if (comp[x] !== small) changed.push(x);
+              comp[x] = small;
+            }
+          }
           status[i] = 'add';
           k += 1;
           total += w;
-          push({ cur: i, note: fill(S.add, { e, w: fmt(w), u, v, cu, cv, m: small }) });
+          push({ cur: i, phase: 'merge', merged: true, changed, note: fill(S.merge, { e, cu, cv, m: small, list: changed.join(', ') }) });
           if (k === n - 1) {
-            push({ done: true, note: fill(S.done, { k, rest: m - j - 1, total: fmt(total) }) });
+            push({ done: true, phase: 'done', note: fill(S.done, { k, rest: m - j - 1, total: fmt(total) }) });
             break;
           }
         } else {
           status[i] = 'skip';
-          push({ cur: i, note: fill(S.skip, { e, w: fmt(w), u, v, c: comp[u] }) });
+          push({ cur: i, phase: 'skip', note: fill(S.skip, { e, w: fmt(w), u, v, c: comp[u] }) });
         }
       }
       return steps;
@@ -243,8 +287,8 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
       edgeEls.forEach((el, i) => {
         const status = st ? st.status[i] : null;
         const now = !!st && st.cur === i;
-        el.classList.toggle('is-tree', status === 'add' && !now);
-        el.classList.toggle('is-focus', now);
+        el.classList.toggle('is-tree', status === 'add' && (!now || !!st.merged));
+        el.classList.toggle('is-focus', now && !st.merged);
         el.classList.toggle('is-reject', status === 'skip' && !now);
         el.classList.toggle('is-dim', !!st && !!st.done && status !== 'add');
         if (status === 'add') {
@@ -258,9 +302,14 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
         const c = st ? st.comp[v] : v;
         el.textContent = String(c);
         el.classList.toggle('is-merged', c !== v);
+        el.classList.toggle('is-changed', !!st && !!st.merged && st.changed.includes(v));
       });
       countEl.textContent = String(st ? st.k : 0);
       totalEl.textContent = fmt(st ? st.total : 0);
+      const PHST = st;
+      const PHK = s;
+      root.querySelectorAll('[data-ph]').forEach((c) => c.classList.toggle('is-on', !!PHST && PHST.phase === c.dataset.ph));
+      root.querySelector('[data-ph-stepno]').textContent = PHST ? fill(S.stepOf, { k: PHK + 1, n: steps.length }) : fill(S.stepOf, { k: 0, n: steps.length });
       setLines(note, st ? st.note : fill(S.idle, { m }));
       root.classList.toggle('is-done', !!(st && st.done));
     }
@@ -441,6 +490,47 @@ const fmt = (w: number) => (w / (g.scale ?? 1)).toFixed(2);
   }
   .aas-kruskal-demo .kr-cell b.is-merged {
     background: color-mix(in srgb, var(--aas-role-model) 18%, var(--aas-bg));
+  }
+  /* 이번 걸음에 번호가 바뀐 칸 */
+  .aas-kruskal-demo .kr-cell b.is-changed {
+    border-color: var(--aas-role-focus);
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+    color: var(--aas-role-focus);
+    font-weight: 800;
+  }
+  /* 지금 걸음이 절차의 어느 단계인지 보이는 줄 */
+  .aas-kruskal-demo .ph-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.45em;
+    align-items: center;
+    margin-top: 0.5em;
+    font-size: 0.78em;
+  }
+  .aas-kruskal-demo .ph-chip {
+    padding: 0.15em 0.6em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    color: var(--aas-muted);
+    background: var(--aas-bg);
+  }
+  .aas-kruskal-demo .ph-chip.is-side {
+    border-style: dashed;
+  }
+  .aas-kruskal-demo .ph-chip.is-on {
+    background: var(--aas-role-focus);
+    border-color: var(--aas-role-focus);
+    border-style: solid;
+    color: #fff;
+    font-weight: 700;
+  }
+  .aas-kruskal-demo .ph-arrow {
+    color: var(--aas-muted);
+  }
+  .aas-kruskal-demo .ph-stepno {
+    margin-right: 1em;
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-muted);
   }
   .aas-kruskal-demo .kr-foot {
     display: flex;

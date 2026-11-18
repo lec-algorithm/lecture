@@ -55,6 +55,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     bfsDeq: '{v|을} 꺼냅니다. 이웃 {nb|을} 봅니다.',
     bfsDeqNone: '{v|을} 꺼냅니다. 이웃 {nb|은} 모두 표시되어 있어 넣을 것이 없습니다.',
     bfsEnq: '표시 안 된 {list|을} 표시하고 큐 뒤에 넣습니다. 거리는 {d}입니다.',
+    bfsSkip: '{skip|은} 이미 표시되어 건너뜁니다.',
+    dfsSkipNb: '{skip|은} 이미 방문해서 건너뜁니다.',
     dfsStart: '{s|을} 스택에 넣습니다.',
     dfsPop: '{v|을} 꺼내 방문합니다. 이웃 {nb|을} 봅니다.',
     dfsPopNone: '{v|을} 꺼내 방문합니다. 이웃 {nb|은} 모두 방문해서 넣을 것이 없습니다.',
@@ -86,6 +88,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     bfsDeq: 'Take {v} out. Look at its neighbours {nb}.',
     bfsDeqNone: 'Take {v} out. Its neighbours {nb} are all marked, nothing to add.',
     bfsEnq: 'Mark the unmarked {list} and add them to the back of the queue. Distance {d}.',
+    bfsSkip: 'Skip {skip}: already marked.',
+    dfsSkipNb: 'Skip {skip}: already visited.',
     dfsStart: 'Push {s} onto the stack.',
     dfsPop: 'Pop {v} and visit it. Look at its neighbours {nb}.',
     dfsPopNone: 'Pop {v} and visit it. Its neighbours {nb} are all visited, nothing to push.',
@@ -94,8 +98,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     done: 'Done. Visit order: {order}',
   },
   zh: {
-    bfs: '广度优先搜索 (BFS)',
-    dfs: '深度优先搜索 (DFS)',
+    bfs: '广度优先搜索（BFS）',
+    dfs: '深度优先搜索（DFS）',
     back: '后退',
     step: '单步',
     play: '播放',
@@ -103,8 +107,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     reset: '重置',
     queue: '队列',
     stack: '栈',
-    front: '队头 (取出)',
-    top: '栈顶 (取出)',
+    front: '队头（取出）',
+    top: '栈顶（取出）',
     order: '访问顺序',
     from: 'from',
     dist: 'dist',
@@ -117,6 +121,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     bfsDeq: '取出 {v}，查看邻居 {nb}。',
     bfsDeqNone: '取出 {v}。邻居 {nb} 都已标记，没有要放入的。',
     bfsEnq: '标记未标记的 {list}，放到队尾。距离为 {d}。',
+    bfsSkip: '{skip} 已标记，跳过。',
+    dfsSkipNb: '{skip} 已访问，跳过。',
     dfsStart: '把 {s} 压入栈。',
     dfsPop: '弹出 {v} 并访问。查看邻居 {nb}。',
     dfsPopNone: '弹出 {v} 并访问。邻居 {nb} 都已访问，没有要压入的。',
@@ -229,6 +235,15 @@ const rows = Array.from({ length: n }, (_, v) => v);
         p ? (only ? '' : vars[k]) + josa(vars[k], p) : vars[k],
       );
 
+    /* 넣는 단계의 설명 앞에, 건너뛴 이웃(이미 표시·방문한 것)이 있으면 한 문장을 붙인다.
+       중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const withSkip = (tpl, all, fresh, rest) => {
+      const skip = all.filter((w) => !fresh.includes(w));
+      if (!skip.length) return rest;
+      const head = fill(tpl, { skip: skip.join(' ') });
+      return /[。！？]$/.test(head) ? head + rest : `${head} ${rest}`;
+    };
+
     /* 인접 목록. 무방향이므로 양쪽에 넣고, 이웃은 작은 번호부터 본다. */
     const adj = Array.from({ length: n }, () => []);
     edges.forEach(([u, v]) => {
@@ -293,7 +308,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
           snapshot(st, {
             cur: v,
             fresh,
-            note: fill(S.bfsEnq, { list: fresh.join(' '), d: st.val[v] + 1 }),
+            note: withSkip(S.bfsSkip, adj[v], fresh, fill(S.bfsEnq, { list: fresh.join(' '), d: st.val[v] + 1 })),
           }),
         );
       }
@@ -343,7 +358,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
           snapshot(st, {
             cur: v,
             fresh,
-            note: fill(S.dfsPush, { list: fresh.join(' '), top: fresh[fresh.length - 1] }),
+            note: withSkip(S.dfsSkipNb, adj[v], fresh, fill(S.dfsPush, { list: fresh.join(' '), top: fresh[fresh.length - 1] })),
           }),
         );
       }

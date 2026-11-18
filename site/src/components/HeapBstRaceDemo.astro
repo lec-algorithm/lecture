@@ -1,0 +1,497 @@
+---
+// 힙과 BST의 시간을 지금 이 브라우저에서 실제로 재는 데모.
+//
+// 하는 일은 우선순위 큐의 일이다. 값 n개를 넣고, 가장 작은 것(또는 가장 큰 것)을 n번 꺼낸다.
+//
+//   최소 힙   배열에 담은 완전 이진 트리. 최솟값은 루트            넣기·꺼내기 O(log n)
+//   최대 힙   비교 방향만 반대. 최댓값이 루트                     넣기·꺼내기 O(log n)
+//   BST      균형을 맞추지 않는 이진 검색 트리. 최솟값은 맨 왼쪽,  넣기·꺼내기 O(h)
+//            최댓값은 맨 오른쪽 노드
+//
+// 탭은 넣는 순서다. 무작위면 BST의 높이 h가 log n쯤이라 힙과 같은 꼴로 늘고, 오름차순이면
+// BST가 오른쪽으로 한 줄이 되어 h = n이다. 힙은 완전 이진 트리라 넣는 순서와 상관없이 높이가
+// log n이다. 꺼낸 값이 순서대로 나오는지 확인한다. 짧게 끝나는 칸은 여러 번 돌려 평균을 낸다.
+// 화면 구성과 스타일은 MstRaceDemo와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `hb-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '직접 재 보기',
+    random: '무작위로 넣기',
+    sorted: '오름차순으로 넣기',
+    run: '재기',
+    running: '재는 중',
+    colAlgo: 'n (ms)',
+    ratio: 'n이 2배일 때',
+    minHeap: '최소 힙, 최솟값 꺼내기',
+    maxHeap: '최대 힙, 최댓값 꺼내기',
+    bstMin: 'BST, 최솟값 꺼내기',
+    bstMax: 'BST, 최댓값 꺼내기',
+    chart: '가장 큰 n, 로그 눈금',
+    cap: 'n = {n} · 값 n개를 넣고 n번 꺼내기',
+    idle: '재기를 누르면 이 브라우저에서 값 n개를 넣고 n번 꺼냅니다. 값은 컴퓨터마다 다르고, 볼 것은 비율입니다.',
+    doneRandom: '무작위로 넣으면 BST의 높이도 log n쯤이라, n이 2배일 때 BST ×{rb}, 최소 힙 ×{rh}로 비슷하게 늘어납니다. 가장 큰 n에서 BST는 최소 힙의 {x}배 시간이 걸렸습니다.',
+    doneSorted: '오름차순으로 넣으면 BST가 한 줄로 늘어져 높이가 n입니다. n이 2배일 때 BST ×{rb}로 n²처럼 늘고, 최소 힙은 ×{rh}입니다. 가장 큰 n에서 BST는 최소 힙의 {x}배 시간이 걸렸습니다.',
+  },
+  en: {
+    title: 'Measure it yourself',
+    random: 'Insert in random order',
+    sorted: 'Insert in ascending order',
+    run: 'Measure',
+    running: 'Measuring',
+    colAlgo: 'n (ms)',
+    ratio: 'when n doubles',
+    minHeap: 'Min heap, extract min',
+    maxHeap: 'Max heap, extract max',
+    bstMin: 'BST, extract min',
+    bstMax: 'BST, extract max',
+    chart: 'largest n, log scale',
+    cap: 'n = {n} · insert n values, then extract n times',
+    idle: 'Measure inserts n values and extracts n times in this browser. Values depend on the computer; what matters is the ratio.',
+    doneRandom: 'With random order the BST is also about log n high, so when n doubles the BST grows ×{rb} and the min heap ×{rh}, much alike. At the largest n the BST took {x} times as long as the min heap.',
+    doneSorted: 'With ascending order the BST becomes one long chain of height n. When n doubles the BST grows ×{rb}, like n², and the min heap ×{rh}. At the largest n the BST took {x} times as long as the min heap.',
+  },
+  zh: {
+    title: '亲手测一测',
+    random: '按随机顺序插入',
+    sorted: '按升序插入',
+    run: '测量',
+    running: '测量中',
+    colAlgo: 'n (ms)',
+    ratio: 'n 变 2 倍时',
+    minHeap: '最小堆，取出最小值',
+    maxHeap: '最大堆，取出最大值',
+    bstMin: 'BST，取出最小值',
+    bstMax: 'BST，取出最大值',
+    chart: '最大的 n，对数刻度',
+    cap: 'n = {n} · 插入 n 个值，再取出 n 次',
+    idle: '按测量后，会在这个浏览器里插入 n 个值并取出 n 次。数值因电脑而异，要看的是比例。',
+    doneRandom: '按随机顺序插入时，BST 的高度也约为 log n，所以 n 变 2 倍时 BST ×{rb}、最小堆 ×{rh}，增长相近。在最大的 n 上，BST 花的时间是最小堆的 {x} 倍。',
+    doneSorted: '按升序插入时，BST 变成一条长链，高度为 n。n 变 2 倍时 BST ×{rb}，像 n² 一样增长，最小堆是 ×{rh}。在最大的 n 上，BST 花的时间是最小堆的 {x} 倍。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+const algos = ['minHeap', 'maxHeap', 'bstMin', 'bstMax'];
+const SIZES = { random: [20000, 40000, 80000, 160000], sorted: [1000, 2000, 4000, 8000] };
+---
+
+<div class:list={['aas-heap-bst-race-demo', slide && 'is-slide']} id={id} data-hb-strings={JSON.stringify(t)}>
+  <div class="hb-bar">
+    <div class="hb-tabs">
+      <span class="hb-head"><strong>{t.title}</strong></span>
+      <button type="button" class="hb-tab" data-hb-kind="random">{t.random}</button>
+      <button type="button" class="hb-tab" data-hb-kind="sorted">{t.sorted}</button>
+    </div>
+    <button type="button" class="hb-btn" data-hb-run>{t.run}</button>
+  </div>
+
+  <table class="hb-table">
+    <thead>
+      <tr>
+        <th class="hb-name">{t.colAlgo}</th>
+        {[0, 1, 2, 3].map((j) => <th data-hb-size={j}>-</th>)}
+        <th>{t.ratio}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        algos.map((a) => (
+          <tr data-hb-row={a}>
+            <td class="hb-name">{t[a]}</td>
+            {[0, 1, 2, 3].map((j) => <td data-hb-cell={j}>-</td>)}
+            <td data-hb-ratio>-</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <div class="hb-chart">
+    <span class="hb-chartcap" data-hb-cap>{t.chart}</span>
+    {
+      algos.map((a) => (
+        <div class="hb-chartline">
+          <span>{t[a]}</span>
+          <div class="hb-track"><i data-hb-bar={a}></i></div>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="hb-note" data-hb-note></p>
+</div>
+
+<script is:inline define:vars={{ id, algos, SIZES }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const S = JSON.parse(root.dataset.hbStrings);
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const comma = (x) => x.toLocaleString('en-US');
+    const note = root.querySelector('[data-hb-note]');
+    const runBtn = root.querySelector('[data-hb-run]');
+
+    /* ---- 입력: 무작위는 x <- (1664525 x + 1013904223) mod 2^32를 2^30으로 나눈 나머지, 오름차순은 0..n-1 ---- */
+    function makeInput(kind, n) {
+      const a = new Int32Array(n);
+      if (kind === 'sorted') {
+        for (let i = 0; i < n; i++) a[i] = i;
+        return a;
+      }
+      let x = 2026;
+      for (let i = 0; i < n; i++) {
+        x = (Math.imul(1664525, x) + 1013904223) >>> 0;
+        a[i] = x % 1073741824;
+      }
+      return a;
+    }
+
+    /* 힙: sign이 1이면 최소 힙, -1이면 최대 힙(값의 부호를 뒤집어 같은 코드로 돌린다).
+       꺼낸 값이 순서대로인지 확인하고, 틀리면 -1을 돌려준다. */
+    function heapRun(input, sign) {
+      const n = input.length;
+      const h = new Int32Array(n);
+      let size = 0;
+      for (let k = 0; k < n; k++) {
+        let i = size++;
+        const v = sign * input[k];
+        while (i > 0) { // sift up
+          const p = (i - 1) >> 1;
+          if (h[p] <= v) break;
+          h[i] = h[p];
+          i = p;
+        }
+        h[i] = v;
+      }
+      let prev = -Infinity;
+      for (let k = 0; k < n; k++) {
+        const top = h[0];
+        if (top < prev) return -1;
+        prev = top;
+        const v = h[--size];
+        let i = 0;
+        for (;;) { // sift down: 두 자식 중 더 작은 쪽과 견준다
+          let c = 2 * i + 1;
+          if (c >= size) break;
+          if (c + 1 < size && h[c + 1] < h[c]) c += 1;
+          if (h[c] >= v) break;
+          h[i] = h[c];
+          i = c;
+        }
+        h[i] = v;
+      }
+      return n;
+    }
+
+    /* BST: 균형을 맞추지 않는다. 같은 값은 오른쪽으로 보낸다. 노드는 배열 셋(key, left, right)에 담는다.
+       takeMax가 false면 맨 왼쪽(최솟값), true면 맨 오른쪽(최댓값)을 n번 뗀다. */
+    function bstRun(input, takeMax) {
+      const n = input.length;
+      const key = input;
+      const left = new Int32Array(n).fill(-1);
+      const right = new Int32Array(n).fill(-1);
+      let top = -1;
+      for (let k = 0; k < n; k++) {
+        if (top < 0) {
+          top = k;
+          continue;
+        }
+        let x = top;
+        for (;;) {
+          if (key[k] < key[x]) {
+            if (left[x] < 0) {
+              left[x] = k;
+              break;
+            }
+            x = left[x];
+          } else {
+            if (right[x] < 0) {
+              right[x] = k;
+              break;
+            }
+            x = right[x];
+          }
+        }
+      }
+      const down = takeMax ? right : left; // 끝까지 내려가는 쪽
+      const other = takeMax ? left : right; // 뗀 노드 자리에 올리는 쪽
+      let prev = takeMax ? Infinity : -Infinity;
+      for (let k = 0; k < n; k++) {
+        let p = -1;
+        let x = top;
+        while (down[x] >= 0) {
+          p = x;
+          x = down[x];
+        }
+        if (takeMax ? key[x] > prev : key[x] < prev) return -1;
+        prev = key[x];
+        if (p < 0) top = other[x];
+        else down[p] = other[x];
+      }
+      return n;
+    }
+
+    const FNS = {
+      minHeap: (a) => heapRun(a, 1),
+      maxHeap: (a) => heapRun(a, -1),
+      bstMin: (a) => bstRun(a, false),
+      bstMax: (a) => bstRun(a, true),
+    };
+
+    /* 첫 번은 재지 않고 데운다. 짧게 끝나는 칸은 되풀이해 평균을 낸다. */
+    function measure(fn, input) {
+      if (fn(input) !== input.length) throw new Error('wrong order');
+      let total = 0;
+      let runs = 0;
+      do {
+        const t0 = performance.now();
+        const got = fn(input);
+        total += performance.now() - t0;
+        runs += 1;
+        if (got !== input.length) throw new Error('wrong order');
+      } while (total < 6 && runs < 20);
+      return { ms: total / runs };
+    }
+
+    let kind = 'random';
+    let token = 0;
+    const results = {};
+    const fmt = (ms) => (ms >= 100 ? Math.round(ms).toLocaleString('en-US') : ms >= 1 ? ms.toFixed(2) : ms.toFixed(3));
+
+    function paint() {
+      const res = results[kind] || {};
+      const sizes = SIZES[kind];
+      sizes.forEach((n, j) => (root.querySelector(`[data-hb-size="${j}"]`).textContent = comma(n)));
+      const last = sizes[3];
+      for (const a of algos) {
+        const row = root.querySelector(`[data-hb-row="${a}"]`);
+        sizes.forEach((n, j) => {
+          const r = res[`${a}:${n}`];
+          row.querySelector(`[data-hb-cell="${j}"]`).textContent = r ? fmt(r.ms) : '-';
+        });
+        const big = res[`${a}:${last}`];
+        const prev = res[`${a}:${sizes[2]}`];
+        row.querySelector('[data-hb-ratio]').textContent = big && prev ? `×${(big.ms / prev.ms).toFixed(1)}` : '-';
+        const mx = Math.max(...algos.map((x) => res[`${x}:${last}`]?.ms ?? 0));
+        const mn = Math.min(...algos.map((x) => res[`${x}:${last}`]?.ms ?? Infinity));
+        /* 차이가 수십 배가 될 수 있어 로그 눈금으로 그린다. */
+        const w = big && mx > mn ? 12 + (88 * Math.log(big.ms / mn)) / Math.log(mx / mn) : big ? 100 : 0;
+        root.querySelector(`[data-hb-bar="${a}"]`).style.width = `${w.toFixed(1)}%`;
+      }
+      root.querySelector('[data-hb-cap]').textContent = `${fill(S.cap, { n: comma(last) })} · ${S.chart}`;
+      const done = algos.every((a) => res[`${a}:${last}`]);
+      const ratio = (a) => (res[`${a}:${last}`].ms / res[`${a}:${sizes[2]}`].ms).toFixed(1);
+      if (!done) setLines(note, S.idle);
+      else {
+        const x = res[`bstMin:${last}`].ms / res[`minHeap:${last}`].ms;
+        setLines(
+          note,
+          fill(kind === 'random' ? S.doneRandom : S.doneSorted, {
+            rb: ratio('bstMin'),
+            rh: ratio('minHeap'),
+            x: x >= 10 ? x.toFixed(0) : x.toFixed(1),
+          }),
+        );
+      }
+      root.querySelectorAll('[data-hb-kind]').forEach((b) => b.classList.toggle('is-on', b.dataset.hbKind === kind));
+    }
+
+    /* 칸마다 쉬어 가며 재서 화면이 멈추지 않게 한다. 새로 누르면 앞의 측정은 버린다. */
+    function run() {
+      const my = ++token;
+      const k = kind;
+      const res = {};
+      results[k] = res;
+      paint();
+      runBtn.textContent = S.running;
+      const queue = [];
+      for (const n of SIZES[k]) for (const a of algos) queue.push([a, n]);
+      let input = null;
+      const next = () => {
+        if (my !== token) return;
+        const job = queue.shift();
+        if (!job) {
+          runBtn.textContent = S.run;
+          return;
+        }
+        const [a, n] = job;
+        if (!input || input.length !== n) input = makeInput(k, n);
+        res[`${a}:${n}`] = measure(FNS[a], input);
+        paint();
+        setTimeout(next, 0);
+      };
+      setTimeout(next, 30);
+    }
+
+    root.querySelectorAll('[data-hb-kind]').forEach((b) =>
+      b.addEventListener('click', () => {
+        token += 1;
+        runBtn.textContent = S.run;
+        kind = b.dataset.hbKind;
+        paint();
+      }),
+    );
+    runBtn.addEventListener('click', run);
+    paint();
+  })();
+</script>
+
+<style is:global>
+  .aas-heap-bst-race-demo {
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-heap-bst-race-demo .hb-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-heap-bst-race-demo .hb-head {
+    margin-right: 0.4em;
+    font-size: 0.95em;
+  }
+  .aas-heap-bst-race-demo .hb-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-heap-bst-race-demo .hb-tab {
+    padding: 0.25em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-heap-bst-race-demo .hb-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-heap-bst-race-demo .hb-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-heap-bst-race-demo .hb-btn {
+    padding: 0.35em 1.1em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-accent);
+    border-radius: 0.5em;
+    background: var(--aas-accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .aas-heap-bst-race-demo.aas-heap-bst-race-demo table {
+    width: 100%;
+    max-width: none;
+    margin: 0.6em 0 0;
+    border: none;
+    border-radius: 0;
+    border-collapse: collapse;
+    overflow: visible;
+    font-size: 0.85em;
+  }
+  .aas-heap-bst-race-demo.aas-heap-bst-race-demo :is(th, td) {
+    padding: 0.2em 0.6em;
+    border: none;
+    border-bottom: 1px solid var(--aas-border);
+    background: none;
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-heap-bst-race-demo.aas-heap-bst-race-demo th {
+    font-weight: 600;
+    color: var(--aas-muted);
+  }
+  .aas-heap-bst-race-demo.aas-heap-bst-race-demo .hb-name {
+    text-align: left;
+  }
+  .aas-heap-bst-race-demo.aas-heap-bst-race-demo tr:is([data-hb-row='minHeap'], [data-hb-row='maxHeap']) td {
+    background: color-mix(in srgb, var(--aas-role-eval) 12%, transparent);
+  }
+  .aas-heap-bst-race-demo .hb-chart {
+    margin-top: 0.35em;
+  }
+  .aas-heap-bst-race-demo .hb-chartcap {
+    display: block;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+  .aas-heap-bst-race-demo .hb-chartline {
+    display: grid;
+    grid-template-columns: 12em 1fr;
+    gap: 0.6em;
+    align-items: center;
+    font-size: 0.78em;
+  }
+  .aas-heap-bst-race-demo .hb-chartline span {
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-heap-bst-race-demo .hb-track {
+    height: 0.85em;
+  }
+  .aas-heap-bst-race-demo .hb-track i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 0.2em;
+    background: var(--aas-role-model);
+    transition: width 0.25s;
+  }
+  .aas-heap-bst-race-demo .hb-track i:is([data-hb-bar='minHeap'], [data-hb-bar='maxHeap']) {
+    background: var(--aas-role-eval);
+  }
+  .aas-heap-bst-race-demo .hb-note {
+    margin: 0.5em 0 0;
+    font-size: 0.85em;
+    min-height: 3em;
+  }
+
+  /* 좁은 화면: 여섯 열이 화면 안에 들도록 글자와 칸 여백을 줄인다. */
+  @media (max-width: 560px) {
+    .aas-heap-bst-race-demo.aas-heap-bst-race-demo table {
+      font-size: 0.68em;
+    }
+    .aas-heap-bst-race-demo.aas-heap-bst-race-demo :is(th, td) {
+      padding: 0.2em 0.25em;
+    }
+    .aas-heap-bst-race-demo .hb-chartline {
+      grid-template-columns: 9em 1fr;
+    }
+  }
+
+  /* 슬라이드용. RuntimeRaceDemo와 같은 크기 */
+  .aas-heap-bst-race-demo.is-slide {
+    font-size: clamp(1rem, 2.55vh, 1.75rem);
+    margin: 0.5rem 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aas-heap-bst-race-demo .hb-track i {
+      transition: none;
+    }
+  }
+</style>
