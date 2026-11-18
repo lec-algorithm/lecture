@@ -28,6 +28,7 @@ import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
 import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1045,6 +1046,41 @@ extract all: 1 2 3 4 5 6 7 8 9 10
 - 在主题 06 的霍夫曼编码里，每次扫遍整片森林去找"最轻的两棵树"，
   $$k$$ 种字符要 $$O(k^2)$$。把森林放进最小堆，两次取出和一次放入
   都是 $$O(\log k)$$，于是变成 $$O(k \log k)$$。
+
+### 堆与 BST \{#heap-vs-bst}
+
+主题 07 的 BST 也能很快找到最小值：最左边的节点是最小值，最右边的节点是最大值。
+下面比较它和堆的不同。
+
+- **堆**只保证"父节点小于等于子节点"，兄弟之间没有顺序。所以最小值在根，
+  但其他值在哪里并不知道。
+- **BST** 保证"左 < 父 < 右"。每个值的位置都确定，所以既能查找，也能按顺序遍历。
+  代价是高度取决于插入顺序。
+
+|  | 最小堆 | 最大堆 | BST（平衡） | BST（最坏） |
+| --- | --- | --- | --- | --- |
+| 最小值所在的位置 | 根 | 某个叶子 | 最左边 | 最左边 |
+| 查看最小值 | $$O(1)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| 取出最小值 | $$O(\log n)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| 查看最大值 | $$O(n)$$ | $$O(1)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| 插入 | $$O(\log n)$$ | $$O(\log n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| 查找任意值 | $$O(n)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| 按顺序访问全部 | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | $$O(n)$$ |
+
+- 最大堆只是把最小堆的比较方向反过来。速度相同，能快速取出的从最小值变成最大值。
+  要在最小堆里找最大值，就得看完所有叶子。
+- BST 取出最小值和最大值都是 $$O(h)$$。平衡时 $$h$$ 是 $$\log n$$，
+  但按有序顺序插入会变成一条链，$$h = n$$。
+- 堆永远是完全二叉树，所以不论插入顺序如何，高度都是 $$\log n$$。不用指针、
+  放在一个数组里也是优点。
+
+在这个浏览器里亲手测量插入 n 个值、再取出 n 次的时间。用标签切换插入顺序。
+
+<HeapBstRaceDemo />
+
+- 按随机顺序插入时，BST 的高度也约为 $$\log n$$，增长方式和堆一样。
+- 按升序插入时，n 变 2 倍，BST 约慢 4 倍。堆不受影响。
+- Prim 和 Dijkstra 只是反复取出最小值，用堆就够了。
 
 ## 例 5. Prim 算法 \{#prim}
 

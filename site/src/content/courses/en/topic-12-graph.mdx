@@ -28,6 +28,7 @@ import SearchCompareDemo from '@components/SearchCompareDemo.astro';
 import TopoPickDemo from '@components/TopoPickDemo.astro';
 import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
+import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1083,6 +1084,42 @@ extract all: 1 2 3 4 5 6 7 8 9 10
 - In Topic 06's Huffman coding, finding "the two lightest trees" by scanning the whole
   forest each time cost $$O(k^2)$$ for $$k$$ symbols. With the forest in a min heap, two
   extractions and one insertion each cost $$O(\log k)$$, so the total is $$O(k \log k)$$.
+
+### Heap and BST \{#heap-vs-bst}
+
+The BST from Topic 07 also finds the smallest value quickly: the leftmost node is the
+minimum and the rightmost node is the maximum. Here is how it differs from a heap.
+
+- A **heap** keeps only "a parent is less than or equal to its children". Siblings have no
+  order. So the minimum is at the root, but nothing says where any other value is.
+- A **BST** keeps "left < parent < right". Every value has its place, so you can search
+  and walk in order. In exchange, the height depends on the insertion order.
+
+|  | Min heap | Max heap | BST (balanced) | BST (worst) |
+| --- | --- | --- | --- | --- |
+| Where the smallest value is | root | some leaf | leftmost | leftmost |
+| Peek min | $$O(1)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Extract min | $$O(\log n)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Peek max | $$O(n)$$ | $$O(1)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Insert | $$O(\log n)$$ | $$O(\log n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Search for any value | $$O(n)$$ | $$O(n)$$ | $$O(\log n)$$ | $$O(n)$$ |
+| Visit all in sorted order | $$O(n \log n)$$ | $$O(n \log n)$$ | $$O(n)$$ | $$O(n)$$ |
+
+- A max heap is a min heap with the comparison reversed. It is just as fast; what comes out
+  quickly changes from the minimum to the maximum. Finding the maximum in a min heap means
+  looking at every leaf.
+- A BST extracts both the minimum and the maximum in $$O(h)$$. When balanced, $$h$$ is
+  $$\log n$$, but inserting in sorted order makes one long chain with $$h = n$$.
+- A heap is always a complete binary tree, so its height is $$\log n$$ whatever the
+  insertion order. Fitting in one array without pointers is another advantage.
+
+Time inserting n values and extracting n times in this browser. Use the tabs to change the insertion order.
+
+<HeapBstRaceDemo />
+
+- With random order the BST is also about $$\log n$$ high and grows like the heap.
+- With ascending order the BST gets about 4 times slower when n doubles. The heap does not change.
+- Prim and Dijkstra only keep extracting the minimum, so a heap is enough for them.
 
 ## Example 5. Prim's algorithm \{#prim}
 
