@@ -30,6 +30,7 @@ import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
 import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
 import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1274,6 +1275,20 @@ piece grows from start to finish.
 - **Time**: at most one heap entry per edge. Each insert and extract is $$O(\log E)$$, so the
   total is $$O(E \log E)$$, and since $$E \le V^2$$ gives $$\log E \le 2 \log V$$, it is
   $$O(E \log V)$$.
+
+Run Kruskal and Prim side by side on the same graph. Each step, both add one edge. The solid
+orange line is the edge added next, and the dashed orange lines are the other crossing edges of
+the cut it crosses. Kruskal's cut is "the piece holding one end of the next edge" and the rest;
+Prim's cut is "the tree so far" and the rest. Either way, the solid orange edge is the lightest
+in its cut.
+
+<MstSideDemo />
+
+- Kruskal starts with 8 pieces that grow and merge; Prim has one piece from start to finish.
+- Prim's heap pushes are 11 starting from 0 and 15 starting from 6, never more than E = 16.
+  Edge (u, v) pushes only once, when u joins the tree first and v has not yet.
+- $$E \le V^2$$, so $$\log E \le 2 \log V$$. In the example $$\log_2 16 = 4 \le 2 \log_2 8 = 6$$,
+  and the constant 2 vanishes in O notation, so $$O(E \log E) = O(E \log V)$$.
 
 ## Kruskal or Prim, and when \{#mst-when}
 

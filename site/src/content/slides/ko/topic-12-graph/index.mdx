@@ -28,6 +28,7 @@ import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
 import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
 import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1145,6 +1146,34 @@ total weight = 1.81
 - **Kruskal과 다른 점**
   - Kruskal은 여러 덩어리가 자라다 합쳐집니다.
   - Prim은 처음부터 끝까지 한 덩어리가 자랍니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: Kruskal과 Prim 나란히
+::sub[주황 실선이 다음에 더할 간선, 주황 점선이 같은 cut의 다른 crossing edge · 덩어리 수를 견주어 보세요]
+
+<MstSideDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 시간: 왜 O(E log V)인가
+::sub[예제 그래프는 V = 8, E = 16]
+
+<VarLegend set="graph" />
+
+- **힙에 넣기**: key가 줄 때만 넣습니다.
+  - 간선 (u, v)로 넣는 것은 u가 먼저 트리에 들고 v는 아직일 때 한 번뿐입니다.
+  - 그래서 넣는 항목은 E개를 넘지 않습니다. 예제는 0에서 시작하면 11개, 6에서 시작하면 15개
+- **꺼내기**: 넣은 만큼만 꺼냅니다. 낡은 항목도 꺼내서 버립니다.
+- 힙에는 많아야 E개가 들어 있으므로 넣기와 꺼내기는 한 번에 $$O(\log E)$$
+  - 모두 합치면 $$O(E \log E)$$
+- **$$E \le V^2$$이므로 $$\log E \le 2 \log V$$**
+  - 예제: $$\log_2 16 = 4 \le 2 \log_2 8 = 6$$
+  - 상수 2는 O 표기에서 사라지므로 $$O(E \log E) = O(E \log V)$$
 
 </Slide>
 

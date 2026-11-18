@@ -28,6 +28,7 @@ import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
 import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
 import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1145,6 +1146,34 @@ Vertices join the tree in the order 0, 7, 1, 2, 3, 5, 4, 6.
 - **How it differs from Kruskal**
   - In Kruskal several pieces grow and then merge.
   - In Prim a single piece grows from start to finish.
+
+</Slide>
+
+<Slide>
+
+### Try it: Kruskal and Prim side by side
+::sub[The solid orange line is the next edge, dashed orange lines are the other crossing edges of the same cut · compare the number of pieces]
+
+<MstSideDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### Time: why O(E log V)
+::sub[The example graph has V = 8, E = 16]
+
+<VarLegend set="graph" />
+
+- **Pushing**: only when a key drops.
+  - Edge (u, v) pushes once at most: when u joins the tree first and v has not yet.
+  - So there are at most E pushes. The example makes 11 starting from 0 and 15 starting from 6
+- **Popping**: only what was pushed. Stale entries are popped and dropped too.
+- The heap holds at most E entries, so each push or pop is $$O(\log E)$$
+  - In total, $$O(E \log E)$$
+- **$$E \le V^2$$, so $$\log E \le 2 \log V$$**
+  - Example: $$\log_2 16 = 4 \le 2 \log_2 8 = 6$$
+  - The constant 2 vanishes in O notation, so $$O(E \log E) = O(E \log V)$$
 
 </Slide>
 

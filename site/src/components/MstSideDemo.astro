@@ -1,0 +1,514 @@
+---
+// Kruskal과 Prim을 같은 그래프에서 나란히 한 걸음씩 돌려 보는 데모. Prim 분석 슬라이드를
+// 풀어 보이려는 것이다.
+//
+// 한 걸음에 두 알고리즘이 간선을 하나씩 더한다. 화면은 "다음에 더할 간선을 고르기 직전"을
+// 보인다. 주황 실선이 다음에 더할 간선, 주황 점선이 그 간선이 건너는 cut의 다른
+// crossing edge다. 주황 실선이 그중 가장 가볍다는 것이 정확성의 근거다.
+//
+//   Kruskal: cut은 "다음 간선의 한 끝이 든 덩어리"와 나머지다. 덩어리마다 색이 다르고,
+//            덩어리가 여럿 자라다 합쳐진다. 양 끝이 같은 덩어리라 건너뛴 간선은 빨간 점선이다.
+//   Prim:    cut은 "지금의 트리"와 나머지다. 처음부터 끝까지 덩어리는 하나(초록)다.
+//            힙에 넣은 항목, 꺼낸 횟수, 버린 낡은 항목을 센다. 넣는 것은 간선마다 많아야
+//            한 번이라 E를 넘지 않는다. Prim 쪽 정점을 누르면 시작 정점이 바뀐다.
+//
+// 그래프는 Kruskal·Prim 예제(mst)이고, 둘 다 같은 간선 일곱 개, 총 1.81에 닿는다.
+// 같은 key면 먼저 넣은 항목을 먼저 꺼낸다(HeapGraphDemo와 같다).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import GraphFigure from './GraphFigure.astro';
+import { getGraph } from './GraphSamples';
+
+interface Props {
+  /** Prim의 시작 정점 */
+  start?: number;
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { start = 0, slide = false } = Astro.props;
+const graph = 'mst';
+const g = getGraph(graph);
+const id = `ms-${Math.random().toString(36).slice(2, 9)}`;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'Kruskal과 Prim 나란히',
+    hint: 'Prim 쪽 정점을 누르면 시작 정점이 바뀝니다.',
+    back: '뒤로',
+    step: '한 걸음',
+    reset: '처음으로',
+    legNext: '다음에 더할 간선',
+    legCross: '같은 cut의 다른 crossing edge',
+    legSkip: '건너뛴 간선',
+    pieces: '덩어리',
+    seen: '정렬 순으로 본 간선',
+    pushes: '힙에 넣은 항목',
+    pops: '꺼낸 횟수 (낡은 항목)',
+    total: '총 가중치',
+    kNext: '다음은 {e} ({w}). 덩어리 {{piece}} 대 나머지로 나눈 cut에서 가장 가벼운 crossing edge입니다.',
+    kSkip: '그 전에 {list|은} 양 끝이 같은 덩어리라 건너뜁니다.',
+    kDone: '간선 {k}개, 총 {total}. 덩어리 여럿이 자라다 하나로 합쳐졌습니다.',
+    pNext: '다음은 {e} ({w}). 트리 {{tree}} 대 나머지로 나눈 cut에서 가장 가벼운 crossing edge입니다.',
+    pDone: '간선 {k}개, 총 {total}. 덩어리는 처음부터 끝까지 하나였습니다. 힙에 넣은 항목 {p}개 ≤ E = {m}개입니다.',
+  },
+  en: {
+    title: 'Kruskal and Prim side by side',
+    hint: 'Click a vertex on the Prim side to change the start.',
+    back: 'Back',
+    step: 'Step',
+    reset: 'Reset',
+    legNext: 'edge added next',
+    legCross: 'other crossing edges of the same cut',
+    legSkip: 'skipped edge',
+    pieces: 'pieces',
+    seen: 'edges looked at, in sorted order',
+    pushes: 'heap pushes',
+    pops: 'pops (stale)',
+    total: 'total weight',
+    kNext: 'Next is {e} ({w}). Taking the piece {{piece}} and the rest as the cut, it is the lightest crossing edge.',
+    kSkip: 'Before it, {list} are skipped: both ends are in the same piece.',
+    kDone: '{k} edges, total {total}. Several pieces grew and merged into one.',
+    pNext: 'Next is {e} ({w}). Taking the tree {{tree}} and the rest as the cut, it is the lightest crossing edge.',
+    pDone: '{k} edges, total {total}. There was a single piece from start to finish. {p} heap pushes ≤ E = {m}.',
+  },
+  zh: {
+    title: 'Kruskal 与 Prim 并排',
+    hint: '点击 Prim 一侧的顶点可以更换起点。',
+    back: '后退',
+    step: '单步',
+    reset: '重置',
+    legNext: '下一条要加的边',
+    legCross: '同一个割的其他横切边',
+    legSkip: '跳过的边',
+    pieces: '块数',
+    seen: '按顺序看过的边',
+    pushes: '入堆项数',
+    pops: '取出次数（过时项）',
+    total: '总权重',
+    kNext: '下一条是 {e}（{w}）。把块 {{piece}} 和其余部分看成割，它就是最轻的横切边。',
+    kSkip: '在它之前，{list} 两端在同一块里，跳过。',
+    kDone: '{k} 条边，总共 {total}。几块各自长大，最后合成一块。',
+    pNext: '下一条是 {e}（{w}）。把树 {{tree}} 和其余部分看成割，它就是最轻的横切边。',
+    pDone: '{k} 条边，总共 {total}。从头到尾只有一块。入堆项数 {p} ≤ E = {m}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-mst-side-demo', slide && 'is-slide']}
+  id={id}
+  data-ms-n={g.nodes.length}
+  data-ms-edges={JSON.stringify(g.edges)}
+  data-ms-scale={g.scale ?? 1}
+  data-ms-start={start}
+  data-ms-strings={JSON.stringify(t)}
+>
+  <div class="ms-bar">
+    <span class="ms-head"><strong>{t.title}</strong> <span class="ms-hint">{t.hint}</span></span>
+    <div class="ms-controls">
+      <button type="button" class="ms-btn" data-ms-act="back">{t.back}</button>
+      <button type="button" class="ms-btn ms-btn-primary" data-ms-act="step">{t.step}</button>
+      <button type="button" class="ms-btn" data-ms-act="reset">{t.reset}</button>
+    </div>
+  </div>
+  <div class="ms-legend">
+    <span><i class="ms-sw is-next"></i>{t.legNext}</span>
+    <span><i class="ms-sw is-cross"></i>{t.legCross}</span>
+    <span><i class="ms-sw is-skip"></i>{t.legSkip}</span>
+  </div>
+
+  <div class="ms-cols">
+    <div class="ms-col" data-ms-side="k">
+      <div class="ms-name">Kruskal</div>
+      <div class="ms-graph"><GraphFigure graph={graph} bare slide={slide} /></div>
+      <div class="ms-stats">
+        <span>{t.pieces} <strong data-ms-k-pieces></strong></span>
+        <span>{t.seen} <strong data-ms-k-seen></strong></span>
+        <span>{t.total} <strong data-ms-k-total></strong></span>
+      </div>
+      <p class="ms-note" data-ms-k-note></p>
+    </div>
+    <div class="ms-col" data-ms-side="p">
+      <div class="ms-name">Prim</div>
+      <div class="ms-graph"><GraphFigure graph={graph} bare slide={slide} /></div>
+      <div class="ms-stats">
+        <span>{t.pieces} <strong data-ms-p-pieces></strong></span>
+        <span>{t.pushes} <strong data-ms-p-push></strong></span>
+        <span>{t.pops} <strong data-ms-p-pop></strong></span>
+        <span>{t.total} <strong data-ms-p-total></strong></span>
+      </div>
+      <p class="ms-note" data-ms-p-note></p>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    /* {v|은}은 받침에 따라 은/는을 고른다. {{x}}는 중괄호로 감싼 집합을 적는다. */
+    const josa = (val, p) => {
+      const ch = String(val).trim().slice(-1);
+      const d = Number(ch);
+      const batchim = /[0-9]/.test(ch) ? [1, 1, 0, 1, 0, 0, 1, 1, 1, 0][d] : 0;
+      return batchim ? p : { 은: '는', 이: '가', 을: '를' }[p] ?? p;
+    };
+    const fill = (tpl, vars) =>
+      tpl.replace(/\{\{(\w+)\}\}|\{(\w+)(?:\|([^}]+))?\}/g, (_, set, k, p) =>
+        set ? `{${vars[set]}}` : p ? vars[k] + josa(vars[k], p) : vars[k],
+      );
+    const S = JSON.parse(root.dataset.msStrings);
+    const n = Number(root.dataset.msN);
+    const edges = JSON.parse(root.dataset.msEdges).map(([u, v, w]) => ({ u, v, w, k: `${u}-${v}` }));
+    const m = edges.length;
+    const scale = Number(root.dataset.msScale);
+    const fmt = (w) => (scale === 1 ? String(w) : (w / scale).toFixed(2));
+    const name = (e, a) => (a === e.u ? `${e.u}-${e.v}` : `${e.v}-${e.u}`);
+    /* 덩어리 색. 같은 덩어리는 같은 색, 혼자인 정점은 칠하지 않는다. */
+    const HUES = [140, 215, 28, 275, 340, 180, 55];
+    const color = (k) => `hsl(${HUES[k % HUES.length]} 50% 42%)`;
+
+    const adj = Array.from({ length: n }, () => []);
+    edges.forEach((e) => {
+      adj[e.u].push([e.v, e]);
+      adj[e.v].push([e.u, e]);
+    });
+    adj.forEach((a) => a.sort((x, y) => x[0] - y[0]));
+
+    /* ---- Kruskal: 간선을 하나 더할 때마다 상태를 남긴다. ---- */
+    function planKruskal() {
+      const sorted = edges.slice().sort((a, b) => a.w - b.w);
+      const comp = Array.from({ length: n }, (_, v) => v);
+      const added = [];
+      const states = [];
+      let skipped = [];
+      let total = 0;
+      for (let j = 0; j < sorted.length && added.length < n - 1; j++) {
+        const e = sorted[j];
+        if (comp[e.u] === comp[e.v]) {
+          skipped.push(e);
+          continue;
+        }
+        states.push({ comp: comp.slice(), added: added.slice(), next: e, skipped, seen: j, total });
+        const a = comp[e.u];
+        const b = comp[e.v];
+        for (let x = 0; x < n; x++) if (comp[x] === b) comp[x] = a;
+        added.push(e);
+        total += e.w;
+        skipped = [];
+        if (added.length === n - 1) states.push({ comp: comp.slice(), added: added.slice(), next: null, skipped: [], seen: j + 1, total });
+      }
+      return states;
+    }
+
+    /* ---- Prim: 힙은 (key, 넣은 순서)로 꺼낸다. 간선을 하나 더할 때마다 상태를 남긴다. ---- */
+    function planPrim(s) {
+      const inTree = new Array(n).fill(false);
+      const key = new Array(n).fill(Infinity);
+      const via = new Array(n).fill(null);
+      const pq = [];
+      let seq = 0;
+      let pushes = 0;
+      let pops = 0;
+      let stale = 0;
+      let total = 0;
+      const added = [];
+      const states = [];
+      const take = (u) => {
+        inTree[u] = true;
+        adj[u].forEach(([v, e]) => {
+          if (!inTree[v] && e.w < key[v]) {
+            key[v] = e.w;
+            via[v] = e;
+            pq.push({ k: e.w, seq: seq++, v });
+            pushes += 1;
+          }
+        });
+      };
+      take(s);
+      while (added.length < n - 1) {
+        pq.sort((a, b) => a.k - b.k || a.seq - b.seq);
+        /* 다음에 붙을 정점은 낡지 않은 항목 중 맨 앞이다. 화면은 꺼내기 전 상태를 보인다. */
+        const nextIt = pq.find((it) => !inTree[it.v]);
+        states.push({ tree: inTree.slice(), added: added.slice(), next: via[nextIt.v], from: via[nextIt.v].u === nextIt.v ? via[nextIt.v].v : via[nextIt.v].u, pushes, pops, stale, total });
+        for (;;) {
+          const it = pq.shift();
+          pops += 1;
+          if (inTree[it.v]) {
+            stale += 1;
+            continue;
+          }
+          added.push(via[it.v]);
+          total += it.k;
+          take(it.v);
+          break;
+        }
+      }
+      states.push({ tree: inTree.slice(), added: added.slice(), next: null, pushes, pops, stale, total });
+      return states;
+    }
+
+    let s = Number(root.dataset.msStart);
+    const K = planKruskal();
+    let P = planPrim(s);
+    let at = 0;
+
+    const side = (k) => {
+      const col = root.querySelector(`[data-ms-side="${k}"]`);
+      const edgeEls = new Map();
+      col.querySelectorAll('[data-gf-edge]').forEach((el) => edgeEls.set(el.dataset.gfEdge, el));
+      return { col, nodes: [...col.querySelectorAll('[data-gf-node]')], edgeEls };
+    };
+    const KS = side('k');
+    const PS = side('p');
+    const q = (sel) => root.querySelector(sel);
+
+    function paintEdges(sd, tones) {
+      sd.edgeEls.forEach((el, k) => {
+        const tn = tones.get(k) || '';
+        ['tree', 'focus', 'cand', 'reject'].forEach((x) => el.classList.toggle(`is-${x}`, tn === x));
+      });
+    }
+    function paintNodes(sd, fillOf) {
+      sd.nodes.forEach((el, v) => {
+        const c = el.querySelector('circle');
+        const lab = el.querySelector('.gf-label');
+        const f = fillOf(v);
+        c.style.fill = f || '';
+        c.style.stroke = f || '';
+        lab.style.fill = f ? '#fff' : '';
+      });
+    }
+
+    function render() {
+      /* Kruskal */
+      const k = K[Math.min(at, K.length - 1)];
+      const size = new Map();
+      k.comp.forEach((c) => size.set(c, (size.get(c) || 0) + 1));
+      const order = [...new Set(k.comp.filter((c) => size.get(c) > 1))];
+      paintNodes(KS, (v) => (size.get(k.comp[v]) > 1 ? color(order.indexOf(k.comp[v])) : ''));
+      const kt = new Map();
+      k.added.forEach((e) => kt.set(e.k, 'tree'));
+      k.skipped.forEach((e) => kt.set(e.k, 'reject'));
+      let kNote;
+      if (k.next) {
+        const piece = k.comp[k.next.u];
+        edges.forEach((e) => {
+          if ((k.comp[e.u] === piece) !== (k.comp[e.v] === piece)) kt.set(e.k, 'cand');
+        });
+        kt.set(k.next.k, 'focus');
+        const members = k.comp.map((c, v) => (c === piece ? v : -1)).filter((v) => v >= 0);
+        kNote = join(
+          k.skipped.length && fill(S.kSkip, { list: k.skipped.map((e) => e.k).join(', ') }),
+          fill(S.kNext, { e: name(k.next, k.next.u), w: fmt(k.next.w), piece: members.join(', ') }),
+        );
+      } else kNote = fill(S.kDone, { k: k.added.length, total: fmt(k.total) });
+      paintEdges(KS, kt);
+      q('[data-ms-k-pieces]').textContent = String(n - k.added.length);
+      q('[data-ms-k-seen]').textContent = `${k.seen} / ${m}`;
+      q('[data-ms-k-total]').textContent = fmt(k.total);
+      setLines(q('[data-ms-k-note]'), kNote);
+
+      /* Prim */
+      const p = P[Math.min(at, P.length - 1)];
+      paintNodes(PS, (v) => (p.tree[v] ? 'var(--aas-role-eval)' : ''));
+      PS.nodes.forEach((el, v) => el.classList.toggle('is-ring', v === s));
+      const pt = new Map();
+      p.added.forEach((e) => pt.set(e.k, 'tree'));
+      let pNote;
+      if (p.next) {
+        edges.forEach((e) => {
+          if (p.tree[e.u] !== p.tree[e.v]) pt.set(e.k, 'cand');
+        });
+        pt.set(p.next.k, 'focus');
+        const tree = p.tree.map((x, v) => (x ? v : -1)).filter((v) => v >= 0);
+        pNote = fill(S.pNext, { e: name(p.next, p.from), w: fmt(p.next.w), tree: tree.join(', ') });
+      } else pNote = fill(S.pDone, { k: p.added.length, total: fmt(p.total), p: p.pushes, m });
+      paintEdges(PS, pt);
+      q('[data-ms-p-pieces]').textContent = String(n - p.added.length);
+      q('[data-ms-p-push]').textContent = `${p.pushes} / ${m}`;
+      q('[data-ms-p-pop]').textContent = `${p.pops} (${p.stale})`;
+      q('[data-ms-p-total]').textContent = fmt(p.total);
+      setLines(q('[data-ms-p-note]'), pNote);
+
+      const last = Math.max(K.length, P.length) - 1;
+      q('[data-ms-act="step"]').disabled = at >= last;
+      q('[data-ms-act="back"]').disabled = at <= 0;
+      root.classList.toggle('is-done', at >= last);
+    }
+
+    q('[data-ms-act="step"]').addEventListener('click', () => {
+      at = Math.min(at + 1, Math.max(K.length, P.length) - 1);
+      render();
+    });
+    q('[data-ms-act="back"]').addEventListener('click', () => {
+      at = Math.max(at - 1, 0);
+      render();
+    });
+    q('[data-ms-act="reset"]').addEventListener('click', () => {
+      at = 0;
+      render();
+    });
+    PS.nodes.forEach((el, v) => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', String(v));
+      const restart = () => {
+        s = v;
+        P = planPrim(s);
+        at = 0;
+        render();
+      };
+      el.addEventListener('click', restart);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          restart();
+        }
+      });
+    });
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-mst-side-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-mst-side-demo .ms-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .aas-mst-side-demo .ms-head {
+    font-size: 0.95em;
+  }
+  .aas-mst-side-demo .ms-hint {
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-mst-side-demo .ms-controls {
+    display: flex;
+    gap: 0.4em;
+  }
+  .aas-mst-side-demo .ms-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-mst-side-demo .ms-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-mst-side-demo .ms-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-mst-side-demo .ms-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-mst-side-demo .ms-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1.2em;
+    margin: 0.4em 0 0.3em;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+  }
+  .aas-mst-side-demo .ms-legend > span {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-mst-side-demo .ms-sw {
+    display: inline-block;
+    width: 1.8em;
+    border-top: 0.22em solid var(--aas-role-focus);
+  }
+  .aas-mst-side-demo .ms-sw.is-cross {
+    border-top-style: dashed;
+    border-top-width: 0.18em;
+  }
+  .aas-mst-side-demo .ms-sw.is-skip {
+    border-top: 0.16em dashed var(--aas-role-guard);
+  }
+  /* crossing edge는 주황 점선(Prim 데모와 같은 약속) */
+  .aas-mst-side-demo .aas-graph-figure .gf-edge.is-cand line {
+    stroke: var(--aas-role-focus);
+  }
+  .aas-mst-side-demo .aas-graph-figure .gf-edge.is-cand .gf-weight {
+    fill: var(--aas-role-focus);
+  }
+  .aas-mst-side-demo .ms-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+  }
+  .aas-mst-side-demo .ms-col {
+    flex: 1 1 16em;
+    min-width: 0;
+  }
+  .aas-mst-side-demo .ms-name {
+    font-weight: 800;
+    font-size: 0.95em;
+  }
+  .aas-mst-side-demo .ms-graph {
+    max-width: 22em;
+  }
+  .aas-mst-side-demo [data-ms-side='p'] .gf-node {
+    cursor: pointer;
+  }
+  .aas-mst-side-demo .ms-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 1em;
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-mst-side-demo .ms-stats strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-mst-side-demo .ms-note {
+    margin: 0.3em 0 0;
+    font-size: 0.8em;
+    min-height: 3.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-mst-side-demo.is-slide {
+    font-size: clamp(1rem, 2.5vh, 1.75rem);
+    margin: 0.3rem 0;
+    padding: 0.7em 1em;
+  }
+  .aas-mst-side-demo.is-slide .ms-cols {
+    flex-wrap: nowrap;
+  }
+  .aas-mst-side-demo.is-slide .ms-graph {
+    max-width: none;
+    --gf-slide-h: 33vh;
+  }
+</style>

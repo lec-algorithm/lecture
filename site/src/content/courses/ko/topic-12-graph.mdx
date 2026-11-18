@@ -30,6 +30,7 @@ import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
 import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
 import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1257,6 +1258,19 @@ MST는 하나뿐이므로 당연한 결과입니다. 다른 것은 순서입니�
 - **시간**: 힙에 넣는 항목은 간선마다 많아야 하나입니다. 넣기와 꺼내기가 각각
   $$O(\log E)$$이므로 $$O(E \log E)$$이고, $$E \le V^2$$이라 $$\log E \le 2 \log V$$이므로
   $$O(E \log V)$$입니다.
+
+Kruskal과 Prim을 같은 그래프에서 나란히 돌려 봅니다. 한 걸음에 둘 다 간선을 하나씩 더합니다.
+주황 실선이 다음에 더할 간선이고, 주황 점선이 그 간선이 건너는 cut의 다른 crossing edge입니다.
+Kruskal의 cut은 "다음 간선의 한 끝이 든 덩어리"와 나머지, Prim의 cut은 "지금의 트리"와
+나머지입니다. 어느 쪽이든 주황 실선이 그 cut에서 가장 가볍습니다.
+
+<MstSideDemo />
+
+- Kruskal은 덩어리가 8개에서 시작해 여럿이 자라다 합쳐지고, Prim은 처음부터 끝까지 한 덩어리입니다.
+- Prim의 "힙에 넣은 항목"은 0에서 시작하면 11개, 6에서 시작하면 15개로 E = 16을 넘지 않습니다.
+  간선 (u, v)로 넣는 일은 u가 먼저 트리에 들고 v는 아직일 때 한 번뿐이기 때문입니다.
+- $$E \le V^2$$이므로 $$\log E \le 2 \log V$$입니다. 예제에서는 $$\log_2 16 = 4 \le 2 \log_2 8 = 6$$이고,
+  상수 2는 O 표기에서 사라지므로 $$O(E \log E) = O(E \log V)$$입니다.
 
 ## Kruskal과 Prim, 언제 무엇을 \{#mst-when}
 

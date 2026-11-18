@@ -30,6 +30,7 @@ import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
 import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
 import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1230,6 +1231,18 @@ Prim 自始至终只有一块在长大。
 - **时间**：放进堆的项每条边最多一个。放入和取出各是
   $$O(\log E)$$，所以是 $$O(E \log E)$$；又因为 $$E \le V^2$$，有 $$\log E \le 2 \log V$$，
   所以是 $$O(E \log V)$$。
+
+在同一张图上并排运行 Kruskal 和 Prim。每一步两边各加一条边。橙色实线是下一条要加的边，
+橙色虚线是它所横跨的割的其他横切边。Kruskal 的割是"下一条边一端所在的块"和其余部分，
+Prim 的割是"目前的树"和其余部分。无论哪边，橙色实线都是该割中最轻的。
+
+<MstSideDemo />
+
+- Kruskal 从 8 块开始，几块各自长大再合并；Prim 从头到尾只有一块。
+- Prim 的入堆项数从 0 开始是 11 个，从 6 开始是 15 个，不超过 E = 16。
+  边 (u, v) 只在 u 先进树、v 还没进时放入一次。
+- 因为 $$E \le V^2$$，所以 $$\log E \le 2 \log V$$。例子中 $$\log_2 16 = 4 \le 2 \log_2 8 = 6$$，
+  常数 2 在 O 记号里消失，所以 $$O(E \log E) = O(E \log V)$$。
 
 ## Kruskal 与 Prim，何时用哪个 \{#mst-when}
 

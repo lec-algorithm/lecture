@@ -28,6 +28,7 @@ import SpanSwapDemo from '@components/SpanSwapDemo.astro';
 import HeapPlayDemo from '@components/HeapPlayDemo.astro';
 import PriorityQueueDemo from '@components/PriorityQueueDemo.astro';
 import HeapBstRaceDemo from '@components/HeapBstRaceDemo.astro';
+import MstSideDemo from '@components/MstSideDemo.astro';
 import WeightPathDemo from '@components/WeightPathDemo.astro';
 import PrimDijkstraDemo from '@components/PrimDijkstraDemo.astro';
 import PqCostDemo from '@components/PqCostDemo.astro';
@@ -1145,6 +1146,34 @@ total weight = 1.81
 - **与 Kruskal 的不同**
   - Kruskal 是多块各自长大再合并。
   - Prim 自始至终只有一块在长大。
+
+</Slide>
+
+<Slide>
+
+### 动手试试：Kruskal 与 Prim 并排
+::sub[橙色实线是下一条要加的边，橙色虚线是同一个割的其他横切边 · 比较块数]
+
+<MstSideDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 时间：为什么是 O(E log V)
+::sub[例子图 V = 8，E = 16]
+
+<VarLegend set="graph" />
+
+- **入堆**：只在 key 变小时放入。
+  - 边 (u, v) 最多放入一次：u 先进树而 v 还没进的时候。
+  - 所以入堆项数不超过 E。例子从 0 开始是 11 个，从 6 开始是 15 个
+- **取出**：放进去多少就取出多少。过时项也取出后丢掉。
+- 堆里最多有 E 项，所以每次放入或取出都是 $$O(\log E)$$
+  - 合起来是 $$O(E \log E)$$
+- **因为 $$E \le V^2$$，所以 $$\log E \le 2 \log V$$**
+  - 例子：$$\log_2 16 = 4 \le 2 \log_2 8 = 6$$
+  - 常数 2 在 O 记号里消失，所以 $$O(E \log E) = O(E \log V)$$
 
 </Slide>
 
