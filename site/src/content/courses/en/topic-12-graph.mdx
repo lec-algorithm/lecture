@@ -37,6 +37,7 @@ import PqCostDemo from '@components/PqCostDemo.astro';
 import NegWeightDemo from '@components/NegWeightDemo.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
 import MapRouteDemo from '@components/MapRouteDemo.astro';
+import MapFriendsDemo from '@components/MapFriendsDemo.astro';
 import NegCycleDemo from '@components/NegCycleDemo.astro';
 import HeuristicLabDemo from '@components/HeuristicLabDemo.astro';
 import SearchRaceDemo from '@components/SearchRaceDemo.astro';
@@ -1979,6 +1980,25 @@ shortest length.
 Real map services have road networks with millions of intersections. A* alone still closes
 too many for a single query, so they also precompute shortcuts over the map (hierarchical
 route finding and similar methods). Map data © OpenStreetMap contributors, under the ODbL.
+
+### Example: two friends guess the way \{#map-friends}
+
+On the same map, suppose two friends look for a way from Campus Town Station to Main Hall.
+Both widen the route like A*, taking the smallest "distance walked so far + guessed remaining
+distance" first. The only difference is how they guess the remaining distance.
+
+- **Friend A** guesses "Main Hall is about 1km away in a straight line, so at least 1km remains on foot".
+  $$h$$ is the straight-line distance to the goal; no route is shorter than a straight line, so it never exceeds the true remaining distance.
+- **Friend B** has no sense of distance and inflates it: "Must be about 3km to go". $$h$$ is three times the straight-line distance.
+
+<MapFriendsDemo />
+
+- A closes 91 intersections and finds the shortest route, 1,057m.
+- B closes only 29 and decides much faster, but walks 1,259m, 202m (19%) more. Inflating the
+  remaining distance rushes toward the goal and misses the route that is actually shorter.
+- Set B's factor to 1 and it matches A; inflate only a little, 1.5 or 2, and it walks 1,058m,
+  nearly the shortest. This trade is sometimes made on purpose: a slightly longer route found much faster.
+- A good heuristic is a guess as close as possible without exceeding the truth.
 
 ## What to keep \{#takeaway}
 

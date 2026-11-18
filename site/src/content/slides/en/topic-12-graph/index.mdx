@@ -38,6 +38,7 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 import VarLegend from '@components/VarLegend.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
 import MapRouteDemo from '@components/MapRouteDemo.astro';
+import MapFriendsDemo from '@components/MapFriendsDemo.astro';
 
 {/* Slide rules follow "슬라이드 규칙" in docs/writing-rules.md.
     Numbers match the practice code (topic-12-graph) exactly. */}
@@ -1784,6 +1785,50 @@ path: 0 4 5 2 6, cost 25
 - **BFS** counts only street segments. It picks a 1,286 m route of 21 segments.
 - **Greedy** closes only 33, but heads straight for the goal and detours, walking 1,259 m.
 - Real map services have millions of intersections, so they add precomputed shortcuts to A*.
+
+</Slide>
+
+<Slide>
+
+#### Example: two friends guess the way
+::sub[From Campus Town Stn. to Main Hall · both widen the route with the smallest "walked so far + guessed remaining" first]
+
+<VarLegend set="astar" />
+
+- **Friend A**: "Main Hall is about 1km away in a straight line, so at least 1km remains on foot."
+  - $$h$$ = straight-line distance to the goal
+  - No route is shorter than a straight line, so it never exceeds the true remaining distance.
+- **Friend B** has no sense of distance and inflates it: "Must be about 3km to go."
+  - $$h$$ = straight-line distance × 3
+  - It guesses more than the true remaining distance.
+
+<br/>
+
+Who decides faster, and who walks the shorter route?
+
+</Slide>
+
+<Slide>
+
+### Try it: the two friends' A*
+::sub[Green: intersections A closed, orange: B · the slider changes how much B inflates]
+
+<MapFriendsDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### What the two friends show
+::sub[Campus Town Stn. → Main Hall, B uses straight line × 3]
+
+<VarLegend set="astar" />
+
+- **A** closes 91 intersections and finds the shortest route, 1,057m.
+- **B** closes only 29 and decides much faster, but walks 1,259m: 202m (19%) more.
+  - Inflating the remaining distance rushes toward the goal and misses the route that is actually shorter.
+- Set B's factor to 1 and it matches A; inflate only a little, 1.5 or 2, and it walks 1,058m, nearly the shortest.
+- A good heuristic is a guess **as close as possible without exceeding the truth**.
 
 </Slide>
 

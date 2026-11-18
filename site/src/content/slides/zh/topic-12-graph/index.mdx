@@ -38,6 +38,7 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 import VarLegend from '@components/VarLegend.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
 import MapRouteDemo from '@components/MapRouteDemo.astro';
+import MapFriendsDemo from '@components/MapFriendsDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-12-graph）的运行结果一致。 */}
@@ -1784,6 +1785,50 @@ path: 0 4 5 2 6, cost 25
 - **BFS** 只数路段。它选了 21 段、1,286m 的路线。
 - **Greedy** 只关闭 33 个，却一味朝终点走而绕路，走了 1,259m。
 - 真实的地图服务有数百万个路口，所以在 A* 之外还用预先算好的捷径。
+
+</Slide>
+
+<Slide>
+
+#### 例：两个朋友估路
+::sub[从大学城站到综合馆 · 两人都先扩展"已走距离 + 估计剩余距离"最小的路]
+
+<VarLegend set="astar" />
+
+- **朋友 A**："到综合馆直线大约 1km，走路至少还剩 1km。"
+  - $$h$$ = 到终点的直线距离
+  - 任何路都不会比直线短，所以不会超过实际剩余距离。
+- **朋友 B** 没有距离感，夸大说："还得走 3km 左右吧。"
+  - $$h$$ = 直线距离 × 3
+  - 估计值大于实际剩余距离。
+
+<br/>
+
+谁更快做出决定，谁走的路更短？
+
+</Slide>
+
+<Slide>
+
+### 动手试试：两个朋友的 A*
+::sub[绿色是 A、橙色是 B 关闭的路口 · 用滑块改变 B 的夸大倍数]
+
+<MapFriendsDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 从两个朋友身上看到的
+::sub[大学城站 → 综合馆，B 用直线距离 × 3]
+
+<VarLegend set="astar" />
+
+- **A** 关闭 91 个路口，找到最短的 1,057m 路线。
+- **B** 只关闭 29 个，决定得快得多，却要走 1,259m，多走 202m（19%）。
+  - 把剩余距离估大，就会只顾朝终点赶，错过其实更短的路。
+- 把 B 的倍数降到 1 就和 A 一样；只稍微夸大到 1.5 或 2，走 1,058m，几乎是最短。
+- 好的启发式是**不超过实际、又尽量接近**的估计。
 
 </Slide>
 

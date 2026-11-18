@@ -38,6 +38,7 @@ import SearchRaceDemo from '@components/SearchRaceDemo.astro';
 import VarLegend from '@components/VarLegend.astro';
 import MstRaceDemo from '@components/MstRaceDemo.astro';
 import MapRouteDemo from '@components/MapRouteDemo.astro';
+import MapFriendsDemo from '@components/MapFriendsDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-12-graph)의 실행 결과와 같습니다. */}
@@ -1784,6 +1785,50 @@ path: 0 4 5 2 6, cost 25
 - **BFS**는 길 토막 수만 셉니다. 토막 21개짜리 1,286m 길을 고릅니다.
 - **Greedy**는 33개만 닫지만 목표 쪽으로만 가다 돌아 1,259m를 걷습니다.
 - 실제 지도 서비스는 교차로가 수백만 개라, A*에 미리 계산해 둔 지름길을 더해 씁니다.
+
+</Slide>
+
+<Slide>
+
+#### 예: 두 친구의 길 어림
+::sub[캠퍼스타운역에서 종합관까지 · 둘 다 "걸은 거리 + 남았다고 어림한 거리"가 작은 길부터 넓힙니다]
+
+<VarLegend set="astar" />
+
+- **친구 A**: "종합관까지 직선으로 1km쯤이니, 길로 가도 적어도 1km는 남았다."
+  - $$h$$ = 목표까지의 직선거리
+  - 어떤 길도 직선보다 짧을 수 없으니 실제 남은 거리를 넘지 않습니다.
+- **친구 B**: 거리 감각이 없어 "한 3km는 남았겠지"라고 부풀립니다.
+  - $$h$$ = 직선거리 × 3
+  - 실제 남은 거리보다 크게 어림합니다.
+
+<br/>
+
+누가 더 빨리 길을 정하고, 누가 더 짧은 길을 걸을까요?
+
+</Slide>
+
+<Slide>
+
+### 직접 해 보기: 두 친구의 A*
+::sub[초록은 A, 주황은 B가 닫은 교차로 · 슬라이더로 B의 부풀림을 바꿉니다]
+
+<MapFriendsDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 두 친구에게서 본 것
+::sub[캠퍼스타운역 → 종합관, B는 직선거리 × 3]
+
+<VarLegend set="astar" />
+
+- **A**는 교차로 91개를 닫고 최단인 1,057m 길을 찾습니다.
+- **B**는 29개만 닫아 훨씬 빨리 정하지만 1,259m를 걷습니다. 202m(19%)를 더 걷습니다.
+  - 남은 거리를 부풀리면 목표 쪽으로만 서두르다 실제로 더 짧은 길을 놓칩니다.
+- B의 배수를 1로 내리면 A와 똑같아지고, 1.5나 2로 조금만 부풀리면 1,058m로 거의 최단입니다.
+- 좋은 휴리스틱은 **실제를 넘지 않으면서 최대한 가까운** 어림입니다.
 
 </Slide>
 
