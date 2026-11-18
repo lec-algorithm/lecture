@@ -13,6 +13,8 @@
 //
 // 절차와 결과는 algorithm-code의 05_mst_prim, 06_dijkstra, 07_a_star와 같다.
 // 오른쪽 인접 목록(GraphAdjTable)에 꺼낸 정점의 줄과 값을 고친 이웃을 칠한다.
+// prim에서는 key가 곧 간선의 가중치라, 힙이 견주는 후보 간선을 모두 주황으로 칠한다.
+// 방금 꺼낸 정점이 key를 고친 간선은 주황 실선, 그 전에 고쳐 둔 후보는 주황 점선이다.
 // prim에서 pickStart를 켜면 정점을 눌러 시작 정점을 바꾼다. 어디서 시작해도 MST는
 // 같고(가중치가 모두 달라 MST가 하나뿐이다) 붙는 순서만 달라진다는 것을 보이려는 것이다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
@@ -78,6 +80,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     countClosed: '닫힘',
     idle: '{s}에서 시작합니다.',
     idlePick: '{s}에서 시작합니다. 정점을 누르면 시작 정점이 바뀝니다.',
+    legNow: '방금 key를 고친 간선',
+    legOld: '앞서 고쳐 둔 후보',
+    legTree: '트리',
     primTree: '. MST 간선: {list}. 시작 정점을 바꿔도 같은 간선, 같은 총 가중치입니다.',
     sep: ', ',
     primStart: '{v}에서 시작합니다.',
@@ -137,6 +142,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     countClosed: 'closed',
     idle: 'Start from {s}.',
     idlePick: 'Start from {s}. Click a vertex to change the start.',
+    legNow: 'key just lowered',
+    legOld: 'earlier candidate',
+    legTree: 'tree',
     primTree: '. MST edges: {list}. Change the start and you get the same edges and the same total.',
     sep: ', ',
     primStart: 'Start from {v}.',
@@ -196,6 +204,9 @@ const STRINGS: Record<string, Record<string, string>> = {
     countClosed: '关闭',
     idle: '从 {s} 开始。',
     idlePick: '从 {s} 开始。点击顶点可以更换起点。',
+    legNow: '刚改了 key 的边',
+    legOld: '之前留下的候选',
+    legTree: '树',
     primTree: '。MST 的边：{list}。换一个起点，边和总权重都一样。',
     sep: '，',
     primStart: '从 {v} 开始。',
@@ -267,6 +278,13 @@ const rows = Array.from({ length: n }, (_, v) => v);
 >
   <div class="hg-bar">
     <span class="hg-head"><strong>{title}</strong></span>
+    {mode === 'prim' && (
+      <span class="hg-legend">
+        <span><i class="hg-sw is-now"></i>{t.legNow}</span>
+        <span><i class="hg-sw is-old"></i>{t.legOld}</span>
+        <span><i class="hg-sw is-tree"></i>{t.legTree}</span>
+      </span>
+    )}
     <div class="hg-controls">
       <button type="button" data-act="back" class="hg-btn">{t.back}</button>
       <button type="button" data-act="step" class="hg-btn">{t.step}</button>
@@ -858,6 +876,40 @@ const rows = Array.from({ length: n }, (_, v) => v);
   }
   .aas-heap-graph-demo .hg-head {
     font-size: 0.95em;
+  }
+  /* prim: 후보 간선은 주황 점선. key가 곧 이 간선의 가중치라 힙이 견주는 값이다. */
+  .aas-heap-graph-demo[data-hg-mode='prim'] .aas-graph-figure .gf-edge.is-cand line {
+    stroke: var(--aas-role-focus);
+  }
+  .aas-heap-graph-demo[data-hg-mode='prim'] .aas-graph-figure .gf-edge.is-cand .gf-weight {
+    fill: var(--aas-role-focus);
+  }
+  .aas-heap-graph-demo .hg-legend {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1em;
+    margin-left: 1em;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+    vertical-align: middle;
+  }
+  .aas-heap-graph-demo .hg-legend > span {
+    display: inline-flex;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-heap-graph-demo .hg-sw {
+    display: inline-block;
+    width: 1.8em;
+    height: 0;
+    border-top: 0.22em solid var(--aas-role-focus);
+  }
+  .aas-heap-graph-demo .hg-sw.is-old {
+    border-top-style: dashed;
+    border-top-width: 0.18em;
+  }
+  .aas-heap-graph-demo .hg-sw.is-tree {
+    border-top-color: var(--aas-role-eval);
   }
   .aas-heap-graph-demo .hg-controls {
     display: flex;
