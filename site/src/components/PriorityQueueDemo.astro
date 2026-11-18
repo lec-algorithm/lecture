@@ -1,0 +1,452 @@
+---
+// 일반 큐와 우선순위 큐에 같은 원소를 넣고 꺼내, 나오는 순서를 견주는 데모.
+//
+// 넣기를 누르면 같은 원소가 두 큐에 함께 들어가고, 꺼내기를 누르면 두 큐에서 하나씩
+// 나온다. 일반 큐는 가장 먼저 넣은 것을, 우선순위 큐는 우선순위가 가장 높은 것을 꺼낸다.
+// 칩으로 "작은 값부터"(최소 힙이 하는 일)와 "큰 값부터"(최대 힙이 하는 일)를 고른다.
+// 우선순위가 같으면 먼저 넣은 것부터 꺼낸다. 이 주제의 실습 코드와 같은 약속이다.
+//
+// 우선순위 큐는 여기서 힙 없이, 꺼낼 때마다 든 원소를 모두 훑어 고른다. 훑은 칸 수를
+// 세어 보이고, 그것을 줄이는 것이 다음에 나오는 힙이라고 잇는다.
+// 처음 원소는 슬라이드의 예와 같은 A(3), B(1), C(5), D(2)이고, 작은 값부터 꺼내면
+// B → D → A → C다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  /** 처음에 넣어 둘 우선순위들. 이름은 A, B, C … 순으로 붙는다. */
+  items?: number[];
+  /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
+  slide?: boolean;
+}
+const { items = [3, 1, 5, 2], slide = false } = Astro.props;
+const id = `pqd-${Math.random().toString(36).slice(2, 9)}`;
+const CAP = 10;
+
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '일반 큐와 우선순위 큐',
+    minFirst: '작은 값부터',
+    maxFirst: '큰 값부터',
+    value: '우선순위',
+    push: '넣기',
+    pop: '꺼내기',
+    reset: '처음으로',
+    fifo: '일반 큐 (FIFO)',
+    pq: '우선순위 큐',
+    inside: '들어 있는 것',
+    out: '나온 순서',
+    empty: '비었음',
+    none: '아직 없음',
+    scanned: '우선순위 큐가 훑은 칸',
+    idle: '같은 원소가 두 큐에 들어 있습니다. 주황 테두리가 다음에 나올 원소입니다. 꺼내기를 눌러 보세요.',
+    pushed: '새 원소 {x}({p}): 일반 큐에서는 맨 뒤에 서고, 우선순위 큐에서는 우선순위로 차례가 정해집니다.',
+    popped: '일반 큐에서는 가장 먼저 넣은 {a}, 우선순위 큐에서는 {rule} {b}({p}) 차례였습니다.',
+    same: '이번에는 두 큐 모두 {a} 차례였습니다.',
+    ruleMin: '값이 가장 작은',
+    ruleMax: '값이 가장 큰',
+    tie: '{list}의 우선순위가 모두 {p}입니다. 이 데모는 먼저 넣은 {b}부터 꺼냅니다.',
+    cost: '고르려고 훑은 칸은 {k}칸입니다.',
+    full: '큐가 가득 찼습니다. 먼저 꺼내 주세요.',
+    bad: '0에서 99 사이의 정수를 넣어 주세요.',
+    done: '둘 다 비었습니다. 우선순위 큐는 모두 {total}칸을 훑었습니다. 이것을 줄이는 자료구조가 힙입니다.',
+  },
+  en: {
+    title: 'Queue and priority queue',
+    minFirst: 'Smallest first',
+    maxFirst: 'Largest first',
+    value: 'priority',
+    push: 'Insert',
+    pop: 'Take out',
+    reset: 'Reset',
+    fifo: 'Queue (FIFO)',
+    pq: 'Priority queue',
+    inside: 'inside',
+    out: 'order out',
+    empty: 'empty',
+    none: 'none yet',
+    scanned: 'cells the priority queue scanned',
+    idle: 'Both queues hold the same elements. The orange outline is the next one out. Press Take out.',
+    pushed: 'Inserted {x}({p}) into both queues. In the queue it joins the back; in the priority queue its priority decides its turn.',
+    popped: 'The queue took out {a}, inserted first; the priority queue took out {b}({p}), {rule}.',
+    same: 'This time both queues took out the same element, {a}.',
+    ruleMin: 'the smallest value',
+    ruleMax: 'the largest value',
+    tie: '{list} share priority {p}. This demo takes out {b}, the one inserted first.',
+    cost: 'It scanned {k} cells to choose.',
+    full: 'The queue is full. Take something out first.',
+    bad: 'Enter an integer from 0 to 99.',
+    done: 'Both are empty. The priority queue scanned {total} cells in all. A heap is the structure that cuts this down.',
+  },
+  zh: {
+    title: '普通队列与优先队列',
+    minFirst: '从小的开始',
+    maxFirst: '从大的开始',
+    value: '优先级',
+    push: '放入',
+    pop: '取出',
+    reset: '重置',
+    fifo: '普通队列 (FIFO)',
+    pq: '优先队列',
+    inside: '里面的元素',
+    out: '取出顺序',
+    empty: '空',
+    none: '还没有',
+    scanned: '优先队列扫过的格数',
+    idle: '两个队列里放着相同的元素。橙色边框是下一个要取出的元素。按取出试试。',
+    pushed: '把 {x}({p}) 放进了两个队列。在普通队列里它排到队尾，在优先队列里由优先级决定次序。',
+    popped: '普通队列取出最先放入的 {a}，优先队列取出{rule} {b}({p})。',
+    same: '这一次两个队列取出的是同一个 {a}。',
+    ruleMin: '值最小的',
+    ruleMax: '值最大的',
+    tie: '{list} 的优先级同为 {p}。这个演示先取出先放入的 {b}。',
+    cost: '为了挑选，扫了 {k} 格。',
+    full: '队列已满。请先取出。',
+    bad: '请输入 0 到 99 的整数。',
+    done: '两个都空了。优先队列总共扫了 {total} 格。能减少这个代价的数据结构就是堆。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS[defaultLang] ?? STRINGS.ko;
+---
+
+<div
+  class:list={['aas-priority-queue-demo', slide && 'is-slide']}
+  id={id}
+  data-pqd-items={JSON.stringify(items)}
+  data-pqd-cap={CAP}
+  data-pqd-strings={JSON.stringify(t)}
+>
+  <div class="pqd-bar">
+    <span class="pqd-head"><strong>{t.title}</strong></span>
+    <div class="pqd-controls">
+      <button type="button" class="pqd-chip" data-pqd-mode="min">{t.minFirst}</button>
+      <button type="button" class="pqd-chip" data-pqd-mode="max">{t.maxFirst}</button>
+      <input type="number" class="pqd-input" data-pqd-value min="0" max="99" aria-label={t.value} placeholder={t.value} />
+      <button type="button" class="pqd-btn" data-pqd-act="push">{t.push}</button>
+      <button type="button" class="pqd-btn pqd-btn-primary" data-pqd-act="pop">{t.pop}</button>
+      <button type="button" class="pqd-btn" data-pqd-act="reset">{t.reset}</button>
+    </div>
+  </div>
+
+  <div class="pqd-rows">
+    <div class="pqd-row">
+      <div class="pqd-name">{t.fifo}</div>
+      <div class="pqd-label">{t.inside}</div>
+      <div class="pqd-cells" data-pqd-in="fifo"></div>
+      <div class="pqd-label">{t.out}</div>
+      <div class="pqd-out" data-pqd-out="fifo"></div>
+    </div>
+    <div class="pqd-row">
+      <div class="pqd-name">{t.pq}</div>
+      <div class="pqd-label">{t.inside}</div>
+      <div class="pqd-cells" data-pqd-in="pq"></div>
+      <div class="pqd-label">{t.out}</div>
+      <div class="pqd-out" data-pqd-out="pq"></div>
+    </div>
+  </div>
+
+  <p class="pqd-count">{t.scanned} <strong data-pqd-scan>0</strong></p>
+  <p class="pqd-note" data-pqd-note></p>
+</div>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+    const setLines = (node, text) => {
+      const parts = String(text).split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+      node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+    };
+    /* 문장 잇기. 중국어 마침표 뒤에는 공백을 두지 않아야 setLines가 끊는다. */
+    const join = (...parts) =>
+      parts.filter(Boolean).reduce((a, b) => (/[。！？]$/.test(a) ? a + b : `${a} ${b}`), '');
+    const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+    const S = JSON.parse(root.dataset.pqdStrings);
+    const start = JSON.parse(root.dataset.pqdItems);
+    const CAP = Number(root.dataset.pqdCap);
+
+    /* 이름은 넣은 순서대로 A, B, … Z, 그다음은 A2, B2 … */
+    const nameOf = (k) => String.fromCharCode(65 + (k % 26)) + (k >= 26 ? String(Math.floor(k / 26) + 1) : '');
+
+    let mode = 'min';
+    let made; // 지금까지 만든 원소 수(이름을 정한다)
+    let fifo; // 두 큐에 든 원소 {name, p, seq}. 둘 다 넣은 순서로 둔다.
+    let pq;
+    let outFifo;
+    let outPq;
+    let scanned;
+    let note;
+
+    function init() {
+      made = 0;
+      fifo = [];
+      pq = [];
+      outFifo = [];
+      outPq = [];
+      scanned = 0;
+      note = '';
+      start.forEach((p) => add(p));
+      note = '';
+    }
+    function add(p) {
+      const item = { name: nameOf(made), p, seq: made };
+      made += 1;
+      fifo.push(item);
+      pq.push(item);
+      return item;
+    }
+    /* 우선순위 큐에서 다음에 나올 원소의 위치. 같으면 먼저 넣은 것. 든 원소를 모두 훑는다. */
+    function best() {
+      let b = -1;
+      pq.forEach((x, i) => {
+        if (b < 0) b = i;
+        else if (mode === 'min' ? x.p < pq[b].p : x.p > pq[b].p) b = i;
+      });
+      return b;
+    }
+
+    const el = (sel) => root.querySelector(sel);
+    const cell = (x, isNext) => {
+      const c = document.createElement('span');
+      c.className = 'pqd-cell';
+      if (isNext) c.classList.add('is-next');
+      const nm = Object.assign(document.createElement('b'), { textContent: x.name });
+      const pr = Object.assign(document.createElement('i'), { textContent: String(x.p) });
+      c.append(nm, pr);
+      return c;
+    };
+    const emptyEl = (text) => Object.assign(document.createElement('span'), { className: 'pqd-empty', textContent: text });
+    const label = (x) => `${x.name}(${x.p})`;
+
+    function render() {
+      const b = best();
+      el('[data-pqd-in="fifo"]').replaceChildren(...(fifo.length ? fifo.map((x, i) => cell(x, i === 0)) : [emptyEl(S.empty)]));
+      el('[data-pqd-in="pq"]').replaceChildren(...(pq.length ? pq.map((x, i) => cell(x, i === b)) : [emptyEl(S.empty)]));
+      el('[data-pqd-out="fifo"]').textContent = outFifo.length ? outFifo.map(label).join(' → ') : S.none;
+      el('[data-pqd-out="pq"]').textContent = outPq.length ? outPq.map(label).join(' → ') : S.none;
+      el('[data-pqd-scan]').textContent = String(scanned);
+      el('[data-pqd-act="pop"]').disabled = !fifo.length;
+      root.querySelectorAll('[data-pqd-mode]').forEach((c) => c.classList.toggle('is-on', c.dataset.pqdMode === mode));
+      setLines(el('[data-pqd-note]'), note || S.idle);
+    }
+
+    function pop() {
+      if (!fifo.length) return;
+      const a = fifo.shift();
+      const i = best();
+      const k = pq.length; // 고르려고 훑은 칸
+      scanned += k;
+      const b = pq[i];
+      const ties = pq.filter((x) => x.p === b.p);
+      pq.splice(i, 1);
+      outFifo.push(a);
+      outPq.push(b);
+      const rule = mode === 'min' ? S.ruleMin : S.ruleMax;
+      note = join(
+        a === b ? fill(S.same, { a: label(a) }) : fill(S.popped, { a: a.name, b: b.name, p: b.p, rule }),
+        ties.length > 1 && fill(S.tie, { list: ties.map((x) => x.name).join(', '), p: b.p, b: b.name }),
+        fifo.length ? fill(S.cost, { k }) : fill(S.done, { total: scanned }),
+      );
+      render();
+    }
+    function push() {
+      const input = el('[data-pqd-value]');
+      const raw = input.value.trim();
+      /* 비워 두면 무작위 값을 넣는다. */
+      const p = raw === '' ? Math.floor(Math.random() * 9) + 1 : Number(raw);
+      if (!Number.isInteger(p) || p < 0 || p > 99) {
+        note = S.bad;
+      } else if (fifo.length >= CAP) {
+        note = S.full;
+      } else {
+        const x = add(p);
+        note = fill(S.pushed, { x: x.name, p });
+        input.value = '';
+      }
+      render();
+    }
+
+    el('[data-pqd-act="pop"]').addEventListener('click', pop);
+    el('[data-pqd-act="push"]').addEventListener('click', push);
+    el('[data-pqd-value]').addEventListener('keydown', (e) => {
+      /* 슬라이드의 방향키 넘기기와 겹치지 않게 입력 칸 안의 키는 여기서 멈춘다. */
+      e.stopPropagation();
+      if (e.key === 'Enter') push();
+    });
+    el('[data-pqd-act="reset"]').addEventListener('click', () => {
+      init();
+      render();
+    });
+    root.querySelectorAll('[data-pqd-mode]').forEach((c) =>
+      c.addEventListener('click', () => {
+        mode = c.dataset.pqdMode;
+        init();
+        render();
+      }),
+    );
+    init();
+    render();
+  })();
+</script>
+
+<style is:global>
+  .aas-priority-queue-demo {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+  }
+  .aas-priority-queue-demo .pqd-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-priority-queue-demo .pqd-head {
+    font-size: 0.95em;
+  }
+  .aas-priority-queue-demo .pqd-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+  }
+  .aas-priority-queue-demo .pqd-chip {
+    padding: 0.3em 0.75em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 999px;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-priority-queue-demo .pqd-chip:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-priority-queue-demo .pqd-chip.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-priority-queue-demo .pqd-input {
+    width: 6.5em;
+    padding: 0.35em 0.5em;
+    font: inherit;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+  }
+  .aas-priority-queue-demo .pqd-btn {
+    padding: 0.35em 0.8em;
+    font-size: 0.85em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-priority-queue-demo .pqd-btn:hover:not(:disabled) {
+    border-color: var(--aas-accent);
+  }
+  .aas-priority-queue-demo .pqd-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .aas-priority-queue-demo .pqd-btn-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-priority-queue-demo .pqd-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+  }
+  .aas-priority-queue-demo .pqd-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.3em 0.9em;
+    align-items: center;
+    padding: 0.6em 0.8em;
+    border: 1px solid var(--aas-border);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-priority-queue-demo .pqd-name {
+    grid-column: 1 / -1;
+    font-size: 0.9em;
+    font-weight: 700;
+  }
+  .aas-priority-queue-demo .pqd-label {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-priority-queue-demo .pqd-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    min-height: 2.5em;
+    align-items: center;
+  }
+  .aas-priority-queue-demo .pqd-cell {
+    display: inline-flex;
+    gap: 0.35em;
+    align-items: baseline;
+    padding: 0.3em 0.6em;
+    font-family: var(--aas-mono, monospace);
+    border: 2px solid var(--aas-border);
+    border-radius: 0.45em;
+    background: var(--aas-panel);
+  }
+  .aas-priority-queue-demo .pqd-cell b {
+    font-size: 1em;
+  }
+  .aas-priority-queue-demo .pqd-cell i {
+    font-style: normal;
+    font-size: 0.85em;
+    color: var(--aas-role-model);
+    font-weight: 700;
+  }
+  .aas-priority-queue-demo .pqd-cell.is-next {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 14%, var(--aas-panel));
+  }
+  .aas-priority-queue-demo .pqd-out {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    min-height: 1.5em;
+  }
+  .aas-priority-queue-demo .pqd-empty {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-priority-queue-demo .pqd-count {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-priority-queue-demo .pqd-count strong {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-priority-queue-demo .pqd-note {
+    margin: 0.3em 0 0;
+    font-size: 0.85em;
+    min-height: 3.6em;
+  }
+
+  /* 슬라이드용. 다른 데모와 같은 방식. vh 단위인 이유는 SearchDemo 참고 */
+  .aas-priority-queue-demo.is-slide {
+    font-size: clamp(1rem, 2.7vh, 1.9rem);
+    margin: 0.5rem 0;
+  }
+</style>
