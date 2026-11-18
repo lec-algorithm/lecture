@@ -1134,12 +1134,17 @@ Time inserting n values and extracting n times in this browser. Use the tabs to 
 
 Prim's algorithm (1959) starts from one vertex and **greedily grows** a tree T.
 
-- Start at vertex 0.
+- Start at any vertex. The examples and practice code in this topic start at vertex 0.
 - Add to T **the lightest** edge with exactly one end in T.
 - Repeat until there are $$V - 1$$ edges.
 
 Topic 06 said "Prim is a greedy algorithm that picks whatever is closest right now". That
 "closest" is exactly the vertex that joins the tree by the lightest edge.
+
+Nothing requires the start to be 0. Take the tree so far and the rest as the cut: the edge
+Prim picks is always the lightest crossing edge of that cut, and this argument works from
+any start. The example graph has all-distinct weights, so its MST is unique; from any start
+you get the same seven edges and 1.81, and only the order in which vertices join changes.
 
 Each vertex has a `key` (the weight of the lightest edge joining it to the tree) and a
 `via` (the tree end of that edge), and the vertex with the smallest key is taken from a min
@@ -1147,7 +1152,7 @@ heap. Attaching one vertex can lower its neighbours' keys. When a key drops, upd
 and via and **insert a new entry** into the heap. The entry put in earlier stays in the
 heap, and when it is eventually taken out it is dropped if the vertex is already in the tree.
 
-<HeapGraphDemo mode="prim" />
+<HeapGraphDemo mode="prim" pickStart />
 
 In the priority queue box, `0.26:2` is the entry "vertex 2 with key 0.26". Struck-through
 entries are stale. Vertex 4's key dropped twice, from 0.38 to 0.37 to 0.35; the stale

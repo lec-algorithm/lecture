@@ -13,6 +13,8 @@
 //
 // 절차와 결과는 algorithm-code의 05_mst_prim, 06_dijkstra, 07_a_star와 같다.
 // 오른쪽 인접 목록(GraphAdjTable)에 꺼낸 정점의 줄과 값을 고친 이웃을 칠한다.
+// prim에서 pickStart를 켜면 정점을 눌러 시작 정점을 바꾼다. 어디서 시작해도 MST는
+// 같고(가중치가 모두 달라 MST가 하나뿐이다) 붙는 순서만 달라진다는 것을 보이려는 것이다.
 import { defaultLang } from 'stack-site-builder/i18n/ui';
 import GraphFigure from './GraphFigure.astro';
 import GraphAdjTable from './GraphAdjTable.astro';
@@ -31,6 +33,8 @@ interface Props {
   reopen?: boolean;
   /** astar: 휴리스틱을 고르는 칩(예제 h, h = 0, h = h*, h = 2h*)을 보인다. 기본은 끔 */
   hChoices?: boolean;
+  /** prim: 정점을 눌러 시작 정점을 바꿀 수 있게 한다. 기본은 끔 */
+  pickStart?: boolean;
   /** 처음에 보여 줄 단계 번호. 기본 -1은 시작 전 */
   initial?: number;
   /** 슬라이드용: 바깥 여백은 줄이고 글자와 칸은 키운다. */
@@ -44,6 +48,7 @@ const {
   h = [14, 10, 4, 2, 11, 6, 0, 8],
   reopen = true,
   hChoices = false,
+  pickStart = false,
   initial = -1,
   slide = false,
 } = Astro.props;
@@ -72,6 +77,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     countDone: '확정',
     countClosed: '닫힘',
     idle: '{s}에서 시작합니다.',
+    idlePick: '{s}에서 시작합니다. 정점을 누르면 시작 정점이 바뀝니다.',
+    primTree: '. MST 간선: {list}. 시작 정점을 바꿔도 같은 간선, 같은 총 가중치입니다.',
     sep: ', ',
     primStart: '{v}에서 시작합니다.',
     primAdd: 'key가 가장 작은 {v}({k}){~v|을} 꺼내 간선 {e|으로} 트리에 붙입니다.',
@@ -129,6 +136,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     countDone: 'done',
     countClosed: 'closed',
     idle: 'Start from {s}.',
+    idlePick: 'Start from {s}. Click a vertex to change the start.',
+    primTree: '. MST edges: {list}. Change the start and you get the same edges and the same total.',
     sep: ', ',
     primStart: 'Start from {v}.',
     primAdd: 'Pop {v} with the smallest key ({k}) and attach it by edge {e}.',
@@ -186,6 +195,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     countDone: '确定',
     countClosed: '关闭',
     idle: '从 {s} 开始。',
+    idlePick: '从 {s} 开始。点击顶点可以更换起点。',
+    primTree: '。MST 的边：{list}。换一个起点，边和总权重都一样。',
     sep: '，',
     primStart: '从 {v} 开始。',
     primAdd: '取出 key 最小的 {v}（{k}），用边 {e} 接到树上。',
@@ -250,6 +261,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
   data-hg-reopen={reopen ? '1' : '0'}
   data-hg-choices={mode === 'astar' && hChoices ? '1' : '0'}
   data-hg-initial={initial}
+  data-hg-pick={mode === 'prim' && pickStart ? '1' : '0'}
   data-hg-strings={JSON.stringify(t)}
   style={`--hg-cols: ${cols.length}`}
 >
@@ -323,7 +335,8 @@ const rows = Array.from({ length: n }, (_, v) => v);
     const edges = JSON.parse(root.dataset.hgEdges);
     const directed = root.dataset.hgDirected === '1';
     const scale = Number(root.dataset.hgScale);
-    const s = Number(root.dataset.hgStart);
+    let s = Number(root.dataset.hgStart);
+    const pick = root.dataset.hgPick === '1';
     const goal = Number(root.dataset.hgGoal);
     const H0 = JSON.parse(root.dataset.hgH);
     let H = H0;
@@ -453,7 +466,15 @@ const rows = Array.from({ length: n }, (_, v) => v);
         note += ups.length ? fill(S.primUps, { ups: ups.join(S.sep) }) : S.primNoUps;
         view(u, look, note);
       }
-      view(null, [], fill(S.primDone, { k: edgesIn, total: fmt(total) }), true);
+      let done = fill(S.primDone, { k: edgesIn, total: fmt(total) });
+      if (pick) {
+        /* 시작 정점과 상관없이 같은 MST임을 보이려고 간선을 작은 번호 순으로 적는다. */
+        const list = [];
+        for (let v = 0; v < n; v++) if (via[v] >= 0) list.push(via[v] < v ? `${via[v]}-${v}` : `${v}-${via[v]}`);
+        list.sort((a, b) => a.split('-')[0] - b.split('-')[0] || a.split('-')[1] - b.split('-')[1]);
+        done = `${done}${fill(S.primTree, { list: list.join(' ') })}`;
+      }
+      view(null, [], done, true);
     }
 
     function planDijkstra() {
@@ -697,7 +718,7 @@ const rows = Array.from({ length: n }, (_, v) => v);
           c.classList.toggle('is-look', now && st.look.includes(Number(c.dataset.atTo))),
         );
       });
-      setLines(note, st ? st.note : fill(S.idle, { s }));
+      setLines(note, st ? st.note : fill(pick ? S.idlePick : S.idle, { s }));
       countEl.textContent = st ? st.count : '';
       root.classList.toggle('is-done', !!(st && st.end));
     }
@@ -783,11 +804,42 @@ const rows = Array.from({ length: n }, (_, v) => v);
       playBtn.textContent = S.stop;
       timer = setInterval(step, 1600);
     });
+    /* prim: 정점을 누르면 그 정점에서 처음부터 다시 짠다. */
+    if (pick) {
+      nodeEls.forEach((el, v) => {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', String(v));
+        const restart = () => {
+          stop();
+          s = v;
+          plan();
+          at = -1;
+          render(-1);
+        };
+        el.addEventListener('click', restart);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            restart();
+          }
+        });
+      });
+      root.classList.add('is-pick');
+    }
     render(at);
   })();
 </script>
 
 <style is:global>
+  .aas-heap-graph-demo.is-pick .gf-node {
+    cursor: pointer;
+  }
+  .aas-heap-graph-demo.is-pick .gf-node:hover circle,
+  .aas-heap-graph-demo.is-pick .gf-node:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 4;
+  }
   .aas-heap-graph-demo {
     font-size: 1rem;
     margin: 1.5rem 0;
