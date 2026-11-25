@@ -48,6 +48,7 @@ import RestoreDemo from '@components/RestoreDemo.astro';
 import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
+import OptPartDemo from '@components/OptPartDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-14-dynamic-programming) exactly. */}
@@ -108,6 +109,87 @@ Then we walk the table backwards to recover **the choices that built the answer*
 - **There are two ways to store answers.**
   - Memoization: keep the recursion and write the answers down.
   - Tabulation: fill a table upward from the smallest problems.
+
+</Slide>
+
+<Slide>
+
+#### What optimal substructure means
+::sub[If the whole is optimal, the parts it is made of are optimal too]
+
+- **Example**: the cheapest path from S through M to T
+  - Its S → M stretch is also the cheapest path from S to M.
+- **Why**: try swapping the part.
+  - If S → M could be done more cheaply, swapping it in would make the whole cheaper.
+  - That contradicts the whole being cheapest, so there is no such path.
+- **The reverse does not come for free.** Optimal parts do not make an optimal whole.
+  - Pick the wrong M and even two optimal legs are a detour.
+  - That is why dynamic programming compares **all** the places to split.
+
+</Slide>
+
+<Slide>
+
+### Test it: are optimal parts an optimal whole?
+::sub[Blue outlines: cheapest per leg; pink: cheapest overall. Change the rule, then add state]
+
+<OptPartDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### With a transfer discount
+::sub[`13_optimal_substructure/` · cheapest legs joined: 7, cheapest overall: 5]
+
+```console
+same line twice: 3 off
+  S->M \ M->T    red   blue  green
+  red              6      7      8
+  blue            10      5      9
+  green           13     11      9
+  best  = 5 (blue 4 + blue 1)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 3, total = 6
+    after blue : rest = 1, total = 5
+    after green: rest = 2, total = 9
+  with state = 5
+```
+
+- The answer for the rest (`rest`) **differs** by the line you came by: 3, 1, 2.
+- Solving each line separately (`with state`) finds 5.
+
+</Slide>
+
+<Slide>
+
+#### Where optimal substructure holds
+::sub[The examples of this topic: the optimum contains optima of its parts]
+
+| Problem | Optimum | The part inside is optimal too |
+| --- | --- | --- |
+| Cheapest path (3 edges) | 0 → 2 → 4 → 3, cost 6 | 2 → 4 → 3 is cheapest from 2 to 3 with 2 edges (4) |
+| Coin change, 80 won | 40 + 40, 2 coins | the remaining 40 won is minimal too (1 coin) |
+| LIS | `2 5 7 101`, length 4 | `2 5 7` is the longest ending at 7 (3) |
+| 0/1 knapsack, capacity 50 | items 2 and 3, value 220 | with items 1 to 2 and capacity 20, item 2 is best (100) |
+| Edit distance | `kitten` → `sitting`, 3 | `kitten` → `sittin` needs at least 2 |
+
+</Slide>
+
+<Slide>
+
+#### Where it breaks, and how to repair it
+::sub[It breaks when the rest depends on earlier choices. Put that dependence into the state]
+
+| Problem | Why it breaks | Put into the state |
+| --- | --- | --- |
+| Path with transfer discounts | the earlier line changes the later fare | the line you came by |
+| Path with a time limit | time used earlier limits later choices | time left |
+| Path with exactly k edges | edges used earlier reduce what is left | edges left (Example 4) |
+| Knapsack by items alone | weight packed earlier reduces the room | capacity left (Example 5) |
+| Longest simple path | visited vertices cannot be reused | the set of visited vertices ($$2^V$$ of them) |
+
+As the last one shows, it can be repaired, but with too many states it is no fast algorithm.
 
 </Slide>
 

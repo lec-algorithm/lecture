@@ -47,6 +47,7 @@ import RestoreDemo from '@components/RestoreDemo.astro';
 import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
+import OptPartDemo from '@components/OptPartDemo.astro';
 
 > 在主题 01 里我们看到了斐波那契递归为什么慢。原因不在递归，而在于
 > **把同一个值一遍又一遍地重新计算**。  
@@ -74,6 +75,93 @@ import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 名字里的"dynamic"并不是指运行时有什么东西在变。据理查德·贝尔曼（Richard Bellman）自己回忆，20 世纪 50 年代他在 RAND 工作时，为了不让讨厌“研究”一词的
 国防部长看出这是数学研究，才选了这个名字（也有人指出年代对不上）。programming 的意思也不是写代码，
 而是**制定计划**。把它理解为“**一边填表一边求解的方法**”就可以了。
+
+### 最优子结构 \{#optimal-substructure}
+
+**整体最优，则构成它的部分也最优。** 这就是最优子结构。如果从 S 经过 M 到 T 的路是最便宜的，那么其中 S → M 这一段
+也是从 S 到 M 的最便宜路径。
+
+为什么呢，**替换**一下就知道了。如果 S → M 有更便宜的走法，换上去整体就更便宜。这与整体最便宜矛盾，所以没有那样的走法。
+证明最优子结构时总是用这个论证。
+
+**反过来并不自动成立。** 部分最优，拼起来的整体不一定最优。中途的 M 选错了，两段各自最优也是绕路。所以动态规划把拆分的位置
+**全部**比较，递推式里的 $$\min$$ 和 $$\max$$ 就是这个意思。贪心也用最优子结构，不同的是它不比较，选定一个就往前走。
+
+在两段路上各选一条线路来试验。蓝框是各段最低，粉格是整体最低。
+
+<OptPartDemo />
+
+票价只是相加时，整体最低 7 就是各段最低 3 和 4 相接。连续坐同一条线减 3 的话，整体最低是蓝 + 蓝（5），可 S → M 的最低是红。
+因为前面坐了什么会改变后面的票价。点`增加状态`，就按“坐蓝线到 M 时剩余的路段”这样的状态分别求解，又能找到 5。
+
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/13_optimal_substructure
+make -f /work/Makefile optimalSubstructure.out && ./optimalSubstructure.out
+```
+
+- 结果
+
+```console
+sum of fares
+  S->M \ M->T    red   blue  green
+  red              9      7      8
+  blue            10      8      9
+  green           13     11     12
+  best  = 7 (red 3 + blue 4)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 4, total = 7
+    after blue : rest = 4, total = 8
+    after green: rest = 4, total = 11
+  with state = 7
+
+same line twice: 3 off
+  S->M \ M->T    red   blue  green
+  red              6      7      8
+  blue            10      5      9
+  green           13     11      9
+  best  = 5 (blue 4 + blue 1)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 3, total = 6
+    after blue : rest = 1, total = 5
+    after green: rest = 2, total = 9
+  with state = 5
+
+within 8 minutes
+  S->M \ M->T    red   blue  green
+  red            INF    INF    INF
+  blue            10      8      9
+  green           13     11     12
+  best  = 8 (blue 4 + blue 4)
+  parts = INF (red 3 + blue 4)
+    after red  : rest = INF, total = INF
+    after blue : rest = 4, total = 8
+    after green: rest = 4, total = 11
+  with state = 8
+```
+
+本主题的例题都有最优子结构。
+
+| 问题 | 整体最优 | 其中的部分也最优 |
+| --- | --- | --- |
+| 最便宜路径（3 条边） | 0 → 2 → 4 → 3，代价 6 | 2 → 4 → 3 是从 2 到 3 用 2 条边的最低（4） |
+| 找零钱 80 韩元 | 40 + 40，2 枚 | 剩下的 40 韩元也是最少（1 枚） |
+| LIS | `2 5 7 101`，长度 4 | `2 5 7` 是以 7 结尾的最长（3） |
+| 0/1 背包，容量 50 | 物品 2、3，价值 220 | 物品 1 到 2、容量 20 时物品 2 最大（100） |
+| 编辑距离 | `kitten` → `sitting`，3 次 | `kitten` → `sittin` 最少 2 次 |
+
+**剩下的答案随前面的选择而变**，就不成立。这时把造成变化的东西放进状态。
+
+| 问题 | 为什么不成立 | 放进状态的东西 |
+| --- | --- | --- |
+| 有换乘优惠的路 | 前面的线路改变后面的票价 | 坐来的线路 |
+| 有时间限制的路 | 前面用掉的时间减少后面的选择 | 剩余时间 |
+| 恰好用 k 条边的路 | 前面用掉的边减少后面的条数 | 剩余边数（例题 4） |
+| 只按物品的背包 | 前面装的重量减少后面的空间 | 剩余容量（例题 5） |
+| 最长简单路径 | 走过的顶点不能再走 | 走过的顶点集合（$$2^V$$ 种） |
+
+例题 4 的 `(u, k)` 和例题 5 的 `(i, c)` 里，`k` 和 `c` 正是这样加进去的状态。像最后一行那样，虽能补救，但状态太多就成不了快的算法。
 
 ## 再看斐波那契 \{#fibonacci}
 
@@ -1474,18 +1562,19 @@ sunday -> saturday: 3
 
 ```plaintext
 src/topic-14-dynamic-programming/
-├── 01_fibonacci/         # 递归 15 次，记忆化 9 次，递推填表。算到 n = 90
-├── 02_coin_change/       # 6 = 3 + 3，主题 06 的 80 = 40 + 40
-├── 03_lis/               # LIS 4，记忆命中 11 次，还原出 2 5 7 101
-├── 04_grid_paths/        # 绕开三个障碍到 (5, 5) 共 48 条
-├── 05_shortest_path/     # 3 条边 0 → 2 → 4 → 3，代价 6
-├── 06_knapsack/          # 0/1 背包 220，物品 2 和 3
-├── 07_subproblem_graph/  # 调用树与图，LIS 的分支
-├── 08_lis_nlogn/         # 每个长度最小的结尾值，比较 10 次
-├── 09_grid_calls/        # 每格被调用的次数，439 与 65
-├── 10_shortest_path_tab/ # 在分层图上填的 k 边最短路径
-├── 11_knapsack_1d/       # 一行的背包，220 与 300
-└── 12_edit_distance/     # 编辑距离与对齐（参考）
+├── 01_fibonacci/             # 递归 15 次，记忆化 9 次，递推填表。算到 n = 90
+├── 02_coin_change/           # 6 = 3 + 3，主题 06 的 80 = 40 + 40
+├── 03_lis/                   # LIS 4，记忆命中 11 次，还原出 2 5 7 101
+├── 04_grid_paths/            # 绕开三个障碍到 (5, 5) 共 48 条
+├── 05_shortest_path/         # 3 条边 0 → 2 → 4 → 3，代价 6
+├── 06_knapsack/              # 0/1 背包 220，物品 2 和 3
+├── 07_subproblem_graph/      # 调用树与图，LIS 的分支
+├── 08_lis_nlogn/             # 每个长度最小的结尾值，比较 10 次
+├── 09_grid_calls/            # 每格被调用的次数，439 与 65
+├── 10_shortest_path_tab/     # 在分层图上填的 k 边最短路径
+├── 11_knapsack_1d/           # 一行的背包，220 与 300
+├── 12_edit_distance/         # 编辑距离与对齐（参考）
+└── 13_optimal_substructure/  # 部分最优与整体最优
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
@@ -1513,4 +1602,4 @@ src/topic-14-dynamic-programming/
 | --- | --- | --- |
 | v1 | 2026-10-28 | 首次公开 |
 | v2 | 2026-11-04 | 增加十个可动手的演示，并把递推式、硬币和物品放进表格演示里 |
-| v3 | 2026-11-25 | 修正内容错误，增加二十个演示和图、六个实践例题，把 mermaid 图换成自制的图 |
+| v3 | 2026-11-25 | 修正内容错误，增加二十一个演示和图、七个实践例题，把 mermaid 图换成自制的图 |

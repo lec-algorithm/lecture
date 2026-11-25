@@ -48,6 +48,7 @@ import RestoreDemo from '@components/RestoreDemo.astro';
 import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
+import OptPartDemo from '@components/OptPartDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-14-dynamic-programming）的运行结果一致。 */}
@@ -107,6 +108,87 @@ import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 - **存答案的方法有两种。**
   - 记忆化：保留递归，把答案记下来。
   - 递推填表：从小问题开始往上填表。
+
+</Slide>
+
+<Slide>
+
+#### 什么是最优子结构
+::sub[整体最优，则构成它的部分也最优]
+
+- **例**：从 S 经过 M 到 T 的最便宜路径
+  - 其中 S → M 这一段，也是从 S 到 M 的最便宜路径。
+- **为什么**：替换一下就知道了。
+  - 如果 S → M 有更便宜的走法，换上去整体就更便宜。
+  - 这与整体最便宜矛盾，所以没有那样的走法。
+- **反过来并不自动成立。** 部分最优不代表整体最优。
+  - 中途的 M 选错了，两段各自最优也是绕路。
+  - 所以动态规划把拆分的位置**全部**比较。
+
+</Slide>
+
+<Slide>
+
+### 亲自试验：部分最优，整体也最优吗
+::sub[蓝框是各段最低，粉格是整体最低。改变规则，再增加状态]
+
+<OptPartDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 有换乘优惠时
+::sub[`13_optimal_substructure/` · 各段最低相接是 7，整体最低是 5]
+
+```console
+same line twice: 3 off
+  S->M \ M->T    red   blue  green
+  red              6      7      8
+  blue            10      5      9
+  green           13     11      9
+  best  = 5 (blue 4 + blue 1)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 3, total = 6
+    after blue : rest = 1, total = 5
+    after green: rest = 2, total = 9
+  with state = 5
+```
+
+- 剩余路段的答案（`rest`）随坐来的线路**不同**：3、1、2。
+- 按线路分别解（`with state`）就能找到 5。
+
+</Slide>
+
+<Slide>
+
+#### 有最优子结构的例子
+::sub[本主题的例题。整体最优里含着部分的最优]
+
+| 问题 | 整体最优 | 其中的部分也最优 |
+| --- | --- | --- |
+| 最便宜路径（3 条边） | 0 → 2 → 4 → 3，代价 6 | 2 → 4 → 3 是从 2 到 3 用 2 条边的最低（4） |
+| 找零钱 80 韩元 | 40 + 40，2 枚 | 剩下的 40 韩元也是最少（1 枚） |
+| LIS | `2 5 7 101`，长度 4 | `2 5 7` 是以 7 结尾的最长（3） |
+| 0/1 背包，容量 50 | 物品 2、3，价值 220 | 物品 1 到 2、容量 20 时物品 2 最大（100） |
+| 编辑距离 | `kitten` → `sitting`，3 次 | `kitten` → `sittin` 最少 2 次 |
+
+</Slide>
+
+<Slide>
+
+#### 不成立的例子与补救办法
+::sub[剩下的答案随前面的选择而变，就不成立。把造成变化的东西放进状态]
+
+| 问题 | 为什么不成立 | 放进状态的东西 |
+| --- | --- | --- |
+| 有换乘优惠的路 | 前面的线路改变后面的票价 | 坐来的线路 |
+| 有时间限制的路 | 前面用掉的时间减少后面的选择 | 剩余时间 |
+| 恰好用 k 条边的路 | 前面用掉的边减少后面的条数 | 剩余边数（例题 4） |
+| 只按物品的背包 | 前面装的重量减少后面的空间 | 剩余容量（例题 5） |
+| 最长简单路径 | 走过的顶点不能再走 | 走过的顶点集合（$$2^V$$ 种） |
+
+像最后一个那样，虽能补救，但状态太多就成不了快的算法。
 
 </Slide>
 
