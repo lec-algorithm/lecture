@@ -24,6 +24,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     n_greedy: '그리디는 가장 큰 동전만 따라갑니다. 화살표를 {e}번 보고 {a}개를 냈습니다. 다른 갈래는 보지 않습니다.',
     n_greedyX: '그리디는 가장 큰 동전만 따라가다 {r}원에서 막혔습니다. 되돌아가지 않으므로 답을 내지 못합니다.',
     n_brute: '재귀로 모두 견주면 답은 {a}개로 맞지만, 같은 화살표를 거듭 봅니다. 화살표를 본 횟수가 {e}번입니다.',
+    n_bruteX: '이 금액에서는 겹치는 화살표가 없어, 재귀도 {e}개를 한 번씩만 봅니다. 답은 {a}개입니다.',
     n_dp: '동적 계획법도 모두 견주지만 칸마다 한 번만 풉니다. 화살표 {e}개를 한 번씩 보고 {a}개를 찾았습니다.',
   },
   en: {
@@ -38,6 +39,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     n_greedy: 'Greedy follows only the largest coin. It looked at {e} arrows and paid {a} coins. It never sees the other branches.',
     n_greedyX: 'Greedy follows only the largest coin and gets stuck at {r} won. It never goes back, so it gives no answer.',
     n_brute: 'Comparing everything by recursion gives the right answer {a}, but looks at the same arrows again and again: {e} times.',
+    n_bruteX: 'Here no arrow is repeated, so even the recursion looks at {e} arrows once each. The answer is {a}.',
     n_dp: 'Dynamic programming compares everything too, but solves each cell once. It looked at {e} arrows once each and found {a} coins.',
   },
   zh: {
@@ -52,6 +54,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     n_greedy: '贪心只跟最大的硬币走。看了 {e} 次箭头，付了 {a} 枚。不看别的分支。',
     n_greedyX: '贪心只跟最大的硬币走，在 {r} 韩元卡住了。它不回头，所以给不出答案。',
     n_brute: '用递归全部比较，答案 {a} 枚是对的，但反复看同样的箭头。看箭头的次数是 {e} 次。',
+    n_bruteX: '这个金额没有重复的箭头，递归也只把 {e} 个箭头各看一次。答案是 {a} 枚。',
     n_dp: '动态规划也全部比较，但每格只解一次。{e} 个箭头各看一次，找到 {a} 枚。',
   },
 };
@@ -190,7 +193,8 @@ const SETS = ['50,40,10|80', '1,3,4|6', '2,3,5|6'];
         get(`${k}-e`).textContent = v.n;
         get(`${k}-a`).textContent = v.a === INF ? S.stuck : v.a;
       });
-      K.lines(note, K.fill(mode === 'greedy' && cur.a === INF ? S.n_greedyX : S[`n_${mode}`], { e: cur.n, a: cur.a, r: cur.rest }));
+      const key = mode === 'greedy' && cur.a === INF ? 'n_greedyX' : mode === 'brute' && cur.n === R.dp.n ? 'n_bruteX' : `n_${mode}`;
+      K.lines(note, K.fill(S[key], { e: cur.n, a: cur.a, r: cur.rest }));
     }
     root.querySelectorAll('[data-sg]').forEach((m) =>
       m.addEventListener('click', () => {
