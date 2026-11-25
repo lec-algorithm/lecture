@@ -1,7 +1,7 @@
 ---
 title: "主题 14. 动态规划"
 description: "让重叠子问题只算一次的动态规划。记忆化与递推填表、lazy 与 eager，以及找零钱·LIS·网格路径·恰好 k 条边的最短路径·0/1 背包与路径还原"
-date: "主题 14 · v2"
+date: "主题 14 · v3"
 order: 14
 transition: none
 toc_level: 4
@@ -27,6 +27,26 @@ import PathTableDemo from '@components/PathTableDemo.astro';
 import KnapCellDemo from '@components/KnapCellDemo.astro';
 import OptimalityDemo from '@components/OptimalityDemo.astro';
 import CallOverlapDemo from '@components/CallOverlapDemo.astro';
+import DpMapDemo from '@components/DpMapDemo.astro';
+import DagFoldDemo from '@components/DagFoldDemo.astro';
+import DagOrderDemo from '@components/DagOrderDemo.astro';
+import RollingDemo from '@components/RollingDemo.astro';
+import LazyLifeDemo from '@components/LazyLifeDemo.astro';
+import LastCoinDemo from '@components/LastCoinDemo.astro';
+import LisSplitDemo from '@components/LisSplitDemo.astro';
+import LisDagDemo from '@components/LisDagDemo.astro';
+import PatienceDemo from '@components/PatienceDemo.astro';
+import GridWalkDemo from '@components/GridWalkDemo.astro';
+import GridCallsDemo from '@components/GridCallsDemo.astro';
+import FirstStepDemo from '@components/FirstStepDemo.astro';
+import LayerGraphDemo from '@components/LayerGraphDemo.astro';
+import KnapPackDemo from '@components/KnapPackDemo.astro';
+import Knap1DDemo from '@components/Knap1DDemo.astro';
+import KnapSizeDemo from '@components/KnapSizeDemo.astro';
+import RestoreDemo from '@components/RestoreDemo.astro';
+import StrategyDemo from '@components/StrategyDemo.astro';
+import DesignStepsDemo from '@components/DesignStepsDemo.astro';
+import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-14-dynamic-programming）的运行结果一致。 */}
@@ -65,22 +85,10 @@ import CallOverlapDemo from '@components/CallOverlapDemo.astro';
 
 <Slide>
 
-#### 分治 + 存储
-::sub[当小问题彼此重叠时]
+### 点击看看：动态规划的四块
+::sub[点击卡片，下面会出现说明]
 
-```mermaid
-%%{init: {"themeVariables": {"fontSize": "28px"}}}%%
-flowchart LR
-  subgraph P["范式"]
-    D(("分治")) --- O["重叠的<br/>子问题"]
-    D --- S["最优<br/>子结构"]
-  end
-  subgraph M["方法"]
-    MM["记忆化<br/>(自顶向下)"]
-    TT["递推填表<br/>(自底向上)"]
-  end
-  P -- "+" --> M
-```
+<DpMapDemo slide />
 
 </Slide>
 
@@ -92,7 +100,7 @@ flowchart LR
 - **重叠子问题**（overlapping subproblems）
   - 同一个小问题出现多次。
 - **最优子结构**（optimal substructure）
-  - 大问题的最优解由小问题的最优解构成。
+  - 大问题的最优解由小问题的最优解构成（最优化问题时）。
 - **存答案的方法有两种。**
   - 记忆化：保留递归，把答案记下来。
   - 递推填表：从小问题开始往上填表。
@@ -103,6 +111,15 @@ flowchart LR
 
 ## 再看斐波那契
 ::sub[Fibonacci]
+
+</Slide>
+
+<Slide>
+
+### 单步：F(5)
+::sub[重新计算同一个值的节点是红色]
+
+<RecursionDemo n={5} slide fit />
 
 </Slide>
 
@@ -118,38 +135,9 @@ ALGORITHM FibRecursive(n)
     return FibRecursive(n-1) + FibRecursive(n-2)
 ```
 
-- **时间** $$O(2^n)$$：指数级增长。
+- **时间** $$O(2^n)$$：指数级增长。准确地说是 $$\Theta(\varphi^n)$$，$$\varphi \approx 1.618$$
 - **空间** $$O(n)$$：递归栈
 - **问题**：重复同样的计算。
-
-</Slide>
-
-<Slide class="compact">
-
-#### 斐波那契迭代
-::sub[只带着前两项往前走]
-
-```plaintext
-ALGORITHM FibIterative(n)
-    if n <= 1 then return n
-    prev <- 0, curr <- 1
-    for i <- 2 to n do
-        next <- prev + curr
-        prev <- curr
-        curr <- next
-    return curr
-```
-
-- **时间** $$O(n)$$ · **空间** $$O(1)$$
-
-</Slide>
-
-<Slide>
-
-### 单步：F(5)
-::sub[重新计算同一个值的节点是红色]
-
-<RecursionDemo n={5} slide fit />
 
 </Slide>
 
@@ -167,7 +155,16 @@ ALGORITHM FibIterative(n)
 | $$F(5)$$ | 15 | 2 | 3 |
 
 一个 $$F(5)$$ 要调用 15 次，不同的值只有 6 个。  
-$$C(n) = 2F(n+1) - 1$$，每多一项大约变成 1.6 倍。
+$$C(n) = 2F(n+1) - 1$$，$$n$$ 每增加 1 大约变成 1.6 倍。
+
+</Slide>
+
+<Slide>
+
+### 一步一步：折叠调用树
+::sub[把相同的问题叠在一起，就能看到真正要解的有几个]
+
+<DagFoldDemo slide />
 
 </Slide>
 
@@ -175,29 +172,6 @@ $$C(n) = 2F(n+1) - 1$$，每多一项大约变成 1.6 倍。
 
 ## 记忆化
 ::sub[Memoization：做个笔记]
-
-</Slide>
-
-<Slide class="compact">
-
-#### 把答案记下来
-::sub[`01_fibonacci/fibonacci.c` · 只改了两行 if]
-
-```c
-long long fibMemo(int n) {
-    if (n <= 1) {
-        return n;                       // 1. 基本定义
-    }
-    if (memo[n] != -1) {
-        return memo[n];                 // 2. 已经记下的值直接返回
-    }
-    memo[n] = fibMemo(n - 1) + fibMemo(n - 2);  // 3. 递归求出
-    return memo[n];                     // 4. 记下再返回
-}
-```
-
-- **时间** $$O(n)$$：每个值只算一次。
-- **空间** $$O(n)$$：memo 数组 + 递归栈
 
 </Slide>
 
@@ -223,8 +197,31 @@ long long fibMemo(int n) {
 
 <br/>
 
-调用 **15 次 → 9 次**，一般是 $$2n - 1$$ 次。  
+调用 **15 次 → 9 次**，$$n \ge 1$$ 时是 $$2n - 1$$ 次。  
 `memo[0]`、`memo[1]` 在基本情况里直接返回，所以保持 -1。
+
+</Slide>
+
+<Slide class="compact">
+
+#### 把答案记下来
+::sub[`01_fibonacci/fibonacci.c` · 只加了检查的 if 和记录的赋值]
+
+```c
+long long fibMemo(int n) {
+    if (n <= 1) {
+        return n;                       // 1. 基本定义
+    }
+    if (memo[n] != -1) {
+        return memo[n];                 // 2. 已经记下的值直接返回
+    }
+    memo[n] = fibMemo(n - 1) + fibMemo(n - 2);  // 3. 递归求出
+    return memo[n];                     // 4. 记下再返回
+}
+```
+
+- **时间** $$O(n)$$：每个值只算一次。
+- **空间** $$O(n)$$：memo 数组 + 递归栈
 
 </Slide>
 
@@ -232,6 +229,15 @@ long long fibMemo(int n) {
 
 ## 递推填表
 ::sub[Tabulation：从小到大填表]
+
+</Slide>
+
+<Slide>
+
+### 单步：dp 表
+::sub[橙色是正在填的格子，蓝色是引用的格子]
+
+<DpTableDemo problem="fib" n={5} slide />
 
 </Slide>
 
@@ -253,16 +259,36 @@ ALGORITHM FibTabulation(n)
 
 - **时间** $$O(n)$$：每格一次
 - **空间** $$O(n)$$：一张表，不用栈。
-- 只留前两格，空间就是 $$O(1)$$，这正是主题 01 的迭代。
+- 只留前两格，空间就降到 $$O(1)$$。
 
 </Slide>
 
 <Slide>
 
-### 单步：dp 表
-::sub[橙色是正在填的格子，蓝色是引用的格子]
+### 一步一步：从表到三个变量
+::sub[虚线格是再也没有人看的格]
 
-<DpTableDemo problem="fib" n={5} slide />
+<RollingDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 斐波那契迭代
+::sub[主题 01 的代码 · 就是省了空间的递推填表]
+
+```plaintext
+ALGORITHM FibIterative(n)
+    if n <= 1 then return n
+    prev <- 0, curr <- 1
+    for i <- 2 to n do
+        next <- prev + curr
+        prev <- curr
+        curr <- next
+    return curr
+```
+
+- **时间** $$O(n)$$ · **空间** $$O(1)$$
 
 </Slide>
 
@@ -296,6 +322,15 @@ F(5)
  30          2692537          59               832040
  90                -         179  2880067194370816120
 ```
+
+</Slide>
+
+<Slide>
+
+### 一步一步：同一张图，不同的顺序
+::sub[格下的圆圈是填写顺序。记忆化是深度优先，填表是从小编号开始]
+
+<DagOrderDemo slide />
 
 </Slide>
 
@@ -349,17 +384,10 @@ F(5)
 
 <Slide>
 
-#### 生活中的 lazy
+### 亲自试试：生活中的 lazy
+::sub[滚动图片列表，中途关掉视频，只打开需要的]
 
-| 例子 | eager | lazy |
-| --- | --- | --- |
-| 视频流媒体 | 下载完整部电影再播放 | 只缓冲要看的部分，边下边播 |
-| 网页图片 | 加载全部 100 张图片 | 只加载看得见的，滚动时再加载 |
-| 数据库查询 | 帖子·好友·照片一次全取 | 先取基本信息，其余打开时再取 |
-
-<br/>
-
-Netflix 和 YouTube 不等全部下载完就开始播放，这就是 lazy。
+<LazyLifeDemo slide />
 
 </Slide>
 
@@ -401,7 +429,8 @@ fib = fibonacci_infinite()
 first_10 = [next(fib) for _ in range(10)]   # 实际只算了 10 个
 ```
 
-Haskell 这样的语言在语言层面就这样做。
+Haskell 这样的语言在语言层面就这样做。  
+生成器**只是推迟，并不记录。** 记忆化是推迟再加上记录。
 
 </Slide>
 
@@ -419,14 +448,15 @@ Haskell 这样的语言在语言层面就这样做。
 #### 什么时候 lazy 更好
 ::sub[记忆化这一边]
 
-- **只需要部分结果时**
-  - 只要知道 $$F(50)$$ 一个值
-- **条件计算**
-  - 只有在特定条件下才需要部分计算
-- **节省内存**
-  - 不必保存所有中间结果
+- **答案只需要一部分格时**
+  - 凑 80 韩元，填表要 80 格，记忆化只要 **8 格**
+  - $$F(50)$$ 需要从 $$F(0)$$ 起的全部，所以不算这一类。
+- **难以预先知道哪些格有用时**
+  - 按条件分叉的问题，格子用得稀疏的问题
+- **填写顺序难定时**
+  - 递归自己会按需要的顺序往下走。
 - **快速原型**
-  - 先要一份能跑的代码
+  - 照搬递推式，再加一张表就行。
 
 </Slide>
 
@@ -435,14 +465,14 @@ Haskell 这样的语言在语言层面就这样做。
 #### 什么时候 eager 更好
 ::sub[递推填表这一边]
 
-- **需要全部结果时**
-  - $$F(1)$$ 到 $$F(50)$$ 都要
+- **反正需要全部结果时**
+  - 像斐波那契这样要经过每一格的问题
 - **重视稳定性时**
-  - 想避开栈溢出的风险
+  - 用 `{1, 5, 10}` 凑 100 韩元，记忆化的递归会叠到 **101 层**。
 - **打磨性能时**
-  - 想去掉递归调用的开销
-- **打磨空间时**
-  - 想精细地控制内存用量
+  - 去掉递归调用的开销。
+- **节省内存时**
+  - 只留前面几格就行（斐波那契 $$O(1)$$，背包 $$O(W)$$）
 
 </Slide>
 
@@ -473,6 +503,24 @@ $$
 
 </Slide>
 
+<Slide>
+
+### 亲自解一解：最后付出的硬币
+::sub[由人来当递归和 memo。点开未知的卡片去解，都知道了就记下并返回]
+
+<LastCoinDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 单步：记忆化往下走的路
+::sub[coinChangeMemo(6) · 黄色是从 memo 取出的调用，虚线是负数金额，粗边是给出最小值的硬币]
+
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 记忆化
@@ -492,15 +540,6 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
     memo[amount] <- best                 // 4. 记下再返回
     return best
 ```
-
-</Slide>
-
-<Slide>
-
-### 单步：记忆化往下走的路
-::sub[coinChangeMemo(6) · 黄色是从 memo 取出的调用，虚线是负数金额，粗边是给出最小值的硬币]
-
-<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
 
 </Slide>
 
@@ -536,6 +575,31 @@ memo -> 2 coins, solved 5 amounts
 
 </Slide>
 
+<Slide class="compact">
+
+#### 递推填表
+::sub[`02_coin_change/` · 每当最小值改变，就把那枚硬币记进 choice]
+
+```plaintext
+ALGORITHM CoinChangeTab(amount, coins, m)
+    dp[0] <- 0                           // 1. 初始化
+    for a <- 1 to amount do dp[a] <- INF
+    for a <- 1 to amount do              // 2. 从小金额起一个不漏
+        for i <- 0 to m-1 do
+            c <- coins[i]
+            if c <= a and dp[a - c] != INF and dp[a - c] + 1 < dp[a] then
+                dp[a] <- dp[a - c] + 1
+                choice[a] <- c           //    这个金额最后付出的硬币
+    if dp[amount] = INF then return INF  // 3. 凑不出的金额
+    a <- amount                          // 4. 沿 choice 倒着走
+    while a > 0 do
+        print choice[a]
+        a <- a - choice[a]
+    return dp[amount]
+```
+
+</Slide>
+
 <Slide>
 
 ### 动手点一点：填这一格的瞬间
@@ -557,7 +621,7 @@ memo -> 2 coins, solved 5 amounts
 <Slide class="compact">
 
 #### 全部比较，所以是 2 枚
-::sub[80 韩元那格：最后付 50 韩元是 4 枚，付 40 韩元是 2 枚]
+::sub[80 韩元那格：最后付 50 韩元是 4 枚，付 40 韩元是 2 枚，付 10 韩元是 4 枚]
 
 - 结果
 
@@ -610,14 +674,10 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 <br/>
 
-| 挑出的序列 | 长度 |
-| --- | --- |
-| 2 5 7 101 | 4 |
-| 2 5 7 18 | 4 |
-| 2 3 7 101 | 4 |
-| 2 3 7 18 | 4 |
-
-答案可能不止一个。
+- 是**子序列**，所以不必相邻。
+  - `2, 5, 7` 可以，但 `2, 3, 5` 打乱了顺序，不行。
+- 是**严格递增**，所以相同的数不能选两次。
+- 最长的答案可能不止一个。这个数组有**四个**。
 
 </Slide>
 
@@ -627,6 +687,24 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 ::sub[点数字来选。试着找出所有最长的答案]
 
 <LisPlayDemo mode="pick" slide />
+
+</Slide>
+
+<Slide>
+
+### 亲自改改：路不同，剩下的事却相同
+::sub[i 增大时分支最多翻倍，剩下的事 (i, prev) 最多多一种]
+
+<LisSplitDemo slide />
+
+</Slide>
+
+<Slide>
+
+### 单步：表实际用到几次
+::sub[没想到记忆表用得并不多。换个序列就不一样了]
+
+<LisMemoDemo slide />
 
 </Slide>
 
@@ -655,33 +733,6 @@ ALGORITHM LisHelper(arr, n, i, prev)
 
 <Slide>
 
-#### 路不同，剩下的事却相同
-::sub[2、10、5、7、3 的前两个元素分出的四条路]
-
-| 2 | 10 | 已选序列 | 剩下的事 |
-| --- | --- | --- | --- |
-| 选 | 选 | `[2, 10]` | `i = 2, prev = 10` |
-| 选 | 不选 | `[2]` | `i = 2, prev = 2` |
-| 不选 | 选 | `[10]` | `i = 2, prev = 10` |
-| 不选 | 不选 | `[]` | `i = 2`，还没选 |
-
-<br/>
-
-第一行和第三行是**同一个子问题**。只需解一次。
-
-</Slide>
-
-<Slide>
-
-### 单步：表实际用到几次
-::sub[没想到记忆表用得并不多。换个序列就不一样了]
-
-<LisMemoDemo slide />
-
-</Slide>
-
-<Slide>
-
 #### 递推填表：以这里结尾的最长长度
 ::sub[dp 的一格 = 以该元素结尾的最长递增子序列的长度]
 
@@ -694,6 +745,15 @@ $$
 - 答案不是 `dp[n-1]`，而是 **`dp` 的最大值**。
 - 把选中的 $$j$$ 记进 `prev[i]`，就能还原序列。
 - 时间 $$O(n^2)$$ · 空间 $$O(n)$$
+
+</Slide>
+
+<Slide>
+
+### 亲自点点：LIS 就是最长路径
+::sub[点击一个点，会显示参照的格（蓝）和以它结尾的最长路径（粉）]
+
+<LisDagDemo slide />
 
 </Slide>
 
@@ -718,8 +778,8 @@ tab  = 4
   one LIS: 2 5 7 101
 ```
 
-- 最大值 4 第一次出现在第 6 个（101）。
-- 沿 `prev` 走是第 5 个（7）、第 3 个（5）、第 2 个（2），反过来是 `2 5 7 101`
+- 最大值 4 第一次出现在下标 6（101）。
+- 沿 `prev` 走是下标 5（7）、3（5）、2（2），反过来是 `2 5 7 101`
 - 选 18 那边就是 `2 5 7 18`，平局的处理方式决定出哪个答案。
 
 </Slide>
@@ -733,10 +793,28 @@ tab  = 4
 
 </Slide>
 
+<Slide>
+
+### [参考] 一步一步：用 O(n log n) 求长度
+::sub[每个长度只留最小的结尾值，用二分查找找位置]
+
+<PatienceDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 例 3. 网格路径
 ::sub[路径搜索中绕开障碍]
+
+</Slide>
+
+<Slide>
+
+### 亲自走走：收集路径
+::sub[走出来的路径堆在右边。蓝色从上方到达，绿色从左边到达]
+
+<GridWalkDemo slide />
 
 </Slide>
 
@@ -788,6 +866,15 @@ tab             = 48
 
 <Slide>
 
+### 亲自测测：每格被调用的次数
+::sub[网格变大时，只有没有 memo 的递归会失控地增长]
+
+<GridCallsDemo slide />
+
+</Slide>
+
+<Slide>
+
 ### 动手试试：障碍
 ::sub[点击格子放置或移除障碍，表格会从头重新填写]
 
@@ -833,18 +920,10 @@ tab             = 48
 
 <Slide>
 
-#### 按第一步拆开
-::sub[0 → 3（3 条边）]
+### 亲自拆拆：第一步
+::sub[点击卡片会展开剩下的问题。黄色是已经解过的问题]
 
-1. **0 的选择有 1、2，共 2 个**
-   - 1 → 3（2 条边），2 → 3（2 条边）
-2. **1 的选择只有 3，共 1 个**
-   - 3 → 3（1 条边）：没有这样的边，**不行**
-3. **2 的选择有 1、3、4，共 3 个**
-   - 1 → 3（1 条边）= 6，所以 2 → 1 → 3 = 2 + 6 = 8
-   - 3 → 3（1 条边）：不行
-   - 4 → 3（1 条边）= 1，所以 2 → 4 → 3 = 3 + 1 = **4**
-4. **0 → 2 → 4 → 3 = 2 + (3 + 1) = 6**
+<FirstStepDemo slide />
 
 </Slide>
 
@@ -924,7 +1003,7 @@ path: 0 -> 2 -> 4 -> 3 (2 + 3 + 1 = 6)
 <Slide class="compact">
 
 #### 路径还原
-::sub[决定值时把所选的一起记下，最后沿着走]
+::sub[决定值时把所选的一起记下，再从起点沿着走]
 
 ```plaintext
 ALGORITHM RestorePath(u, v, k, next)
@@ -957,13 +1036,25 @@ next[1][4][3] = 3    4 → 3   (代价 1)
 
 <Slide>
 
+### 一步一步：在分层图上递推填表
+::sub[列是剩余的边数。用一条边就往右走一列]
+
+<LayerGraphDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### 记下所选的那一行
 ::sub[choice, prev, next]
 
 - 找零钱的 `choice`、LIS 的 `prev`、这里的 `next` 做的是同一件事。
-- 问的不是"最小值"而是**怎样才能最小**时，就会多出这一行。
+  - 问的不是"最小值"而是**怎样才能最小**时，就会多出这一行。
+- **跟随的方向不同。**
+  - `choice` 和 `prev` 是**最后**的选择，从末尾倒着走。
+  - `next` 是**第一步**，从起点往前走。
 - 这与主题 12 的 Dijkstra 不同。
-  - 有边数限制时，0 → 2 → 3（2 条边）不是答案。
+  - 必须正好用 3 条边，所以 0 → 2 → 3（2 条边）不是答案。
 
 </Slide>
 
@@ -971,6 +1062,15 @@ next[1][4][3] = 3    4 → 3   (代价 1)
 
 ## 例 5. 0/1 背包
 ::sub[主题 06 留下的问题]
+
+</Slide>
+
+<Slide>
+
+### 亲自试试：装背包
+::sub[点击物品放进拿出，比较贪心与最优]
+
+<KnapPackDemo slide />
 
 </Slide>
 
@@ -989,6 +1089,7 @@ dp[i-1][c] & w_i > c \\
 \end{cases}
 $$
 
+- 基本情况 `dp[0][c] = 0`：没有物品，价值 0
 - 上面一格：不装物品 $$i$$
 - 上一行往左 $$w_i$$ 格 + $$v_i$$：装物品 $$i$$
 
@@ -1044,6 +1145,45 @@ best = 220
 
 </Slide>
 
+<Slide>
+
+### 一步一步：压成一行的表
+::sub[改变填写方向，220 就变成 300。看看为什么]
+
+<Knap1DDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 一行就够，空间 O(W)
+::sub[只看上一行，所以反复改写一行]
+
+```plaintext
+ALGORITHM Knapsack1D(w, v, n, W)
+    for c <- 0 to W do dp[c] <- 0
+    for i <- 1 to n do
+        for c <- W downto w[i] do            // 从大容量开始
+            dp[c] <- max(dp[c], dp[c - w[i]] + v[i])
+    return dp[W]
+```
+
+- **从大容量开始**填，`dp[c - w]` 还是看物品 $$i$$ 之前的值。
+- **从小容量开始**填，参照的格里已经有物品 $$i$$。
+  - 得到的是同一物品可多次使用的**完全背包**的答案。
+- 时间仍是 $$O(nW)$$，但没有整张表，所以**不能还原。**
+
+</Slide>
+
+<Slide>
+
+### 亲自测测：O(nW) 是多项式时间吗
+::sub[写下容量 W 只多几位，表却每次变成 10 倍。条形是对数刻度]
+
+<KnapSizeDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## 动态规划小结
@@ -1053,16 +1193,35 @@ best = 220
 
 <Slide>
 
-#### 什么时候能用
-::sub[小问题重叠，小的最优能组成大的最优]
+### 一步一步：四个例题的路径还原
+::sub[choice 和 prev 倒着走，next 往前走，背包不用记录，只与上方的格比较]
 
-- **问题由更小的（重复出现的）实例构成时**
-  - 以子问题的解为基础求解。
+<RestoreDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### 什么时候能用
+::sub[小问题重叠，小答案能组成大答案]
+
 - **像分治一样拆开，但子问题彼此重叠时**
   - 先解小的存起来，之后取出来用。
-- **像贪心一样用于最优化问题**
-  - 候选解有多个，从中找出最优的值。
+- **最优化问题，则要有最优子结构**
+  - 找零钱、LIS、找路、背包都是这样。
   - 贪心跟着一个候选走，动态规划把候选**全部**比较。
+- **计数问题也能用。**
+  - 斐波那契和网格路径求的不是最优，而是**值和个数**。
+  - 子问题的答案加起来就行，所以不谈最优子结构。
+
+</Slide>
+
+<Slide>
+
+### 亲自比比：贪心、递归、动态规划
+::sub[面对同样的选择，三种方法看的箭头不同。数字是看过的次数]
+
+<StrategyDemo slide />
 
 </Slide>
 
@@ -1072,7 +1231,7 @@ best = 220
 ::sub[The principle of optimality]
 
 - 一个问题实例的最优解
-  - 总是包含它所有子实例的最优解。
+  - 对构成它的子实例来说也是最优解。
 - **例：最短路径**
   - 若 $$v_k$$ 在从 $$v_i$$ 到 $$v_j$$ 的最优路径上
   - 则从 $$v_i$$ 到 $$v_k$$、从 $$v_k$$ 到 $$v_j$$ 的部分路径也是最优的。
@@ -1096,14 +1255,14 @@ best = 220
 
 | | 分治 | 动态规划 |
 | --- | --- | --- |
-| 方向 | 自顶向下：拆开往下走 | 以自底向上为主（记忆化用自顶向下做同样的事） |
+| 方向 | 自顶向下：拆开往下走 | 自底向上（递推填表）或自顶向下（记忆化） |
 | 子问题 | 彼此不重叠 | 彼此重叠 |
 | 效率 | 子问题独立时高效 | 存下重叠的答案，消除重复计算 |
-| 例子 | 归并排序、快速排序、斐波那契递归 | 斐波那契迭代、找零钱、LIS、背包 |
+| 例子 | 归并排序、快速排序、二分查找 | 斐波那契的记忆化与填表、找零钱、LIS、背包 |
 
 <br/>
 
-斐波那契递归是分治的形状，但子问题重叠，所以低效。
+斐波那契递归是分治的形状，但子问题重叠，所以正适合动态规划。
 
 </Slide>
 
@@ -1129,7 +1288,16 @@ best = 220
 4. **确定计算方向。**
    - 记忆化就在递归上加表，递推填表就安排填表顺序
 5. **需要时记录选择并还原。**
-   - `choice`、`prev`、`next`
+   - `choice`、`prev`、`next`，或像背包那样再比较一次表
+
+</Slide>
+
+<Slide>
+
+### 亲自设计：五个步骤
+::sub[选一个例题，先自己回答，再打开卡片]
+
+<DesignStepsDemo slide />
 
 </Slide>
 
@@ -1151,18 +1319,47 @@ Smith-Waterman、Needleman-Wunsch 算法就是序列比对。
 
 </Slide>
 
+<Slide>
+
+#### [参考] 编辑距离
+::sub[把一个词改成另一个词所需的最少编辑次数]
+
+- 编辑有三种，**删除 · 插入 · 替换**
+- 按最后一个字符怎么处理来拆开。
+
+$$
+dp[i][j] = \begin{cases}
+\max(i,\ j) & i = 0 \text{ or } j = 0 \\
+dp[i-1][j-1] & a_i = b_j \\
+1 + \min\bigl(dp[i-1][j],\ dp[i][j-1],\ dp[i-1][j-1]\bigr) & a_i \ne b_j
+\end{cases}
+$$
+
+- `dp[i][j]` 是把前 $$i$$ 个字符改成前 $$j$$ 个字符的次数，时间 $$O(nm)$$
+- 拼写纠正和 DNA 序列比较都从这张表开始。
+
+</Slide>
+
+<Slide>
+
+### [参考] 亲自改改：编辑距离
+::sub[改动单词并点击格子，会显示三个候选和两个单词的对齐]
+
+<EditDistanceDemo slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### 现在就试试
-::sub[改一改表的某一格来确认]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-14-dynamic-programming/`  
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。
 
-1. **删掉 `fibMemo` 里检查 memo 的两行 `if`。**
+1. **删掉 `fibMemo` 里检查 memo 的 `if`。**
+   - 先把 `ns` 里的 90 改成 25，否则不会结束。
    - 调用次数会和递归一模一样。
 2. **用 `{50, 40, 10}` 再找几个贪心答案不同的金额。**
-   - 和主题 06 的贪心代码并排运行。
 3. **把最短路径的终点改成 5、`k` 改成 4。**
    - 会得到 `0 -> 2 -> 4 -> 3 -> 5`（9）。
 4. **把背包容量改成 40。**
@@ -1175,13 +1372,13 @@ Smith-Waterman、Needleman-Wunsch 算法就是序列比对。
 ## 要记住的
 
 1. **动态规划只解一次重叠的子问题。**
-   - 要有最优子结构，才能用小答案组成大答案。
+   - 最优化问题要有最优子结构。
 2. **记忆化是自顶向下（lazy），递推填表是自底向上（eager）。**
    - 斐波那契 15 次变 9 次，$$O(2^n)$$ 变 $$O(n)$$
 3. **找到贪心错过的答案。**
    - 80 韩元是 40 + 40，0/1 背包是 220
-4. **路径还原：把所选的记下，倒着走回去。**
-   - `choice`、`prev`、`next`
+4. **路径还原：把所选的记下，再沿着走。**
+   - `choice`、`prev` 倒着走，`next` 往前走，背包再比较一次表。
 5. **设计从确定表的一格是什么开始。**
 
 </Slide>

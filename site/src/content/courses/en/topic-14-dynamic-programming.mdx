@@ -27,6 +27,26 @@ import PathTableDemo from '@components/PathTableDemo.astro';
 import KnapCellDemo from '@components/KnapCellDemo.astro';
 import OptimalityDemo from '@components/OptimalityDemo.astro';
 import CallOverlapDemo from '@components/CallOverlapDemo.astro';
+import DpMapDemo from '@components/DpMapDemo.astro';
+import DagFoldDemo from '@components/DagFoldDemo.astro';
+import DagOrderDemo from '@components/DagOrderDemo.astro';
+import RollingDemo from '@components/RollingDemo.astro';
+import LazyLifeDemo from '@components/LazyLifeDemo.astro';
+import LastCoinDemo from '@components/LastCoinDemo.astro';
+import LisSplitDemo from '@components/LisSplitDemo.astro';
+import LisDagDemo from '@components/LisDagDemo.astro';
+import PatienceDemo from '@components/PatienceDemo.astro';
+import GridWalkDemo from '@components/GridWalkDemo.astro';
+import GridCallsDemo from '@components/GridCallsDemo.astro';
+import FirstStepDemo from '@components/FirstStepDemo.astro';
+import LayerGraphDemo from '@components/LayerGraphDemo.astro';
+import KnapPackDemo from '@components/KnapPackDemo.astro';
+import Knap1DDemo from '@components/Knap1DDemo.astro';
+import KnapSizeDemo from '@components/KnapSizeDemo.astro';
+import RestoreDemo from '@components/RestoreDemo.astro';
+import StrategyDemo from '@components/StrategyDemo.astro';
+import DesignStepsDemo from '@components/DesignStepsDemo.astro';
+import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 
 > In Topic 01 we saw why recursive Fibonacci is slow. The culprit was not
 > recursion but **computing the same value over and over**.  
@@ -44,32 +64,23 @@ smaller ones. The difference is that the smaller problems **overlap**.
 Solving overlapping problems afresh every time repeats the same work
 countless times, so instead we **store each answer once and reuse it.**
 
-```mermaid
-flowchart LR
-  subgraph P["Paradigm"]
-    D(("Divide and<br/>conquer")) --- O["Overlapping<br/>subproblems"]
-    D --- S["Optimal<br/>substructure"]
-  end
-  subgraph M["Method"]
-    MM["Memoization<br/>(top-down)"]
-    TT["Tabulation<br/>(bottom-up)"]
-  end
-  P -- "+" --> M
-```
+<DpMapDemo />
 
 - **Overlapping subproblems**: the same small problem shows up many times.
   Fibonacci's $$F(3)$$ is one.
 - **Optimal substructure**: the optimal solution to a large problem is made of
-  optimal solutions to smaller ones. That is what lets us combine small
-  answers into a large one.
+  optimal solutions to smaller ones. Maximum and minimum problems need this to build a large
+  answer from small ones. Problems that ask for a value or a count, like Fibonacci, do not
+  raise the question.
 - There are two ways to store answers:
   [[memoization|memoization]], which keeps the recursion and writes answers
   down, and [[tabulation|tabulation]], which fills a table upward from the
   smallest problems.
 
 The "dynamic" in the name does not mean something changes at run time.
-Richard Bellman recalled choosing the name in the 1950s so that it would
-smell less of mathematics to the people reviewing his funding. Read it as
+By Richard Bellman's own account, he chose it at RAND in the 1950s so that a Secretary of
+Defense who disliked the word "research" would not see it as mathematical research (some have
+pointed out that the dates do not quite fit). "Programming" means **planning**, not writing code. Read it as
 **"solving by filling answers into a table."**
 
 ## Fibonacci, again \{#fibonacci}
@@ -102,12 +113,21 @@ $$F(0)$$ through $$F(5)$$. Counting how often each term is computed gives this.
 
 The call count grows as $$C(n) = C(n-1) + C(n-2) + 1$$. As we saw in Topic 01,
 $$C(n) = 2F(n+1) - 1$$, which grows by about 1.6 times each time $$n$$ goes up
-by one. The call tree is not a complete binary tree, but the
-[[time-complexity|time complexity]] still grows like $$O(2^n)$$.
+by one.
+It is not a complete binary tree, so it stays below $$2^n$$. The
+[[time-complexity|time complexity]] is exactly $$\Theta(\varphi^n)$$ with $$\varphi \approx 1.618$$, and
+$$O(2^n)$$ is an upper bound.
 
 The loop in Topic 01, by contrast, carries just the two previous terms
 forward and computes each term once: time $$O(n)$$, space $$O(1)$$. Can we get
 that while keeping the shape of the recursion?
+
+Stack equal problems together and you see how many really need solving. Fold the call tree step by step.
+
+<DagFoldDemo />
+
+Fifteen vertices become six, and what remains is an acyclic graph (DAG) whose arrows say "to solve this, that is needed first."
+Dynamic programming solves each vertex of this graph once. Fold 6 won of coin change too and notice that 5 won never appears.
 
 ### Memoization: write the answer down \{#memoization}
 
@@ -205,6 +225,10 @@ ALGORITHM FibTabulation(n)
 hold the whole array; two variables suffice. That is Topic 01's iterative
 version. **Iteration is tabulation with the space trimmed down.**
 
+<RollingDemo />
+
+Nobody looks at the dashed cells any more. The table uses `n + 1` cells, the loop only 3 variables.
+
 ### The three side by side \{#fib-run}
 
 Move $$n$$ and count the work of the three methods yourself. The bars take the
@@ -248,7 +272,7 @@ calls. Each time $$n$$ grows by 10, the plain recursion grows about 100 times,
 while the memo adds just 20 calls.
 
 At $$n = 90$$ the plain recursion would never finish, so it is skipped. The memo
-answers in 179 calls. The only change was two lines of `if`.
+answers in 179 calls. All that was added is the `if` that checks the memo and the assignment that stores.
 
 ## Memoization and tabulation \{#memo-vs-tab}
 
@@ -275,6 +299,13 @@ Neither is simply better. When the recurrence comes to mind first, transcribe
 it as a memo; when the fill order of the table is clear, write a tabulation.
 The next section on lazy and eager gives a basis for choosing.
 
+See side by side in what order the two methods fill the same graph of subproblems. The circled numbers are the order.
+
+<DagOrderDemo />
+
+Memoization goes down depth first and writes on the way back; tabulation fills from the side the arrows point to, the
+smallest numbers first. Either way, the cells needed come first. Notice that for 6 won the memo leaves the 5-won cell empty.
+
 ## Lazy and eager \{#lazy}
 
 Memoization's "only what is needed" is called **lazy** in programming. It does
@@ -291,6 +322,12 @@ opposite, doing everything in advance, is **eager**.
 
 Netflix and YouTube starting playback before the whole movie arrives, and a
 long shopping page filling in images as you scroll, are both lazy.
+
+Try it. Scroll the images, stop the video partway, and open only what you need from the database.
+
+<LazyLifeDemo />
+
+Go all the way and lazy loads just as much as eager. The gain comes **when you do not go to the end.**
 
 ### Lazy in programming \{#lazy-code}
 
@@ -337,21 +374,25 @@ With `n` at 10, ten presses of `next()` give 0 through 81, and one more raises `
 Stop after three and the other seven are never computed.
 The infinite Fibonacci cannot be made into a list at all, so lazy is the only way.
 
+A generator **only postpones; it does not store.** To get the same value again you must start over.
+Memoization adds **storing** to computing on demand (lazy).
+
 ### Which one when \{#lazy-when}
 
 **When lazy (memoization) is better**
 
-- When only part of the result is needed: you just need $$F(50)$$
-- Conditional computation: some work is needed only under certain conditions
-- Saving memory: not every intermediate result needs to be stored
-- Quick prototyping: you need working code first
+- When the answer needs only some of the cells: for 80 won the table fills 80 cells, the memo 8.
+  $$F(50)$$ does not count, because it needs everything from $$F(0)$$ up.
+- When it is hard to know in advance which cells matter: problems that branch on conditions or use cells sparsely
+- When the filling order is hard to find: the recursion descends in the order it needs.
+- Quick prototyping: copy the recurrence and attach a table.
 
 **When eager (tabulation) is better**
 
-- When the whole result is needed: you need every value from $$F(1)$$ to $$F(50)$$
-- When robustness matters: you want to avoid the risk of stack overflow
-- When tuning performance: you want to remove the overhead of recursive calls
-- When tuning space: you want fine control over memory use
+- When the whole result is needed anyway: problems that pass through every cell, like Fibonacci
+- When robustness matters: there is no deep recursion to overflow the stack.
+- When tuning performance: there is no overhead of recursive calls.
+- When saving memory: keep only a few earlier cells. With a memo it is hard to know which cells can be dropped and when.
 
 The next example (coin change) shows this difference in numbers. The memo never
 computes 5 won at all, while the table fills in everything through 5 won.
@@ -375,6 +416,13 @@ C(a) = \begin{cases}
 $$
 
 An amount that cannot be made is $$\infty$$ (`INF` in the code).
+
+Do it yourself before reading on. You play the recursion and the memo. Click a card whose answer is unknown to go down
+to that amount, and once every card is filled, write the minimum and come back.
+
+<LastCoinDemo />
+
+Starting from 6 won, solving five amounts (1, 2, 3, 4 and 6 won) gives the answer. An amount already written down is never solved again.
 
 ### Memoization \{#coin-memo}
 
@@ -490,7 +538,7 @@ shown. The amounts in between cannot be made and are never referenced.
 <DpTableDemo problem="coin" coins={[50, 40, 10]} amount={80} unit={10} />
 
 In the 80-won cell, paying 50 won last gives `dp[30] + 1 = 4`, and paying 40 won
-last gives `dp[40] + 1 = 2`. The table **compares both**, so it picks 2. Greedy
+last gives `dp[40] + 1 = 2`, and 10 gives `dp[70] + 1 = 4`. The table **compares all three**, so it picks 2. Greedy
 never looked at the 40-won option again once it picked 50.
 
 - Run
@@ -590,15 +638,22 @@ four branches after the first two elements of `[2, 10, 5, 7, 3]`.
 
 | 2 | 10 | Taken so far | Remaining work |
 | --- | --- | --- | --- |
-| take | take | `[2, 10]` | `i = 2, prev = 10` |
-| take | leave | `[2]` | `i = 2, prev = 2` |
-| leave | take | `[10]` | `i = 2, prev = 10` (same subproblem as the first row) |
-| leave | leave | `[]` | `i = 2`, nothing taken |
+| take | take | `[2, 10]` | `i = 2, prev = 1` |
+| take | leave | `[2]` | `i = 2, prev = 0` |
+| leave | take | `[10]` | `i = 2, prev = 1` (same subproblem as the first row) |
+| leave | leave | `[]` | `i = 2, prev = -1` |
+
+As in the code, `prev` is an **index**, not a value: 10 is at index 1 and 2 is at index 0.
 
 The first and third rows have taken different sequences, but how far they can
-still extend depends only on `(i = 2, prev = 10)`. So it needs solving only
+still extend depends only on `(i = 2, prev = 1)`. So it needs solving only
 once. There are at most $$n(n+1)$$ subproblems, so time and space are both
 $$O(n^2)$$.
+
+<LisSplitDemo />
+
+As `i` grows the branches can double each time, but the remaining work `(i, prev)` grows by one at most. With the increasing
+sequence 1 to 8, deciding all eight gives 256 branches but only 9 kinds of remaining work.
 
 ### How often is the table really used \{#lis-memo-hits}
 
@@ -656,6 +711,12 @@ length 1. Filling one cell looks at **several** earlier cells. The blue arrows
 are the smaller elements, and the dark arrow is the element that gave the
 longest sequence.
 
+<LisDagDemo />
+
+Draw each element as a point and an arrow wherever one can follow another, and the LIS is a **longest path** in this graph.
+Arrows always go up and to the right, so fill the points from the left. Click a point to see which cells `dp[i]` refers to,
+then watch the same thing step by step in the table.
+
 <DpTableDemo problem="lis" arr={[10, 9, 2, 5, 3, 7, 101, 18]} />
 
 ```plaintext
@@ -708,6 +769,16 @@ tie rule changes the path it follows.
 Choosing the earlier gives `2 5 7 101`, as the code does, and choosing the later gives `2 3 7 18`. Pick `Small last value`
 and you get `dp[8] = 1` while the answer is 4. That is why the answer is the largest `dp`, not `dp[n-1]`.
 
+#### Aside: O(n log n) if you only need the length \{#lis-nlogn}
+
+Keep only the **smallest end value** for each length. When a new element arrives, use [[binary-search|binary search]] to find the
+first cell that is at least as large and replace it, or append if there is none. A smaller end is easier to extend.
+
+<PatienceDemo />
+
+On the example array it makes 10 comparisons against the table's 28. Here `2 3 7 18` left in `tails` happens to be an answer,
+but in general only the length is right.
+
 ## Example 3. Grid paths \{#grid-paths}
 
 - **Problem**: the number of paths on a grid from `(0, 0)` to `(5, 5)`, moving
@@ -718,6 +789,12 @@ and you get `dp[8] = 1` while the answer is 4. That is why the answer is the lar
 A path into a cell can come only **from the cell above** or **from the cell to
 the left**. So a cell's value is the value above plus the value to the left.
 An obstacle cell is 0.
+
+Walk it yourself. Each arrival collects one path, counted separately by whether the last step came from above or from the left.
+
+<GridWalkDemo />
+
+All collected, there are 48: 24 from above and 24 from the left. The table does this split for every cell.
 
 <DpGridDemo problem="grid" />
 
@@ -786,6 +863,12 @@ of size $$X \times Y$$, time and space are both $$O(XY)$$.
 With the target at `(5, 5)`, the answer is the same even on a 10 × 10 grid.
 Since moves go only right and down, cells beyond the target are never used.
 
+Colour each cell by how often it is called. Enlarge the grid and only the side without a memo blows up.
+
+<GridCallsDemo />
+
+With a memo every cell is called at most twice: only the cell above and the cell on the left call it, and each of those is solved once.
+
 Move the obstacles yourself. Clicking a cell places or removes an obstacle, and the
 table is filled again from the start. Remove all three and the count becomes 252.
 Blocking a single cell removes every path that used to pass through it at once.
@@ -833,6 +916,10 @@ step**.
    - 4 → 3 with 1 edge: 1, so 2 → 4 → 3 is 3 + 1 = 4
    - So **the minimum for 2 → 3 with 2 edges is 4**
 4. 0 → 2 → 4 → 3 = 2 + (3 + 1) = **6**
+
+Unfold this as cards. Clicking a card opens what remains for each outgoing edge, and yellow is a problem already solved.
+
+<FirstStepDemo />
 
 As a recurrence: $$S(u, v, k)$$ is the minimum cost from $$u$$ to $$v$$ using
 $$k$$ edges.
@@ -924,6 +1011,17 @@ the second time it came from the table. As the graph grows, meeting the same
 choice branches, so with $$d$$ outgoing edges it is $$O(d^k)$$; with a memo,
 each of the $$kV$$ cells is solved once, for $$O(kVd)$$.
 
+### Tabulation: a layered graph \{#shortest-path-tab}
+
+What does the same recurrence look like as a table? Lay out one copy of the vertices for each **number of edges left** and you get
+a layered graph. Using an edge moves one column to the right, so "exactly $$k$$ edges" becomes "a path across $$k$$ columns." Fill
+from the right column.
+
+<LayerGraphDemo />
+
+The table fills all 18 cells, and the 6 with a dashed ring are the ones a memo solves. Here the memo solves fewer. The table, on
+the other hand, looks only at the next column, so two columns are enough (if you do not restore the path).
+
 ### Path restoration \{#path-restore}
 
 `memo` holds only costs. Knowing the cost is 6 does not tell you which path it
@@ -938,9 +1036,10 @@ next[1][4][3] = 3    4 → 3   (cost 1)
 ```
 
 Coin change's `choice`, LIS's `prev`, and `next` here all do the same job.
-**When you settle a value, record what you chose, and at the end follow it
-back.** Whenever dynamic programming is asked not for "the minimum" but for
-"how to achieve the minimum," this one extra line comes along.
+**When you settle a value, record what you chose, and follow it once everything is solved.** Asked not for
+"the minimum" but for "how to achieve it," you usually add this one line. Which way to follow depends on what
+was recorded. `choice` and `prev` hold the **last** choice, so go backwards from the end; `next` holds the
+**first** step, so go forwards from the start.
 
 This problem differs from the [[shortest-path|shortest path]] of Topic 12.
 Dijkstra finds the cheapest path with no limit on the number of edges. Here
@@ -966,6 +1065,12 @@ This is the problem Topic 06 deferred.
 Greedy by value per unit weight took items 1 and 2, then item 3 did not fit in
 the remaining 20, so it stopped at **160**. Taking items 2 and 3 gives **220**.
 
+Pack by hand before drawing the table. Click items in and out and compare greedy with the optimum.
+
+<KnapPackDemo />
+
+With three items there are 8 combinations, with six there are 64. Each extra item doubles them.
+
 Dynamic programming adds items one at a time and compares **"take this item /
 leave it" at every capacity**. Let `dp[i][c]` be the maximum value that fits in
 capacity $$c$$ using only items 1 through $$i$$.
@@ -977,6 +1082,7 @@ dp[i-1][c] & w_i > c \\
 \end{cases}
 $$
 
+- Base `dp[0][c] = 0`: no items, value 0
 - The cell above, `dp[i-1][c]`: leave item $$i$$
 - The cell $$w_i$$ to the left in the row above, plus $$v_i$$: take item $$i$$
 
@@ -1059,6 +1165,41 @@ that $$W$$ is a **value** in the input. With a capacity of a billion, the table
 has a billion cells. That is why this algorithm, though it looks polynomial, is
 strictly called pseudo-polynomial.
 
+Move the number of items and the capacity to measure the table.
+
+<KnapSizeDemo />
+
+Making the capacity 10 times larger adds only 3 or 4 bits to write it, yet the table grows 10 times. With few items and a large
+capacity, counting all $$2^n$$ combinations is actually smaller.
+
+### Down to one row \{#knapsack-1d}
+
+The table looks only at the row above, so a single row can be rewritten. But **the filling direction** changes the answer.
+
+<Knap1DDemo />
+
+```plaintext
+ALGORITHM Knapsack1D(w, v, n, W)
+    for c <- 0 to W do dp[c] <- 0
+    for i <- 1 to n do
+        for c <- W downto w[i] do            // large capacities first
+            dp[c] <- max(dp[c], dp[c - w[i]] + v[i])
+    return dp[W]
+```
+
+Filling large capacities first, `dp[c - w]` is still the value from before item $$i$$, so each item is used once (answer 220).
+Filling small capacities first, it refers to a cell that already holds this item and answers the **unbounded knapsack** (300),
+which reuses items. Space drops to $$O(W)$$, but without the table the items cannot be restored.
+
+### Restoring in four examples \{#restore-all}
+
+Compare coin change's `choice`, LIS's `prev`, path finding's `next`, and the knapsack in one place.
+
+<RestoreDemo />
+
+The knapsack records nothing extra. A value different from the cell above means the item was packed, so **as long as the whole table
+remains** comparing is enough.
+
 ## Dynamic programming in summary \{#summary}
 
 ### When it applies \{#when}
@@ -1074,15 +1215,22 @@ strictly called pseudo-polynomial.
     value.
   - Greedy follows a single candidate; dynamic programming compares **all** of
     them. That is why the answers differed for 80 won and the 0/1 knapsack.
-- It applies **only when there is optimal substructure**. This is called the
-  **principle of optimality**.
-  - An optimal solution to an instance of the problem always contains optimal
-    solutions to its subinstances.
+- For **optimization problems it applies only when there is optimal substructure**. This is called the
+  **principle of optimality**. Problems that ask for a value or a count, like Fibonacci and grid paths, do not raise the question.
+  - An optimal solution to an instance is also optimal for each subinstance **it is built from**.
+    Not every subinstance, only those used in the answer.
   - Example: in shortest paths, if $$v_k$$ lies on an optimal path from $$v_i$$
     to $$v_j$$, then the subpaths from $$v_i$$ to $$v_k$$ and from $$v_k$$ to $$v_j$$
     are each optimal too.
   - Counterexample: the **longest simple path** lacks this property. Making
     each subpath as long as possible can reuse vertices and break simplicity.
+
+With the same choices, compare what greedy, a recursion that redoes everything, and dynamic programming look at. Cells are amounts left, arrows are coins.
+
+<StrategyDemo />
+
+For 80 won greedy looks at just 4 arrows and pays 4 coins. The recursion looks 34 times to find 2, and dynamic programming finds the
+same 2 looking at 17 arrows once each.
 
 Test shortest paths and longest simple paths on a small graph. Pick the start, the end and a vertex to pass through,
 and the two pieces are solved optimally and joined.
@@ -1097,14 +1245,13 @@ For shortest paths, whenever the vertex lies on a shortest path, the joined path
 
 | | Divide and conquer | Dynamic programming |
 | --- | --- | --- |
-| Direction | top-down: split the problem going down | bottom-up by default (memoization does the same top-down) |
+| Direction | top-down: split the problem going down | bottom-up (tabulation) or top-down (memoization) |
 | Subproblems | do not overlap | overlap |
 | Efficiency | efficient when subproblems are independent | stores overlapping answers, eliminating recomputation |
 | When they overlap | solves the same thing again, inefficient | solves it only once |
-| Examples | merge sort, quicksort, recursive Fibonacci | iterative Fibonacci, coin change, LIS, knapsack |
+| Examples | merge sort, quicksort, binary search | memoized and tabulated Fibonacci, coin change, LIS, knapsack |
 
-Recursive Fibonacci has the shape of divide and conquer, but its subproblems
-overlap, so it is inefficient. Seen as dynamic programming, the same problem
+Recursive Fibonacci has the shape of divide and conquer, but its subproblems overlap, so left as is it is inefficient. Seen as dynamic programming, the same problem
 takes a single loop.
 
 Whether subproblems overlap shows directly in the call tree. Move $$n$$ and turn on the memo. Red marks a call that
@@ -1128,7 +1275,11 @@ With the memo on, Fibonacci drops to 13 calls ($$2n - 1$$), but merge sort stays
 4. **Choose the direction of computation.** For memoization, attach a table to
    the recursion; for tabulation, order the fill so that referenced cells come
    first.
-5. **If needed, record the choices and restore them.** `choice`, `prev`, `next`
+5. **If needed, record the choices and restore them.** `choice`, `prev`, `next`, or compare cells again as in the knapsack
+
+Pick an example, answer for yourself first, then open the cards.
+
+<DesignStepsDemo />
 
 ### Famous problems dynamic programming solves \{#problems}
 
@@ -1144,11 +1295,27 @@ With the memo on, Fibonacci drops to 13 calls ($$2n - 1$$), but merge sort stays
 | Edit distance | distance between the first $$i$$ and $$j$$ characters of two strings |
 | Sequence alignment (Smith-Waterman, Needleman-Wunsch) | best alignment score of the prefixes of two DNA sequences |
 
+#### Aside: edit distance \{#edit-distance}
+
+The fewest edits that turn one word into another. The edits are delete, insert and replace, and we split on how the last letters were handled.
+
+$$
+dp[i][j] = \begin{cases}
+\max(i,\ j) & i = 0 \text{ or } j = 0 \\
+dp[i-1][j-1] & a_i = b_j \\
+1 + \min\bigl(dp[i-1][j],\ dp[i][j-1],\ dp[i-1][j-1]\bigr) & a_i \ne b_j
+\end{cases}
+$$
+
+<EditDistanceDemo />
+
+Turning `kitten` into `sitting` takes 3 (k to s, e to i, insert g). Edit the words or click a cell to see its three candidates and the
+alignment. The time is $$O(nm)$$.
+
 ## What to keep from this topic \{#takeaway}
 
 - **Dynamic programming**: compute each overlapping subproblem's answer once,
-  store it, and reuse it. Optimal substructure is what lets small answers build
-  a large one.
+  store it, and reuse it. Optimization problems also need optimal substructure.
 - **Memoization** (top-down, lazy): keep the recursion and write the answers
   down. It fills only the cells it needs. Recursive Fibonacci's 15 calls become
   9, and $$O(2^n)$$ becomes $$O(n)$$.
@@ -1158,8 +1325,8 @@ With the memo on, Fibonacci drops to 13 calls ($$2n - 1$$), but merge sort stays
 - Coin change with `{50, 40, 10}` for 80 won takes **2 coins** (40 + 40), and
   the 0/1 knapsack reaches **220**. Greedy followed one candidate and missed
   them; dynamic programming compared them all and found them.
-- **Path restoration**: when settling a value, record the choice (`choice`,
-  `prev`, `next`) and follow it back at the end.
+- **Path restoration**: when settling a value, record the choice (`choice`, `prev`, `next`) and follow it.
+  For the knapsack, comparing cells again is enough.
 - Design starts with **defining what one cell of the table is**. The
   recurrence, base cases, and fill order follow from that definition.
 
@@ -1187,9 +1354,8 @@ run things.
 
 **Try it yourself**
 
-- Delete the two `if` lines in `fibMemo` that check the memo. The call count
-  becomes identical to the plain recursion. Those two lines are the whole
-  speedup.
+- Delete the `if` in `fibMemo` that checks the memo. First change the 90 in `ns` (in `main`) to 25, or it never finishes.
+  The call count becomes identical to the plain recursion: storing is no use if you never look it up.
 - Find more amounts where greedy and dynamic programming disagree with
   `{50, 40, 10}`. Run it side by side with Topic 06's greedy code to compare.
 - Grow the LIS array to about 20 elements and compare the call counts of
@@ -1202,9 +1368,10 @@ run things.
 ## History \{#changelog}
 
 The slides and this note are versioned together. The current version is
-**v2**, shown at the bottom left of the slides.
+**v3**, shown at the bottom left of the slides.
 
 | Version | Date | Changes |
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-11-04 | Added ten hands-on demos and put the recurrences, coins and items inside the table demos |
+| v3 | 2026-11-25 | Fixed errors and added twenty demos and figures, replacing the mermaid diagram with a custom one |
