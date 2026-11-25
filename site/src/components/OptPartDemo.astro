@@ -1,0 +1,333 @@
+---
+// 최적 부분 구조를 시험하는 데모. S → M → T의 두 구간에서 노선을 하나씩 고른다.
+//
+// 표는 아홉 조합의 전체 요금이다. "요금의 합"이면 전체의 최저(분홍)가 구간마다의 최저
+// (파랑 테두리)끼리 만난 칸이다. 환승 할인이나 시간 제한이 붙으면 어긋난다. 상태(타고 온
+// 노선, 남은 시간)를 더해 "M에 어떤 상태로 왔는가"마다 남은 구간을 따로 풀면 되살아난다.
+// 숫자는 algorithm-code의 13_optimal_substructure와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `sp-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, any> = {
+  ko: {
+    title: '부분이 최적이면 전체도 최적인가',
+    sum: '요금의 합',
+    transfer: '환승 할인',
+    limit: '시간 제한 8',
+    state: '상태 더하기',
+    fee: '요금 {c}',
+    time: '{t}분',
+    lines: ['빨강', '파랑', '초록'],
+    noState: '상태 없음',
+    came: '{l}로 옴',
+    left: '남은 시간 {t}',
+    rest: '남은 구간의 최저',
+    total: '전체',
+    none: '불가',
+    ruleSum: '두 구간의 요금을 더합니다.',
+    ruleTransfer: '같은 노선을 이어 타면 3을 깎아 줍니다.',
+    ruleLimit: '두 구간을 합쳐 8분 안에 가야 합니다.',
+    ok: '전체의 최저는 {v}, 곧 {a} + {b}입니다. 두 구간 모두 그 구간에서 가장 저렴하므로 최적 부분 구조가 있습니다.',
+    bad: '전체의 최저는 {v}, 곧 {a} + {b}입니다. S → M에서 가장 저렴한 것은 {p}이므로, 전체는 최적인데 부분은 최적이 아닙니다.',
+    restored: '상태마다 남은 구간을 따로 풀고 가장 작은 것을 고르면 {v}, 전체의 최저와 같습니다. 최적 부분 구조가 되살아났습니다.',
+    plain: '남은 구간의 답이 앞에서 무엇을 탔든 같으므로 상태가 필요 없습니다.',
+    mine: '고른 조합 {a} + {b}: {v}',
+  },
+  en: {
+    title: 'If the parts are optimal, is the whole?',
+    sum: 'sum of fares',
+    transfer: 'transfer discount',
+    limit: 'time limit 8',
+    state: 'Add state',
+    fee: 'fare {c}',
+    time: '{t} min',
+    lines: ['red', 'blue', 'green'],
+    noState: 'no state',
+    came: 'came by {l}',
+    left: '{t} min left',
+    rest: 'cheapest remainder',
+    total: 'total',
+    none: 'none',
+    ruleSum: 'Add the fares of the two legs.',
+    ruleTransfer: 'Riding the same line twice takes 3 off.',
+    ruleLimit: 'The two legs together must fit in 8 minutes.',
+    ok: 'The cheapest total {v} is {a} + {b}, and each leg is the cheapest for its own stretch. There is optimal substructure.',
+    bad: 'The cheapest total {v} is {a} + {b}, yet the cheapest S → M is {p}. The part is not optimal.',
+    restored: 'Solve the rest separately for each state, take the smallest, {v}, and it is the cheapest total. Optimal substructure is back.',
+    plain: 'The answer for the rest is the same whatever you rode before, so no state is needed.',
+    mine: 'Your pick {a} + {b}: {v}',
+  },
+  zh: {
+    title: '部分最优，整体也最优吗',
+    sum: '票价之和',
+    transfer: '换乘优惠',
+    limit: '时间限制 8',
+    state: '增加状态',
+    fee: '票价 {c}',
+    time: '{t} 分钟',
+    lines: ['红', '蓝', '绿'],
+    noState: '没有状态',
+    came: '坐{l}线来',
+    left: '剩余 {t} 分钟',
+    rest: '剩余路段的最低',
+    total: '总计',
+    none: '不行',
+    ruleSum: '把两段的票价相加。',
+    ruleTransfer: '连续坐同一条线减 3。',
+    ruleLimit: '两段合计要在 8 分钟以内。',
+    ok: '整体最低 {v} 是{a} + {b}，两段都是各自路段中最便宜的。有最优子结构。',
+    bad: '整体最低 {v} 是{a} + {b}，可 S → M 最便宜的是{p}。部分并不是最优。',
+    restored: '按状态分别解剩余路段，取其中最小的 {v}，就是整体最低。最优子结构又回来了。',
+    plain: '剩余路段的答案与之前坐什么无关，所以不需要状态。',
+    mine: '所选组合{a} + {b}：{v}',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const COST = [[3, 4, 7], [6, 4, 5]];
+const TIME = [[6, 3, 2], [3, 5, 4]];
+const ROLE = ['guard', 'model', 'eval'];
+---
+
+<DpKit id={id} cls="aas-opt-part" title={t.title} strings={t} slide={slide} size={2.55}>
+  <Fragment slot="controls">
+    {(['sum', 'transfer', 'limit'] as const).map((k, i) => <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="rule" data-dx-val={k}>{t[k]}</button>)}
+    <span class="dx-sep"></span>
+    <button type="button" class="dx-btn" data-dx="state">{t.state}</button>
+  </Fragment>
+  <div class="dx-row sp-row">
+    <svg viewBox="0 0 520 220" data-dx="svg" class="sp-map">
+      {[0, 1].map((leg) =>
+        [0, 1, 2].map((k) => {
+          const x = 45 + leg * 215;
+          const y = [38, 110, 182][k];
+          return (
+            <g class="sp-route" data-sp={`${leg},${k}`} tabindex="0" role="button" aria-label={`${t.lines[k]} ${COST[leg][k]}`}>
+              <path class={`sv-edge sp-${ROLE[k]}`} d={`M${x + 20} 110Q${x + 40} ${y} ${x + 107} ${y}T${x + 195} 110`} />
+              <rect x={x + 52} y={y - 19} width="111" height="38" rx="8" />
+              <text x={x + 107} y={y - 6} font-size="15" font-weight="700">{t.lines[k]} {t.fee.replace('{c}', COST[leg][k])}</text>
+              <text x={x + 107} y={y + 10} font-size="13" class="sp-time">{t.time.replace('{t}', TIME[leg][k])}</text>
+            </g>
+          );
+        })
+      )}
+      {['S', 'M', 'T'].map((v, i) => (
+        <Fragment>
+          <circle class="sv-node" cx={45 + i * 215} cy="110" r="22" />
+          <text x={45 + i * 215} y="110" font-size="20" font-weight="700">{v}</text>
+        </Fragment>
+      ))}
+    </svg>
+    <div class="sp-side">
+      <div class="sp-grid" data-dx="grid"></div>
+      <div class="sp-state" data-dx="states"></div>
+    </div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, COST, TIME }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const INF = Infinity;
+    const show = (v) => (v === INF ? S.none : String(v));
+    const LIMIT = 8;
+    let rule = 'sum';
+    let state = false;
+    let pick = null;
+    /* 앞에서 i를 탄 뒤 j를 탈 때 둘째 구간에 드는 요금 */
+    const second = (i, j) => {
+      if (rule === 'limit' && TIME[0][i] + TIME[1][j] > LIMIT) return INF;
+      return COST[1][j] - (rule === 'transfer' && i === j ? 3 : 0);
+    };
+    const total = (i, j) => COST[0][i] + second(i, j);
+    const argmin = (a) => a.indexOf(Math.min(...a));
+    function draw() {
+      let best = [0, 0];
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (total(i, j) < total(...best)) best = [i, j];
+      const part = [argmin(COST[0]), argmin(COST[1])];
+      const same = best[0] === part[0] && best[1] === part[1];
+      const sel = pick || best;
+      root.querySelectorAll('[data-sp]').forEach((r) => {
+        const [leg, k] = r.dataset.sp.split(',').map(Number);
+        r.classList.toggle('is-sel', sel[leg] === k);
+        r.classList.toggle('is-best', part[leg] === k);
+      });
+      const cells = [K.el('span', { cls: 'dx-cell is-head' }, 'S→M \\ M→T')];
+      S.lines.forEach((l, j) => cells.push(K.el('span', { cls: `dx-cell is-head sp-c${j} ${j === part[1] ? 'sp-part' : ''}` }, `${l} ${COST[1][j]}`)));
+      S.lines.forEach((l, i) => {
+        cells.push(K.el('span', { cls: `dx-cell is-head sp-c${i} ${i === part[0] ? 'sp-part' : ''}` }, `${l} ${COST[0][i]}`));
+        S.lines.forEach((_, j) => {
+          const b = i === best[0] && j === best[1];
+          const p = i === part[0] && j === part[1];
+          const m = i === sel[0] && j === sel[1];
+          cells.push(
+            K.el('button', { type: 'button', cls: `dx-cell ${b ? 'is-path' : total(i, j) === INF ? 'is-lazy' : ''} ${p ? 'sp-both' : ''} ${m ? 'sp-sel' : ''}`, on: { click: () => ((pick = [i, j]), draw()) } }, show(total(i, j))),
+          );
+        });
+      });
+      get('grid').replaceChildren(...cells);
+      get('state').classList.toggle('dx-primary', state);
+      const rows = S.lines.map((l, i) => {
+        const rest = Math.min(...[0, 1, 2].map((j) => second(i, j)));
+        const name = rule === 'sum' ? S.noState : rule === 'transfer' ? K.fill(S.came, { l }) : K.fill(S.left, { t: LIMIT - TIME[0][i] });
+        return { name, rest, tot: COST[0][i] + rest, i };
+      });
+      const top = Math.min(...rows.map((r) => r.tot));
+      get('states').replaceChildren(
+        ...(state
+          ? rows.map((r) =>
+              K.el(
+                'div',
+                { cls: `sp-line ${r.tot === top ? 'is-path' : ''}` },
+                K.el('span', {}, `${S.lines[r.i]} ${COST[0][r.i]} · ${r.name}`),
+                K.el('span', {}, `${S.rest} `, K.el('b', {}, show(r.rest))),
+                K.el('span', {}, `${S.total} `, K.el('b', {}, show(r.tot))),
+              ),
+            )
+          : []),
+      );
+      const ruleText = { sum: S.ruleSum, transfer: S.ruleTransfer, limit: S.ruleLimit }[rule];
+      const v = total(...best);
+      const [a, b] = [S.lines[best[0]], S.lines[best[1]]];
+      const main = state
+        ? rule === 'sum'
+          ? S.plain
+          : K.fill(S.restored, { v: top })
+        : K.fill(same ? S.ok : S.bad, { v, a: `${a}(${COST[0][best[0]]})`, b: `${b}(${second(best[0], best[1])})`, p: `${S.lines[part[0]]}(${COST[0][part[0]]})` });
+      K.lines(note, ruleText, main);
+      if (pick && (pick[0] !== best[0] || pick[1] !== best[1]))
+        note.append(K.el('br', {}), K.el('span', { cls: 'sp-mine' }, K.fill(S.mine, { a: S.lines[pick[0]], b: S.lines[pick[1]], v: show(total(...pick)) })));
+    }
+    root.querySelectorAll('[data-sp]').forEach((r) => {
+      const go = () => {
+        const [leg, k] = r.dataset.sp.split(',').map(Number);
+        const cur = pick || [0, 0];
+        if (!pick) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (total(i, j) < total(...cur)) [cur[0], cur[1]] = [i, j];
+        pick = [...cur];
+        pick[leg] = k;
+        draw();
+      };
+      r.addEventListener('click', go);
+      r.addEventListener('keydown', (e) => e.key === 'Enter' && go());
+    });
+    get('state').addEventListener('click', () => {
+      state = !state;
+      draw();
+    });
+    tabs('rule', (v) => {
+      rule = v;
+      pick = null;
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-opt-part .sp-row {
+    align-items: center;
+  }
+  .aas-opt-part .sp-map {
+    flex: 1 1 24em;
+    min-width: 0;
+  }
+  .aas-opt-part .sp-side {
+    flex: 0 1 25em;
+  }
+  .aas-opt-part .sp-route {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-opt-part .sp-route rect {
+    fill: var(--aas-bg);
+    stroke: color-mix(in srgb, var(--aas-text) 40%, var(--aas-bg));
+    stroke-width: 1.5;
+  }
+  .aas-opt-part .sp-route:hover rect,
+  .aas-opt-part .sp-route:focus-visible rect {
+    stroke: var(--aas-accent);
+    stroke-width: 3;
+  }
+  .aas-opt-part .sp-route.is-best rect {
+    stroke: var(--aas-role-model);
+    stroke-width: 3.5;
+  }
+  .aas-opt-part .sp-route.is-sel rect {
+    fill: color-mix(in srgb, var(--aas-role-guard) 20%, var(--aas-bg));
+  }
+  .aas-opt-part .sp-route.is-sel .sv-edge {
+    stroke-width: 7;
+  }
+  .aas-opt-part .sv-edge.sp-guard {
+    stroke: var(--aas-role-guard);
+  }
+  .aas-opt-part .sv-edge.sp-model {
+    stroke: var(--aas-role-model);
+  }
+  .aas-opt-part .sv-edge.sp-eval {
+    stroke: var(--aas-role-eval);
+  }
+  .aas-opt-part .sp-time {
+    fill: var(--aas-muted);
+  }
+  .aas-opt-part .sp-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr 1fr;
+    gap: 0.25em;
+  }
+  .aas-opt-part .sp-grid .dx-cell {
+    min-width: 0;
+    height: 2em;
+  }
+  .aas-opt-part .sp-grid button {
+    cursor: pointer;
+  }
+  .aas-opt-part .sp-grid .dx-cell.is-head {
+    font-size: 0.82em;
+    height: auto;
+    border-color: transparent;
+  }
+  .aas-opt-part .sp-grid .dx-cell.sp-part {
+    border-color: var(--aas-role-model);
+    color: var(--aas-text);
+    font-weight: 700;
+  }
+  .aas-opt-part .sp-both {
+    border-color: var(--aas-role-model);
+    border-width: 3px;
+  }
+  .aas-opt-part .sp-sel {
+    box-shadow: 0 0 0 2px var(--aas-role-focus);
+  }
+  .aas-opt-part .sp-state {
+    min-height: 6.6em;
+    margin-top: 0.6em;
+    display: grid;
+    gap: 0.25em;
+    align-content: start;
+  }
+  .aas-opt-part .sp-line {
+    display: grid;
+    grid-template-columns: 1.5fr 1.4fr 0.8fr;
+    gap: 0.5em;
+    padding: 0.2em 0.6em;
+    font-size: 0.78em;
+    border: 1.5px solid var(--dx-line);
+    border-radius: 0.5em;
+  }
+  .aas-opt-part .sp-line b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-opt-part .sp-mine {
+    color: var(--aas-role-focus);
+    font-weight: 600;
+  }
+  .aas-opt-part .dx-note {
+    min-height: 5.6em;
+  }
+</style>
