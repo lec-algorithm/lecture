@@ -129,6 +129,32 @@ Stack equal problems together and you see how many really need solving. Fold the
 Fifteen vertices become six, and what remains is an acyclic graph (DAG) whose arrows say "to solve this, that is needed first."
 Dynamic programming solves each vertex of this graph once. Fold 6 won of coin change too and notice that 5 won never appears.
 
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- Output (excerpt)
+
+```console
+F(5)
+  call tree : 15 vertices, 14 edges
+  graph     : 6 vertices, 8 edges
+  memo order: 1 0 2 3 4 5
+  tab order : 0 1 2 3 4 5
+  memo solved 4, tab filled 4 (bases not counted)
+coins = {2, 3, 5}, amount = 6
+  call tree : 9 vertices, 8 edges
+  graph     : 6 vertices, 8 edges
+  memo order: 0 2 1 4 3 6
+  tab order : 0 1 2 3 4 5 6
+  memo solved 5, tab filled 6 (bases not counted)
+  arrows looked at: greedy 1, recursion 8, dp 8
+  answer: greedy stuck at 1, dp 2
+```
+
 ### Memoization: write the answer down \{#memoization}
 
 **Memoization** is just what the name says: **take a memo**. We keep the
@@ -655,6 +681,29 @@ $$O(n^2)$$.
 As `i` grows the branches can double each time, but the remaining work `(i, prev)` grows by one at most. With the increasing
 sequence 1 to 8, deciding all eight gives 256 branches but only 9 kinds of remaining work.
 
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- Output (excerpt)
+
+```console
+LIS branches, arr = [1, 2, 3, 4, 5, 6, 7, 8]
+   i  branches  states (i, prev)
+   0         1       1
+   1         2       2
+   2         4       3
+   3         8       4
+   4        16       5
+   5        32       6
+   6        64       7
+   7       128       8
+   8       256       9
+```
+
 ### How often is the table really used \{#lis-memo-hits}
 
 Print one line each time a value comes out of the memo.
@@ -779,6 +828,44 @@ first cell that is at least as large and replace it, or append if there is none.
 On the example array it makes 10 comparisons against the table's 28. Here `2 3 7 18` left in `tails` happens to be an answer,
 but in general only the length is right.
 
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/08_lis_nlogn
+make -f /work/Makefile lisNlogn.out && ./lisNlogn.out
+```
+
+- Output
+
+```console
+arr = [10, 9, 2, 5, 3, 7, 101, 18]
+   10: compared [], append -> [10]
+    9: compared [10], replace -> [9]
+    2: compared [9], replace -> [2]
+    5: compared [2], append -> [2, 5]
+    3: compared [5, 2], replace -> [2, 3]
+    7: compared [3], append -> [2, 3, 7]
+  101: compared [3, 7], append -> [2, 3, 7, 101]
+   18: compared [7, 101], replace -> [2, 3, 7, 18]
+length = 4, tails = [2, 3, 7, 18]
+comparisons = 10, O(n^2) table = 28
+
+arr = [1, 2, 3, 4, 5, 6, 7, 8]
+length = 8, tails = [1, 2, 3, 4, 5, 6, 7, 8]
+comparisons = 13, O(n^2) table = 28
+
+arr = [34, 7, 52, 19, 61, 23, 5, 48, 70, 12, 39, 66, 28, 80, 45, 90]
+length = 7, tails = [5, 12, 23, 28, 45, 80, 90]
+comparisons = 32, O(n^2) table = 120
+
+arr = [3, 4, 1]
+    3: compared [], append -> [3]
+    4: compared [3], append -> [3, 4]
+    1: compared [4, 3], replace -> [1, 4]
+length = 2, tails = [1, 4]
+comparisons = 3, O(n^2) table = 3
+```
+
 ## Example 3. Grid paths \{#grid-paths}
 
 - **Problem**: the number of paths on a grid from `(0, 0)` to `(5, 5)`, moving
@@ -868,6 +955,44 @@ Colour each cell by how often it is called. Enlarge the grid and only the side w
 <GridCallsDemo />
 
 With a memo every cell is called at most twice: only the cell above and the cell on the left call it, and each of those is solved once.
+
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/09_grid_calls
+make -f /work/Makefile gridCalls.out && ./gridCalls.out
+```
+
+- Output
+
+```console
+paths = 48 (last step: from above 24, from the left 24)
+
+plain recursion: calls = 439, outside = 140, most = 48
+    1    1    1    1    1    1
+    1    2    3    4    5    6
+    1    3   #6    4    9   15
+    1    4    4   #8    9   24
+    1    5    9    9  #18   24
+    1    6   15   24   24   48
+memo: calls = 65, outside = 10, most = 2
+    1    1    1    1    1    1
+    1    2    2    2    2    2
+    1    2   #2    1    2    2
+    1    2    1   #2    1    2
+    1    2    2    1   #2    1
+    1    2    2    2    1    2
+
+  size     plain    memo
+ 3 x 3        27      17
+ 4 x 4        63      29
+ 5 x 5       159      45
+ 6 x 6       439      65
+ 7 x 7      1591      91
+ 8 x 8      6163     121
+ 9 x 9     24163     155
+10 x 10    94759     193
+```
 
 Move the obstacles yourself. Clicking a cell places or removes an obstacle, and the
 table is filled again from the start. Remove all three and the count becomes 252.
@@ -1022,6 +1147,26 @@ from the right column.
 The table fills all 18 cells, and the 6 with a dashed ring are the ones a memo solves. Here the memo solves fewer. The table, on
 the other hand, looks only at the next column, so two columns are enough (if you do not restore the path).
 
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/10_shortest_path_tab
+make -f /work/Makefile shortestPathTab.out && ./shortestPathTab.out
+```
+
+- Output (excerpt)
+
+```console
+0 -> 3 with exactly 3 edges
+  k\u    0    1    2    3    4    5
+  0    INF  INF  INF    0  INF  INF
+  1    INF    6    4  INF    1  INF
+  2      6  INF    4  INF  INF  INF
+  3      6  INF  INF  INF  INF  INF
+  table filled 18 cells, memo would solve 6
+  path: 0 -> 2 -> 4 -> 3 (cost 6)
+```
+
 ### Path restoration \{#path-restore}
 
 `memo` holds only costs. Knowing the cost is 6 does not tell you which path it
@@ -1172,6 +1317,32 @@ Move the number of items and the capacity to measure the table.
 Making the capacity 10 times larger adds only 3 or 4 bits to write it, yet the table grows 10 times. With few items and a large
 capacity, counting all $$2^n$$ combinations is actually smaller.
 
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/11_knapsack_1d
+make -f /work/Makefile knapsack1d.out && ./knapsack1d.out
+```
+
+- Output (excerpt)
+
+```console
+n = 30, all combinations 2^n = 1073741824
+              W  bits    cells (n+1)(W+1)
+             10     4                 341
+            100     7                3131
+           1000    10               31031
+          10000    14              310031
+         100000    17             3100031
+        1000000    20            31000031
+       10000000    24           310000031
+      100000000    27          3100000031
+     1000000000    30         31000000031
+    10000000000    34        310000000031
+   100000000000    37       3100000000031
+  1000000000000    40      31000000000031
+```
+
 ### Down to one row \{#knapsack-1d}
 
 The table looks only at the row above, so a single row can be rewritten. But **the filling direction** changes the answer.
@@ -1190,6 +1361,33 @@ ALGORITHM Knapsack1D(w, v, n, W)
 Filling large capacities first, `dp[c - w]` is still the value from before item $$i$$, so each item is used once (answer 220).
 Filling small capacities first, it refers to a cell that already holds this item and answers the **unbounded knapsack** (300),
 which reuses items. Space drops to $$O(W)$$, but without the table the items cannot be restored.
+
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/11_knapsack_1d
+make -f /work/Makefile knapsack1d.out && ./knapsack1d.out
+```
+
+- Output (excerpt)
+
+```console
+large capacities first (0/1 knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60   60   60   60   60
+  2      0   60  100  160  160  160
+  3      0   60  100  160  180  220
+best = 220
+
+small capacities first (unbounded knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60  120  180  240  300
+  2      0   60  120  180  240  300
+  3      0   60  120  180  240  300
+best = 300
+```
 
 ### Restoring in four examples \{#restore-all}
 
@@ -1231,6 +1429,26 @@ With the same choices, compare what greedy, a recursion that redoes everything, 
 
 For 80 won greedy looks at just 4 arrows and pays 4 coins. The recursion looks 34 times to find 2, and dynamic programming finds the
 same 2 looking at 17 arrows once each.
+
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- Output (excerpt)
+
+```console
+coins = {50, 40, 10}, amount = 80
+  call tree : 35 vertices, 34 edges
+  graph     : 9 vertices, 17 edges
+  memo order: 0 10 20 30 40 50 60 70 80
+  tab order : 0 10 20 30 40 50 60 70 80
+  memo solved 8, tab filled 8 (bases not counted)
+  arrows looked at: greedy 4, recursion 34, dp 17
+  answer: greedy 4, dp 2
+```
 
 Test shortest paths and longest simple paths on a small graph. Pick the start, the end and a vertex to pass through,
 and the two pieces are solved optimally and joined.
@@ -1312,6 +1530,38 @@ $$
 Turning `kitten` into `sitting` takes 3 (k to s, e to i, insert g). Edit the words or click a cell to see its three candidates and the
 alignment. The time is $$O(nm)$$.
 
+- Run
+
+```sh
+cd src/topic-14-dynamic-programming/12_edit_distance
+make -f /work/Makefile editDistance.out && ./editDistance.out
+```
+
+- Output
+
+```console
+kitten -> sitting: 3
+         s  i  t  t  i  n  g
+      0  1  2  3  4  5  6  7
+  k   1  1  2  3  4  5  6  7
+  i   2  2  1  2  3  4  5  6
+  t   3  3  2  1  2  3  4  5
+  t   4  4  3  2  1  2  3  4
+  e   5  5  4  3  2  2  3  4
+  n   6  6  5  4  3  3  2  3
+  kitten-
+  sitting
+  k to s; e to i; insert g;
+GATTACA -> GCATGCT: 4
+  GATTACA
+  GCATGCT
+  A to C; T to A; A to G; A to T;
+sunday -> saturday: 3
+  s--unday
+  saturday
+  insert a; insert t; n to r;
+```
+
 ## What to keep from this topic \{#takeaway}
 
 - **Dynamic programming**: compute each overlapping subproblem's answer once,
@@ -1339,12 +1589,18 @@ pseudocode file with a C and a Python implementation.
 
 ```plaintext
 src/topic-14-dynamic-programming/
-├── 01_fibonacci/       # recursion 15 calls, memo 9, tabulation; up to n = 90
-├── 02_coin_change/     # 6 won = 3 + 3; Topic 06's 80 won = 40 + 40
-├── 03_lis/             # LIS 4, 11 memo hits, restores 2 5 7 101
-├── 04_grid_paths/      # 48 paths to (5, 5) around three obstacles
-├── 05_shortest_path/   # 3 edges: 0 → 2 → 4 → 3, cost 6
-└── 06_knapsack/        # 0/1 knapsack 220, items 2 and 3
+├── 01_fibonacci/         # recursion 15 calls, memo 9, tabulation; up to n = 90
+├── 02_coin_change/       # 6 won = 3 + 3; Topic 06's 80 won = 40 + 40
+├── 03_lis/               # LIS 4, 11 memo hits, restores 2 5 7 101
+├── 04_grid_paths/        # 48 paths to (5, 5) around three obstacles
+├── 05_shortest_path/     # 3 edges: 0 → 2 → 4 → 3, cost 6
+├── 06_knapsack/          # 0/1 knapsack 220, items 2 and 3
+├── 07_subproblem_graph/  # call tree vs. graph, LIS branches
+├── 08_lis_nlogn/         # smallest end per length, 10 comparisons
+├── 09_grid_calls/        # calls per cell, 439 and 65
+├── 10_shortest_path_tab/ # k-edge shortest path on a layered graph
+├── 11_knapsack_1d/       # one-row knapsack, 220 and 300
+└── 12_edit_distance/     # edit distance and alignment (aside)
 ```
 
 Open a file and press the **▶ button** at the top right of the editor
@@ -1364,6 +1620,8 @@ run things.
 - Change the shortest path's destination to 5 and `k` to 4. You get
   `0 -> 2 -> 4 -> 3 -> 5` (9).
 - Change the knapsack capacity to 40. You get 180 (items 1 and 3).
+- Flip the filling direction in `11_knapsack_1d`. 220 becomes 300.
+- Raise `MAX` in `09_grid_calls` to 12 and see how fast the plain recursion grows.
 
 ## History \{#changelog}
 
@@ -1374,4 +1632,4 @@ The slides and this note are versioned together. The current version is
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-11-04 | Added ten hands-on demos and put the recurrences, coins and items inside the table demos |
-| v3 | 2026-11-25 | Fixed errors and added twenty demos and figures, replacing the mermaid diagram with a custom one |
+| v3 | 2026-11-25 | Fixed errors and added twenty demos and figures and six code examples, replacing the mermaid diagram with a custom one |

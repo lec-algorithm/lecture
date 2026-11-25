@@ -115,6 +115,32 @@ $$\Theta(\varphi^n)$$（$$\varphi \approx 1.618$$），$$O(2^n)$$ 是它的上�
 15 个顶点变成 6 个，剩下的是用“要解这个，先要那个”的箭头连成的无环图（DAG）。
 动态规划就是对这张图的每个顶点只解一次的方法。再折叠一下找零钱的 6 韩元，会发现 5 韩元不会出现。
 
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- 结果（节选）
+
+```console
+F(5)
+  call tree : 15 vertices, 14 edges
+  graph     : 6 vertices, 8 edges
+  memo order: 1 0 2 3 4 5
+  tab order : 0 1 2 3 4 5
+  memo solved 4, tab filled 4 (bases not counted)
+coins = {2, 3, 5}, amount = 6
+  call tree : 9 vertices, 8 edges
+  graph     : 6 vertices, 8 edges
+  memo order: 0 2 1 4 3 6
+  tab order : 0 1 2 3 4 5 6
+  memo solved 5, tab filled 6 (bases not counted)
+  arrows looked at: greedy 1, recursion 8, dp 8
+  answer: greedy stuck at 1, dp 2
+```
+
 ### 记忆化：把答案记下来 \{#memoization}
 
 **记忆化**（memoization）顾名思义，就是**做个笔记**。递归保持不变，函数在
@@ -602,6 +628,29 @@ ALGORITHM LisHelper(arr, n, i, prev)
 `i` 增大时分支最多每次翻倍，剩下的事 `(i, prev)` 最多只多一种。在递增序列 1 到 8 上把八个都决定完，
 分支有 256 个，剩下的事只有 9 种。
 
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- 结果（节选）
+
+```console
+LIS branches, arr = [1, 2, 3, 4, 5, 6, 7, 8]
+   i  branches  states (i, prev)
+   0         1       1
+   1         2       2
+   2         4       3
+   3         8       4
+   4        16       5
+   5        32       6
+   6        64       7
+   7       128       8
+   8       256       9
+```
+
 ### 表格实际被用了几次 \{#lis-memo-hits}
 
 每从 memo 里取一次，就打印一行。
@@ -715,6 +764,44 @@ tab  = 4
 在例题数组上比较 10 次，少于表的 28 次。`tails` 里剩下的 `2 3 7 18` 在这里恰好是答案序列，
 但一般来说只有长度是对的。
 
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/08_lis_nlogn
+make -f /work/Makefile lisNlogn.out && ./lisNlogn.out
+```
+
+- 结果
+
+```console
+arr = [10, 9, 2, 5, 3, 7, 101, 18]
+   10: compared [], append -> [10]
+    9: compared [10], replace -> [9]
+    2: compared [9], replace -> [2]
+    5: compared [2], append -> [2, 5]
+    3: compared [5, 2], replace -> [2, 3]
+    7: compared [3], append -> [2, 3, 7]
+  101: compared [3, 7], append -> [2, 3, 7, 101]
+   18: compared [7, 101], replace -> [2, 3, 7, 18]
+length = 4, tails = [2, 3, 7, 18]
+comparisons = 10, O(n^2) table = 28
+
+arr = [1, 2, 3, 4, 5, 6, 7, 8]
+length = 8, tails = [1, 2, 3, 4, 5, 6, 7, 8]
+comparisons = 13, O(n^2) table = 28
+
+arr = [34, 7, 52, 19, 61, 23, 5, 48, 70, 12, 39, 66, 28, 80, 45, 90]
+length = 7, tails = [5, 12, 23, 28, 45, 80, 90]
+comparisons = 32, O(n^2) table = 120
+
+arr = [3, 4, 1]
+    3: compared [], append -> [3]
+    4: compared [3], append -> [3, 4]
+    1: compared [4, 3], replace -> [1, 4]
+length = 2, tails = [1, 4]
+comparisons = 3, O(n^2) table = 3
+```
+
 ## 例 3. 网格路径 \{#grid-paths}
 
 - **问题**：从网格的 `(0, 0)` 到 `(5, 5)`，每次只能 `x+1` 或 `y+1`，求路径数
@@ -801,6 +888,44 @@ tab             = 48
 <GridCallsDemo />
 
 有了 memo，任何一格最多被调用两次。因为只有上方和左边的格会调用它，而那两格都只解一次。
+
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/09_grid_calls
+make -f /work/Makefile gridCalls.out && ./gridCalls.out
+```
+
+- 结果
+
+```console
+paths = 48 (last step: from above 24, from the left 24)
+
+plain recursion: calls = 439, outside = 140, most = 48
+    1    1    1    1    1    1
+    1    2    3    4    5    6
+    1    3   #6    4    9   15
+    1    4    4   #8    9   24
+    1    5    9    9  #18   24
+    1    6   15   24   24   48
+memo: calls = 65, outside = 10, most = 2
+    1    1    1    1    1    1
+    1    2    2    2    2    2
+    1    2   #2    1    2    2
+    1    2    1   #2    1    2
+    1    2    2    1   #2    1
+    1    2    2    2    1    2
+
+  size     plain    memo
+ 3 x 3        27      17
+ 4 x 4        63      29
+ 5 x 5       159      45
+ 6 x 6       439      65
+ 7 x 7      1591      91
+ 8 x 8      6163     121
+ 9 x 9     24163     155
+10 x 10    94759     193
+```
 
 亲手挪动障碍。点击格子会放置或移除障碍，表格从头重新填写。三个障碍全部移除后
 答案变成 252。只挡住一格，经过那一格的路径也会一下子全部消失。
@@ -942,6 +1067,26 @@ memo 表里写下的格子与上面手工拆分的步骤一一对应。
 表填满 18 格，带虚线圈的 6 格是记忆化会解的格。这个问题上记忆化解得更少。不过表只看紧接着的下一列，
 所以只留两列也行（如果不还原路径）。
 
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/10_shortest_path_tab
+make -f /work/Makefile shortestPathTab.out && ./shortestPathTab.out
+```
+
+- 结果（节选）
+
+```console
+0 -> 3 with exactly 3 edges
+  k\u    0    1    2    3    4    5
+  0    INF  INF  INF    0  INF  INF
+  1    INF    6    4  INF    1  INF
+  2      6  INF    4  INF  INF  INF
+  3      6  INF  INF  INF  INF  INF
+  table filled 18 cells, memo would solve 6
+  path: 0 -> 2 -> 4 -> 3 (cost 6)
+```
+
 ### 路径还原 \{#path-restore}
 
 `memo` 里只有代价。知道代价是 6，也不知道是哪条路。所以在 `best` 更新的那一刻，
@@ -1079,6 +1224,32 @@ best = 220
 
 容量变成 10 倍，写下它只多 3 到 4 位，表却变成 10 倍。物品少而容量大时，数遍全部 $$2^n$$ 种组合反而更小。
 
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/11_knapsack_1d
+make -f /work/Makefile knapsack1d.out && ./knapsack1d.out
+```
+
+- 结果（节选）
+
+```console
+n = 30, all combinations 2^n = 1073741824
+              W  bits    cells (n+1)(W+1)
+             10     4                 341
+            100     7                3131
+           1000    10               31031
+          10000    14              310031
+         100000    17             3100031
+        1000000    20            31000031
+       10000000    24           310000031
+      100000000    27          3100000031
+     1000000000    30         31000000031
+    10000000000    34        310000000031
+   100000000000    37       3100000000031
+  1000000000000    40      31000000000031
+```
+
 ### 压成一行 \{#knapsack-1d}
 
 表只看上一行，所以可以反复改写一行。不过**填写方向**会改变答案。
@@ -1096,6 +1267,33 @@ ALGORITHM Knapsack1D(w, v, n, W)
 
 从大容量开始填，`dp[c - w]` 还是看物品 $$i$$ 之前的值，每件只用一次（答案 220）。从小容量开始填，参照的格里已经有这件物品，
 得到的是可重复使用的**完全背包**的答案（300）。空间降到 $$O(W)$$，但没有整张表，所以不能还原所装的物品。
+
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/11_knapsack_1d
+make -f /work/Makefile knapsack1d.out && ./knapsack1d.out
+```
+
+- 结果（节选）
+
+```console
+large capacities first (0/1 knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60   60   60   60   60
+  2      0   60  100  160  160  160
+  3      0   60  100  160  180  220
+best = 220
+
+small capacities first (unbounded knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60  120  180  240  300
+  2      0   60  120  180  240  300
+  3      0   60  120  180  240  300
+best = 300
+```
 
 ### 四个例题的路径还原 \{#restore-all}
 
@@ -1130,6 +1328,26 @@ ALGORITHM Knapsack1D(w, v, n, W)
 <StrategyDemo />
 
 80 韩元时，贪心只看 4 个箭头，付了 4 枚。递归看了 34 次找到 2 枚，动态规划对 17 个箭头各看一次，找到同样的 2 枚。
+
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- 结果（节选）
+
+```console
+coins = {50, 40, 10}, amount = 80
+  call tree : 35 vertices, 34 edges
+  graph     : 9 vertices, 17 edges
+  memo order: 0 10 20 30 40 50 60 70 80
+  tab order : 0 10 20 30 40 50 60 70 80
+  memo solved 8, tab filled 8 (bases not counted)
+  arrows looked at: greedy 4, recursion 34, dp 17
+  answer: greedy 4, dp 2
+```
 
 在小图上试验最短路径和最长简单路径。选好起点、终点和要经过的顶点，就把两段分别求最优再接起来。
 
@@ -1203,6 +1421,38 @@ $$
 
 把 `kitten` 改成 `sitting` 需要 3 次（k 换成 s，e 换成 i，插入 g）。改动单词或点击格子，看看三个候选和对齐。时间是 $$O(nm)$$。
 
+- 运行
+
+```sh
+cd src/topic-14-dynamic-programming/12_edit_distance
+make -f /work/Makefile editDistance.out && ./editDistance.out
+```
+
+- 结果
+
+```console
+kitten -> sitting: 3
+         s  i  t  t  i  n  g
+      0  1  2  3  4  5  6  7
+  k   1  1  2  3  4  5  6  7
+  i   2  2  1  2  3  4  5  6
+  t   3  3  2  1  2  3  4  5
+  t   4  4  3  2  1  2  3  4
+  e   5  5  4  3  2  2  3  4
+  n   6  6  5  4  3  3  2  3
+  kitten-
+  sitting
+  k to s; e to i; insert g;
+GATTACA -> GCATGCT: 4
+  GATTACA
+  GCATGCT
+  A to C; T to A; A to G; A to T;
+sunday -> saturday: 3
+  s--unday
+  saturday
+  insert a; insert t; n to r;
+```
+
 ## 本主题要记住的 \{#takeaway}
 
 - **动态规划**：重叠子问题的答案只算一次，存起来再用。最优化问题还要有最优子结构。
@@ -1224,12 +1474,18 @@ $$
 
 ```plaintext
 src/topic-14-dynamic-programming/
-├── 01_fibonacci/       # 递归 15 次，记忆化 9 次，递推填表。算到 n = 90
-├── 02_coin_change/     # 6 = 3 + 3，主题 06 的 80 = 40 + 40
-├── 03_lis/             # LIS 4，记忆命中 11 次，还原出 2 5 7 101
-├── 04_grid_paths/      # 绕开三个障碍到 (5, 5) 共 48 条
-├── 05_shortest_path/   # 3 条边 0 → 2 → 4 → 3，代价 6
-└── 06_knapsack/        # 0/1 背包 220，物品 2 和 3
+├── 01_fibonacci/         # 递归 15 次，记忆化 9 次，递推填表。算到 n = 90
+├── 02_coin_change/       # 6 = 3 + 3，主题 06 的 80 = 40 + 40
+├── 03_lis/               # LIS 4，记忆命中 11 次，还原出 2 5 7 101
+├── 04_grid_paths/        # 绕开三个障碍到 (5, 5) 共 48 条
+├── 05_shortest_path/     # 3 条边 0 → 2 → 4 → 3，代价 6
+├── 06_knapsack/          # 0/1 背包 220，物品 2 和 3
+├── 07_subproblem_graph/  # 调用树与图，LIS 的分支
+├── 08_lis_nlogn/         # 每个长度最小的结尾值，比较 10 次
+├── 09_grid_calls/        # 每格被调用的次数，439 与 65
+├── 10_shortest_path_tab/ # 在分层图上填的 k 边最短路径
+├── 11_knapsack_1d/       # 一行的背包，220 与 300
+└── 12_edit_distance/     # 编辑距离与对齐（参考）
 ```
 
 打开文件，按编辑器右上角的 **▶ 按钮**即可运行。运行方法见
@@ -1245,6 +1501,8 @@ src/topic-14-dynamic-programming/
 - 清空网格路径的 `obstacles`，确认结果是 252。
 - 把最短路径的终点改成 5、`k` 改成 4。会得到 `0 -> 2 -> 4 -> 3 -> 5`（9）。
 - 把背包容量改成 40。会得到 180（物品 1、3）。
+- 在 `11_knapsack_1d` 里改变填写方向。220 会变成 300。
+- 把 `09_grid_calls` 的 `MAX` 增到 12，看看没有 memo 的递归增长得多快。
 
 ## 版本记录 \{#changelog}
 
@@ -1255,4 +1513,4 @@ src/topic-14-dynamic-programming/
 | --- | --- | --- |
 | v1 | 2026-10-28 | 首次公开 |
 | v2 | 2026-11-04 | 增加十个可动手的演示，并把递推式、硬币和物品放进表格演示里 |
-| v3 | 2026-11-25 | 修正内容错误，增加二十个演示和图，把 mermaid 图换成自制的图 |
+| v3 | 2026-11-25 | 修正内容错误，增加二十个演示和图、六个实践例题，把 mermaid 图换成自制的图 |
