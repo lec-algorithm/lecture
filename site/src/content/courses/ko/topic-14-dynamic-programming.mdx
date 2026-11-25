@@ -47,6 +47,7 @@ import RestoreDemo from '@components/RestoreDemo.astro';
 import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
+import OptPartDemo from '@components/OptPartDemo.astro';
 
 > 주제 01에서 피보나치 재귀가 왜 느린지 보았습니다. 원인은 재귀가 아니라
 > **같은 값을 몇 번이고 다시 구하는 것**이었습니다.  
@@ -77,6 +78,96 @@ import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 싫어하던 국방장관의 눈에 수학 연구로 보이지 않도록 고른 이름입니다. (연대가 맞지 않는다는 지적도 있습니다)
 programming도 코드 짜기가 아니라 **계획 세우기**라는 뜻입니다. **"답을 표에 채워 가며 푸는 방법"** 정도로
 읽으면 됩니다.
+
+### 최적 부분 구조 \{#optimal-substructure}
+
+**전체가 최적이면, 그것을 이루는 부분도 최적이다.** 이것이 최적 부분 구조입니다. S에서 M을 거쳐 T로 가는 가장 저렴한 길이
+있다면, 그 안의 S → M 구간도 S에서 M까지 가장 저렴한 길입니다.
+
+왜 그런지는 **바꿔 끼워** 보면 됩니다. S → M을 더 저렴하게 가는 길이 있다면, 그것으로 바꿔 끼운 전체가 더 저렴해집니다.
+전체가 가장 저렴하다는 말과 어긋나므로 그런 길은 없습니다. 최적 부분 구조를 보일 때는 언제나 이 논법을 씁니다.
+
+**거꾸로는 그냥 되지 않습니다.** 부분이 최적이라고 해서 이어 붙인 전체가 최적인 것은 아닙니다. 거쳐 갈 M을 잘못 고르면 두 구간이
+각각 최적이어도 돌아가는 길입니다. 그래서 동적 계획법은 나누는 자리를 **모두** 견줍니다. 점화식의 $$\min$$과 $$\max$$가
+그것입니다. 그리디도 최적 부분 구조를 쓰지만, 견주지 않고 하나를 골라 나아간다는 점이 다릅니다.
+
+두 구간에서 노선을 하나씩 골라 시험해 봅니다. 파랑 테두리가 구간마다의 최저, 분홍 칸이 전체의 최저입니다.
+
+<OptPartDemo />
+
+요금을 더하기만 하면 전체의 최저 7은 구간마다의 최저 3과 4를 이은 것입니다. 같은 노선을 이어 탈 때 3을 깎아 주면 전체의 최저는
+파랑 + 파랑(5)인데, S → M의 최저는 빨강입니다. 앞에서 무엇을 탔느냐가 뒤의 요금을 바꾸기 때문입니다. `상태 더하기`를 누르면
+"파랑으로 M에 왔을 때 남은 구간"처럼 상태마다 따로 풀어 다시 5를 찾습니다.
+
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/13_optimal_substructure
+make -f /work/Makefile optimalSubstructure.out && ./optimalSubstructure.out
+```
+
+- 결과
+
+```console
+sum of fares
+  S->M \ M->T    red   blue  green
+  red              9      7      8
+  blue            10      8      9
+  green           13     11     12
+  best  = 7 (red 3 + blue 4)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 4, total = 7
+    after blue : rest = 4, total = 8
+    after green: rest = 4, total = 11
+  with state = 7
+
+same line twice: 3 off
+  S->M \ M->T    red   blue  green
+  red              6      7      8
+  blue            10      5      9
+  green           13     11      9
+  best  = 5 (blue 4 + blue 1)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 3, total = 6
+    after blue : rest = 1, total = 5
+    after green: rest = 2, total = 9
+  with state = 5
+
+within 8 minutes
+  S->M \ M->T    red   blue  green
+  red            INF    INF    INF
+  blue            10      8      9
+  green           13     11     12
+  best  = 8 (blue 4 + blue 4)
+  parts = INF (red 3 + blue 4)
+    after red  : rest = INF, total = INF
+    after blue : rest = 4, total = 8
+    after green: rest = 4, total = 11
+  with state = 8
+```
+
+이 주제의 예제는 모두 최적 부분 구조가 있습니다.
+
+| 문제 | 전체의 최적 | 그 안의 부분도 최적 |
+| --- | --- | --- |
+| 저렴한 길 (간선 3개) | 0 → 2 → 4 → 3, 비용 6 | 2 → 4 → 3은 간선 2개로 2에서 3까지 최저(4) |
+| 거스름돈 80원 | 40 + 40, 2개 | 남은 40원도 최소(1개) |
+| LIS | `2 5 7 101`, 길이 4 | `2 5 7`은 7로 끝나는 것 중 최장(3) |
+| 0/1 배낭 용량 50 | 물건 2, 3, 가치 220 | 물건 1\~2와 용량 20에서는 물건 2가 최대(100) |
+| 편집 거리 | `kitten` → `sitting`, 3번 | `kitten` → `sittin`은 2번이 최소 |
+
+**남은 일의 답이 앞의 선택에 따라 달라지면** 깨집니다. 그때는 달라지게 만드는 것을 상태에 넣습니다.
+
+| 문제 | 왜 깨지나 | 상태에 넣을 것 |
+| --- | --- | --- |
+| 환승 할인이 있는 길 | 앞의 노선이 뒤의 요금을 바꾼다 | 타고 온 노선 |
+| 시간 제한이 있는 길 | 앞에서 쓴 시간이 뒤의 선택을 줄인다 | 남은 시간 |
+| 간선을 정확히 k개 쓰는 길 | 앞에서 쓴 간선이 뒤의 개수를 줄인다 | 남은 간선 수 (예제 4) |
+| 배낭을 물건만으로 | 앞에서 담은 무게가 뒤의 자리를 줄인다 | 남은 용량 (예제 5) |
+| 가장 긴 단순 경로 | 지나온 정점을 다시 지날 수 없다 | 지나온 정점의 집합 ($$2^V$$가지) |
+
+예제 4의 `(u, k)`와 예제 5의 `(i, c)`에서 `k`와 `c`가 바로 그렇게 더한 상태입니다. 마지막 예처럼 되살릴 수는 있어도 상태가
+너무 많아지면 빠른 알고리즘이 되지 않습니다.
 
 ## 피보나치, 다시 \{#fibonacci}
 
@@ -981,7 +1072,7 @@ memo: calls = 65, outside = 10, most = 2
 ## 예제 4. 길찾기: 간선 k개로 가는 최단 경로 \{#shortest-path}
 
 이번에는 [[graph|그래프]]입니다. 간선마다 비용이 붙은 방향 그래프에서 0번
-정점을 떠나 3번 정점에 **간선을 정확히 3개** 써서 가는 가장 싼 길을 찾습니다.
+정점을 떠나 3번 정점에 **간선을 정확히 3개** 써서 가는 가장 저렴한 길을 찾습니다.
 아래 데모의 왼쪽 그림이 그 그래프입니다. 간선은 9개입니다.
 
 ```plaintext
@@ -1028,7 +1119,7 @@ $$
 ### 재귀에서 메모이제이션으로 \{#shortest-path-memo}
 
 점화식을 그대로 재귀로 쓰면 **구현 1**, 거기에 `memo[k][u][v]` 표를 붙이면
-**구현 2**입니다. 표에는 값과 함께 **가장 싼 첫 걸음**(`next`)을 적어 둡니다.
+**구현 2**입니다. 표에는 값과 함께 **가장 저렴한 첫 걸음**(`next`)을 적어 둡니다.
 도착점이 3으로 고정이므로 데모의 표는 행이 $$k$$, 열이 출발 정점 $$u$$입니다.
 파랑 점선이 지금 시도하는 간선, 진한 파랑이 최솟값을 준 간선입니다. 끝에서는
 `next`를 따라 분홍 화살표로 길을 복원합니다.
@@ -1049,7 +1140,7 @@ ALGORITHM ShortestMemo(u, v, k, memo, next)
         r <- ShortestMemo(x, v, k-1, memo, next)
         if r != INF and w(u, x) + r < best then
             best <- w(u, x) + r
-            next[k][u][v] <- x        // 가장 싼 첫 걸음을 적어 둔다
+            next[k][u][v] <- x        // 가장 저렴한 첫 걸음을 적어 둔다
     // 4. 적어 두고 돌려준다
     memo[k][u][v] <- best
     return best
@@ -1149,7 +1240,7 @@ next[1][4][3] = 3    4 → 3   (비용 1)
 앞으로 갑니다.
 
 이 문제는 주제 12의 [[shortest-path|최단 경로]]와 다릅니다. 다익스트라는
-간선 수에 제한이 없는 가장 싼 길을 찾습니다. 여기서는 "간선 정확히 $$k$$개"라는
+간선 수에 제한이 없는 가장 저렴한 길을 찾습니다. 여기서는 "간선 정확히 $$k$$개"라는
 조건이 있어서, 간선 2개로 가는 0 → 2 → 3(6)은 답이 될 수 없습니다.
 
 표의 다른 칸도 눌러 봅니다. 도착점을 고르고 칸을 누르면 그 칸의 후보와, `next`로 되살린 길이 그래프에
@@ -1537,18 +1628,19 @@ sunday -> saturday: 3
 
 ```plaintext
 src/topic-14-dynamic-programming/
-├── 01_fibonacci/         # 재귀 15회, 메모 9회, 타뷸레이션. n = 90까지
-├── 02_coin_change/       # 6원 = 3 + 3, 주제 06의 80원 = 40 + 40
-├── 03_lis/               # LIS 4, 메모 적중 11회, 2 5 7 101 복원
-├── 04_grid_paths/        # 장애물 셋을 피해 (5, 5)까지 48가지
-├── 05_shortest_path/     # 간선 3개로 0 → 2 → 4 → 3, 비용 6
-├── 06_knapsack/          # 0/1 배낭 220, 물건 2와 3
-├── 07_subproblem_graph/  # 호출 트리와 그래프, LIS의 갈래
-├── 08_lis_nlogn/         # 길이마다 가장 작은 끝 값, 비교 10회
-├── 09_grid_calls/        # 칸마다 부른 횟수, 439와 65
-├── 10_shortest_path_tab/ # 층 그래프로 채운 간선 k개 최단 경로
-├── 11_knapsack_1d/       # 한 줄짜리 배낭, 220과 300
-└── 12_edit_distance/     # 편집 거리와 정렬 (참고)
+├── 01_fibonacci/             # 재귀 15회, 메모 9회, 타뷸레이션. n = 90까지
+├── 02_coin_change/           # 6원 = 3 + 3, 주제 06의 80원 = 40 + 40
+├── 03_lis/                   # LIS 4, 메모 적중 11회, 2 5 7 101 복원
+├── 04_grid_paths/            # 장애물 셋을 피해 (5, 5)까지 48가지
+├── 05_shortest_path/         # 간선 3개로 0 → 2 → 4 → 3, 비용 6
+├── 06_knapsack/              # 0/1 배낭 220, 물건 2와 3
+├── 07_subproblem_graph/      # 호출 트리와 그래프, LIS의 갈래
+├── 08_lis_nlogn/             # 길이마다 가장 작은 끝 값, 비교 10회
+├── 09_grid_calls/            # 칸마다 부른 횟수, 439와 65
+├── 10_shortest_path_tab/     # 층 그래프로 채운 간선 k개 최단 경로
+├── 11_knapsack_1d/           # 한 줄짜리 배낭, 220과 300
+├── 12_edit_distance/         # 편집 거리와 정렬 (참고)
+└── 13_optimal_substructure/  # 부분의 최적과 전체의 최적
 ```
 
 파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다. 실행 방법은
@@ -1578,4 +1670,4 @@ src/topic-14-dynamic-programming/
 | --- | --- | --- |
 | v1 | 2026-10-28 | 최초 공개 |
 | v2 | 2026-11-04 | 직접 만져 보는 데모 열 개를 더하고, 표 데모 안에 점화식과 동전·물건을 넣음 |
-| v3 | 2026-11-25 | 내용 오류를 고치고, 데모와 그림 스무 개, 실습 예제 여섯 개를 더함. mermaid 그림을 커스텀 그림으로 바꿈 |
+| v3 | 2026-11-25 | 내용 오류를 고치고, 데모와 그림 스물한 개, 실습 예제 일곱 개를 더함. mermaid 그림을 커스텀 그림으로 바꿈 |

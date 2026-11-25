@@ -48,6 +48,7 @@ import RestoreDemo from '@components/RestoreDemo.astro';
 import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
+import OptPartDemo from '@components/OptPartDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-14-dynamic-programming)의 실행 결과와 같습니다. */}
@@ -107,6 +108,87 @@ import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 - **저장하는 방법은 둘입니다.**
   - 메모이제이션: 재귀는 그대로 두고 답을 적어 둔다.
   - 타뷸레이션: 작은 문제부터 표를 채워 올라간다.
+
+</Slide>
+
+<Slide>
+
+#### 최적 부분 구조란
+::sub[전체가 최적이면, 그것을 이루는 부분도 최적이다]
+
+- **예**: S에서 M을 거쳐 T로 가는 가장 저렴한 길
+  - 그 안의 S → M 구간도 S에서 M까지 가장 저렴한 길입니다.
+- **왜**: 바꿔 끼워 보면 됩니다.
+  - S → M을 더 저렴하게 가는 길이 있다면, 그것으로 바꿔 끼운 전체가 더 저렴합니다.
+  - 전체가 가장 저렴하다는 말과 어긋나므로 그런 길은 없습니다.
+- **거꾸로는 그냥 되지 않습니다.** 부분이 최적이라고 전체가 최적인 것은 아닙니다.
+  - 거쳐 갈 M을 잘못 고르면, 두 구간이 각각 최적이어도 돌아가는 길입니다.
+  - 그래서 동적 계획법은 나누는 자리를 **모두** 견줍니다.
+
+</Slide>
+
+<Slide>
+
+### 직접 시험하기: 부분이 최적이면 전체도 최적인가
+::sub[파랑 테두리가 구간마다의 최저, 분홍 칸이 전체의 최저입니다. 규칙을 바꾸고 상태를 더해 봅니다]
+
+<OptPartDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 환승 할인이 붙으면
+::sub[`13_optimal_substructure/` · 구간마다의 최저를 이으면 7, 전체의 최저는 5]
+
+```console
+same line twice: 3 off
+  S->M \ M->T    red   blue  green
+  red              6      7      8
+  blue            10      5      9
+  green           13     11      9
+  best  = 5 (blue 4 + blue 1)
+  parts = 7 (red 3 + blue 4)
+    after red  : rest = 3, total = 6
+    after blue : rest = 1, total = 5
+    after green: rest = 2, total = 9
+  with state = 5
+```
+
+- 남은 구간의 답(`rest`)이 타고 온 노선에 따라 3, 1, 2로 **다릅니다.**
+- 노선마다 따로 풀면(`with state`) 5를 찾습니다.
+
+</Slide>
+
+<Slide>
+
+#### 최적 부분 구조가 있는 예
+::sub[이 주제의 예제들. 전체의 최적 안에 부분의 최적이 들어 있다]
+
+| 문제 | 전체의 최적 | 그 안의 부분도 최적 |
+| --- | --- | --- |
+| 저렴한 길 (간선 3개) | 0 → 2 → 4 → 3, 비용 6 | 2 → 4 → 3은 간선 2개로 2에서 3까지 최저(4) |
+| 거스름돈 80원 | 40 + 40, 2개 | 남은 40원도 최소(1개) |
+| LIS | `2 5 7 101`, 길이 4 | `2 5 7`은 7로 끝나는 것 중 최장(3) |
+| 0/1 배낭 용량 50 | 물건 2, 3, 가치 220 | 물건 1\~2와 용량 20에서는 물건 2가 최대(100) |
+| 편집 거리 | `kitten` → `sitting`, 3번 | `kitten` → `sittin`은 2번이 최소 |
+
+</Slide>
+
+<Slide>
+
+#### 깨지는 예와 되살리는 법
+::sub[남은 일의 답이 앞의 선택에 따라 달라지면 깨진다. 달라지게 만드는 것을 상태에 넣는다]
+
+| 문제 | 왜 깨지나 | 상태에 넣을 것 |
+| --- | --- | --- |
+| 환승 할인이 있는 길 | 앞의 노선이 뒤의 요금을 바꾼다 | 타고 온 노선 |
+| 시간 제한이 있는 길 | 앞에서 쓴 시간이 뒤의 선택을 줄인다 | 남은 시간 |
+| 간선을 정확히 k개 쓰는 길 | 앞에서 쓴 간선이 뒤의 개수를 줄인다 | 남은 간선 수 (예제 4) |
+| 배낭을 물건만으로 | 앞에서 담은 무게가 뒤의 자리를 줄인다 | 남은 용량 (예제 5) |
+| 가장 긴 단순 경로 | 지나온 정점을 다시 지날 수 없다 | 지나온 정점의 집합 ($$2^V$$가지) |
+
+마지막 예처럼 되살릴 수는 있어도 상태가 너무 많아지면 빠른 알고리즘이 되지 않습니다.
 
 </Slide>
 
@@ -1014,7 +1096,7 @@ $$
 
 - **구현 1**: 이것을 그대로 재귀로
 - **구현 2**: `memo[k][u][v]` 표를 붙인 메모이제이션
-  - 값과 함께 **가장 싼 첫 걸음** `next[k][u][v]`를 적어 둡니다.
+  - 값과 함께 **가장 저렴한 첫 걸음** `next[k][u][v]`를 적어 둡니다.
 
 </Slide>
 
@@ -1042,7 +1124,7 @@ ALGORITHM ShortestMemo(u, v, k, memo, next)
         r <- ShortestMemo(x, v, k-1, memo, next)
         if r != INF and w(u, x) + r < best then
             best <- w(u, x) + r
-            next[k][u][v] <- x        // 가장 싼 첫 걸음을 적어 둔다
+            next[k][u][v] <- x        // 가장 저렴한 첫 걸음을 적어 둔다
     memo[k][u][v] <- best
     return best
 ```
