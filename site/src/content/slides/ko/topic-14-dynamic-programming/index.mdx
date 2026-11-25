@@ -802,6 +802,51 @@ tab  = 4
 
 </Slide>
 
+<Slide class="compact">
+
+#### [참고] 길이마다 가장 작은 끝 값
+::sub[`08_lis_nlogn/lisNlogn.pseudo`]
+
+```plaintext
+ALGORITHM LisTails(arr, n)
+    len <- 0
+    for i <- 0 to n-1 do
+        x <- arr[i]
+        pos <- LowerBound(tails, len, x)   // x 이상인 첫 칸, 없으면 len
+        tails[pos] <- x                    // 바꾸거나 뒤에 붙인다
+        if pos = len then len <- len + 1
+    return len
+```
+
+- 원소마다 이진 검색 한 번, 시간 $$O(n \log n)$$ · 공간 $$O(n)$$
+- `tails`는 언제나 순증가하므로 이진 검색을 쓸 수 있습니다.
+- **길이만** 맞습니다. `[3, 4, 1]`의 `tails`는 `[1, 4]`이지만 부분수열이 아닙니다.
+
+</Slide>
+
+<Slide class="compact">
+
+#### [참고] 실행: O(n log n) LIS
+::sub[`08_lis_nlogn/` · 견준 값과 바뀐 tails]
+
+```console
+arr = [10, 9, 2, 5, 3, 7, 101, 18]
+   10: compared [], append -> [10]
+    9: compared [10], replace -> [9]
+    2: compared [9], replace -> [2]
+    5: compared [2], append -> [2, 5]
+    3: compared [5, 2], replace -> [2, 3]
+    7: compared [3], append -> [2, 3, 7]
+  101: compared [3, 7], append -> [2, 3, 7, 101]
+   18: compared [7, 101], replace -> [2, 3, 7, 18]
+length = 4, tails = [2, 3, 7, 18]
+comparisons = 10, O(n^2) table = 28
+```
+
+- 비교 10번, 표는 28번입니다. 원소 16개면 32번과 120번입니다.
+
+</Slide>
+
 <Slide class="center">
 
 ## 예제 3. 격자 경로
@@ -870,6 +915,28 @@ tab             = 48
 ::sub[격자를 키우면 메모 없는 재귀의 호출만 걷잡을 수 없이 늘어납니다]
 
 <GridCallsDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 격자를 키우면
+::sub[`09_grid_calls/` · 전체 호출 수]
+
+```console
+  size     plain    memo
+ 3 x 3        27      17
+ 4 x 4        63      29
+ 5 x 5       159      45
+ 6 x 6       439      65
+ 7 x 7      1591      91
+ 8 x 8      6163     121
+ 9 x 9     24163     155
+10 x 10    94759     193
+```
+
+- 6 × 6부터는 한 칸 커질 때마다 메모 없는 쪽이 **약 4배**, 메모는 26\~38번 더 부릅니다.
+- 5 × 5까지는 장애물이 덜 들어갑니다. 목표 칸은 막지 않습니다.
 
 </Slide>
 
@@ -1043,6 +1110,51 @@ next[1][4][3] = 3    4 → 3   (비용 1)
 
 </Slide>
 
+<Slide class="compact">
+
+#### 구현 3: 타뷸레이션
+::sub[`10_shortest_path_tab/shortestPathTab.pseudo`]
+
+```plaintext
+ALGORITHM ShortestTab(dst, K)
+    for each vertex u do S[0][u] <- INF
+    S[0][dst] <- 0
+    for k <- 1 to K do                      // 남은 간선이 적은 층부터
+        for each vertex u do
+            S[k][u] <- INF
+            for each edge u -> x do
+                if S[k-1][x] != INF and w(u, x) + S[k-1][x] < S[k][u] then
+                    S[k][u] <- w(u, x) + S[k-1][x]
+                    next[k][u] <- x
+    return S, next
+```
+
+- 층마다 간선을 한 번씩, 시간 $$O(K(V+E))$$ · 공간 $$O(KV)$$
+- 복원하지 않으면 두 층만 남겨 $$O(V)$$
+
+</Slide>
+
+<Slide class="compact">
+
+#### 18칸과 6칸
+::sub[`10_shortest_path_tab/`]
+
+```console
+0 -> 3 with exactly 3 edges
+  k\u    0    1    2    3    4    5
+  0    INF  INF  INF    0  INF  INF
+  1    INF    6    4  INF    1  INF
+  2      6  INF    4  INF  INF  INF
+  3      6  INF  INF  INF  INF  INF
+  table filled 18 cells, memo would solve 6
+  path: 0 -> 2 -> 4 -> 3 (cost 6)
+```
+
+- 답과 길은 `05_shortest_path`와 같습니다.
+- 표는 18칸을 모두 채우고, 메모는 **6칸**만 풉니다.
+
+</Slide>
+
 <Slide>
 
 #### 고른 것을 적어 두는 한 줄
@@ -1175,6 +1287,32 @@ ALGORITHM Knapsack1D(w, v, n, W)
 
 </Slide>
 
+<Slide class="compact">
+
+#### 220과 300
+::sub[`11_knapsack_1d/` · 채우는 방향만 다릅니다]
+
+```console
+large capacities first (0/1 knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60   60   60   60   60
+  2      0   60  100  160  160  160
+  3      0   60  100  160  180  220
+best = 220
+small capacities first (unbounded knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60  120  180  240  300
+  2      0   60  120  180  240  300
+  3      0   60  120  180  240  300
+best = 300
+```
+
+- 위는 `06_knapsack`의 표와 줄마다 같습니다. 아래는 물건 1을 다섯 번 담았습니다.
+
+</Slide>
+
 <Slide>
 
 ### 직접 재 보기: O(nW)는 다항 시간인가
@@ -1222,6 +1360,29 @@ ALGORITHM Knapsack1D(w, v, n, W)
 ::sub[같은 선택지를 놓고 세 방법이 보는 화살표가 다릅니다. 숫자는 그 화살표를 본 횟수입니다]
 
 <StrategyDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### 부분 문제 그래프를 세면
+::sub[`07_subproblem_graph/` · 트리의 간선이 재귀가 본 갈래, 그래프의 간선이 동적 계획법이 본 갈래]
+
+```console
+coins = {2, 3, 5}, amount = 6
+  call tree : 9 vertices, 8 edges
+  graph     : 6 vertices, 8 edges
+  arrows looked at: greedy 1, recursion 8, dp 8
+  answer: greedy stuck at 1, dp 2
+coins = {50, 40, 10}, amount = 80
+  call tree : 35 vertices, 34 edges
+  graph     : 9 vertices, 17 edges
+  arrows looked at: greedy 4, recursion 34, dp 17
+  answer: greedy 4, dp 2
+```
+
+- 6원은 겹치는 화살표가 없어 8번으로 같습니다. **겹쳐야 이득이 생깁니다.**
+- 80원은 34번이 17번으로 줄어듭니다. 그리디는 4번만 보고 틀립니다.
 
 </Slide>
 
@@ -1351,6 +1512,30 @@ $$
 
 <Slide class="compact">
 
+#### [참고] 실행: 편집 거리
+::sub[`12_edit_distance/`]
+
+```console
+kitten -> sitting: 3
+         s  i  t  t  i  n  g
+      0  1  2  3  4  5  6  7
+  k   1  1  2  3  4  5  6  7
+  i   2  2  1  2  3  4  5  6
+  t   3  3  2  1  2  3  4  5
+  t   4  4  3  2  1  2  3  4
+  e   5  5  4  3  2  2  3  4
+  n   6  6  5  4  3  3  2  3
+  kitten-
+  sitting
+  k to s; e to i; insert g;
+```
+
+- 세 번 고칩니다. 동점이면 대각선, 위, 왼쪽 순으로 고릅니다.
+
+</Slide>
+
+<Slide class="compact">
+
 #### 지금 해 볼 것
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-14-dynamic-programming/`  
@@ -1364,6 +1549,7 @@ $$
    - `0 -> 2 -> 4 -> 3 -> 5`(9)가 나옵니다.
 4. **배낭의 용량을 40으로 바꿔 봅니다.**
    - 180(물건 1, 3)이 나옵니다.
+5. **`11_knapsack_1d`에서 채우는 방향을 바꿔 봅니다.**
 
 </Slide>
 

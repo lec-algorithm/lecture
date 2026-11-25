@@ -121,6 +121,32 @@ $$\Theta(\varphi^n)$$ ($$\varphi \approx 1.618$$)이고, $$O(2^n)$$은 그 상�
 정점 15개가 6개로 줄고, 남는 것은 "이것을 풀려면 저것이 필요하다"는 화살표로 이어진 사이클 없는 그래프(DAG)입니다.
 동적 계획법은 이 그래프의 정점을 한 번씩만 푸는 방법입니다. 거스름돈 6원을 접으면 5원이 나오지 않는 것도 확인해 보세요.
 
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- 결과 (일부)
+
+```console
+F(5)
+  call tree : 15 vertices, 14 edges
+  graph     : 6 vertices, 8 edges
+  memo order: 1 0 2 3 4 5
+  tab order : 0 1 2 3 4 5
+  memo solved 4, tab filled 4 (bases not counted)
+coins = {2, 3, 5}, amount = 6
+  call tree : 9 vertices, 8 edges
+  graph     : 6 vertices, 8 edges
+  memo order: 0 2 1 4 3 6
+  tab order : 0 1 2 3 4 5 6
+  memo solved 5, tab filled 6 (bases not counted)
+  arrows looked at: greedy 1, recursion 8, dp 8
+  answer: greedy stuck at 1, dp 2
+```
+
 ### 메모이제이션: 답을 적어 둔다 \{#memoization}
 
 **메모이제이션**(memoization)은 이름 그대로 **메모를 해 두자**는 방식입니다.
@@ -630,6 +656,29 @@ ALGORITHM LisHelper(arr, n, i, prev)
 `i`를 늘리면 갈래는 많게는 두 배씩 늘지만 남은 일 `(i, prev)`는 많아야 하나씩 늡니다. 늘어나는 수열 1\~8에서
 여덟 개를 모두 정하면 갈래는 256개인데 남은 일은 9가지뿐입니다.
 
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- 결과 (일부)
+
+```console
+LIS branches, arr = [1, 2, 3, 4, 5, 6, 7, 8]
+   i  branches  states (i, prev)
+   0         1       1
+   1         2       2
+   2         4       3
+   3         8       4
+   4        16       5
+   5        32       6
+   6        64       7
+   7       128       8
+   8       256       9
+```
+
 ### 표가 실제로 몇 번 쓰이나 \{#lis-memo-hits}
 
 메모에서 꺼낼 때마다 한 줄씩 찍어 봅니다.
@@ -749,6 +798,44 @@ tab  = 4
 예제 배열에서 비교는 10번으로, 표의 28번보다 적습니다. `tails`에 남은 `2 3 7 18`은 여기서는 우연히 답 수열이지만,
 일반적으로는 길이만 맞습니다.
 
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/08_lis_nlogn
+make -f /work/Makefile lisNlogn.out && ./lisNlogn.out
+```
+
+- 결과
+
+```console
+arr = [10, 9, 2, 5, 3, 7, 101, 18]
+   10: compared [], append -> [10]
+    9: compared [10], replace -> [9]
+    2: compared [9], replace -> [2]
+    5: compared [2], append -> [2, 5]
+    3: compared [5, 2], replace -> [2, 3]
+    7: compared [3], append -> [2, 3, 7]
+  101: compared [3, 7], append -> [2, 3, 7, 101]
+   18: compared [7, 101], replace -> [2, 3, 7, 18]
+length = 4, tails = [2, 3, 7, 18]
+comparisons = 10, O(n^2) table = 28
+
+arr = [1, 2, 3, 4, 5, 6, 7, 8]
+length = 8, tails = [1, 2, 3, 4, 5, 6, 7, 8]
+comparisons = 13, O(n^2) table = 28
+
+arr = [34, 7, 52, 19, 61, 23, 5, 48, 70, 12, 39, 66, 28, 80, 45, 90]
+length = 7, tails = [5, 12, 23, 28, 45, 80, 90]
+comparisons = 32, O(n^2) table = 120
+
+arr = [3, 4, 1]
+    3: compared [], append -> [3]
+    4: compared [3], append -> [3, 4]
+    1: compared [4, 3], replace -> [1, 4]
+length = 2, tails = [1, 4]
+comparisons = 3, O(n^2) table = 3
+```
+
 ## 예제 3. 격자 경로 \{#grid-paths}
 
 - **문제**: 격자의 `(0, 0)`에서 `(5, 5)`까지, 한 번에 `x+1` 또는 `y+1`로만
@@ -837,6 +924,44 @@ $$O(XY)$$입니다.
 <GridCallsDemo />
 
 메모가 있으면 어느 칸이든 많아야 두 번 불립니다. 부르는 것이 위 칸과 왼쪽 칸뿐이고, 그 둘은 한 번씩만 풀리기 때문입니다.
+
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/09_grid_calls
+make -f /work/Makefile gridCalls.out && ./gridCalls.out
+```
+
+- 결과
+
+```console
+paths = 48 (last step: from above 24, from the left 24)
+
+plain recursion: calls = 439, outside = 140, most = 48
+    1    1    1    1    1    1
+    1    2    3    4    5    6
+    1    3   #6    4    9   15
+    1    4    4   #8    9   24
+    1    5    9    9  #18   24
+    1    6   15   24   24   48
+memo: calls = 65, outside = 10, most = 2
+    1    1    1    1    1    1
+    1    2    2    2    2    2
+    1    2   #2    1    2    2
+    1    2    1   #2    1    2
+    1    2    2    1   #2    1
+    1    2    2    2    1    2
+
+  size     plain    memo
+ 3 x 3        27      17
+ 4 x 4        63      29
+ 5 x 5       159      45
+ 6 x 6       439      65
+ 7 x 7      1591      91
+ 8 x 8      6163     121
+ 9 x 9     24163     155
+10 x 10    94759     193
+```
 
 장애물을 직접 옮겨 봅니다. 칸을 누르면 장애물을 놓거나 빼고, 표를 처음부터 다시
 채웁니다. 장애물 셋을 모두 빼면 252가 됩니다. 한 칸만 막아도 그 칸을 지나던
@@ -985,6 +1110,26 @@ path: 0 -> 2 -> 4 -> 3 (2 + 3 + 1 = 6)
 표는 18칸을 모두 채우고, 점선 고리를 두른 6칸이 메모가 푸는 칸입니다. 이 문제에서는 메모 쪽이 덜 풉니다. 대신 표는 바로
 다음 열만 보므로 복원하지 않는다면 두 열만 남겨도 됩니다.
 
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/10_shortest_path_tab
+make -f /work/Makefile shortestPathTab.out && ./shortestPathTab.out
+```
+
+- 결과 (일부)
+
+```console
+0 -> 3 with exactly 3 edges
+  k\u    0    1    2    3    4    5
+  0    INF  INF  INF    0  INF  INF
+  1    INF    6    4  INF    1  INF
+  2      6  INF    4  INF  INF  INF
+  3      6  INF  INF  INF  INF  INF
+  table filled 18 cells, memo would solve 6
+  path: 0 -> 2 -> 4 -> 3 (cost 6)
+```
+
 ### 경로 복원 \{#path-restore}
 
 `memo`에는 비용만 있습니다. 비용 6을 알아도 어느 길인지는 모릅니다. 그래서
@@ -1129,6 +1274,32 @@ best = 220
 용량을 10배로 키우면 그것을 적는 비트는 3\~4개 늘 뿐인데 표는 10배가 됩니다. 물건이 적고 용량이 크면 $$2^n$$개 조합을
 모두 세는 쪽이 오히려 작습니다.
 
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/11_knapsack_1d
+make -f /work/Makefile knapsack1d.out && ./knapsack1d.out
+```
+
+- 결과 (일부)
+
+```console
+n = 30, all combinations 2^n = 1073741824
+              W  bits    cells (n+1)(W+1)
+             10     4                 341
+            100     7                3131
+           1000    10               31031
+          10000    14              310031
+         100000    17             3100031
+        1000000    20            31000031
+       10000000    24           310000031
+      100000000    27          3100000031
+     1000000000    30         31000000031
+    10000000000    34        310000000031
+   100000000000    37       3100000000031
+  1000000000000    40      31000000000031
+```
+
 ### 한 줄로 줄이기 \{#knapsack-1d}
 
 표는 바로 위 줄만 봅니다. 그렇다면 한 줄을 고쳐 쓰면 됩니다. 다만 **채우는 방향**이 답을 바꿉니다.
@@ -1147,6 +1318,33 @@ ALGORITHM Knapsack1D(w, v, n, W)
 큰 용량부터 채우면 `dp[c - w]`는 아직 물건 $$i$$를 보기 전의 값이라 물건을 한 번만 쓰고 답은 220입니다. 작은 용량부터 채우면
 이번 물건이 이미 든 칸을 참조해 같은 물건을 여러 번 쓰는 **무한 배낭**의 답 300이 됩니다. 공간은 $$O(W)$$로 줄지만,
 표가 없으므로 담은 물건을 복원할 수는 없습니다.
+
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/11_knapsack_1d
+make -f /work/Makefile knapsack1d.out && ./knapsack1d.out
+```
+
+- 결과 (일부)
+
+```console
+large capacities first (0/1 knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60   60   60   60   60
+  2      0   60  100  160  160  160
+  3      0   60  100  160  180  220
+best = 220
+
+small capacities first (unbounded knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60  120  180  240  300
+  2      0   60  120  180  240  300
+  3      0   60  120  180  240  300
+best = 300
+```
 
 ### 네 예제의 경로 복원 \{#restore-all}
 
@@ -1186,6 +1384,26 @@ ALGORITHM Knapsack1D(w, v, n, W)
 
 80원에서 그리디는 화살표 4개만 보고 4개를 냈습니다. 재귀는 34번 보고 2개를 찾고, 동적 계획법은 17개를 한 번씩만 보고 같은
 2개를 찾습니다.
+
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/07_subproblem_graph
+make -f /work/Makefile subproblemGraph.out && ./subproblemGraph.out
+```
+
+- 결과 (일부)
+
+```console
+coins = {50, 40, 10}, amount = 80
+  call tree : 35 vertices, 34 edges
+  graph     : 9 vertices, 17 edges
+  memo order: 0 10 20 30 40 50 60 70 80
+  tab order : 0 10 20 30 40 50 60 70 80
+  memo solved 8, tab filled 8 (bases not counted)
+  arrows looked at: greedy 4, recursion 34, dp 17
+  answer: greedy 4, dp 2
+```
 
 최단 경로와 가장 긴 단순 경로를 작은 그래프에서 시험해 봅니다. 출발, 도착, 거쳐 갈 정점을 고르면 두 조각을
 각각 최적으로 풀어 이어 붙입니다.
@@ -1265,6 +1483,38 @@ $$
 `kitten`을 `sitting`으로 바꾸려면 세 번 고칩니다. k를 s로, e를 i로 바꾸고 g를 넣습니다. 낱말을 고치거나 칸을 눌러 세 후보와 정렬을
 확인해 보세요. 시간은 $$O(nm)$$입니다.
 
+- 실행
+
+```sh
+cd src/topic-14-dynamic-programming/12_edit_distance
+make -f /work/Makefile editDistance.out && ./editDistance.out
+```
+
+- 결과
+
+```console
+kitten -> sitting: 3
+         s  i  t  t  i  n  g
+      0  1  2  3  4  5  6  7
+  k   1  1  2  3  4  5  6  7
+  i   2  2  1  2  3  4  5  6
+  t   3  3  2  1  2  3  4  5
+  t   4  4  3  2  1  2  3  4
+  e   5  5  4  3  2  2  3  4
+  n   6  6  5  4  3  3  2  3
+  kitten-
+  sitting
+  k to s; e to i; insert g;
+GATTACA -> GCATGCT: 4
+  GATTACA
+  GCATGCT
+  A to C; T to A; A to G; A to T;
+sunday -> saturday: 3
+  s--unday
+  saturday
+  insert a; insert t; n to r;
+```
+
 ## 이 주제에서 남길 것 \{#takeaway}
 
 - **동적 계획법**: 겹치는 부분 문제의 답을 한 번만 계산하고 저장해 다시 쓴다.
@@ -1287,12 +1537,18 @@ $$
 
 ```plaintext
 src/topic-14-dynamic-programming/
-├── 01_fibonacci/       # 재귀 15회, 메모 9회, 타뷸레이션. n = 90까지
-├── 02_coin_change/     # 6원 = 3 + 3, 주제 06의 80원 = 40 + 40
-├── 03_lis/             # LIS 4, 메모 적중 11회, 2 5 7 101 복원
-├── 04_grid_paths/      # 장애물 셋을 피해 (5, 5)까지 48가지
-├── 05_shortest_path/   # 간선 3개로 0 → 2 → 4 → 3, 비용 6
-└── 06_knapsack/        # 0/1 배낭 220, 물건 2와 3
+├── 01_fibonacci/         # 재귀 15회, 메모 9회, 타뷸레이션. n = 90까지
+├── 02_coin_change/       # 6원 = 3 + 3, 주제 06의 80원 = 40 + 40
+├── 03_lis/               # LIS 4, 메모 적중 11회, 2 5 7 101 복원
+├── 04_grid_paths/        # 장애물 셋을 피해 (5, 5)까지 48가지
+├── 05_shortest_path/     # 간선 3개로 0 → 2 → 4 → 3, 비용 6
+├── 06_knapsack/          # 0/1 배낭 220, 물건 2와 3
+├── 07_subproblem_graph/  # 호출 트리와 그래프, LIS의 갈래
+├── 08_lis_nlogn/         # 길이마다 가장 작은 끝 값, 비교 10회
+├── 09_grid_calls/        # 칸마다 부른 횟수, 439와 65
+├── 10_shortest_path_tab/ # 층 그래프로 채운 간선 k개 최단 경로
+├── 11_knapsack_1d/       # 한 줄짜리 배낭, 220과 300
+└── 12_edit_distance/     # 편집 거리와 정렬 (참고)
 ```
 
 파일을 열고 편집기 오른쪽 위 **▶ 버튼**을 누르면 실행됩니다. 실행 방법은
@@ -1310,6 +1566,8 @@ src/topic-14-dynamic-programming/
 - 최단 경로의 도착점을 5로, `k`를 4로 바꿔 보세요. `0 -> 2 -> 4 -> 3 -> 5`(9)가
   나옵니다.
 - 배낭의 용량을 40으로 바꿔 보세요. 180(물건 1, 3)이 나옵니다.
+- `11_knapsack_1d`에서 채우는 방향을 바꿔 보세요. 220이 300이 됩니다.
+- `09_grid_calls`의 `MAX`를 12로 늘려 메모 없는 재귀가 얼마나 빨리 커지는지 보세요.
 
 ## 자료 이력 \{#changelog}
 
@@ -1320,4 +1578,4 @@ src/topic-14-dynamic-programming/
 | --- | --- | --- |
 | v1 | 2026-10-28 | 최초 공개 |
 | v2 | 2026-11-04 | 직접 만져 보는 데모 열 개를 더하고, 표 데모 안에 점화식과 동전·물건을 넣음 |
-| v3 | 2026-11-25 | 내용 오류를 고치고, 데모와 그림 스무 개를 더함. mermaid 그림을 커스텀 그림으로 바꿈 |
+| v3 | 2026-11-25 | 내용 오류를 고치고, 데모와 그림 스무 개, 실습 예제 여섯 개를 더함. mermaid 그림을 커스텀 그림으로 바꿈 |
