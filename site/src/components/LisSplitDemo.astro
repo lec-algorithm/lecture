@@ -1,0 +1,202 @@
+---
+// LIS 재귀에서 갈래가 달라도 남은 일이 같아지는 것을 보는 데모.
+//
+// 앞의 i개까지 고를지 말지를 모두 정한 갈래를 전부 만들고, 남은 일 (i, prev)이 같은
+// 것끼리 한 묶음에 넣는다. prev는 코드와 같이 인덱스다(고른 것이 없으면 -1).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ls-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '갈래와 남은 일',
+    five: '다섯 개',
+    ex: '예제',
+    inc: '늘어남',
+    upto: '여기까지 정함',
+    branches: '갈래',
+    states: '서로 다른 남은 일',
+    none: '고른 것 없음',
+    more: '외 {n}개',
+    start: '아직 아무것도 정하지 않았습니다. i를 늘려 보세요.',
+    n1: '앞의 {i}개를 고를지 말지 정한 갈래는 {b}개, 남은 일은 {s}가지뿐입니다.',
+    n2: '한 묶음 안의 갈래는 지금까지 고른 수열이 달라도, 앞으로 이을 수 있는 원소가 똑같습니다.',
+    n3: 'i가 1 늘 때 갈래는 최대 두 배가 되지만, 남은 일은 많아야 하나 늘어납니다.',
+  },
+  en: {
+    title: 'Branches and remaining work',
+    five: 'five numbers',
+    ex: 'example',
+    inc: 'increasing',
+    upto: 'decided up to here',
+    branches: 'branches',
+    states: 'different remaining work',
+    none: 'nothing picked',
+    more: '{n} more',
+    start: 'Nothing decided yet. Increase i.',
+    n1: 'Deciding the first {i} numbers gives {b} branches but only {s} kinds of remaining work.',
+    n2: 'Branches in one box picked different sequences, yet the numbers they can append from here are the same.',
+    n3: 'When i grows by 1, the branches can double, but the kinds of remaining work grow by one at most.',
+  },
+  zh: {
+    title: '分支与剩下的工作',
+    five: '五个数',
+    ex: '例题',
+    inc: '递增',
+    upto: '已决定到这里',
+    branches: '分支',
+    states: '不同的剩余工作',
+    none: '什么都没选',
+    more: '另有 {n} 个',
+    start: '还什么都没决定。增大 i 试试。',
+    n1: '决定前 {i} 个数选不选，分支有 {b} 个，剩余工作却只有 {s} 种。',
+    n2: '同一框里的分支，已选的序列不同，但往后能接的元素完全一样。',
+    n3: 'i 增加 1 时，分支最多翻倍，剩余工作最多只多一种。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SEQ: Record<string, string> = { five: '2,10,5,7,3', ex: '10,9,2,5,3,7,101,18', inc: '1,2,3,4,5,6,7,8' };
+---
+
+<DpKit id={id} cls="aas-lis-split" title={t.title} strings={t} slide={slide} size={2.7}>
+  <Fragment slot="controls">
+    {Object.entries(SEQ).map(([k, v], i) => (
+      <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="seq" data-dx-val={v}>{t[k]}</button>
+    ))}
+  </Fragment>
+  <div class="ls-top">
+    <div data-dx="seq" class="ls-seq"></div>
+    <label>i <input type="range" min="0" max="5" value="2" data-dx="i" /> <b data-dx="iv"></b></label>
+    <dl class="dx-stats">
+      <dt>{t.branches}</dt><dd data-dx="b"></dd>
+      <dt>{t.states}</dt><dd data-dx="s"></dd>
+    </dl>
+  </div>
+  <div class="ls-groups" data-dx="groups"></div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note, tabs } = K.root(id);
+    let arr = [2, 10, 5, 7, 3];
+    function draw() {
+      const i = +get('i').value;
+      get('iv').textContent = i;
+      get('seq').replaceChildren(...arr.map((v, k) => K.el('span', { cls: 'ls-col' }, K.el('span', { cls: `dx-cell ${k < i ? 'is-done' : k === i ? 'is-now' : ''}` }, String(v)), K.el('i', {}, String(k)))));
+      let br = [[]];
+      for (let k = 0; k < i; k++)
+        br = br.flatMap((b) => (b.length === 0 || arr[b[b.length - 1]] < arr[k] ? [[...b, k], b] : [b]));
+      const groups = new Map();
+      br.forEach((b) => {
+        const p = b.length ? b[b.length - 1] : -1;
+        groups.set(p, [...(groups.get(p) || []), b]);
+      });
+      get('b').textContent = br.length;
+      get('s').textContent = groups.size;
+      const MAX = 6;
+      get('groups').replaceChildren(
+        ...[...groups.keys()]
+          .sort((a, b) => a - b)
+          .map((p) => {
+            const g = groups.get(p);
+            const chips = g.slice(0, MAX).map((b) => K.el('span', { cls: 'ls-chip' }, `[${b.map((k) => arr[k]).join(', ')}]`));
+            if (g.length > MAX) chips.push(K.el('span', { cls: 'ls-more' }, K.fill(S.more, { n: g.length - MAX })));
+            return K.el(
+              'div',
+              { cls: `ls-group ${g.length > 1 ? 'is-hit' : ''}` },
+              K.el('div', { cls: 'ls-key' }, `(${i}, ${p})`, K.el('small', {}, p < 0 ? S.none : `arr[${p}] = ${arr[p]}`)),
+              ...chips,
+            );
+          }),
+      );
+      if (i === 0) K.lines(note, S.start);
+      else K.lines(note, K.fill(S.n1, { i, b: br.length, s: groups.size }), S.n2, S.n3);
+    }
+    get('i').addEventListener('input', draw);
+    tabs('seq', (v) => {
+      arr = v.split(',').map(Number);
+      get('i').max = arr.length;
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-lis-split .ls-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 1.6em;
+    align-items: center;
+    margin-bottom: 0.7em;
+  }
+  .aas-lis-split .ls-seq {
+    display: flex;
+    gap: 0.25em;
+  }
+  .aas-lis-split .ls-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .aas-lis-split .ls-col i {
+    font-style: normal;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lis-split label {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-lis-split input {
+    width: 9em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-lis-split .ls-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    align-items: flex-start;
+    min-height: 12.5em;
+  }
+  .aas-lis-split .ls-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    min-width: 6.2em;
+    padding: 0.45em 0.6em;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.6em;
+  }
+  .aas-lis-split .ls-group.is-hit {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 13%, var(--aas-bg));
+  }
+  .aas-lis-split .ls-key {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    font-size: 0.9em;
+  }
+  .aas-lis-split .ls-key small {
+    display: block;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-lis-split .ls-chip {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.72em;
+    white-space: nowrap;
+  }
+  .aas-lis-split .ls-more {
+    font-size: 0.72em;
+    color: var(--aas-muted);
+  }
+</style>

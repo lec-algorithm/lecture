@@ -1,0 +1,144 @@
+---
+// O(nW)가 왜 다항 시간이 아닌지(의사 다항 시간) 재 보는 데모.
+//
+// 용량 W를 적는 데는 log2(W)비트면 되는데 표는 W칸으로 자란다. 물건 수 n과 용량 W를
+// 움직이며 표의 칸 수 (n+1)(W+1)과 모든 조합 2^n을 로그 눈금으로 견준다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ks-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '표는 얼마나 커지나',
+    n: '물건 수 n',
+    w: '용량 W',
+    bits: 'W를 적는 비트',
+    table: '표의 칸 (n+1)(W+1)',
+    subs: '모든 조합 2ⁿ',
+    note1: 'W를 10배로 키우면 적는 데 드는 비트는 3–4개 늘 뿐인데, 표는 10배가 됩니다.',
+    note2: '입력을 적는 길이로 보면 표는 지수로 자랍니다. 그래서 다항 시간이 아니라 의사 다항 시간입니다.',
+    small: '지금은 표가 더 작습니다.',
+    big: '지금은 모든 조합을 세는 쪽이 더 작습니다.',
+  },
+  en: {
+    title: 'How big does the table get',
+    n: 'items n',
+    w: 'capacity W',
+    bits: 'bits to write W',
+    table: 'table cells (n+1)(W+1)',
+    subs: 'all combinations 2ⁿ',
+    note1: 'Making W 10 times larger adds only 3–4 bits, but the table grows 10 times.',
+    note2: 'Measured by the length of the input, the table grows exponentially. Hence pseudo-polynomial, not polynomial.',
+    small: 'Right now the table is smaller.',
+    big: 'Right now counting all combinations is smaller.',
+  },
+  zh: {
+    title: '表会变多大',
+    n: '物品数 n',
+    w: '容量 W',
+    bits: '写下 W 的位数',
+    table: '表的格数 (n+1)(W+1)',
+    subs: '全部组合 2ⁿ',
+    note1: 'W 变成 10 倍，写下它只多 3–4 位，表却变成 10 倍。',
+    note2: '按输入的长度来看，表是指数增长的。所以是伪多项式时间，而不是多项式时间。',
+    small: '现在是表更小。',
+    big: '现在是数遍全部组合更小。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-knap-size" title={t.title} strings={t} slide={slide} size={3}>
+  <div class="ks-in">
+    <label>{t.n} <input type="range" min="3" max="60" value="30" data-dx="n" /> <b data-dx="nv"></b></label>
+    <label>{t.w} <input type="range" min="1" max="12" value="3" data-dx="w" /> <b data-dx="wv"></b></label>
+  </div>
+  {(['bits', 'table', 'subs'] as const).map((k) => (
+    <div class="ks-row">
+      <span>{t[k]}</span>
+      <div class="ks-bar"><i data-dx={`${k}-b`} class={`ks-${k}`} /></div>
+      <b data-dx={`${k}-v`} />
+    </div>
+  ))}
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note } = K.root(id);
+    const fmt = (v) => (v < 1e7 ? Math.round(v).toLocaleString('en-US') : `${(v / 10 ** Math.floor(Math.log10(v))).toFixed(1)} × 10^${Math.floor(Math.log10(v))}`);
+    function draw() {
+      const n = +get('n').value;
+      const W = 10 ** +get('w').value;
+      const v = { bits: Math.floor(Math.log2(W)) + 1, table: (n + 1) * (W + 1), subs: 2 ** n };
+      get('nv').textContent = n;
+      get('wv').textContent = fmt(W);
+      Object.entries(v).forEach(([k, x]) => {
+        get(`${k}-b`).style.width = `${Math.min(100, (Math.log10(x) / 19) * 100)}%`;
+        get(`${k}-v`).textContent = fmt(x);
+      });
+      K.lines(note, S.note1, S.note2, v.table < v.subs ? S.small : S.big);
+    }
+    get('n').addEventListener('input', draw);
+    get('w').addEventListener('input', draw);
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-knap-size .ks-in {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 2em;
+    margin-bottom: 1em;
+  }
+  .aas-knap-size label {
+    flex: 1 1 18em;
+    display: flex;
+    gap: 0.7em;
+    align-items: center;
+    font-size: 0.85em;
+  }
+  .aas-knap-size input {
+    flex: 1;
+    min-width: 6em;
+    accent-color: var(--aas-accent);
+  }
+  .aas-knap-size b {
+    min-width: 6.5em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-knap-size .ks-row {
+    display: grid;
+    grid-template-columns: 11em 1fr 8em;
+    gap: 0.8em;
+    align-items: center;
+    margin: 0.5em 0;
+    font-size: 0.85em;
+  }
+  .aas-knap-size .ks-bar {
+    height: 1.9em;
+    border-radius: 0.4em;
+    background: var(--dx-soft);
+    overflow: hidden;
+  }
+  .aas-knap-size .ks-bar i {
+    display: block;
+    height: 100%;
+    border-radius: 0.4em;
+    transition: width 0.3s;
+  }
+  .aas-knap-size .ks-bits {
+    background: var(--aas-role-model);
+  }
+  .aas-knap-size .ks-table {
+    background: var(--aas-role-focus);
+  }
+  .aas-knap-size .ks-subs {
+    background: var(--aas-role-guard);
+  }
+</style>

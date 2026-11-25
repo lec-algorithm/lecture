@@ -1,0 +1,226 @@
+---
+// 동적 계획법의 조각 넷을 한 장에 그린 그림. 카드를 누르면 설명이 바뀐다.
+//
+// 왼쪽 묶음이 "어떤 문제인가"(겹치는 하위 문제, 최적 부분 구조), 오른쪽 묶음이
+// "어떻게 저장하나"(메모이제이션, 타뷸레이션)다. 카드 안의 작은 그림은 서버에서 SVG로
+// 그린다. mermaid 그림을 대신한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `dm-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '동적 계획법 = 분할 정복 + 저장',
+    g1: '어떤 문제인가',
+    g2: '어떻게 저장하나',
+    overlap: '겹치는 하위 문제',
+    optimal: '최적 부분 구조',
+    memo: '메모이제이션',
+    tab: '타뷸레이션',
+    memoSub: '하향식 · lazy',
+    tabSub: '상향식 · eager',
+    overlapSub: '같은 문제가 여러 번',
+    optimalSub: '큰 최적 안에 작은 최적',
+    n_overlap: '겹치는 하위 문제: F(5)를 쪼개면 F(3)이 두 번 나옵니다. 한 번 풀어 두면 두 번째는 꺼내 쓰면 됩니다. 겹치지 않으면(머지 정렬) 저장해도 꺼낼 일이 없습니다.',
+    n_optimal: '최적 부분 구조: 가장 싼 길의 일부분도 그 구간에서 가장 싼 길입니다. 최댓값·최솟값을 구하는 문제라면 이 성질이 있어야 작은 답으로 큰 답을 만들 수 있습니다.',
+    n_memo: '메모이제이션: 재귀는 그대로 두고, 답을 돌려주기 전에 적어 둡니다. 큰 문제에서 내려가며 필요한 것만 풉니다.',
+    n_tab: '타뷸레이션: 작은 문제부터 표를 채워 올라갑니다. 칸 하나를 채울 때 참조하는 칸은 이미 채워져 있습니다.',
+  },
+  en: {
+    title: 'Dynamic programming = divide and conquer + storing',
+    g1: 'Which problems',
+    g2: 'How to store',
+    overlap: 'Overlapping subproblems',
+    optimal: 'Optimal substructure',
+    memo: 'Memoization',
+    tab: 'Tabulation',
+    memoSub: 'top-down · lazy',
+    tabSub: 'bottom-up · eager',
+    overlapSub: 'the same problem again and again',
+    optimalSub: 'small optima inside the big one',
+    n_overlap: 'Overlapping subproblems: splitting F(5) produces F(3) twice. Solve it once and the second time you just look it up. Without overlap (merge sort) there is nothing to look up.',
+    n_optimal: 'Optimal substructure: a piece of a cheapest path is itself a cheapest path for that stretch. For maximum or minimum problems, this is what lets small answers build the big one.',
+    n_memo: 'Memoization: keep the recursion and write each answer down before returning it. It works down from the big problem and solves only what is needed.',
+    n_tab: 'Tabulation: fill a table upwards from the small problems. Every cell a new cell refers to is already filled.',
+  },
+  zh: {
+    title: '动态规划 = 分治 + 保存',
+    g1: '什么样的问题',
+    g2: '怎样保存',
+    overlap: '重叠子问题',
+    optimal: '最优子结构',
+    memo: '记忆化',
+    tab: '制表法',
+    memoSub: '自顶向下 · lazy',
+    tabSub: '自底向上 · eager',
+    overlapSub: '同一个问题出现多次',
+    optimalSub: '大的最优里含着小的最优',
+    n_overlap: '重叠子问题：拆开 F(5) 时 F(3) 出现两次。解一次存下来，第二次取出来就行。如果不重叠（归并排序），存了也没有机会取。',
+    n_optimal: '最优子结构：最便宜路径的一段，也是那一段的最便宜路径。求最大值、最小值的问题有了这个性质，才能用小答案拼出大答案。',
+    n_memo: '记忆化：递归保持不变，返回答案之前先记下来。从大问题往下走，只解需要的。',
+    n_tab: '制表法：从小问题开始往上填表。填一格时要参照的格子都已经填好。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-dp-map" title={t.title} strings={t} slide={slide} size={2.9}>
+  <div class="dm-wrap">
+    <div class="dm-group">
+      <span class="dm-gname">{t.g1}</span>
+      <button type="button" class="dm-card" data-dm="overlap">
+        <svg viewBox="0 0 200 120" aria-hidden="true">
+          <path class="sv-edge" d="M100 20L55 60M100 20L145 60M55 60L30 100M55 60L80 100M145 60L120 100M145 60L170 100"></path>
+          <circle class="sv-node" cx="100" cy="20" r="15"></circle><text x="100" y="20">5</text>
+          <circle class="sv-node" cx="55" cy="60" r="15"></circle><text x="55" y="60">4</text>
+          <circle class="sv-node sv-guard" cx="145" cy="60" r="15"></circle><text x="145" y="60">3</text>
+          <circle class="sv-node sv-guard" cx="30" cy="100" r="15"></circle><text x="30" y="100">3</text>
+          <circle class="sv-node" cx="80" cy="100" r="15"></circle><text x="80" y="100">2</text>
+          <circle class="sv-node" cx="120" cy="100" r="15"></circle><text x="120" y="100">2</text>
+          <circle class="sv-node" cx="170" cy="100" r="15"></circle><text x="170" y="100">1</text>
+        </svg>
+        <strong>{t.overlap}</strong><span>{t.overlapSub}</span>
+      </button>
+      <button type="button" class="dm-card" data-dm="optimal">
+        <svg viewBox="0 0 200 120" aria-hidden="true">
+          <path class="sv-edge sv-dash" d="M20 65Q60 5 100 35T180 60M70 65Q100 125 140 65"></path>
+          <path class="sv-edge sv-model" d="M20 65H70"></path>
+          <path class="sv-edge sv-focus" d="M70 65H140"></path>
+          <path class="sv-edge sv-model" d="M140 65H180"></path>
+          <circle class="sv-node" cx="20" cy="65" r="13"></circle><text x="20" y="65">s</text>
+          <circle class="sv-node sv-focus" cx="70" cy="65" r="13"></circle><text x="70" y="65">a</text>
+          <circle class="sv-node sv-focus" cx="140" cy="65" r="13"></circle><text x="140" y="65">b</text>
+          <circle class="sv-node" cx="180" cy="65" r="13"></circle><text x="180" y="65">t</text>
+        </svg>
+        <strong>{t.optimal}</strong><span>{t.optimalSub}</span>
+      </button>
+    </div>
+    <span class="dm-plus">+</span>
+    <div class="dm-group">
+      <span class="dm-gname">{t.g2}</span>
+      <button type="button" class="dm-card" data-dm="memo">
+        <svg viewBox="0 0 200 120" aria-hidden="true">
+          <path class="sv-edge" d="M75 18L45 55L20 95M45 55L70 95"></path>
+          <path class="sv-edge sv-trace sv-dash" d="M75 18L112 62H136"></path>
+          <circle class="sv-node" cx="75" cy="18" r="14"></circle><text x="75" y="18">5</text>
+          <circle class="sv-node" cx="45" cy="55" r="14"></circle><text x="45" y="55">4</text>
+          <circle class="sv-node" cx="20" cy="95" r="14"></circle><text x="20" y="95">3</text>
+          <circle class="sv-node" cx="70" cy="95" r="14"></circle><text x="70" y="95">2</text>
+          <rect class="sv-node" x="136" y="14" width="52" height="92" rx="6"></rect>
+          <path class="sv-edge" d="M136 45H188M136 76H188"></path>
+          <text x="162" y="30">2: 1</text><text x="162" y="61">3: 2</text><text x="162" y="92">4: 3</text>
+        </svg>
+        <strong>{t.memo}</strong><span>{t.memoSub}</span>
+      </button>
+      <button type="button" class="dm-card" data-dm="tab">
+        <svg viewBox="0 0 200 120" aria-hidden="true">
+          <path class="sv-edge sv-model" d="M83 48Q100 20 115 45M50 48Q84 2 119 45"></path>
+          {
+            [0, 1, 1, 2, '', ''].map((v, i) => (
+              <Fragment>
+                <rect class:list={['sv-node', i < 3 ? 'sv-eval' : i === 3 && 'sv-focus']} x={4 + i * 33} y="50" width="29" height="32" rx="4" />
+                <text x={18.5 + i * 33} y="66">{v}</text>
+              </Fragment>
+            ))
+          }
+          <path class="sv-edge sv-focus" d="M20 102H176M166 94L176 102L166 110"></path>
+        </svg>
+        <strong>{t.tab}</strong><span>{t.tabSub}</span>
+      </button>
+    </div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const { root, S, note } = aasDp.root(id);
+    const cards = [...root.querySelectorAll('[data-dm]')];
+    const pick = (k) => {
+      cards.forEach((c) => c.classList.toggle('is-on', c.dataset.dm === k));
+      aasDp.lines(note, S[`n_${k}`]);
+    };
+    cards.forEach((c) => c.addEventListener('click', () => pick(c.dataset.dm)));
+    pick('overlap');
+  })();
+</script>
+
+<style is:global>
+  .aas-dp-map .dm-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-dp-map.is-slide .dm-wrap {
+    flex-wrap: nowrap;
+  }
+  .aas-dp-map .dm-group {
+    position: relative;
+    flex: 1 1 17em;
+    display: flex;
+    gap: 0.6em;
+    padding: 1.3em 0.7em 0.7em;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.9em;
+  }
+  .aas-dp-map .dm-gname {
+    position: absolute;
+    top: -0.8em;
+    left: 1em;
+    padding: 0 0.5em;
+    font-size: 0.85em;
+    font-weight: 700;
+    background: var(--aas-panel);
+    color: var(--aas-muted);
+  }
+  .aas-dp-map .dm-plus {
+    font-size: 2em;
+    font-weight: 300;
+    color: var(--aas-muted);
+  }
+  .aas-dp-map .dm-card {
+    flex: 1;
+    min-width: 0;
+    padding: 0.6em;
+    font: inherit;
+    text-align: center;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--dx-line);
+    border-radius: 0.7em;
+    cursor: pointer;
+    transition:
+      border-color 0.2s,
+      background-color 0.2s;
+  }
+  .aas-dp-map .dm-card:hover,
+  .aas-dp-map .dm-card.is-on {
+    border-color: var(--aas-accent);
+  }
+  .aas-dp-map .dm-card.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 9%, var(--aas-bg));
+  }
+  .aas-dp-map .dm-card svg {
+    width: 100%;
+    margin-bottom: 0.5em;
+  }
+  .aas-dp-map .dm-card svg text {
+    font-size: 15px;
+  }
+  .aas-dp-map .dm-card strong {
+    display: block;
+    font-size: 0.95em;
+  }
+  .aas-dp-map .dm-card span {
+    font-size: 0.75em;
+    color: var(--aas-muted);
+  }
+  .aas-dp-map .dx-note {
+    min-height: 4.6em;
+  }
+</style>

@@ -1,0 +1,210 @@
+---
+// 설계 다섯 단계를 예제마다 열어 보는 데모. 먼저 스스로 답해 보고 카드를 누른다.
+//
+// 왼쪽 작은 그림은 지금 칸(주황)이 참조하는 칸(파랑)과 채우는 방향(화살표)이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ds-${Math.random().toString(36).slice(2, 9)}`;
+type P = { name: string; q: string[] };
+const T: Record<string, { title: string; all: string; hide: string; tap: string; note: string; st: string[]; p: Record<string, P> }> = {
+  ko: {
+    title: '다섯 단계로 설계하기',
+    all: '모두 열기',
+    hide: '모두 가리기',
+    tap: '눌러서 열기',
+    note: '표의 한 칸이 무엇인지부터 스스로 말해 보고 카드를 엽니다. 첫 줄이 정해지면 나머지는 거기서 따라 나옵니다.',
+    st: ['한 칸의 뜻', '점화식', '기저', '채우는 순서', '복원'],
+    p: {
+      coin: { name: '거스름돈', q: ['dp[a]: a원을 만드는 최소 동전 수', 'min(dp[a-c] + 1), 동전 c마다', 'dp[0] = 0', '작은 금액부터', 'choice[a]: 마지막에 낸 동전'] },
+      lis: { name: 'LIS', q: ['dp[i]: arr[i]로 끝나는 가장 긴 길이', '1 + max(dp[j]), j < i이고 arr[j] < arr[i]', '그런 j가 없으면 1', '왼쪽부터, 답은 dp의 최댓값', 'prev[i]: 바로 앞 원소'] },
+      grid: { name: '격자 경로', q: ['dp[x][y]: (x, y)까지 오는 길의 수', 'dp[x-1][y] + dp[x][y-1], 장애물은 0', 'dp[0][0] = 1', '행 순서', '길을 물으면 온 쪽으로 거슬러 가기'] },
+      path: { name: '길찾기', q: ['S(u, k): u에서 도착까지 간선 k개의 최소 비용', 'min(w(u, x) + S(x, k-1)), 간선 u → x마다', 'S(도착, 0) = 0, 나머지는 INF', 'k가 작은 것부터', 'next[k][u]: 첫 걸음'] },
+      knap: { name: '0/1 배낭', q: ['dp[i][c]: 물건 1..i, 용량 c의 최대 가치', 'max(dp[i-1][c], dp[i-1][c-w] + v)', 'dp[0][c] = 0', '물건을 하나씩 늘리며', '위 칸과 다르면 담은 것'] },
+      edit: { name: '편집 거리', q: ['dp[i][j]: 앞 i글자를 앞 j글자로 바꾸는 횟수', 'min(위 + 1, 왼쪽 + 1, 대각선 + (다르면 1))', 'dp[i][0] = i, dp[0][j] = j', '행 순서', '고른 쪽으로 거슬러 가기'] },
+    },
+  },
+  en: {
+    title: 'Designing in five steps',
+    all: 'Open all',
+    hide: 'Hide all',
+    tap: 'click to open',
+    note: 'First say for yourself what one cell means, then open the cards. Once the first line is settled, the rest follows from it.',
+    st: ['Meaning of a cell', 'Recurrence', 'Base case', 'Filling order', 'Restoring'],
+    p: {
+      coin: { name: 'Coins', q: ['dp[a]: fewest coins for a won', 'min(dp[a-c] + 1) over coins c', 'dp[0] = 0', 'small amounts first', 'choice[a]: the last coin paid'] },
+      lis: { name: 'LIS', q: ['dp[i]: longest length ending at arr[i]', '1 + max(dp[j]), j < i and arr[j] < arr[i]', '1 if there is no such j', 'left to right; the answer is the maximum of dp', 'prev[i]: the number just before'] },
+      grid: { name: 'Grid paths', q: ['dp[x][y]: number of paths reaching (x, y)', 'dp[x-1][y] + dp[x][y-1], obstacles are 0', 'dp[0][0] = 1', 'row by row', 'for a path, walk back the way it came'] },
+      path: { name: 'Path', q: ['S(u, k): cheapest cost from u to the target with k edges', 'min(w(u, x) + S(x, k-1)) over edges u → x', 'S(target, 0) = 0, the rest INF', 'small k first', 'next[k][u]: the first step'] },
+      knap: { name: '0/1 knapsack', q: ['dp[i][c]: best value with items 1..i, capacity c', 'max(dp[i-1][c], dp[i-1][c-w] + v)', 'dp[0][c] = 0', 'adding items one at a time', 'packed if it differs from the cell above'] },
+      edit: { name: 'Edit distance', q: ['dp[i][j]: edits from the first i letters to the first j', 'min(up + 1, left + 1, diagonal + (1 if different))', 'dp[i][0] = i, dp[0][j] = j', 'row by row', 'walk back along the chosen side'] },
+    },
+  },
+  zh: {
+    title: '用五步来设计',
+    all: '全部打开',
+    hide: '全部盖住',
+    tap: '点击打开',
+    note: '先自己说说表中一格是什么意思，再打开卡片。第一行定下来，其余的就都跟着出来了。',
+    st: ['一格的含义', '递推式', '基础情形', '填写顺序', '还原'],
+    p: {
+      coin: { name: '找零', q: ['dp[a]：凑 a 韩元的最少硬币数', 'min(dp[a-c] + 1)，对每枚硬币 c', 'dp[0] = 0', '从小金额开始', 'choice[a]：最后付的硬币'] },
+      lis: { name: 'LIS', q: ['dp[i]：以 arr[i] 结尾的最长长度', '1 + max(dp[j])，j < i 且 arr[j] < arr[i]', '没有这样的 j 时为 1', '从左开始，答案是 dp 的最大值', 'prev[i]：前一个元素'] },
+      grid: { name: '网格路径', q: ['dp[x][y]：到 (x, y) 的路径数', 'dp[x-1][y] + dp[x][y-1]，障碍为 0', 'dp[0][0] = 1', '按行', '若问路径，沿来的方向往回走'] },
+      path: { name: '找路', q: ['S(u, k)：从 u 用 k 条边到终点的最小费用', 'min(w(u, x) + S(x, k-1))，对每条边 u → x', 'S(终点, 0) = 0，其余为 INF', '从小的 k 开始', 'next[k][u]：第一步'] },
+      knap: { name: '0/1 背包', q: ['dp[i][c]：物品 1..i、容量 c 的最大价值', 'max(dp[i-1][c], dp[i-1][c-w] + v)', 'dp[0][c] = 0', '逐个增加物品', '与上方的格不同就是装了'] },
+      edit: { name: '编辑距离', q: ['dp[i][j]：前 i 个字符改成前 j 个字符的次数', 'min(上 + 1, 左 + 1, 对角 + (不同则 1))', 'dp[i][0] = i，dp[0][j] = j', '按行', '沿选中的方向往回走'] },
+    },
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = T[lang] ?? T.ko;
+// 그림: [열 수, 행 수, 지금 칸, 참조하는 칸들, 채우는 방향 ('row' | 'up')]
+const PIC: Record<string, { c: number; r: number; now: number[]; refs: number[][]; note: string }> = {
+  coin: { c: 7, r: 1, now: [0, 6], refs: [[0, 4], [0, 3], [0, 1]], note: 'dp[6]' },
+  lis: { c: 7, r: 1, now: [0, 5], refs: [[0, 2], [0, 3], [0, 4]], note: 'dp[5]' },
+  grid: { c: 5, r: 5, now: [3, 3], refs: [[2, 3], [3, 2]], note: 'dp[3][3]' },
+  path: { c: 6, r: 4, now: [3, 0], refs: [[2, 1], [2, 2]], note: 'S(0, 3)' },
+  knap: { c: 6, r: 4, now: [3, 5], refs: [[2, 5], [2, 2]], note: 'dp[3][50]' },
+  edit: { c: 5, r: 5, now: [3, 3], refs: [[2, 3], [3, 2], [2, 2]], note: 'dp[3][3]' },
+};
+---
+
+<DpKit id={id} cls="aas-design-steps" title={t.title} strings={{ all: t.all, hide: t.hide, tap: t.tap, note: t.note, p: t.p }} slide={slide} size={2.6}>
+  <Fragment slot="controls">
+    {Object.entries(t.p).map(([k, v], i) => <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="p" data-dx-val={k}>{v.name}</button>)}
+    <button type="button" class="dx-btn dx-primary" data-dx="all">{t.all}</button>
+  </Fragment>
+  <div class="dx-row ds-row">
+    <svg viewBox="0 0 280 230" data-dx="svg"></svg>
+    <div class="ds-cards">
+      {t.st.map((s, i) => (
+        <button type="button" class="ds-card" data-ds={i}>
+          <span class="ds-n">{i + 1}</span><strong>{s}</strong><span class="ds-a" />
+        </button>
+      ))}
+    </div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, PIC }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    let name = 'coin';
+    let open = new Set();
+    const cards = [...root.querySelectorAll('[data-ds]')];
+    function draw() {
+      cards.forEach((c, i) => {
+        c.classList.toggle('is-open', open.has(i));
+        c.querySelector('.ds-a').textContent = open.has(i) ? S.p[name].q[i] : S.tap;
+      });
+      get('all').textContent = open.size === cards.length ? S.hide : S.all;
+      const P = PIC[name];
+      const w = Math.min(38, 250 / P.c);
+      const x = (j) => 140 + (j - (P.c - 1) / 2) * w;
+      const y = (i) => (P.r === 1 ? 120 : 115 + (i - (P.r - 1) / 2) * w);
+      const g = get('svg');
+      g.replaceChildren();
+      for (let i = 0; i < P.r; i++)
+        for (let j = 0; j < P.c; j++) {
+          const now = P.now[0] === i && P.now[1] === j;
+          const ref = P.refs.some((r) => r[0] === i && r[1] === j);
+          const done = i < P.now[0] || (i === P.now[0] && j < P.now[1]);
+          g.append(K.svg('rect', { x: x(j) - w / 2 + 2, y: y(i) - w / 2 + 2, width: w - 4, height: w - 4, rx: 5, cls: `sv-node ${now ? 'sv-focus' : ref ? 'sv-model' : done ? 'sv-eval' : ''}`, style: 'stroke-width:1.6' }));
+        }
+      P.refs.forEach(([i, j]) => {
+        const [x1, y1, x2, y2] = [x(j), y(i), x(P.now[1]), y(P.now[0])];
+        const L = Math.hypot(x2 - x1, y2 - y1);
+        const bend = P.r === 1 ? -26 - L * 0.28 : 0;
+        const [cx, cy] = [(x1 + x2) / 2, (y1 + y2) / 2 + bend];
+        const M = Math.hypot(x2 - cx, y2 - cy);
+        const [ux, uy] = [(x2 - cx) / M, (y2 - cy) / M];
+        const [ex, ey] = [x2 - ux * w * 0.42, y2 - uy * w * 0.42];
+        g.append(K.svg('path', { cls: 'sv-edge sv-model', style: 'stroke-width:2.5', d: `M${x1} ${y1 + (P.r === 1 ? -w / 2 + 4 : 0)}Q${cx} ${cy} ${ex} ${ey}M${ex - ux * 9 - uy * 5} ${ey - uy * 9 + ux * 5}L${ex} ${ey}L${ex - ux * 9 + uy * 5} ${ey - uy * 9 - ux * 5}` }));
+      });
+      g.append(K.svg('text', { x: 140, y: 222, 'font-size': 16, style: 'fill:var(--aas-muted)' }, P.note));
+      K.lines(note, S.note);
+    }
+    cards.forEach((c, i) =>
+      c.addEventListener('click', () => {
+        if (open.has(i)) open.delete(i);
+        else open.add(i);
+        draw();
+      }),
+    );
+    get('all').addEventListener('click', () => {
+      open = open.size === cards.length ? new Set() : new Set(cards.keys());
+      draw();
+    });
+    tabs('p', (v) => {
+      name = v;
+      open = new Set();
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-design-steps .ds-row > svg {
+    flex: 0 0 15em;
+    width: 15em;
+  }
+  .aas-design-steps .ds-cards {
+    flex: 1 1 24em;
+    display: grid;
+    gap: 0.4em;
+  }
+  .aas-design-steps .ds-card {
+    display: grid;
+    grid-template-columns: 1.8em 7.2em 1fr;
+    gap: 0.5em;
+    align-items: center;
+    padding: 0.5em 0.8em;
+    font: inherit;
+    font-size: 0.9em;
+    text-align: left;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px dashed var(--dx-line);
+    border-radius: 0.6em;
+    cursor: pointer;
+  }
+  .aas-design-steps .ds-card:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-design-steps .ds-card.is-open {
+    border: 2px solid var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 10%, var(--aas-bg));
+  }
+  .aas-design-steps .ds-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6em;
+    height: 1.6em;
+    border-radius: 50%;
+    background: var(--aas-accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85em;
+  }
+  .aas-design-steps .ds-a {
+    color: var(--aas-muted);
+  }
+  .aas-design-steps .is-open .ds-a {
+    color: var(--aas-text);
+  }
+  @media (max-width: 40rem) {
+    .aas-design-steps:not(.is-slide) .ds-card {
+      grid-template-columns: 1.8em 1fr;
+    }
+    .aas-design-steps:not(.is-slide) .ds-a {
+      grid-column: 2;
+    }
+  }
+</style>

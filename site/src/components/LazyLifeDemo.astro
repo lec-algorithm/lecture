@@ -1,0 +1,323 @@
+---
+// 생활 속 lazy를 직접 만져 보는 데모. 이미지 목록, 동영상, 데이터베이스 세 가지.
+//
+// 이미지: 두 목록을 스크롤한다. eager는 처음에 다 받고, lazy는 화면에 들어온 것만 받는다.
+// 동영상: 어디까지 보고 끄는지 움직인다. 데이터베이스: 열어 본 것만 읽는다.
+// 미리 읽는 양(동영상 2분 앞)은 설명을 위한 보기 값이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ll-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '생활 속 eager와 lazy',
+    img: '웹 페이지 이미지',
+    vid: '동영상',
+    db: '데이터베이스',
+    eager: 'eager: 미리 전부',
+    lazy: 'lazy: 필요할 때',
+    got: '받은 이미지',
+    min: '받은 분량',
+    rows: '읽은 행',
+    unitMin: '분',
+    stopAt: '여기까지 보고 끈다',
+    posts: '글 1000개',
+    friends: '친구 500명',
+    photos: '사진 2000장',
+    base: '기본 정보',
+    open: '열기',
+    opened: '열림',
+    n_img: '오른쪽 목록을 스크롤해 보세요. lazy는 화면에 들어온 이미지만 받습니다. 끝까지 내리면 eager와 같아집니다.',
+    n_vid: '60분짜리 영상을 {m}분 보고 껐습니다. eager는 60분을 다 받은 뒤에야 재생합니다. lazy는 보는 자리의 2분 앞까지만 받아 {g}분을 받았습니다.',
+    n_db: '오른쪽에서 궁금한 것만 열어 보세요. eager는 열지 않아도 3501행을 모두 읽습니다. lazy는 지금까지 {g}행을 읽었습니다.',
+  },
+  en: {
+    title: 'Eager and lazy in daily life',
+    img: 'Images on a page',
+    vid: 'Video',
+    db: 'Database',
+    eager: 'eager: everything in advance',
+    lazy: 'lazy: when needed',
+    got: 'images loaded',
+    min: 'downloaded',
+    rows: 'rows read',
+    unitMin: 'min',
+    stopAt: 'watch up to here and stop',
+    posts: '1000 posts',
+    friends: '500 friends',
+    photos: '2000 photos',
+    base: 'basic info',
+    open: 'open',
+    opened: 'opened',
+    n_img: 'Scroll the list on the right. Lazy loads only the images that come into view. Scrolled to the end, it equals eager.',
+    n_vid: 'You watched {m} minutes of a 60-minute video. Eager plays only after downloading all 60. Lazy stays 2 minutes ahead of you and downloaded {g} minutes.',
+    n_db: 'Open only what you want on the right. Eager reads all 3501 rows anyway. Lazy has read {g} rows so far.',
+  },
+  zh: {
+    title: '生活中的 eager 与 lazy',
+    img: '网页图片',
+    vid: '视频',
+    db: '数据库',
+    eager: 'eager：预先全部',
+    lazy: 'lazy：需要时才做',
+    got: '已加载图片',
+    min: '已下载',
+    rows: '已读行数',
+    unitMin: '分钟',
+    stopAt: '看到这里就关掉',
+    posts: '1000 篇帖子',
+    friends: '500 位好友',
+    photos: '2000 张照片',
+    base: '基本信息',
+    open: '打开',
+    opened: '已打开',
+    n_img: '滚动右边的列表试试。lazy 只加载进入画面的图片。滚到底就和 eager 一样了。',
+    n_vid: '60 分钟的视频看了 {m} 分钟就关掉。eager 要下载完 60 分钟才播放。lazy 只提前下载 2 分钟，共下载 {g} 分钟。',
+    n_db: '在右边只打开想看的。eager 不打开也会读全部 3501 行。lazy 到现在读了 {g} 行。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const IMGS = 30;
+const DB: [string, number][] = [
+  ['posts', 1000],
+  ['friends', 500],
+  ['photos', 2000],
+];
+---
+
+<DpKit id={id} cls="aas-lazy-life" title={t.title} strings={t} slide={slide} size={2.8}>
+  <Fragment slot="controls">
+    {(['img', 'vid', 'db'] as const).map((k, i) => (
+      <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="m" data-dx-val={k}>{t[k]}</button>
+    ))}
+  </Fragment>
+  <div class="ll-pane" data-dx="img">
+    {(['eager', 'lazy'] as const).map((k) => (
+      <div class="ll-half">
+        <h4>{t[k]}</h4>
+        <div class="ll-scroll" data-ll-scroll={k} tabindex="0">
+          {Array.from({ length: IMGS }, (_, i) => (
+            <span class="ll-img" style={`--h: ${(i * 47) % 360}`}><b>{i + 1}</b></span>
+          ))}
+        </div>
+        <p>{t.got} <b data-dx={`img-${k}`} /> / {IMGS}</p>
+      </div>
+    ))}
+  </div>
+  <div class="ll-pane ll-vid" data-dx="vid" hidden>
+    <label>{t.stopAt} <input type="range" min="1" max="60" value="12" data-dx="range" /></label>
+    {(['eager', 'lazy'] as const).map((k) => (
+      <div class="ll-bar-row">
+        <h4>{t[k]}</h4>
+        <div class="ll-bar"><i data-dx={`buf-${k}`} /><b data-dx={`play-${k}`} /></div>
+        <p>{t.min} <b data-dx={`min-${k}`} /> {t.unitMin}</p>
+      </div>
+    ))}
+  </div>
+  <div class="ll-pane" data-dx="db" hidden>
+    {(['eager', 'lazy'] as const).map((k) => (
+      <div class="ll-half">
+        <h4>{t[k]}</h4>
+        <div class="ll-db">
+          <span class="ll-chip is-on">{t.base} <i>1</i></span>
+          {DB.map(([d, c]) => (
+            <button type="button" class:list={['ll-chip', k === 'eager' && 'is-on']} data-ll-db={k === 'lazy' ? c : undefined} disabled={k === 'eager'}>
+              {t[d]} <i>{k === 'eager' ? '✓' : t.open}</i>
+            </button>
+          ))}
+        </div>
+        <p>{t.rows} <b data-dx={`db-${k}`}>3501</b></p>
+      </div>
+    ))}
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    let mode = 'img';
+    const boxes = Object.fromEntries([...root.querySelectorAll('[data-ll-scroll]')].map((b) => [b.dataset.llScroll, b]));
+    const imgs = (k) => [...boxes[k].children];
+    function load() {
+      imgs('eager').forEach((e) => e.classList.add('is-on'));
+      const b = boxes.lazy;
+      imgs('lazy').forEach((e) => {
+        if (b.clientHeight && e.offsetTop < b.scrollTop + b.clientHeight) e.classList.add('is-on');
+      });
+      ['eager', 'lazy'].forEach((k) => {
+        get(`img-${k}`).textContent = imgs(k).filter((e) => e.classList.contains('is-on')).length;
+      });
+    }
+    function draw() {
+      ['img', 'vid', 'db'].forEach((m) => (get(m).hidden = m !== mode));
+      if (mode === 'img') {
+        load();
+        K.lines(note, S.n_img);
+      } else if (mode === 'vid') {
+        const m = +get('range').value;
+        const g = Math.min(60, m + 2);
+        [['eager', 60], ['lazy', g]].forEach(([k, v]) => {
+          get(`buf-${k}`).style.width = `${(v / 60) * 100}%`;
+          get(`play-${k}`).style.width = `${(m / 60) * 100}%`;
+          get(`min-${k}`).textContent = v;
+        });
+        K.lines(note, K.fill(S.n_vid, { m, g }));
+      } else {
+        const g = 1 + [...root.querySelectorAll('[data-ll-db].is-on')].reduce((s, b) => s + +b.dataset.llDb, 0);
+        get('db-lazy').textContent = g;
+        K.lines(note, K.fill(S.n_db, { g }));
+      }
+    }
+    boxes.lazy.addEventListener('scroll', load);
+    get('range').addEventListener('input', draw);
+    root.querySelectorAll('[data-ll-db]').forEach((b) =>
+      b.addEventListener('click', () => {
+        b.classList.add('is-on');
+        b.querySelector('i').textContent = S.opened;
+        draw();
+      }),
+    );
+    tabs('m', (v) => {
+      mode = v;
+      draw();
+    });
+    draw();
+    addEventListener('load', load);
+    new ResizeObserver(load).observe(boxes.lazy);
+  })();
+</script>
+
+<style is:global>
+  .aas-lazy-life .ll-pane {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em 1.6em;
+    min-height: 15em;
+  }
+  .aas-lazy-life .ll-pane[hidden] {
+    display: none;
+  }
+  .aas-lazy-life h4 {
+    margin: 0 0 0.4em;
+    font-size: 0.9em;
+    font-weight: 700;
+    color: var(--aas-text);
+  }
+  .aas-lazy-life p:not(.dx-note) {
+    margin: 0.4em 0 0;
+    font-size: 0.9em;
+  }
+  .aas-lazy-life p:not(.dx-note) b {
+    font-family: var(--aas-mono, monospace);
+    font-size: 1.15em;
+    color: var(--aas-role-focus);
+  }
+  .aas-lazy-life .ll-half {
+    flex: 1 1 16em;
+    min-width: 0;
+  }
+  .aas-lazy-life .ll-scroll {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4em;
+    height: 10.5em;
+    padding: 0.5em;
+    overflow-y: auto;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.6em;
+    background: var(--aas-bg);
+  }
+  .aas-lazy-life .ll-img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 4.2em;
+    border-radius: 0.4em;
+    border: 1.5px dashed var(--dx-line);
+    color: var(--aas-muted);
+    font-size: 0.9em;
+    transition: background-color 0.5s;
+  }
+  .aas-lazy-life .ll-img.is-on {
+    border: 1.5px solid transparent;
+    background: linear-gradient(160deg, hsl(var(--h) 60% 72%), hsl(calc(var(--h) + 50) 55% 52%));
+    color: #fff;
+  }
+  .aas-lazy-life .ll-vid {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
+  .aas-lazy-life .ll-vid label {
+    display: flex;
+    gap: 0.8em;
+    align-items: center;
+    font-size: 0.9em;
+  }
+  .aas-lazy-life .ll-vid input {
+    flex: 1;
+    accent-color: var(--aas-accent);
+  }
+  .aas-lazy-life .ll-bar-row {
+    display: grid;
+    grid-template-columns: 12em 1fr 8em;
+    gap: 1em;
+    align-items: center;
+  }
+  .aas-lazy-life .ll-bar-row h4,
+  .aas-lazy-life .ll-bar-row p:not(.dx-note) {
+    margin: 0;
+  }
+  .aas-lazy-life .ll-bar {
+    position: relative;
+    height: 2em;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.4em;
+    overflow: hidden;
+  }
+  .aas-lazy-life .ll-bar i,
+  .aas-lazy-life .ll-bar b {
+    position: absolute;
+    inset: 0 auto 0 0;
+  }
+  .aas-lazy-life .ll-bar i {
+    background: color-mix(in srgb, var(--aas-role-trace) 45%, var(--aas-bg));
+  }
+  .aas-lazy-life .ll-bar b {
+    top: 55%;
+    background: var(--aas-role-guard);
+  }
+  .aas-lazy-life .ll-db {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+  }
+  .aas-lazy-life .ll-chip {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4em 0.8em;
+    font: inherit;
+    font-size: 0.9em;
+    color: var(--aas-muted);
+    text-align: left;
+    background: var(--aas-bg);
+    border: 2px dashed var(--dx-line);
+    border-radius: 0.5em;
+    cursor: pointer;
+  }
+  .aas-lazy-life .ll-chip i {
+    font-style: normal;
+  }
+  .aas-lazy-life .ll-chip.is-on {
+    border: 2px solid var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 14%, var(--aas-bg));
+    color: var(--aas-text);
+    cursor: default;
+  }
+</style>

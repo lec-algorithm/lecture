@@ -1,0 +1,245 @@
+---
+// 같은 선택지를 그리디, 모든 갈래를 다시 푸는 재귀, 동적 계획법이 어떻게 보는지 견주는 그림.
+//
+// 칸은 남은 금액, 화살표는 동전 하나다. 그리디는 한 길만, 재귀는 같은 화살표를 여러 번,
+// 동적 계획법은 화살표마다 한 번씩 본다. 화살표 위 숫자는 그 화살표를 본 횟수이고,
+// 실제로 돌려서 센다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `sg-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '세 방법이 보는 갈래',
+    greedy: '그리디',
+    brute: '재귀로 전부',
+    dp: '동적 계획법',
+    looked: '본 화살표',
+    ans: '답',
+    coins: '동전',
+    stuck: '막힘',
+    n_greedy: '그리디는 가장 큰 동전만 따라갑니다. 화살표를 {e}번 보고 {a}개를 냈습니다. 다른 갈래는 보지 않습니다.',
+    n_greedyX: '그리디는 가장 큰 동전만 따라가다 {r}원에서 막혔습니다. 되돌아가지 않으므로 답을 내지 못합니다.',
+    n_brute: '재귀로 모두 견주면 답은 {a}개로 맞지만, 같은 화살표를 거듭 봅니다. 화살표를 본 횟수가 {e}번입니다.',
+    n_dp: '동적 계획법도 모두 견주지만 칸마다 한 번만 풉니다. 화살표 {e}개를 한 번씩 보고 {a}개를 찾았습니다.',
+  },
+  en: {
+    title: 'What the three methods look at',
+    greedy: 'Greedy',
+    brute: 'Recursion, everything',
+    dp: 'Dynamic programming',
+    looked: 'arrows looked at',
+    ans: 'answer',
+    coins: 'coins',
+    stuck: 'stuck',
+    n_greedy: 'Greedy follows only the largest coin. It looked at {e} arrows and paid {a} coins. It never sees the other branches.',
+    n_greedyX: 'Greedy follows only the largest coin and gets stuck at {r} won. It never goes back, so it gives no answer.',
+    n_brute: 'Comparing everything by recursion gives the right answer {a}, but looks at the same arrows again and again: {e} times.',
+    n_dp: 'Dynamic programming compares everything too, but solves each cell once. It looked at {e} arrows once each and found {a} coins.',
+  },
+  zh: {
+    title: '三种方法看到的分支',
+    greedy: '贪心',
+    brute: '递归全看',
+    dp: '动态规划',
+    looked: '看过的箭头',
+    ans: '答案',
+    coins: '硬币',
+    stuck: '卡住',
+    n_greedy: '贪心只跟最大的硬币走。看了 {e} 次箭头，付了 {a} 枚。不看别的分支。',
+    n_greedyX: '贪心只跟最大的硬币走，在 {r} 韩元卡住了。它不回头，所以给不出答案。',
+    n_brute: '用递归全部比较，答案 {a} 枚是对的，但反复看同样的箭头。看箭头的次数是 {e} 次。',
+    n_dp: '动态规划也全部比较，但每格只解一次。{e} 个箭头各看一次，找到 {a} 枚。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SETS = ['50,40,10|80', '1,3,4|6', '2,3,5|6'];
+---
+
+<DpKit id={id} cls="aas-strategy" title={t.title} strings={t} slide={slide} size={2.7}>
+  <Fragment slot="controls">
+    {SETS.map((s, i) => {
+      const [c, a] = s.split('|');
+      return <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="set" data-dx-val={s}>{`{${c.replaceAll(',', ', ')}} ${a}`}</button>;
+    })}
+  </Fragment>
+  <div class="sg-modes">
+    {(['greedy', 'brute', 'dp'] as const).map((k) => (
+      <button type="button" class="sg-mode" data-sg={k}>
+        <strong>{t[k]}</strong>
+        <span>{t.looked} <b data-dx={`${k}-e`} /></span>
+        <span>{t.ans} <b data-dx={`${k}-a`} /></span>
+      </button>
+    ))}
+  </div>
+  <svg viewBox="0 0 900 250" data-dx="svg"></svg>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const INF = Infinity;
+    let coins, top, unit, mode, R;
+    function load(s) {
+      const [c, a] = s.split('|');
+      coins = c.split(',').map(Number);
+      top = +a;
+      const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+      unit = coins.reduce(gcd, top);
+      /* 그리디 */
+      const g = { edges: new Map(), n: 0, path: [top] };
+      let r = top;
+      for (;;) {
+        const c2 = [...coins].sort((x, y) => y - x).find((x) => x <= r);
+        if (!c2) break;
+        g.edges.set(`${r},${r - c2}`, 1);
+        r -= c2;
+        g.n++;
+        g.path.push(r);
+      }
+      g.a = r === 0 ? g.n : INF;
+      g.rest = r;
+      /* 메모 없는 재귀: 화살표를 본 횟수 */
+      const b = { edges: new Map(), n: 0 };
+      const go = (x) => {
+        if (x === 0) return 0;
+        let m = INF;
+        coins.forEach((c3) => {
+          if (c3 > x) return;
+          const k = `${x},${x - c3}`;
+          b.edges.set(k, (b.edges.get(k) || 0) + 1);
+          b.n++;
+          m = Math.min(m, go(x - c3) + 1);
+        });
+        return m;
+      };
+      b.a = go(top);
+      /* 메모를 붙인 재귀: 필요한 화살표를 한 번씩 */
+      const d = { edges: new Map(), n: 0, pick: new Map() };
+      const memo = new Map([[0, 0]]);
+      const dp = (x) => {
+        if (memo.has(x)) return memo.get(x);
+        let m = INF;
+        coins.forEach((c4) => {
+          if (c4 > x) return;
+          d.edges.set(`${x},${x - c4}`, 1);
+          d.n++;
+          const v = dp(x - c4) + 1;
+          if (v < m) {
+            m = v;
+            d.pick.set(x, x - c4);
+          }
+        });
+        memo.set(x, m);
+        return m;
+      };
+      d.a = dp(top);
+      const best = [top];
+      for (let x = top; x > 0 && d.a !== INF; x = d.pick.get(x)) best.push(d.pick.get(x));
+      b.path = d.path = best;
+      R = { greedy: g, brute: b, dp: d };
+      draw();
+    }
+    function draw() {
+      const n = top / unit + 1;
+      const gap = Math.min(105, 840 / n);
+      const X = (a) => 450 + ((n - 1) / 2 - a / unit) * gap;
+      const Y = 190;
+      const cur = R[mode];
+      const g = get('svg');
+      g.replaceChildren();
+      const top2 = [];
+      const max = Math.max(...R.brute.edges.values());
+      for (let a = top; a > 0; a -= unit)
+        coins.forEach((c) => {
+          if (c > a) return;
+          const k = `${a},${a - c}`;
+          const cnt = cur.edges.get(k) || 0;
+          const i = cur.path.indexOf(a);
+          const onPath = i >= 0 && cur.path[i + 1] === a - c;
+          const d = c / unit;
+          const h = 22 + d * 30;
+          const [x1, x2] = [X(a), X(a - c)];
+          const cls = !cnt ? 'sv-dim sv-dash' : onPath ? 'sv-guard' : mode === 'brute' ? 'sv-trace' : 'sv-model';
+          const w = !cnt ? 1.2 : mode === 'brute' ? 1.5 + (5 * Math.log(cnt)) / Math.log(max + 1) : onPath ? 4 : 2.2;
+          const p = K.svg('path', { cls: `sv-edge ${cls}`, style: `stroke-width:${w}`, d: `M${x1 + 5} ${Y - 20}Q${(x1 + x2) / 2} ${Y - 20 - h} ${x2 - 5} ${Y - 21}M${x2 - 17} ${Y - 27}L${x2 - 5} ${Y - 21}L${x2 - 4} ${Y - 34}` });
+          if (cnt) top2.push(p);
+          else g.append(p);
+          if (cnt && mode === 'brute')
+            top2.push(
+              K.svg('circle', { cx: (x1 + x2) / 2, cy: Y - 20 - h / 2, r: 11, style: 'fill:var(--aas-panel)' }),
+              K.svg('text', { x: (x1 + x2) / 2, y: Y - 20 - h / 2, 'font-size': 14, 'font-weight': 700 }, String(cnt)),
+            );
+        });
+      g.append(...top2);
+      const reach = new Set([...cur.edges.keys()].flatMap((k) => k.split(',').map(Number)));
+      for (let a = top; a >= 0; a -= unit) {
+        const c = cur.path.includes(a) ? 'sv-guard' : reach.has(a) ? (mode === 'dp' ? 'sv-eval' : 'sv-trace') : '';
+        g.append(
+          K.svg('rect', { x: X(a) - 24, y: Y - 18, width: 48, height: 38, rx: 8, cls: `sv-node ${c}`, style: reach.has(a) ? '' : 'opacity:.4' }),
+          K.svg('text', { x: X(a), y: Y + 1, 'font-size': 18, 'font-weight': 700 }, String(a)),
+        );
+      }
+      root.querySelectorAll('[data-sg]').forEach((m) => m.classList.toggle('is-on', m.dataset.sg === mode));
+      Object.entries(R).forEach(([k, v]) => {
+        get(`${k}-e`).textContent = v.n;
+        get(`${k}-a`).textContent = v.a === INF ? S.stuck : v.a;
+      });
+      K.lines(note, K.fill(mode === 'greedy' && cur.a === INF ? S.n_greedyX : S[`n_${mode}`], { e: cur.n, a: cur.a, r: cur.rest }));
+    }
+    root.querySelectorAll('[data-sg]').forEach((m) =>
+      m.addEventListener('click', () => {
+        mode = m.dataset.sg;
+        draw();
+      }),
+    );
+    mode = 'greedy';
+    tabs('set', load);
+    load('50,40,10|80');
+  })();
+</script>
+
+<style is:global>
+  .aas-strategy .sg-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+  }
+  .aas-strategy .sg-mode {
+    flex: 1 1 11em;
+    display: grid;
+    gap: 0.05em;
+    padding: 0.5em 0.9em;
+    font: inherit;
+    font-size: 0.85em;
+    text-align: left;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2px solid var(--dx-line);
+    border-radius: 0.7em;
+    cursor: pointer;
+  }
+  .aas-strategy .sg-mode span {
+    color: var(--aas-muted);
+  }
+  .aas-strategy .sg-mode b {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-strategy .sg-mode.is-on {
+    border-color: var(--aas-accent);
+    background: color-mix(in srgb, var(--aas-accent) 10%, var(--aas-bg));
+  }
+  .aas-strategy svg {
+    width: 100%;
+    margin: 0 auto;
+  }
+  .aas-strategy.is-slide svg {
+    max-height: 28vh;
+  }
+</style>

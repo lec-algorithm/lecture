@@ -1,0 +1,267 @@
+---
+// "마지막에 낸 동전"으로 쪼개는 일을 직접 해 보는 데모. 사람이 재귀와 메모를 대신한다.
+//
+// 지금 금액 a에서 마지막 동전 c마다 카드가 하나씩 있다. 남은 금액 a - c의 답을 모르면
+// 눌러서 그 문제로 내려가고, 알면 후보 C(a - c) + 1이 나온다. 카드가 모두 채워지면
+// 최솟값을 적고 돌아온다. 적은 답은 위의 메모 띠에 남아 다시 풀지 않는다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `lc-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '마지막에 낸 동전',
+    memo: 'memo',
+    where: '지금 문제',
+    coin: '마지막 동전',
+    big: '금액보다 큼',
+    go: '풀러 가기',
+    known: '적혀 있음',
+    impossible: '못 만듦',
+    write: '최솟값 {v} 적기',
+    auto: '다음 걸음',
+    reset: '처음으로',
+    solved: '푼 금액',
+    n_go: '{a}원을 만들 때 마지막에 낸 동전은 무엇일까요. 남은 금액의 답을 아직 모르는 카드를 눌러 풀러 갑니다.',
+    n_min: '카드가 모두 채워졌습니다. 후보 가운데 가장 작은 {v}가 {a}원의 답입니다. 적고 돌아갑니다.',
+    n_inf: '어느 동전을 내도 남은 금액을 만들 수 없습니다. {a}원은 INF라고 적고 돌아갑니다.',
+    n_done: '{a}원의 답은 {v}개입니다. 적어 둔 선택을 따라가면 {list}입니다. 금액 {n}개만 풀었습니다.',
+  },
+  en: {
+    title: 'The last coin',
+    memo: 'memo',
+    where: 'current problem',
+    coin: 'last coin',
+    big: 'too large',
+    go: 'go and solve',
+    known: 'written down',
+    impossible: 'impossible',
+    write: 'write the minimum {v}',
+    auto: 'Next step',
+    reset: 'Reset',
+    solved: 'amounts solved',
+    n_go: 'Which coin was paid last to make {a} won? Click a card whose remaining amount is still unknown and go solve it.',
+    n_min: 'All cards are filled. The smallest candidate, {v}, is the answer for {a} won. Write it down and go back.',
+    n_inf: 'Whichever coin you pay, the remainder cannot be made. Write INF for {a} won and go back.',
+    n_done: 'The answer for {a} won is {v} coins. Following the recorded choices gives {list}. Only {n} amounts were solved.',
+  },
+  zh: {
+    title: '最后付的硬币',
+    memo: 'memo',
+    where: '当前问题',
+    coin: '最后的硬币',
+    big: '比金额大',
+    go: '去解它',
+    known: '已记下',
+    impossible: '凑不出',
+    write: '记下最小值 {v}',
+    auto: '下一步',
+    reset: '重置',
+    solved: '已解金额',
+    n_go: '凑 {a} 韩元时最后付的是哪枚硬币呢？点击剩余金额答案还未知的卡片去解它。',
+    n_min: '卡片都填满了。候选中最小的 {v} 就是 {a} 韩元的答案。记下来再返回。',
+    n_inf: '付哪枚硬币都凑不出剩下的金额。{a} 韩元记为 INF 再返回。',
+    n_done: '{a} 韩元的答案是 {v} 枚。沿着记下的选择走得到 {list}。只解了 {n} 个金额。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SETS = ['2,3,5|6', '50,40,10|80', '1,3,4|6'];
+---
+
+<DpKit id={id} cls="aas-last-coin" title={t.title} strings={t} slide={slide} size={2.7}>
+  <Fragment slot="controls">
+    {SETS.map((s, i) => {
+      const [c, a] = s.split('|');
+      return (
+        <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="set" data-dx-val={s}>
+          {`{${c.replaceAll(',', ', ')}} ${a}`}
+        </button>
+      );
+    })}
+    <span class="dx-sep"></span>
+    <button type="button" class="dx-btn dx-primary" data-dx="auto">{t.auto}</button>
+    <button type="button" class="dx-btn" data-dx="reset">{t.reset}</button>
+  </Fragment>
+  <div class="lc-memo"><span class="dx-lab">{t.memo}</span><div data-dx="memo"></div></div>
+  <div class="lc-where"><span class="dx-lab">{t.where}</span><span data-dx="crumb"></span><span class="dx-lab lc-n">{t.solved} <b data-dx="n"></b></span></div>
+  <div class="lc-cards" data-dx="cards"></div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const INF = Infinity;
+    const show = (v) => (v === undefined ? '?' : v === INF ? 'INF' : String(v));
+    let coins, top, unit, memo, choice, stack, done;
+    function load(s) {
+      const [c, a] = s.split('|');
+      coins = c.split(',').map(Number);
+      top = +a;
+      const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+      unit = coins.reduce(gcd, top);
+      memo = new Map([[0, 0]]);
+      choice = new Map();
+      stack = [top];
+      done = false;
+      draw();
+    }
+    const cands = (a) => coins.map((c) => ({ c, r: a - c, ok: c <= a, v: c <= a ? memo.get(a - c) : INF }));
+    const ready = (a) => cands(a).every((x) => !x.ok || x.v !== undefined);
+    const best = (a) => cands(a).reduce((m, x) => (x.ok && x.v + 1 < m.v ? { v: x.v + 1, c: x.c } : m), { v: INF, c: 0 });
+    function write() {
+      const a = stack[stack.length - 1];
+      const b = best(a);
+      memo.set(a, b.v);
+      choice.set(a, b.c);
+      if (stack.length > 1) stack.pop();
+      else done = true;
+      draw();
+    }
+    const down = (r) => (stack.push(r), draw());
+    function auto() {
+      if (done) return;
+      const a = stack[stack.length - 1];
+      if (ready(a)) return write();
+      down(cands(a).find((x) => x.ok && x.v === undefined).r);
+    }
+    function draw() {
+      const a = stack[stack.length - 1];
+      const isReady = ready(a);
+      const b = best(a);
+      const n = memo.size - 1;
+      const cells = [];
+      for (let k = 0; k <= top; k += unit)
+        cells.push(
+          K.el(
+            'span',
+            { cls: 'lc-col' },
+            K.el('i', {}, String(k)),
+            K.el('span', { cls: `dx-cell ${k === a ? 'is-now' : memo.has(k) ? 'is-done' : stack.includes(k) ? 'is-ref' : ''}` }, memo.has(k) ? show(memo.get(k)) : stack.includes(k) ? '…' : ''),
+          ),
+        );
+      get('memo').replaceChildren(...cells);
+      get('crumb').replaceChildren(...stack.flatMap((x, i) => [i ? ' › ' : '', K.el('b', { cls: i === stack.length - 1 ? 'lc-now' : '' }, `C(${x})`)]));
+      get('n').textContent = n;
+      get('auto').disabled = done;
+      const cards = cands(a).map((x) => {
+        const isBest = isReady && x.ok && b.v !== INF && x.c === b.c;
+        const known = x.ok && x.v !== undefined;
+        return K.el(
+          'div',
+          { cls: `lc-card ${!x.ok ? 'is-off' : isBest ? 'is-now' : known ? 'is-done' : ''}` },
+          K.el('span', { cls: 'dx-lab' }, S.coin),
+          K.el('span', { cls: 'lc-coin' }, String(x.c)),
+          !x.ok
+            ? K.el('em', {}, S.big)
+            : [
+                K.el('span', { cls: 'lc-eq' }, `C(${a} − ${x.c}) = C(${x.r}) = `, K.el('b', {}, show(x.v))),
+                known
+                  ? K.el('span', { cls: 'lc-cand' }, x.v === INF ? S.impossible : `${show(x.v)} + 1 = ${x.v + 1}`)
+                  : K.el('button', { type: 'button', cls: 'dx-btn', on: { click: () => down(x.r) } }, S.go),
+              ],
+        );
+      });
+      if (isReady && !done)
+        cards.push(K.el('button', { type: 'button', cls: 'dx-btn dx-primary lc-write', on: { click: write } }, K.fill(S.write, { v: show(b.v) })));
+      get('cards').replaceChildren(...cards);
+      if (done) {
+        const list = [];
+        for (let k = top; k > 0 && memo.get(top) !== INF; k -= choice.get(k)) list.push(choice.get(k));
+        K.lines(note, K.fill(S.n_done, { a: top, v: show(memo.get(top)), list: list.join(' + '), n }));
+      } else K.lines(note, K.fill(isReady ? (b.v === INF ? S.n_inf : S.n_min) : S.n_go, { a, v: show(b.v) }));
+    }
+    get('auto').addEventListener('click', auto);
+    let cur = '2,3,5|6';
+    get('reset').addEventListener('click', () => load(cur));
+    tabs('set', (v) => load((cur = v)));
+    load(cur);
+  })();
+</script>
+
+<style is:global>
+  .aas-last-coin .lc-memo,
+  .aas-last-coin .lc-where {
+    display: flex;
+    gap: 0.8em;
+    align-items: center;
+    margin-bottom: 0.6em;
+  }
+  .aas-last-coin .lc-memo > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+  .aas-last-coin .lc-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .aas-last-coin .lc-col i {
+    font-style: normal;
+    font-size: 0.7em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-last-coin .lc-where b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-last-coin .lc-now {
+    padding: 0.1em 0.4em;
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+  }
+  .aas-last-coin .lc-n {
+    margin-left: auto;
+  }
+  .aas-last-coin .lc-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: center;
+    min-height: 10.5em;
+  }
+  .aas-last-coin .lc-card {
+    flex: 0 1 12.5em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    align-items: center;
+    min-height: 9.6em;
+    padding: 0.6em;
+    box-sizing: border-box;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.8em;
+    font-weight: 400;
+  }
+  .aas-last-coin .lc-coin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.3em;
+    height: 2.3em;
+    border: 3px solid var(--aas-role-trace);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--aas-role-trace) 25%, var(--aas-bg));
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-last-coin .lc-eq {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.78em;
+    white-space: nowrap;
+  }
+  .aas-last-coin .lc-cand {
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+  .aas-last-coin em {
+    font-style: normal;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+</style>
