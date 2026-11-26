@@ -330,11 +330,21 @@ The two compute the same recurrence in opposite directions.
 | --- | --- | --- |
 | Computation | **lazy**: only what is needed | **eager**: everything |
 | Starting point | top down, big problem → small problems | bottom up, small problems → big problem |
-| Implementation | recursion + cache | loop + table |
+| Who decides the order | the recursion, when a cell is needed | the programmer, in advance |
+| Usual implementation | recursion + table | loop + table |
 | Intuitiveness | transcribe the recurrence as is | the fill order must be worked out |
 | Robustness | deep recursion risks stack overflow | uses no stack |
 | Space optimization | hard | easy (keep only a few earlier cells) |
 | Also called | top-down | bottom-up |
+
+Both use a table. What separates them is not recursion versus loops but **who decides the order in which cells are filled**.
+
+- Memoization does not know the order in advance. The recursion works down to the cells it needs and fills each one the first time it
+  is needed. So the table holds `-1` (unknown) and every call checks it.
+- Tabulation looks at "which cells does a cell refer to" and fixes the order in advance. With the order fixed, a loop is the natural way
+  to write it, and the cells referred to are always filled already, so no `-1` check is needed.
+- A loop is a consequence of tabulation, not its definition. Working down to the needed cells with a hand-made stack is still memoization,
+  and imitating the small-to-large order with recursion is still tabulation. There is just no reason to write them that way.
 
 - **Memoization** stores results as it recurses and so avoids recomputation.
   It descends from the big problem, like $$F(4)$$, $$F(3)$$, and computes **only
