@@ -26,7 +26,8 @@ const STRINGS: Record<string, Record<string, string>> = {
     reset: '처음으로',
     solved: '푼 금액',
     n_go: '{a}원을 만들 때 마지막에 낸 동전은 무엇일까요. 남은 금액의 답을 아직 모르는 카드를 눌러 풀러 갑니다.',
-    n_min: '카드가 모두 채워졌습니다. 후보 가운데 가장 작은 {v}가 {a}원의 답입니다. 적고 돌아갑니다.',
+    n_sofar: '지금까지 최소는 {v}개(동전 {c})지만, 아직 모르는 카드가 있어 확정할 수 없습니다.',
+    n_min: '카드가 모두 채워졌습니다. 후보 가운데 가장 작은 것은 {v}개, 이것이 {a}원의 답입니다. 적고 돌아갑니다.',
     n_inf: '어느 동전을 내도 남은 금액을 만들 수 없습니다. {a}원은 INF라고 적고 돌아갑니다.',
     n_done: '{a}원의 답은 {v}개입니다. 적어 둔 선택을 따라가면 {list}입니다. 금액 {n}개만 풀었습니다.',
   },
@@ -44,6 +45,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     reset: 'Reset',
     solved: 'amounts solved',
     n_go: 'Which coin was paid last to make {a} won? Click a card whose remaining amount is still unknown and go solve it.',
+    n_sofar: 'The best so far is {v} (coin {c}), but some cards are still unknown, so it cannot be settled yet.',
     n_min: 'All cards are filled. The smallest candidate, {v}, is the answer for {a} won. Write it down and go back.',
     n_inf: 'Whichever coin you pay, the remainder cannot be made. Write INF for {a} won and go back.',
     n_done: 'The answer for {a} won is {v} coins. Following the recorded choices gives {list}. Only {n} amounts were solved.',
@@ -62,6 +64,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     reset: '重置',
     solved: '已解金额',
     n_go: '凑 {a} 韩元时最后付的是哪枚硬币呢？点击剩余金额答案还未知的卡片去解它。',
+    n_sofar: '目前最少是 {v} 枚（硬币 {c}），但还有未知的卡片，所以不能确定。',
     n_min: '卡片都填满了。候选中最小的 {v} 就是 {a} 韩元的答案。记下来再返回。',
     n_inf: '付哪枚硬币都凑不出剩下的金额。{a} 韩元记为 INF 再返回。',
     n_done: '{a} 韩元的答案是 {v} 枚。沿着记下的选择走得到 {list}。只解了 {n} 个金额。',
@@ -132,6 +135,10 @@ const SETS = ['2,3,5|6', '50,40,10|80', '1,3,4|6'];
     function draw() {
       const a = stack[stack.length - 1];
       const isReady = ready(a);
+      /* 아는 카드 가운데 지금까지의 최소. 모르는 카드가 남으면 확정하지 못한다. */
+      const sofar = cands(a)
+        .filter((x) => x.ok && x.v !== undefined && x.v !== INF)
+        .reduce((m, x) => (!m || x.v + 1 < m.v ? { v: x.v + 1, c: x.c } : m), null);
       const b = best(a);
       const n = memo.size - 1;
       const cells = [];
@@ -150,10 +157,11 @@ const SETS = ['2,3,5|6', '50,40,10|80', '1,3,4|6'];
       get('auto').disabled = done;
       const cards = cands(a).map((x) => {
         const isBest = isReady && x.ok && b.v !== INF && x.c === b.c;
+        const isSoFar = !isReady && sofar && x.c === sofar.c;
         const known = x.ok && x.v !== undefined;
         return K.el(
           'div',
-          { cls: `lc-card ${!x.ok ? 'is-off' : isBest ? 'is-now' : known ? 'is-done' : ''}` },
+          { cls: `lc-card ${!x.ok ? 'is-off' : isBest ? 'is-now' : known ? 'is-done' : ''} ${isSoFar ? 'lc-sofar' : ''}` },
           K.el('span', { cls: 'dx-lab' }, S.coin),
           K.el('span', { cls: 'lc-coin' }, String(x.c)),
           !x.ok
@@ -173,7 +181,8 @@ const SETS = ['2,3,5|6', '50,40,10|80', '1,3,4|6'];
         const list = [];
         for (let k = top; k > 0 && memo.get(top) !== INF; k -= choice.get(k)) list.push(choice.get(k));
         K.lines(note, K.fill(S.n_done, { a: top, v: show(memo.get(top)), list: list.join(' + '), n }));
-      } else K.lines(note, K.fill(isReady ? (b.v === INF ? S.n_inf : S.n_min) : S.n_go, { a, v: show(b.v) }));
+      } else if (!isReady && sofar) K.lines(note, K.fill(S.n_go, { a }), K.fill(S.n_sofar, sofar));
+      else K.lines(note, K.fill(isReady ? (b.v === INF ? S.n_inf : S.n_min) : S.n_go, { a, v: show(b.v) }));
     }
     get('auto').addEventListener('click', auto);
     let cur = '2,3,5|6';
@@ -237,6 +246,10 @@ const SETS = ['2,3,5|6', '50,40,10|80', '1,3,4|6'];
     border: 2px solid var(--dx-line);
     border-radius: 0.8em;
     font-weight: 400;
+  }
+  .aas-last-coin .lc-card.lc-sofar {
+    border-style: dashed;
+    border-color: var(--aas-role-focus);
   }
   .aas-last-coin .lc-coin {
     display: inline-flex;
