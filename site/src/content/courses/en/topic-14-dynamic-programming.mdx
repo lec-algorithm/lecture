@@ -94,85 +94,16 @@ whole being cheapest, so there is no such path. Optimal substructure is always s
 
 **The reverse does not come for free.** Optimal parts joined together are not necessarily an optimal whole. Pick the wrong M and even
 two optimal legs are a detour. That is why dynamic programming compares **all** the places to split: the $$\min$$ and $$\max$$ in the
-recurrences. Greedy relies on optimal substructure too, but it picks one choice and moves on without comparing.
+recurrences.
 
-Pick one line for each of the two legs and test it. Blue outlines are the cheapest per leg, and the pink cell is the cheapest overall.
+Here is a case where it holds and a case where it does not, side by side on the same graph.
 
 <OptPartDemo />
 
-If fares are simply added, the cheapest total 7 joins the cheapest legs, 3 and 4. If riding the same line twice takes 3 off, the cheapest
-total is blue + blue (5), yet the cheapest S → M is red, because what you rode earlier changes the later fare. Press `Add state` and each
-state, such as "the rest when you came to M by blue," is solved separately, which finds 5 again.
-
-- Run
-
-```sh
-cd src/topic-14-dynamic-programming/13_optimal_substructure
-make -f /work/Makefile optimalSubstructure.out && ./optimalSubstructure.out
-```
-
-- Output
-
-```console
-sum of fares
-  S->M \ M->T    red   blue  green
-  red              9      7      8
-  blue            10      8      9
-  green           13     11     12
-  best  = 7 (red 3 + blue 4)
-  parts = 7 (red 3 + blue 4)
-    after red  : rest = 4, total = 7
-    after blue : rest = 4, total = 8
-    after green: rest = 4, total = 11
-  with state = 7
-
-same line twice: 3 off
-  S->M \ M->T    red   blue  green
-  red              6      7      8
-  blue            10      5      9
-  green           13     11      9
-  best  = 5 (blue 4 + blue 1)
-  parts = 7 (red 3 + blue 4)
-    after red  : rest = 3, total = 6
-    after blue : rest = 1, total = 5
-    after green: rest = 2, total = 9
-  with state = 5
-
-within 8 minutes
-  S->M \ M->T    red   blue  green
-  red            INF    INF    INF
-  blue            10      8      9
-  green           13     11     12
-  best  = 8 (blue 4 + blue 4)
-  parts = INF (red 3 + blue 4)
-    after red  : rest = INF, total = INF
-    after blue : rest = 4, total = 8
-    after green: rest = 4, total = 11
-  with state = 8
-```
-
-Every example in this topic has optimal substructure.
-
-| Problem | Optimum | The part inside is optimal too |
-| --- | --- | --- |
-| Cheapest path (3 edges) | 0 → 2 → 4 → 3, cost 6 | 2 → 4 → 3 is cheapest from 2 to 3 with 2 edges (4) |
-| Coin change, 80 won | 40 + 40, 2 coins | the remaining 40 won is minimal too (1 coin) |
-| LIS | `2 5 7 101`, length 4 | `2 5 7` is the longest ending at 7 (3) |
-| 0/1 knapsack, capacity 50 | items 2 and 3, value 220 | with items 1 to 2 and capacity 20, item 2 is best (100) |
-| Edit distance | `kitten` → `sitting`, 3 | `kitten` → `sittin` needs at least 2 |
-
-It breaks **when the answer for the rest depends on earlier choices**. Then put whatever makes the difference into the state.
-
-| Problem | Why it breaks | Put into the state |
-| --- | --- | --- |
-| Path with transfer discounts | the earlier line changes the later fare | the line you came by |
-| Path with a time limit | time used earlier limits later choices | time left |
-| Path with exactly k edges | edges used earlier reduce what is left | edges left (Example 4) |
-| Knapsack by items alone | weight packed earlier reduces the room | capacity left (Example 5) |
-| Longest simple path | visited vertices cannot be reused | the set of visited vertices ($$2^V$$ of them) |
-
-The `k` in Example 4's `(u, k)` and the `c` in Example 5's `(i, c)` are exactly such added state. As the last row shows, it can be repaired,
-but with too many states it is no fast algorithm.
+- **Shortest path** (holds): inside S → A → T (3), the part S → A (1) is the shortest path from S to A.
+- **Longest simple path** (does not hold): inside S → B → T (6) the part S → B is 3, but from S to B alone S → A → T → B (6) is longer.
+  Swapping it in visits T twice, so it is not a simple path. The answers to subproblems cannot build the whole, so this recurrence
+  cannot solve it.
 
 ## Fibonacci, again \{#fibonacci}
 
@@ -1680,19 +1611,18 @@ pseudocode file with a C and a Python implementation.
 
 ```plaintext
 src/topic-14-dynamic-programming/
-├── 01_fibonacci/             # recursion 15 calls, memo 9, tabulation; up to n = 90
-├── 02_coin_change/           # 6 won = 3 + 3; Topic 06's 80 won = 40 + 40
-├── 03_lis/                   # LIS 4, 11 memo hits, restores 2 5 7 101
-├── 04_grid_paths/            # 48 paths to (5, 5) around three obstacles
-├── 05_shortest_path/         # 3 edges: 0 → 2 → 4 → 3, cost 6
-├── 06_knapsack/              # 0/1 knapsack 220, items 2 and 3
-├── 07_subproblem_graph/      # call tree vs. graph, LIS branches
-├── 08_lis_nlogn/             # smallest end per length, 10 comparisons
-├── 09_grid_calls/            # calls per cell, 439 and 65
-├── 10_shortest_path_tab/     # k-edge shortest path on a layered graph
-├── 11_knapsack_1d/           # one-row knapsack, 220 and 300
-├── 12_edit_distance/         # edit distance and alignment (aside)
-└── 13_optimal_substructure/  # optimal parts vs. optimal whole
+├── 01_fibonacci/         # recursion 15 calls, memo 9, tabulation; up to n = 90
+├── 02_coin_change/       # 6 won = 3 + 3; Topic 06's 80 won = 40 + 40
+├── 03_lis/               # LIS 4, 11 memo hits, restores 2 5 7 101
+├── 04_grid_paths/        # 48 paths to (5, 5) around three obstacles
+├── 05_shortest_path/     # 3 edges: 0 → 2 → 4 → 3, cost 6
+├── 06_knapsack/          # 0/1 knapsack 220, items 2 and 3
+├── 07_subproblem_graph/  # call tree vs. graph, LIS branches
+├── 08_lis_nlogn/         # smallest end per length, 10 comparisons
+├── 09_grid_calls/        # calls per cell, 439 and 65
+├── 10_shortest_path_tab/ # k-edge shortest path on a layered graph
+├── 11_knapsack_1d/       # one-row knapsack, 220 and 300
+└── 12_edit_distance/     # edit distance and alignment (aside)
 ```
 
 Open a file and press the **▶ button** at the top right of the editor
@@ -1724,4 +1654,4 @@ The slides and this note are versioned together. The current version is
 | --- | --- | --- |
 | v1 | 2026-10-28 | First release |
 | v2 | 2026-11-04 | Added ten hands-on demos and put the recurrences, coins and items inside the table demos |
-| v3 | 2026-11-25 | Fixed errors and added twenty-one demos and figures and seven code examples, replacing the mermaid diagram with a custom one |
+| v3 | 2026-11-25 | Fixed errors and added twenty-one demos and figures and six code examples, replacing the mermaid diagram with a custom one |
