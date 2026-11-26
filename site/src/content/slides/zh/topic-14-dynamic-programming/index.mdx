@@ -49,6 +49,7 @@ import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 import OptPartDemo from '@components/OptPartDemo.astro';
+import FibTabTreeDemo from '@components/FibTabTreeDemo.astro';
 
 {/* 幻灯片规则见 docs/writing-rules.md 的幻灯片规则一节。
     数字与实践代码（topic-14-dynamic-programming）的运行结果一致。 */}
@@ -263,10 +264,10 @@ long long fibMemo(int n) {
 
 <Slide>
 
-### 单步：dp 表
-::sub[橙色是正在填的格子，蓝色是引用的格子]
+### 一步一步：表与调用树
+::sub[填好一格，树中被它取代的调用一起变绿]
 
-<DpTableDemo problem="fib" n={5} slide />
+<FibTabTreeDemo n={5} slide />
 
 </Slide>
 
@@ -289,6 +290,22 @@ ALGORITHM FibTabulation(n)
 - **时间** $$O(n)$$：每格一次
 - **空间** $$O(n)$$：一张表，不用栈。
 - 只留前两格，空间就降到 $$O(1)$$。
+
+</Slide>
+
+<Slide>
+
+#### 这不就是普通的循环吗？
+::sub[没错。主题 01 的迭代正是递推填表]
+
+- **不同的不是结果，而是出发点。**
+  - 主题 01：**已经知道**把前两项相加就行，才写了循环。
+  - 递推填表：从递归定义（递推式）出发，把循环**推导出来**。
+- **推导的步骤**
+  1. 把递归要解的每个子问题定为表的一格。（`dp[i]` = $$F(i)$$）
+  2. 安排顺序，让被参照的格先填好。（从小的 $$i$$ 开始）
+- 斐波那契的格排成一行，顺序一目了然，所以看起来就是普通循环。
+  - 在找零钱、LIS、背包里，同样的方法会推导出你没见过的循环。
 
 </Slide>
 

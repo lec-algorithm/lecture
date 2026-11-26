@@ -49,6 +49,7 @@ import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 import OptPartDemo from '@components/OptPartDemo.astro';
+import FibTabTreeDemo from '@components/FibTabTreeDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-14-dynamic-programming) exactly. */}
@@ -264,10 +265,10 @@ long long fibMemo(int n) {
 
 <Slide>
 
-### One step at a time: the dp table
-::sub[Orange is the cell being filled; blue are the cells it refers to]
+### Step by step: the table and the call tree
+::sub[Filling one cell turns every call it replaces in the tree green at once]
 
-<DpTableDemo problem="fib" n={5} slide />
+<FibTabTreeDemo n={5} slide />
 
 </Slide>
 
@@ -290,6 +291,22 @@ ALGORITHM FibTabulation(n)
 - **Time** $$O(n)$$: once per cell
 - **Space** $$O(n)$$: one table, and no stack is used.
 - Keep only the last two cells and space drops to $$O(1)$$.
+
+</Slide>
+
+<Slide>
+
+#### Isn't this just a loop?
+::sub[Yes. Topic 01's loop is exactly tabulation]
+
+- **What differs is not the result but the starting point.**
+  - Topic 01: we wrote the loop **knowing** that adding the two previous terms works.
+  - Tabulation: we **derive** it from the recursive definition (the recurrence).
+- **How it is derived**
+  1. Make each subproblem the recursion solves one cell of a table. (`dp[i]` = $$F(i)$$)
+  2. Order the cells so that the cells referred to are filled first. (small $$i$$ first)
+- For Fibonacci the cells form a line and the order is obvious, so it just looks like a loop.
+  - For coin change, LIS, and the knapsack, the same method produces loops you have not seen before.
 
 </Slide>
 
