@@ -328,7 +328,7 @@ The two compute the same recurrence in opposite directions.
 
 | | Memoization | Tabulation |
 | --- | --- | --- |
-| Computation | **lazy**: only what is needed | **eager**: everything |
+| Computation | **lazy**: only the cells needed | **eager**: every cell in the chosen range |
 | Starting point | top down, big problem → small problems | bottom up, small problems → big problem |
 | Who decides the order | the recursion, when a cell is needed | the programmer, in advance |
 | Usual implementation | recursion + table | loop + table |
@@ -345,6 +345,9 @@ Both use a table. What separates them is not recursion versus loops but **who de
   to write it, and the cells referred to are always filled already, so no `-1` check is needed.
 - A loop is a consequence of tabulation, not its definition. Working down to the needed cells with a hand-made stack is still memoization,
   and imitating the small-to-large order with recursion is still tabulation. There is just no reason to write them that way.
+- Tabulation's "every cell" means every cell **in the range a person chose**. The practice code fills 80 cells from 1 won for 80 won,
+  while the 80-won demo later sees that every coin is a multiple of 10 and narrows the range to the 8 cells in steps of 10. Either way,
+  inside the range it does not ask whether a cell is needed. Memoization's "only the cells needed" is decided by the recursion as it runs.
 
 - **Memoization** stores results as it recurses and so avoids recomputation.
   It descends from the big problem, like $$F(4)$$, $$F(3)$$, and computes **only
