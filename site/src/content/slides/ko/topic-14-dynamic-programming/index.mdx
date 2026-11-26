@@ -49,6 +49,7 @@ import StrategyDemo from '@components/StrategyDemo.astro';
 import DesignStepsDemo from '@components/DesignStepsDemo.astro';
 import EditDistanceDemo from '@components/EditDistanceDemo.astro';
 import OptPartDemo from '@components/OptPartDemo.astro';
+import FibTabTreeDemo from '@components/FibTabTreeDemo.astro';
 
 {/* 슬라이드 작성 규칙은 docs/writing-rules.md의 "슬라이드 규칙"을 따릅니다.
     수치는 실습 코드(topic-14-dynamic-programming)의 실행 결과와 같습니다. */}
@@ -263,10 +264,10 @@ long long fibMemo(int n) {
 
 <Slide>
 
-### 한 걸음씩: dp 표
-::sub[주황이 지금 채우는 칸, 파랑이 참조하는 칸입니다]
+### 한 걸음씩: 표와 호출 트리
+::sub[표의 칸 하나를 채우면 트리에서 그 칸이 대신하는 호출이 한꺼번에 초록이 됩니다]
 
-<DpTableDemo problem="fib" n={5} slide />
+<FibTabTreeDemo n={5} slide />
 
 </Slide>
 
@@ -289,6 +290,22 @@ ALGORITHM FibTabulation(n)
 - **시간** $$O(n)$$: 칸마다 한 번
 - **공간** $$O(n)$$: 표 하나, 스택은 쓰지 않습니다.
 - 앞 두 칸만 남기면 공간 $$O(1)$$로 줄어듭니다.
+
+</Slide>
+
+<Slide>
+
+#### 그냥 반복문 아닌가요?
+::sub[맞습니다. 주제 01의 반복이 곧 타뷸레이션입니다]
+
+- **다른 것은 결과가 아니라 출발점입니다.**
+  - 주제 01: "앞의 두 항을 더해 가면 된다"는 것을 **알고** 반복문을 썼습니다.
+  - 타뷸레이션: 재귀 정의(점화식)에서 출발해 **만들어 냅니다.**
+- **만드는 순서**
+  1. 재귀가 푸는 부분 문제 하나를 표의 칸 하나로 정한다. (`dp[i]` = $$F(i)$$)
+  2. 칸이 참조하는 칸이 먼저 채워지도록 순서를 정한다. (작은 $$i$$부터)
+- 피보나치는 칸이 일렬이라 순서가 뻔해 그냥 반복문처럼 보입니다.
+  - 거스름돈, LIS, 배낭에서는 같은 방법이 처음 보는 반복문을 만들어 냅니다.
 
 </Slide>
 
