@@ -713,8 +713,10 @@ $$O(n^2)$$.
 
 <LisSplitDemo />
 
-As `i` grows the branches can double each time, but the remaining work `(i, prev)` grows by one at most. With the increasing
-sequence 1 to 8, deciding all eight gives 256 branches but only 9 kinds of remaining work.
+The cards group branches by **the last number picked**. Branches in one card picked different sequences, yet they leave the same
+work, "continue from the remaining numbers with ones larger than that number," so it needs solving only once. In the code this is
+the single cell `memo[i][prev+1]`. With the increasing sequence 1 to 8, deciding all eight gives 256 branches but only 9 kinds of
+remaining work.
 
 - Run
 
@@ -907,6 +909,9 @@ comparisons = 3, O(n^2) table = 3
   only `x+1` or `y+1` at each step
 - **Condition**: the obstacles `(2, 2)`, `(3, 3)`, `(4, 4)` cannot be passed.
 - **Answer**: 48
+
+Two things to watch here. It is the first **two-dimensional table**, so a cell refers to two cells, above and to
+the left, and the filling order needs thought. And it **counts** instead of minimizing, so the recurrence is a sum, not a min.
 
 A path into a cell can come only **from the cell above** or **from the cell to
 the left**. So a cell's value is the value above plus the value to the left.
