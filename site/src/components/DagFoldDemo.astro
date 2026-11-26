@@ -16,7 +16,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     title: '호출 트리 접기',
     fib5: 'F(5)',
     fib6: 'F(6)',
-    coin: '6원 {2, 3, 5}',
     nodes: '정점',
     edges: '간선',
     start: '재귀의 호출 트리입니다. 호출 {n}번 가운데 서로 다른 문제는 {d}개입니다.',
@@ -24,14 +23,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     one: '문제 {k}번은 사본이 하나라 자리만 옮깁니다.',
     done: '정점 {d}개, 간선 {e}개만 남았습니다. 동적 계획법은 이 정점을 하나씩만 풉니다.',
     graph: '펼쳐 그리면 주제 12의 방향 그래프입니다. 정점은 부분 문제, 간선은 "풀려면 먼저 필요하다"이고, 사이클이 없으니 DAG입니다. 화살표를 거스르지 않는 순서(위상 정렬)로 풀면 되고, 작은 번호부터가 그 순서입니다.',
-    doneCoin: '6원에서 5원으로 가는 동전(1원)이 없으므로 5원은 그래프에 없습니다.',
     doneFib: '화살표는 언제나 작은 번호로 향합니다.',
   },
   en: {
     title: 'Folding the call tree',
     fib5: 'F(5)',
     fib6: 'F(6)',
-    coin: '6 won {2, 3, 5}',
     nodes: 'vertices',
     edges: 'edges',
     start: 'This is the call tree of the recursion. Of {n} calls, only {d} are different problems.',
@@ -39,14 +36,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     one: 'Problem {k} has a single copy, so it just moves.',
     done: 'Only {d} vertices and {e} edges are left. Dynamic programming solves each vertex once.',
     graph: 'Spread out, it is a directed graph as in Topic 12. Vertices are subproblems and an edge means "needed first"; with no cycle it is a DAG. Solve in an order that never goes against an arrow (a topological order), and smallest first is such an order.',
-    doneCoin: 'No coin (1 won) leads from 6 to 5, so 5 won is not in the graph.',
     doneFib: 'Every arrow points to a smaller number.',
   },
   zh: {
     title: '折叠调用树',
     fib5: 'F(5)',
     fib6: 'F(6)',
-    coin: '6 韩元 {2, 3, 5}',
     nodes: '顶点',
     edges: '边',
     start: '这是递归的调用树。{n} 次调用里，不同的问题只有 {d} 个。',
@@ -54,7 +49,6 @@ const STRINGS: Record<string, Record<string, string>> = {
     one: '问题 {k} 只有一个副本，只是挪个位置。',
     done: '只剩下 {d} 个顶点、{e} 条边。动态规划对每个顶点只解一次。',
     graph: '展开来画，就是主题 12 的有向图。顶点是子问题，边表示"要解它先要那个"，没有环，所以是 DAG。按不逆着箭头的顺序（拓扑排序）来解就行，从小编号开始正是这样的顺序。',
-    doneCoin: '图里没有 5 韩元，因为没有能从 6 走到 5 的硬币（1 韩元）。',
     doneFib: '箭头总是指向更小的编号。',
   },
 };
@@ -64,7 +58,7 @@ const t = STRINGS[lang] ?? STRINGS.ko;
 
 <DpKit id={id} cls="aas-dag-fold" title={t.title} strings={t} steps slide={slide}>
   <Fragment slot="controls">
-    {(['fib5', 'fib6', 'coin'] as const).map((k, i) => (
+    {(['fib5', 'fib6'] as const).map((k, i) => (
       <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="p" data-dx-val={k}>{t[k]}</button>
     ))}
     <span class="dx-sep"></span>
@@ -82,7 +76,6 @@ const t = STRINGS[lang] ?? STRINGS.ko;
     const PROB = {
       fib5: { top: 5, kids: (n) => (n <= 1 ? [] : [n - 1, n - 2]) },
       fib6: { top: 6, kids: (n) => (n <= 1 ? [] : [n - 1, n - 2]) },
-      coin: { top: 6, kids: (n) => [2, 3, 5].filter((c) => c <= n).map((c) => n - c) },
     };
     const R = 19;
     let name = 'fib5';
@@ -193,7 +186,7 @@ const t = STRINGS[lang] ?? STRINGS.ko;
       if (step === 0) K.lines(note, K.fill(S.start, { n: nodes.length, d: keys.length }));
       else if (spread) K.lines(note, S.graph);
       else if (step === keys.length)
-        K.lines(note, K.fill(S.done, { d: nv, e: ne }), name === 'coin' ? S.doneCoin : S.doneFib);
+        K.lines(note, K.fill(S.done, { d: nv, e: ne }), S.doneFib);
       else {
         const c = nodes.filter((x) => x.k === now).length;
         K.lines(note, K.fill(c > 1 ? S.fold : S.one, { k: now, c }));
