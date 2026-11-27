@@ -32,10 +32,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     more: '더 이을 수 있는 길이 {n}',
     extra: '외 {n}개',
     legend: '카드: 마지막으로 고른 수 · 여기까지 고른 수열 · 더 이을 수 있는 길이',
+    best: '초록 갈래: 끝까지 이으면 가장 긴 답이 됩니다. 긴 갈래부터 보입니다',
+    link: '카드의 더 이을 수 있는 길이(+k)가 다음 슬라이드 표의 칸 memo[i][prev+1]입니다.',
     none: '없음',
     start: '아직 아무것도 정하지 않았습니다. i를 늘려 보세요.',
     n1: '앞의 {i}개를 고를지 말지 정한 갈래는 {b}개인데, 남은 일은 {s}가지뿐입니다.',
-    n2: '앞으로 할 일은 지금까지 무엇을 골랐는지가 아니라 마지막으로 고른 수에만 달려 있습니다. 같은 카드의 갈래는 한 번만 풀면 됩니다.',
+    n2: '앞으로 할 일은 마지막으로 고른 수에만 달려 있어서, 같은 카드의 갈래는 한 번만 풀면 됩니다.',
   },
   en: {
     title: 'Branches and remaining work',
@@ -55,10 +57,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     more: 'can still add {n}',
     extra: '{n} more',
     legend: 'Card: last number picked · picked so far · how much more can be added',
+    best: 'Green branches grow into a longest answer. Longer branches come first',
+    link: 'A card\'s "can still add" (+k) is the cell memo[i][prev+1] in the next slide\'s table.',
     none: 'none',
     start: 'Nothing decided yet. Increase i.',
     n1: 'Deciding the first {i} numbers gives {b} branches, yet only {s} kinds of remaining work.',
-    n2: 'What is left to do depends only on the last number picked, not on everything picked so far. Branches in one card need solving only once.',
+    n2: 'What is left depends only on the last number picked, so branches in one card need solving only once.',
   },
   zh: {
     title: '分支与剩下的工作',
@@ -78,10 +82,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     more: '还能再接的长度 {n}',
     extra: '另有 {n} 个',
     legend: '卡片：最后选的数 · 到这里选出的序列 · 还能再接的长度',
+    best: '绿色分支一直接下去就成为最长的答案。较长的分支排在前面',
+    link: '卡片上还能再接的长度（+k）就是下一张幻灯片表中的格 memo[i][prev+1]。',
     none: '无',
     start: '还什么都没决定。增大 i 试试。',
     n1: '决定前 {i} 个数选不选，分支有 {b} 个，剩下的工作却只有 {s} 种。',
-    n2: '接下来要做的事只取决于最后选的数，而不是到目前为止选了什么。同一张卡片里的分支只需解一次。',
+    n2: '接下来要做的事只取决于最后选的数，所以同一张卡片里的分支只需解一次。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -103,7 +109,7 @@ const SEQ: Record<string, string> = { five: '2,10,5,7,3', ex: '10,9,2,5,3,7,101,
       <dt>{t.states}</dt><dd data-dx="s"></dd>
     </dl>
   </div>
-  <div class="ls-legend dx-lab" data-dx="legend" hidden>{t.legend}</div>
+  <div class="ls-legend dx-lab"><span data-dx="legend" hidden>{t.legend} · </span><span class="ls-best-key">{t.best}</span></div>
   <div class="ls-groups" data-dx="groups"></div>
 </DpKit>
 
@@ -138,6 +144,10 @@ const SEQ: Record<string, string> = { five: '2,10,5,7,3', ex: '10,9,2,5,3,7,101,
         const p = b.length ? b[b.length - 1] : -1;
         groups.set(p, [...(groups.get(p) || []), b]);
       });
+      /* 끝까지 이었을 때의 길이 = 고른 개수 + 더 이을 수 있는 길이. 그 최댓값이 답이다. */
+      const fut = new Map([...groups.keys()].map((p) => [p, future(i, p < 0 ? null : arr[p])]));
+      const best = Math.max(...[...groups].map(([p, g]) => Math.max(...g.map((b) => b.length)) + fut.get(p)));
+      groups.forEach((g) => g.sort((x, y) => y.length - x.length || x.join(',').localeCompare(y.join(','))));
       get('b').textContent = br.length;
       get('s').textContent = groups.size;
       const compact = groups.size > 5;
@@ -150,7 +160,10 @@ const SEQ: Record<string, string> = { five: '2,10,5,7,3', ex: '10,9,2,5,3,7,101,
           .map((p) => {
             const g = groups.get(p);
             const last = p < 0 ? null : arr[p];
-            const chips = g.slice(0, MAX).map((b) => K.el('span', { cls: 'ls-chip' }, `[${b.map((k) => arr[k]).join(', ')}]`));
+            /* 압축 모드는 카드가 좁아 쉼표 뒤 공백을 뺀다 */
+            const chips = g.slice(0, MAX).map((b) => K.el('span', { cls: `ls-chip ${b.length + fut.get(p) === best ? 'is-best' : ''}` }, `[${b.map((k) => arr[k]).join(compact ? ',' : ', ')}]`));
+            /* i = n은 기저라 표에 칸이 없다 */
+            const cell = i < arr.length ? `memo[${i}][${p + 1}]` : '';
             if (g.length > MAX) chips.push(K.el('span', { cls: 'ls-extra' }, K.fill(S.extra, { n: g.length - MAX })));
             const todo = i === arr.length ? S.todoEnd : last === null ? S.todoAny : K.fill(S.todoGt, { v: last });
             if (compact)
@@ -158,21 +171,22 @@ const SEQ: Record<string, string> = { five: '2,10,5,7,3', ex: '10,9,2,5,3,7,101,
                 'div',
                 { cls: `ls-group ${g.length > 1 ? 'is-hit' : ''}` },
                 K.el('div', { cls: 'ls-big' }, last === null ? S.none : String(last)),
+                cell ? K.el('small', { cls: 'ls-cell' }, cell) : '',
                 K.el('div', { cls: 'ls-chips' }, ...chips),
-                K.el('div', { cls: 'ls-todo' }, K.el('b', {}, `+${future(i, last)}`)),
+                K.el('div', { cls: 'ls-todo' }, K.el('b', {}, `+${fut.get(p)}`)),
               );
             return K.el(
               'div',
               { cls: `ls-group ${g.length > 1 ? 'is-hit' : ''}` },
-              K.el('div', { cls: 'ls-head' }, last === null ? S.lastNone : K.fill(S.lastIs, { v: last }), K.el('small', {}, `memo[${i}][${p + 1}]`)),
+              K.el('div', { cls: 'ls-head' }, last === null ? S.lastNone : K.fill(S.lastIs, { v: last }), cell ? K.el('small', {}, cell) : ''),
               K.el('div', { cls: 'ls-lab' }, K.fill(S.picked, { n: g.length })),
               K.el('div', { cls: 'ls-chips' }, ...chips),
-              K.el('div', { cls: 'ls-todo' }, todo, K.el('b', {}, K.fill(S.more, { n: future(i, last) }))),
+              K.el('div', { cls: 'ls-todo' }, todo, K.el('b', {}, K.fill(S.more, { n: fut.get(p) }))),
             );
           }),
       );
       if (i === 0) K.lines(note, S.start);
-      else K.lines(note, K.fill(S.n1, { i, b: br.length, s: groups.size }), S.n2);
+      else K.lines(note, K.fill(S.n1, { i, b: br.length, s: groups.size }), S.n2, S.link);
     }
     get('i').addEventListener('input', draw);
     tabs('seq', (v) => {
@@ -315,6 +329,18 @@ const SEQ: Record<string, string> = { five: '2,10,5,7,3', ex: '10,9,2,5,3,7,101,
     font-family: var(--aas-mono, monospace);
     font-size: 0.78em;
     white-space: nowrap;
+  }
+  .aas-lis-split .ls-chip.is-best {
+    color: var(--aas-role-eval);
+    font-weight: 700;
+  }
+  .aas-lis-split .ls-best-key {
+    color: var(--aas-role-eval);
+  }
+  .aas-lis-split .ls-cell {
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.6em;
+    color: var(--aas-muted);
   }
   .aas-lis-split .ls-extra {
     font-size: 0.72em;
