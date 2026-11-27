@@ -1,0 +1,348 @@
+---
+// 최적 부분 구조가 성립하는 예와 성립하지 않는 예를 일상의 두 상황으로 나란히 보인다.
+//
+// 왼쪽: 서울에서 대전을 거쳐 부산까지 가장 빠른 길. 구간마다 고속도로와 국도가 있고,
+//       뒤 구간의 시간은 앞에서 무엇을 탔든 같다. 전체의 최적 안의 서울 → 대전도 최적이다.
+// 오른쪽: 마라톤 완주 기록. 전반 페이스에 따라 남은 체력이 달라 후반 기록이 바뀐다.
+//       가장 좋은 완주의 전반부는 전반만 놓고 본 최고 기록이 아니고, 바꿔 끼우면 더 느려진다.
+// 네 걸음: 1. 전체의 최적  2. 그 안의 앞부분  3. 앞부분만 본 최적  4. 바꿔 끼우기
+// 최적은 모든 조합을 견주어 구한다. 숫자는 설명을 위한 예다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `sp-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, any> = {
+  ko: {
+    title: '앞부분도 최적인가',
+    road: '성립: 서울 → 부산 가장 빠른 길',
+    run: '성립하지 않음: 마라톤 완주 기록',
+    cities: ['서울', '대전', '부산'],
+    ways: ['고속도로', '국도'],
+    paces: ['빠르게', '보통', '천천히'],
+    first: '전반 21km',
+    second: '후반 21km',
+    road0: '서울에서 대전을 거쳐 부산까지 가장 빨리 가는 길을 찾습니다. 구간마다 길이 둘입니다.',
+    run0: '전반을 어떤 페이스로 달리느냐에 따라 남은 체력이 달라 후반 기록이 바뀝니다.',
+    road1: '가장 빠른 길은 {a} + {b}, {t}입니다.',
+    run1: '가장 좋은 완주는 전반 {p}, {t}입니다.',
+    road2: '그 안의 서울 → 대전은 {a}, {t}입니다.',
+    run2: '그 안의 전반부는 {t}입니다.',
+    road3: '서울 → 대전만 놓고 봐도 가장 빠른 것은 {a}, {t}입니다. 앞부분이 그 구간의 최적입니다.',
+    run3: '전반만 놓고 보면 가장 빠른 것은 {p}, {t}입니다. 앞부분이 최적이 아닙니다.',
+    road4: '바꿔 끼울 것이 없습니다. 더 빠른 서울 → 대전이 있었다면 전체도 더 빨랐을 것입니다. 최적 부분 구조가 있습니다.',
+    run4: '전반을 {p}로 바꿔 끼우면 체력이 바닥나 후반이 {s}, 완주 {t}로 오히려 느려집니다. 앞의 선택이 뒤의 문제를 바꾸기 때문입니다.',
+  },
+  en: {
+    title: 'Is the first part optimal too?',
+    road: 'Holds: fastest way from Seoul to Busan',
+    run: 'Does not hold: a marathon finish',
+    cities: ['Seoul', 'Daejeon', 'Busan'],
+    ways: ['expressway', 'local road'],
+    paces: ['fast', 'steady', 'slow'],
+    first: 'first 21 km',
+    second: 'second 21 km',
+    road0: 'Find the fastest way from Seoul through Daejeon to Busan. Each leg has two roads.',
+    run0: 'The pace of the first half decides how much energy is left, which changes the second half.',
+    road1: 'The fastest way is {a} + {b}, {t}.',
+    run1: 'The best finish runs the first half {p}, {t}.',
+    road2: 'Its Seoul → Daejeon leg is the {a}, {t}.',
+    run2: 'Its first half takes {t}.',
+    road3: 'Taken alone, the fastest Seoul → Daejeon is also the {a}, {t}. The first part is optimal for its stretch.',
+    run3: 'Taken alone, the fastest first half is {p}, {t}. The first part is not optimal.',
+    road4: 'There is nothing to swap. A faster Seoul → Daejeon would have made the whole trip faster. There is optimal substructure.',
+    run4: 'Swap in the {p} first half and you run out of energy: the second half takes {s} and the finish {t}, slower. The earlier choice changes the later problem.',
+  },
+  zh: {
+    title: '前半段也是最优吗',
+    road: '成立：首尔 → 釜山最快的路',
+    run: '不成立：马拉松完赛成绩',
+    cities: ['首尔', '大田', '釜山'],
+    ways: ['高速公路', '国道'],
+    paces: ['快', '中等', '慢'],
+    first: '前 21 公里',
+    second: '后 21 公里',
+    road0: '找从首尔经大田到釜山最快的路。每一段各有两条路。',
+    run0: '前半程用什么配速，决定剩下多少体力，后半程成绩随之改变。',
+    road1: '最快的路是{a} + {b}，{t}。',
+    run1: '最好的完赛是前半程{p}，{t}。',
+    road2: '其中首尔 → 大田走{a}，{t}。',
+    run2: '其中前半程用时 {t}。',
+    road3: '单看首尔 → 大田，最快的也是{a}，{t}。前半段就是该段的最优。',
+    run3: '单看前半程，最快的是{p}，{t}。前半段不是最优。',
+    road4: '没有可替换的。若有更快的首尔 → 大田，整体也会更快。有最优子结构。',
+    run4: '把前半程换成{p}，体力耗尽，后半程变成 {s}，完赛 {t}，反而更慢。前面的选择改变了后面的问题。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+// 길: [구간][길] 분
+const ROAD = [
+  [120, 180],
+  [180, 240],
+];
+// 마라톤: 페이스마다 [전반, 그 뒤 후반에 낼 수 있는 가장 좋은 기록] 분
+const RUN = [
+  [110, 160],
+  [120, 125],
+  [130, 120],
+];
+const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+const CX = [45, 210, 375];
+---
+
+<DpKit id={id} cls="aas-opt-part" title={t.title} strings={t} steps slide={slide} size={2.75} note={false}>
+  <div class="sp-panels">
+    <div class="sp-panel" data-sp-panel="road">
+      <h4>{t.road}</h4>
+      <svg viewBox="0 0 420 220">
+        {[0, 1].map((leg) =>
+          [0, 1].map((k) => {
+            const [x1, x2] = [CX[leg] + 24, CX[leg + 1] - 24];
+            const peak = k === 0 ? 52 : 168;
+            const mid = (x1 + x2) / 2;
+            return (
+              <g data-sp-road={`${leg},${k}`} class="sp-road">
+                <path class="sp-line" d={`M${x1} 110Q${mid} ${peak * 2 - 110} ${x2} 110`} />
+                <text x={mid} y={k === 0 ? 20 : 202} font-size="15" class="sp-lab">{t.ways[k]}</text>
+                <text x={mid} y={k === 0 ? 78 : 142} font-size="16" font-weight="700">{hm(ROAD[leg][k])}</text>
+              </g>
+            );
+          })
+        )}
+        {t.cities.map((c: string, i: number) => (
+          <Fragment>
+            <circle class="sv-node" data-sp-city={i} cx={CX[i]} cy="110" r="27" />
+            <text x={CX[i]} y="110" font-size={c.length > 4 ? 12 : 16} font-weight="700" class="sp-city">{c}</text>
+          </Fragment>
+        ))}
+      </svg>
+      <p class="sp-say" data-sp-say></p>
+    </div>
+    <div class="sp-panel" data-sp-panel="run">
+      <h4>{t.run}</h4>
+      <div class="sp-bars">
+        <span></span><span class="sp-h">{t.first}</span><span class="sp-h">{t.second}</span><span></span>
+        {RUN.map(([a, b], i) => (
+          <Fragment>
+            <span class="sp-pace">{t.paces[i]}</span>
+            <span class="sp-bar sp-a" data-sp-run={`${i},0`} style={`--w: ${a}`}>{hm(a)}</span>
+            <span class="sp-bar sp-b" data-sp-run={`${i},1`} style={`--w: ${b}`}>{hm(b)}</span>
+            <b class="sp-sum" data-sp-sum={i}>{hm(a + b)}</b>
+          </Fragment>
+        ))}
+      </div>
+      <p class="sp-say" data-sp-say></p>
+    </div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, ROAD, RUN }}>
+  (() => {
+    const K = aasDp;
+    const { root, S } = K.root(id);
+    const hm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+    const argmin = (a) => a.indexOf(Math.min(...a));
+    /* 길: 구간이 서로 영향을 주지 않으므로 모든 조합 가운데 최적을 찾는다. */
+    let road = [0, 0];
+    for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) if (ROAD[0][a] + ROAD[1][b] < ROAD[0][road[0]] + ROAD[1][road[1]]) road = [a, b];
+    const roadPart = argmin(ROAD[0]);
+    /* 마라톤: 완주가 가장 빠른 페이스, 전반만 가장 빠른 페이스 */
+    const totals = RUN.map(([a, b]) => a + b);
+    const runBest = argmin(totals);
+    const runPart = argmin(RUN.map(([a]) => a));
+    const panel = (k) => root.querySelector(`[data-sp-panel="${k}"]`);
+    function drawRoad(s) {
+      const el = panel('road');
+      el.querySelectorAll('[data-sp-road]').forEach((g) => {
+        const [leg, k] = g.dataset.spRoad.split(',').map(Number);
+        const on = s >= 1 && road[leg] === k;
+        const part = s >= 2 && leg === 0 && road[0] === k;
+        const best = s >= 3 && leg === 0 && roadPart === k;
+        g.setAttribute('class', `sp-road ${on ? 'is-whole' : ''} ${part ? 'is-part' : ''} ${best ? 'is-best' : ''}`);
+      });
+      el.querySelectorAll('[data-sp-city]').forEach((c) => c.setAttribute('class', `sv-node ${s >= 2 && c.dataset.spCity === '1' ? 'sv-focus' : ''}`));
+      const [a, b] = [S.ways[road[0]], S.ways[road[1]]];
+      const say = [
+        S.road0,
+        K.fill(S.road1, { a, b, t: hm(ROAD[0][road[0]] + ROAD[1][road[1]]) }),
+        K.fill(S.road2, { a, t: hm(ROAD[0][road[0]]) }),
+        K.fill(S.road3, { a: S.ways[roadPart], t: hm(ROAD[0][roadPart]) }),
+        S.road4,
+      ][s];
+      K.lines(el.querySelector('[data-sp-say]'), say);
+      el.classList.toggle('is-good', s >= 4);
+    }
+    function drawRun(s) {
+      const el = panel('run');
+      el.querySelectorAll('[data-sp-run]').forEach((b) => {
+        const [i, half] = b.dataset.spRun.split(',').map(Number);
+        const whole = s >= 1 && i === runBest;
+        const part = s >= 2 && i === runBest && half === 0;
+        const best = s >= 3 && i === runPart && half === 0;
+        const swapped = s >= 4 && i === runPart;
+        b.className = `sp-bar ${half ? 'sp-b' : 'sp-a'} ${whole ? 'is-whole' : ''} ${part ? 'is-part' : ''} ${best ? 'is-best' : ''} ${swapped ? 'is-swap' : ''}`;
+      });
+      el.querySelectorAll('[data-sp-sum]').forEach((b) => {
+        const i = +b.dataset.spSum;
+        b.className = `sp-sum ${s >= 1 && i === runBest ? 'is-whole' : ''} ${s >= 4 && i === runPart ? 'is-swap' : ''}`;
+      });
+      const say = [
+        S.run0,
+        K.fill(S.run1, { p: S.paces[runBest], t: hm(totals[runBest]) }),
+        K.fill(S.run2, { t: hm(RUN[runBest][0]) }),
+        K.fill(S.run3, { p: S.paces[runPart], t: hm(RUN[runPart][0]) }),
+        K.fill(S.run4, { p: S.paces[runPart], s: hm(RUN[runPart][1]), t: hm(totals[runPart]) }),
+      ][s];
+      K.lines(el.querySelector('[data-sp-say]'), say);
+      el.classList.toggle('is-bad', s >= 4);
+    }
+    K.stepper(root, {
+      count: () => 4,
+      draw: (s) => {
+        drawRoad(s);
+        drawRun(s);
+      },
+      ms: 1800,
+    }).go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-opt-part .sp-panels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+  }
+  .aas-opt-part .sp-panel {
+    flex: 1 1 18em;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0.6em 0.9em;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.8em;
+    transition:
+      border-color 0.2s,
+      background-color 0.2s;
+  }
+  .aas-opt-part .sp-panel.is-good {
+    border-color: var(--aas-role-eval);
+    background: color-mix(in srgb, var(--aas-role-eval) 7%, var(--aas-bg));
+  }
+  .aas-opt-part .sp-panel.is-bad {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 7%, var(--aas-bg));
+  }
+  .aas-opt-part h4 {
+    margin: 0 0 0.3em;
+    font-size: 0.95em;
+    color: var(--aas-text);
+  }
+  .aas-opt-part svg {
+    width: 100%;
+    max-height: 12em;
+    margin: 0 auto;
+  }
+  .aas-opt-part.is-slide svg {
+    max-height: 28vh;
+  }
+  .aas-opt-part .sp-city {
+    font-family: inherit;
+  }
+  .aas-opt-part .sp-lab {
+    fill: var(--aas-muted);
+    font-family: inherit;
+  }
+  .aas-opt-part .sp-line {
+    fill: none;
+    stroke: color-mix(in srgb, var(--aas-text) 45%, var(--aas-bg));
+    stroke-width: 2.5;
+  }
+  .aas-opt-part .is-whole .sp-line {
+    stroke: color-mix(in srgb, var(--aas-role-guard) 45%, var(--aas-bg));
+    stroke-width: 14;
+  }
+  .aas-opt-part .is-part .sp-line {
+    stroke: var(--aas-role-focus);
+    stroke-width: 7;
+  }
+  .aas-opt-part .is-best .sp-line {
+    stroke-dasharray: 9 6;
+    stroke: var(--aas-role-model);
+    stroke-width: 5;
+  }
+  .aas-opt-part .is-part.is-best .sp-line {
+    stroke: var(--aas-role-focus);
+    stroke-dasharray: none;
+    stroke-width: 7;
+    filter: drop-shadow(0 0 3px var(--aas-role-model));
+  }
+  /* 마라톤 막대 */
+  .aas-opt-part .sp-bars {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr auto;
+    gap: 0.35em 0.4em;
+    align-items: center;
+    margin: 0.5em 0 0.6em;
+    font-size: 0.85em;
+  }
+  .aas-opt-part .sp-h {
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-opt-part .sp-pace {
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-opt-part .sp-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(var(--w) / 160 * 100%);
+    height: 2em;
+    box-sizing: border-box;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    border: 2px solid var(--dx-line);
+    border-radius: 0.4em;
+    background: var(--aas-bg);
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-opt-part .sp-bar.is-whole {
+    background: color-mix(in srgb, var(--aas-role-guard) 30%, var(--aas-bg));
+  }
+  .aas-opt-part .sp-bar.is-part {
+    border-color: var(--aas-role-focus);
+    border-width: 3px;
+  }
+  .aas-opt-part .sp-bar.is-best {
+    border-color: var(--aas-role-model);
+    border-style: dashed;
+    border-width: 3px;
+  }
+  .aas-opt-part .sp-bar.is-swap {
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-opt-part .sp-sum {
+    min-width: 3em;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-opt-part .sp-sum.is-whole {
+    color: var(--aas-role-guard);
+  }
+  .aas-opt-part .sp-sum.is-swap {
+    color: var(--aas-role-model);
+  }
+  .aas-opt-part .sp-say {
+    margin: auto 0 0;
+    min-height: 4.4em;
+    font-size: 0.85em;
+    line-height: 1.5;
+  }
+</style>

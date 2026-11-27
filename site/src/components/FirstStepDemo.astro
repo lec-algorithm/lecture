@@ -1,0 +1,284 @@
+---
+// 간선 k개 최단 경로를 "첫 걸음"으로 쪼개 보는 데모.
+//
+// 카드를 누르면 나가는 간선마다 남은 문제 카드가 열린다. 간선 1개짜리는 간선이 있는지만
+// 보면 되므로 바로 답이 나온다. 아이가 모두 풀리면 부모의 최솟값이 정해진다. 이미 푼
+// 문제가 다시 나오면 노랑(메모에서 꺼냄)이다. 그래프는 실습 코드와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `fs-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '첫 걸음으로 쪼개기',
+    open: '모두 열기',
+    reset: '처음으로',
+    left: '간선 {k}개',
+    no: '불가',
+    cost: '첫 걸음',
+    idle: '카드를 눌러 첫 걸음을 펼쳐 봅니다. 0 → 3, 간선 3개에서 시작합니다.',
+    opened: '{u}에서 나가는 간선은 {list}입니다. 남은 일은 하나 적은 간선으로 {v}까지 가는 것입니다.',
+    leaf: '{u}에서 {v}로 가는 간선이 있는지만 보면 됩니다. {r}',
+    hit: '{u} → {v}, 간선 {k}개는 이미 푼 문제입니다. 적어 둔 답을 꺼냅니다.',
+    has: '있으므로 비용은 {w}입니다.',
+    hasnt: '없으므로 불가입니다.',
+    done: '답은 {w}입니다. 최솟값을 준 첫 걸음을 따라가면 {path}입니다.',
+  },
+  en: {
+    title: 'Split by the first step',
+    open: 'Open all',
+    reset: 'Reset',
+    left: '{k} edges',
+    no: 'none',
+    cost: 'first step',
+    idle: 'Click a card to unfold its first steps. Start from 0 → 3 with 3 edges.',
+    opened: 'The edges leaving {u} are {list}. What remains is to reach {v} with one edge fewer.',
+    leaf: 'Just check whether there is an edge from {u} to {v}. {r}',
+    hit: '{u} → {v} with {k} edges was already solved. Look up the answer.',
+    has: 'There is, with cost {w}.',
+    hasnt: 'There is none.',
+    done: 'The answer is {w}. Following the cheapest first steps gives {path}.',
+  },
+  zh: {
+    title: '按第一步拆分',
+    open: '全部展开',
+    reset: '重置',
+    left: '{k} 条边',
+    no: '不可能',
+    cost: '第一步',
+    idle: '点击卡片展开第一步。从 0 → 3、3 条边开始。',
+    opened: '从 {u} 出发的边有 {list}。剩下的工作是用少一条边走到 {v}。',
+    leaf: '只要看有没有从 {u} 到 {v} 的边。{r}',
+    hit: '{u} → {v}、{k} 条边是已经解过的问题。取出记下的答案。',
+    has: '有，代价是 {w}。',
+    hasnt: '没有，所以不可能。',
+    done: '答案是 {w}。沿着给出最小值的第一步走，得到 {path}。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const POS = [[30, 100], [115, 35], [115, 165], [225, 35], [225, 165], [310, 100]];
+const EDGES = [[0, 1, 1], [0, 2, 2], [1, 3, 6], [2, 1, 2], [2, 3, 4], [2, 4, 3], [3, 5, 3], [4, 3, 1], [4, 5, 5]];
+const arrow = ([u, v]: number[]) => {
+  const [a, b] = [POS[u], POS[v]];
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const [ux, uy] = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  const [ex, ey] = [b[0] - ux * 18, b[1] - uy * 18];
+  return `M${a[0] + ux * 16} ${a[1] + uy * 16}L${ex} ${ey}M${ex - ux * 9 - uy * 5} ${ey - uy * 9 + ux * 5}L${ex} ${ey}L${ex - ux * 9 + uy * 5} ${ey - uy * 9 - ux * 5}`;
+};
+---
+
+<DpKit id={id} cls="aas-first-step" title={t.title} strings={t} slide={slide} size={2.6}>
+  <Fragment slot="controls">
+    <button type="button" class="dx-btn dx-primary" data-dx="open">{t.open}</button>
+    <button type="button" class="dx-btn" data-dx="reset">{t.reset}</button>
+  </Fragment>
+  <div class="fs-row">
+    <svg viewBox="0 0 340 200" class="fs-graph" aria-hidden="true">
+      {EDGES.map((e) => (
+        <Fragment>
+          <path class="sv-edge" data-fs-edge={`${e[0]}-${e[1]}`} d={arrow(e)}></path>
+          <text x={(POS[e[0]][0] + POS[e[1]][0]) / 2 + (POS[e[0]][0] === POS[e[1]][0] ? 12 : 0)} y={(POS[e[0]][1] + POS[e[1]][1]) / 2 + (POS[e[0]][0] === POS[e[1]][0] ? 0 : 13)} font-size="14">{e[2]}</text>
+        </Fragment>
+      ))}
+      {POS.map((p, i) => (
+        <Fragment>
+          <circle class:list={['sv-node', i === 0 && 'sv-eval', i === 3 && 'sv-focus']} data-fs-node={i} cx={p[0]} cy={p[1]} r="15" />
+          <text x={p[0]} y={p[1]} font-size="15">{i}</text>
+        </Fragment>
+      ))}
+    </svg>
+    <div class="fs-tree" data-dx="tree"></div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, EDGES }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note } = K.root(id);
+    const DST = 3;
+    const INF = Infinity;
+    const show = (v) => (v === INF ? S.no : String(v));
+    const out = (u) => EDGES.filter((e) => e[0] === u);
+    let memo, tree, hot;
+    const make = (u, k, w) => ({ u, k, w, kids: null, val: undefined, hit: false });
+    function init() {
+      memo = new Map();
+      tree = make(0, 3);
+      hot = [];
+      draw(S.idle);
+    }
+    const key = (n) => `${n.u},${n.k}`;
+    function settle(n) {
+      if (n.kids) {
+        n.kids.forEach(settle);
+        if (n.val === undefined && n.kids.every((c) => c.val !== undefined)) {
+          n.val = Math.min(INF, ...n.kids.map((c) => c.w + c.val));
+          memo.set(key(n), n.val);
+        }
+      }
+    }
+    function open(n) {
+      if (n.kids || n.val !== undefined) return;
+      let msg;
+      if (memo.has(key(n))) {
+        n.val = memo.get(key(n));
+        n.hit = true;
+        hot = [];
+        msg = K.fill(S.hit, { u: n.u, v: DST, k: n.k });
+      } else if (n.k === 1) {
+        const e = EDGES.find((x) => x[0] === n.u && x[1] === DST);
+        n.val = e ? e[2] : INF;
+        memo.set(key(n), n.val);
+        hot = e ? [`${n.u}-${DST}`] : [];
+        msg = K.fill(S.leaf, { u: n.u, v: DST, r: e ? K.fill(S.has, { w: e[2] }) : S.hasnt });
+      } else {
+        n.kids = out(n.u).map((e) => make(e[1], n.k - 1, e[2]));
+        hot = out(n.u).map((e) => `${e[0]}-${e[1]}`);
+        msg = K.fill(S.opened, { u: n.u, v: DST, list: out(n.u).map((e) => `${e[0]}→${e[1]} (${e[2]})`).join(', ') });
+      }
+      settle(tree);
+      draw(msg);
+    }
+    const bestKid = (n) => n.kids && n.val !== undefined && n.val !== INF && n.kids.find((c) => c.w + c.val === n.val);
+    function card(n, isBest) {
+      const c = n.val !== undefined ? (n.hit ? 'is-hit' : isBest ? 'is-path' : 'is-done') : n.kids ? 'is-now' : 'fs-closed';
+      return K.el(
+        'div',
+        { cls: 'fs-node' },
+        K.el(
+          'button',
+          { type: 'button', cls: `fs-card ${c}`, on: { click: () => open(n) } },
+          n.w !== undefined && K.el('small', { cls: 'fs-w' }, `${S.cost} ${n.w}`),
+          K.el('b', {}, `${n.u} → ${DST}`),
+          K.el('small', {}, K.fill(S.left, { k: n.k })),
+          K.el('span', { cls: 'fs-val' }, n.val === undefined ? '?' : n.w !== undefined && n.val !== INF ? `${n.w} + ${n.val} = ${n.w + n.val}` : show(n.val)),
+        ),
+        n.kids && K.el('div', { cls: 'fs-kids' }, ...n.kids.map((k) => card(k, bestKid(n) === k))),
+      );
+    }
+    function draw(msg) {
+      const done = tree.val !== undefined;
+      const path = [0];
+      if (done) {
+        let n = tree;
+        while (n.kids) {
+          n = bestKid(n);
+          path.push(n.u);
+        }
+        path.push(DST);
+      }
+      const on = new Set(path.slice(1).map((v, i) => `${path[i]}-${v}`));
+      root.querySelectorAll('[data-fs-edge]').forEach((e) => {
+        const k = e.dataset.fsEdge;
+        e.setAttribute('class', `sv-edge ${done ? (on.has(k) ? 'sv-guard' : '') : hot.includes(k) ? 'sv-model' : ''}`);
+      });
+      get('tree').replaceChildren(card(tree, true));
+      get('open').disabled = done;
+      K.lines(note, done ? K.fill(S.done, { w: tree.val, path: path.join(' → ') }) : msg);
+    }
+    get('reset').addEventListener('click', init);
+    get('open').addEventListener('click', () => {
+      const next = (n) => (n.val !== undefined ? null : !n.kids ? n : n.kids.map(next).find(Boolean));
+      for (let n = next(tree); n; n = next(tree)) open(n);
+    });
+    init();
+  })();
+</script>
+
+<style is:global>
+  .aas-first-step .fs-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2em;
+    align-items: center;
+  }
+  .aas-first-step.is-slide .fs-row {
+    flex-wrap: nowrap;
+  }
+  .aas-first-step .fs-graph {
+    flex: 0 0 15em;
+    width: 15em;
+  }
+  .aas-first-step .fs-tree {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 15.5em;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+  }
+  .aas-first-step .fs-node {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .aas-first-step .fs-kids {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    margin-left: 1.2em;
+    padding-left: 1.2em;
+    border-left: 2px solid var(--dx-line);
+  }
+  .aas-first-step .fs-kids::before {
+    content: '';
+    position: absolute;
+    left: -1.2em;
+    top: 50%;
+    width: 1.2em;
+    border-top: 2px solid var(--dx-line);
+  }
+  .aas-first-step .fs-kids > .fs-node {
+    position: relative;
+  }
+  .aas-first-step .fs-kids > .fs-node::before {
+    content: '';
+    position: absolute;
+    left: -1.2em;
+    width: 1.2em;
+    border-top: 2px solid var(--dx-line);
+  }
+  .aas-first-step .fs-card {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0 0.7em;
+    align-items: baseline;
+    justify-content: space-between;
+    min-width: 9.6em;
+    padding: 0.3em 0.65em;
+    font: inherit;
+    font-size: 0.85em;
+    text-align: left;
+    color: var(--aas-text);
+    border: 2px solid var(--dx-line);
+    border-radius: 0.6em;
+    cursor: pointer;
+    font-weight: 400;
+  }
+  .aas-first-step .fs-card.fs-closed {
+    background: var(--aas-bg);
+    border-style: dashed;
+  }
+  .aas-first-step .fs-card:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-first-step .fs-card b {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-first-step .fs-card small {
+    color: var(--aas-muted);
+  }
+  .aas-first-step .fs-w {
+    grid-column: 1 / -1;
+  }
+  .aas-first-step .fs-val {
+    grid-column: 1 / -1;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+  }
+</style>

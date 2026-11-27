@@ -1,0 +1,259 @@
+---
+// 네 예제의 경로 복원을 한자리에서 견주는 데모.
+//
+// 거스름돈 choice와 LIS prev는 끝에서 거꾸로, 길찾기 next는 출발점에서 앞으로 따라간다.
+// 배낭은 따로 적은 것 없이 위 칸과 값을 견줘 되살린다. 표는 실습 코드와 같은 절차로
+// 계산한다(동점 처리까지 같다).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `rs-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '선택을 되살리기',
+    coin: '거스름돈',
+    lis: 'LIS',
+    path: '길찾기',
+    knap: '배낭',
+    amount: '금액',
+    coin0: 'dp에는 개수 2만 있습니다. choice를 6원에서부터 거꾸로 따라갑니다.',
+    coinS: 'choice[{a}] = {c}. 마지막 동전이 {c}원이므로 {b}원 칸으로 갑니다.',
+    coinE: '0원에 닿았습니다. 낸 동전은 {list}입니다.',
+    lis0: 'dp의 최댓값은 6번(101)의 4입니다. prev를 끝에서부터 거꾸로 따라갑니다.',
+    lisS: '{i}번({v})을 적습니다. prev[{i}] = {p}입니다.',
+    lisE: '-1에 닿았습니다. 거꾸로 모았으므로 뒤집으면 {list}입니다.',
+    path0: 'memo에는 비용 6만 있습니다. 첫 걸음을 적어 두었으므로 출발점에서 앞으로 따라갑니다.',
+    pathS: 'next[{k}][{u}] = {x}. {u} → {x}로 가고 남은 간선은 {r}개입니다.',
+    pathE: '간선을 다 썼습니다. 길은 {list}입니다. 이번에는 뒤집을 필요가 없습니다.',
+    knap0: '따로 적어 둔 것이 없습니다. 오른쪽 아래에서 시작해 위 칸과 값을 견줍니다.',
+    knapT: 'dp[{i}][{c}] = {v}이고 위 칸은 {u}입니다. 다르므로 물건 {i}번을 담았고, 용량 {n}으로 갑니다.',
+    knapN: 'dp[{i}][{c}] = {v}이고 위 칸도 같습니다. 물건 {i}번은 담지 않았습니다.',
+    knapE: '0번 줄에 닿았습니다. 담은 물건은 {list}입니다. 표 전체가 있어야 할 수 있는 일입니다.',
+  },
+  en: {
+    title: 'Recovering the choices',
+    coin: 'Coins',
+    lis: 'LIS',
+    path: 'Path',
+    knap: 'Knapsack',
+    amount: 'amount',
+    coin0: 'dp only holds the count 2. Follow choice backwards from 6 won.',
+    coinS: 'choice[{a}] = {c}. Coin {c} was paid, so go to cell {b}.',
+    coinE: 'Reached 0. The coins paid are {list}.',
+    lis0: 'The maximum of dp is 4 at index 6 (101). Follow prev backwards from there.',
+    lisS: 'Write down index {i} ({v}). prev[{i}] = {p}.',
+    lisE: 'Reached -1. It was collected backwards, so reversed it reads {list}.',
+    path0: 'memo only holds the cost 6. The first step was recorded, so follow it forwards from the start.',
+    pathS: 'next[{k}][{u}] = {x}. Go {u} → {x} with {r} edges left.',
+    pathE: 'All edges used. The path is {list}. No reversing this time.',
+    knap0: 'Nothing was recorded. Start at the bottom right and compare with the cell above.',
+    knapT: 'dp[{i}][{c}] = {v} and the cell above is {u}. They differ, so item {i} was packed; go to capacity {n}.',
+    knapN: 'dp[{i}][{c}] = {v} equals the cell above. Item {i} was not packed.',
+    knapE: 'Reached row 0. The items packed are {list}. This needs the whole table.',
+  },
+  zh: {
+    title: '还原选择',
+    coin: '找零钱',
+    lis: 'LIS',
+    path: '找路',
+    knap: '背包',
+    amount: '金额',
+    coin0: 'dp 里只有个数 2。从 6 韩元开始倒着跟随 choice。',
+    coinS: 'choice[{a}] = {c}。付了硬币 {c}，去 {b} 韩元的格。',
+    coinE: '到达 0 韩元。付的硬币是 {list}。',
+    lis0: 'dp 的最大值是 6 号（101）的 4。从末尾倒着跟随 prev。',
+    lisS: '记下 {i} 号（{v}）。prev[{i}] = {p}。',
+    lisE: '到达 -1。因为是倒着收集的，反过来就是 {list}。',
+    path0: 'memo 里只有代价 6。记下的是第一步，所以从起点往前跟随。',
+    pathS: 'next[{k}][{u}] = {x}。走 {u} → {x}，还剩 {r} 条边。',
+    pathE: '边用完了。路径是 {list}。这次不用反转。',
+    knap0: '没有另外记录。从右下角开始，与上方的格比较。',
+    knapT: 'dp[{i}][{c}] = {v}，上方的格是 {u}。不同，所以装了物品 {i}，去容量 {n}。',
+    knapN: 'dp[{i}][{c}] = {v}，与上方的格相同。没装物品 {i}。',
+    knapE: '到达第 0 行。所装物品是 {list}。这需要整张表。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-restore" title={t.title} strings={t} steps slide={slide} size={2.8}>
+  <Fragment slot="controls">
+    {(['coin', 'lis', 'path', 'knap'] as const).map((k, i) => <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="p" data-dx-val={k}>{t[k]}</button>)}
+    <span class="dx-sep"></span>
+  </Fragment>
+  <div class="rs-grid" data-dx="grid"></div>
+  <div class="rs-out" data-dx="out"></div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const INF = Infinity;
+    const show = (v) => (v === INF ? 'INF' : v === null || v === undefined ? '' : String(v));
+    function coin() {
+      const coins = [2, 3, 5];
+      const dp = [0];
+      const ch = [0];
+      for (let a = 1; a <= 6; a++) {
+        dp[a] = INF;
+        ch[a] = 0;
+        coins.forEach((c) => {
+          if (c <= a && dp[a - c] + 1 < dp[a]) {
+            dp[a] = dp[a - c] + 1;
+            ch[a] = c;
+          }
+        });
+      }
+      const steps = [];
+      const list = [];
+      for (let a = 6; a > 0; a -= ch[a]) {
+        list.push(ch[a]);
+        steps.push({ now: `1,${a}`, ref: `1,${a - ch[a]}`, note: K.fill(S.coinS, { a, c: ch[a], b: a - ch[a] }), out: [...list] });
+      }
+      steps.push({ now: '1,0', note: K.fill(S.coinE, { list: list.join(' + ') }), out: list });
+      return { head: [S.amount, ...dp.map((_, i) => i)], rows: [['dp', ...dp], ['choice', ...ch.map((c) => c || '')]], steps, start: S.coin0, first: '1,6' };
+    }
+    function lis() {
+      const arr = [10, 9, 2, 5, 3, 7, 101, 18];
+      const dp = arr.map(() => 1);
+      const prev = arr.map(() => -1);
+      arr.forEach((v, i) => {
+        for (let j = 0; j < i; j++)
+          if (arr[j] < v && dp[j] + 1 > dp[i]) {
+            dp[i] = dp[j] + 1;
+            prev[i] = j;
+          }
+      });
+      const steps = [];
+      const list = [];
+      for (let k = dp.indexOf(Math.max(...dp)); k !== -1; k = prev[k]) {
+        list.push(arr[k]);
+        steps.push({ now: `2,${k}`, ref: prev[k] < 0 ? '' : `2,${prev[k]}`, note: K.fill(S.lisS, { i: k, v: arr[k], p: prev[k] }), out: [...list] });
+      }
+      steps.push({ note: K.fill(S.lisE, { list: [...list].reverse().join(' ') }), out: [...list].reverse() });
+      return { head: ['i', ...arr.map((_, i) => i)], rows: [['arr', ...arr], ['dp', ...dp], ['prev', ...prev]], steps, start: S.lis0, first: '2,6' };
+    }
+    function path() {
+      const E = [[0, 1, 1], [0, 2, 2], [1, 3, 6], [2, 1, 2], [2, 3, 4], [2, 4, 3], [3, 5, 3], [4, 3, 1], [4, 5, 5]];
+      const memo = {};
+      const next = {};
+      const go = (u, k) => {
+        if (k === 0) return u === 3 ? 0 : INF;
+        const key = `${k},${u}`;
+        if (key in memo) return memo[key];
+        let b = INF;
+        E.filter((e) => e[0] === u).forEach(([, x, w]) => {
+          const r = go(x, k - 1);
+          if (w + r < b) {
+            b = w + r;
+            next[key] = x;
+          }
+        });
+        return (memo[key] = b);
+      };
+      go(0, 3);
+      const steps = [];
+      const list = [0];
+      let u = 0;
+      for (let k = 3; k > 0; k--) {
+        const x = next[`${k},${u}`];
+        list.push(x);
+        steps.push({ now: `${3 - k},${u}`, ref: k > 1 ? `${4 - k},${x}` : '', note: K.fill(S.pathS, { k, u, x, r: k - 1 }), out: [...list] });
+        u = x;
+      }
+      steps.push({ note: K.fill(S.pathE, { list: list.join(' → ') }), out: list });
+      return { head: ['next', 0, 1, 2, 3, 4, 5], rows: [3, 2, 1].map((k) => [`k = ${k}`, ...[0, 1, 2, 3, 4, 5].map((q) => next[`${k},${q}`])]), steps, start: S.path0, first: '0,0', sep: '→', from: 0 };
+    }
+    function knap() {
+      const it = [[10, 60], [20, 100], [30, 120]];
+      const dp = [new Array(6).fill(0)];
+      it.forEach(([w, v], i) => (dp[i + 1] = dp[i].map((x, c) => (c * 10 >= w ? Math.max(x, dp[i][c - w / 10] + v) : x))));
+      const steps = [];
+      const list = [];
+      let c = 5;
+      for (let i = 3; i >= 1; i--) {
+        const take = dp[i][c] !== dp[i - 1][c];
+        const n = take ? c - it[i - 1][0] / 10 : c;
+        if (take) list.push(i);
+        steps.push({ now: `${i},${c}`, ref: `${i - 1},${n}`, cmp: `${i - 1},${c}`, note: K.fill(take ? S.knapT : S.knapN, { i, c: c * 10, v: dp[i][c], u: dp[i - 1][c], n: n * 10 }), out: [...list] });
+        c = n;
+      }
+      steps.push({ now: `0,${c}`, note: K.fill(S.knapE, { list: list.join(', ') }), out: list });
+      return { head: ['i \\ c', 0, 10, 20, 30, 40, 50], rows: dp.map((r, i) => [String(i), ...r]), steps, start: S.knap0, first: '3,5' };
+    }
+    const MAKE = { coin, lis, path, knap };
+    let D;
+    function draw(s) {
+      const e = s ? D.steps[s - 1] : { out: [], note: D.start, now: '' };
+      const done = new Set(D.steps.slice(0, Math.max(0, s - 1)).map((q) => q.now));
+      const last = s === D.steps.length;
+      const g = get('grid');
+      g.style.setProperty('--n', D.head.length - 1);
+      g.replaceChildren(
+        ...D.head.map((h) => K.el('span', { cls: 'dx-cell is-head' }, String(h))),
+        ...D.rows.flatMap((r, i) =>
+          r.map((v, j) => {
+            if (j === 0) return K.el('span', { cls: 'dx-cell is-head rs-name' }, v);
+            const k = `${i},${j - 1}`;
+            const c = k === e.now ? 'is-now' : k === e.ref ? 'is-ref' : k === e.cmp ? 'is-hit' : done.has(k) ? 'is-path' : s === 0 && k === D.first ? 'is-lazy' : show(v) === '' ? 'is-off' : '';
+            return K.el('span', { cls: `dx-cell ${c}` }, show(v));
+          }),
+        ),
+      );
+      get('out').replaceChildren(...e.out.flatMap((v, i) => [i ? K.el('i', {}, D.sep || (last && name === 'coin' ? '+' : '·')) : '', K.el('b', {}, String(v))]));
+      K.lines(note, e.note);
+    }
+    let name = 'coin';
+    D = MAKE[name]();
+    const st = K.stepper(root, { count: () => D.steps.length, draw, ms: 1400 });
+    tabs('p', (v) => {
+      name = v;
+      D = MAKE[v]();
+      st.reset();
+    });
+    st.go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-restore .rs-grid {
+    display: grid;
+    grid-template-columns: 5em repeat(var(--n), minmax(2.1em, 4.2em));
+    gap: 0.3em;
+    justify-content: safe center;
+    overflow-x: auto;
+    align-content: center;
+    min-height: 11.5em;
+  }
+  .aas-restore .rs-grid .dx-cell {
+    min-width: 0;
+    height: 2em;
+  }
+  .aas-restore .rs-grid .is-lazy {
+    border-color: var(--aas-role-guard);
+    color: var(--aas-text);
+  }
+  .aas-restore .rs-out {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.4em;
+    margin-top: 0.4em;
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-restore .rs-out b {
+    padding: 0.2em 0.7em;
+    border-radius: 0.5em;
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+  }
+  .aas-restore .rs-out i {
+    font-style: normal;
+    color: var(--aas-muted);
+  }
+</style>

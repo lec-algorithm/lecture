@@ -1,7 +1,7 @@
 ---
 title: "Topic 14. Dynamic Programming"
 description: "Dynamic programming computes each overlapping subproblem once. Memoization and tabulation, lazy and eager, then coin change, LIS, grid paths, k-edge shortest paths, 0/1 knapsack, and restoring the path"
-date: "Topic 14 · v2"
+date: "Topic 14 · v3"
 order: 14
 transition: none
 toc_level: 4
@@ -9,6 +9,7 @@ toc_open: false
 ---
 
 import Slide from 'stack-site-builder/components/Slide.astro';
+import SlideTableLines from '@components/SlideTableLines.astro';
 import RecursionDemo from '@components/RecursionDemo.astro';
 import FibMemoDemo from '@components/FibMemoDemo.astro';
 import DpTableDemo from '@components/DpTableDemo.astro';
@@ -27,9 +28,33 @@ import PathTableDemo from '@components/PathTableDemo.astro';
 import KnapCellDemo from '@components/KnapCellDemo.astro';
 import OptimalityDemo from '@components/OptimalityDemo.astro';
 import CallOverlapDemo from '@components/CallOverlapDemo.astro';
+import DpMapDemo from '@components/DpMapDemo.astro';
+import DagFoldDemo from '@components/DagFoldDemo.astro';
+import DagOrderDemo from '@components/DagOrderDemo.astro';
+import RollingDemo from '@components/RollingDemo.astro';
+import LazyLifeDemo from '@components/LazyLifeDemo.astro';
+import LastCoinDemo from '@components/LastCoinDemo.astro';
+import LisSplitDemo from '@components/LisSplitDemo.astro';
+import LisDagDemo from '@components/LisDagDemo.astro';
+import PatienceDemo from '@components/PatienceDemo.astro';
+import GridWalkDemo from '@components/GridWalkDemo.astro';
+import GridCallsDemo from '@components/GridCallsDemo.astro';
+import FirstStepDemo from '@components/FirstStepDemo.astro';
+import LayerGraphDemo from '@components/LayerGraphDemo.astro';
+import KnapPackDemo from '@components/KnapPackDemo.astro';
+import Knap1DDemo from '@components/Knap1DDemo.astro';
+import KnapSizeDemo from '@components/KnapSizeDemo.astro';
+import RestoreDemo from '@components/RestoreDemo.astro';
+import StrategyDemo from '@components/StrategyDemo.astro';
+import DesignStepsDemo from '@components/DesignStepsDemo.astro';
+import EditDistanceDemo from '@components/EditDistanceDemo.astro';
+import OptPartDemo from '@components/OptPartDemo.astro';
+import FibTabTreeDemo from '@components/FibTabTreeDemo.astro';
 
 {/* Slide rules follow the slide section of docs/writing-rules.md.
     Numbers match the practice code (topic-14-dynamic-programming) exactly. */}
+
+<SlideTableLines />
 
 <Slide class="cover">
 
@@ -66,22 +91,10 @@ Then we walk the table backwards to recover **the choices that built the answer*
 
 <Slide>
 
-#### Divide and conquer + storage
-::sub[When the smaller problems overlap]
+### Click through: the four pieces of dynamic programming
+::sub[Click a card to read about it below]
 
-```mermaid
-%%{init: {"themeVariables": {"fontSize": "28px"}}}%%
-flowchart LR
-  subgraph P["Paradigm"]
-    D(("Divide and<br/>conquer")) --- O["Overlapping<br/>subproblems"]
-    D --- S["Optimal<br/>substructure"]
-  end
-  subgraph M["Method"]
-    MM["Memoization<br/>(top-down)"]
-    TT["Tabulation<br/>(bottom-up)"]
-  end
-  P -- "+" --> M
-```
+<DpMapDemo slide />
 
 </Slide>
 
@@ -93,10 +106,35 @@ flowchart LR
 - **Overlapping subproblems**
   - The same small problem shows up many times.
 - **Optimal substructure**
-  - The optimal solution to a large problem is built from optimal solutions to smaller ones.
+  - The optimal solution to a large problem is built from optimal solutions to smaller ones (for optimization problems).
 - **There are two ways to store answers.**
   - Memoization: keep the recursion and write the answers down.
   - Tabulation: fill a table upward from the smallest problems.
+
+</Slide>
+
+<Slide>
+
+#### What optimal substructure means
+::sub[If the whole is optimal, the parts it is made of are optimal too]
+
+- **Example**: the fastest way from Seoul through Daejeon to Busan
+  - Its Seoul → Daejeon leg is also the fastest way from Seoul to Daejeon.
+- **Why**: try swapping the part.
+  - If Seoul → Daejeon could be done faster, swapping it in would make the whole trip faster.
+  - That contradicts the whole being fastest, so there is no such way.
+- **The reverse does not come for free.** Optimal parts do not make an optimal whole.
+  - Go through Gangneung and even two fastest legs make a detour.
+  - That is why dynamic programming compares **all** the places to split.
+
+</Slide>
+
+<Slide>
+
+### Step by step: is the first part optimal too?
+::sub[The fastest way from Seoul to Busan has it; a marathon finish does not]
+
+<OptPartDemo slide />
 
 </Slide>
 
@@ -104,6 +142,15 @@ flowchart LR
 
 ## Fibonacci, again
 ::sub[Fibonacci]
+
+</Slide>
+
+<Slide>
+
+### One step at a time: F(5)
+::sub[A node that recomputes a value turns red]
+
+<RecursionDemo n={5} slide fit />
 
 </Slide>
 
@@ -119,38 +166,9 @@ ALGORITHM FibRecursive(n)
     return FibRecursive(n-1) + FibRecursive(n-2)
 ```
 
-- **Time** $$O(2^n)$$: grows exponentially.
+- **Time** $$O(2^n)$$: grows exponentially; exactly $$\Theta(\varphi^n)$$ with $$\varphi \approx 1.618$$
 - **Space** $$O(n)$$: the recursion stack
 - **The problem**: it repeats the same computations.
-
-</Slide>
-
-<Slide class="compact">
-
-#### Iterative Fibonacci
-::sub[Carry just the two previous terms forward]
-
-```plaintext
-ALGORITHM FibIterative(n)
-    if n <= 1 then return n
-    prev <- 0, curr <- 1
-    for i <- 2 to n do
-        next <- prev + curr
-        prev <- curr
-        curr <- next
-    return curr
-```
-
-- **Time** $$O(n)$$ · **Space** $$O(1)$$
-
-</Slide>
-
-<Slide>
-
-### One step at a time: F(5)
-::sub[A node that recomputes a value turns red]
-
-<RecursionDemo n={5} slide fit />
 
 </Slide>
 
@@ -168,7 +186,16 @@ ALGORITHM FibIterative(n)
 | $$F(5)$$ | 15 | 2 | 3 |
 
 15 calls for $$F(5)$$ alone, yet only 6 distinct values.  
-$$C(n) = 2F(n+1) - 1$$, growing about 1.6 times per step.
+$$C(n) = 2F(n+1) - 1$$, growing about 1.6 times for each step of $$n$$.
+
+</Slide>
+
+<Slide>
+
+### Step by step: folding the call tree
+::sub[Stack equal problems together to see how many really need solving]
+
+<DagFoldDemo slide />
 
 </Slide>
 
@@ -176,29 +203,6 @@ $$C(n) = 2F(n+1) - 1$$, growing about 1.6 times per step.
 
 ## Memoization
 ::sub[Memoization: take a memo]
-
-</Slide>
-
-<Slide class="compact">
-
-#### Write the answer down
-::sub[`01_fibonacci/fibonacci.c` · only two lines of if changed]
-
-```c
-long long fibMemo(int n) {
-    if (n <= 1) {
-        return n;                       // 1. the base definition
-    }
-    if (memo[n] != -1) {
-        return memo[n];                 // 2. already written down: return at once
-    }
-    memo[n] = fibMemo(n - 1) + fibMemo(n - 2);  // 3. compute recursively
-    return memo[n];                     // 4. write it down and return
-}
-```
-
-- **Time** $$O(n)$$: each value is computed once.
-- **Space** $$O(n)$$: memo array + recursion stack
 
 </Slide>
 
@@ -224,8 +228,31 @@ long long fibMemo(int n) {
 
 <br/>
 
-Calls drop **from 15 to 9**, in general $$2n - 1$$.  
+Calls drop **from 15 to 9**, and $$2n - 1$$ for any $$n \ge 1$$.  
 `memo[0]` and `memo[1]` stay -1 because the base case returns them directly.
+
+</Slide>
+
+<Slide class="compact">
+
+#### Write the answer down
+::sub[`01_fibonacci/fibonacci.c` · all we added is the if that checks and the assignment that stores]
+
+```c
+long long fibMemo(int n) {
+    if (n <= 1) {
+        return n;                       // 1. the base definition
+    }
+    if (memo[n] != -1) {
+        return memo[n];                 // 2. already written down: return at once
+    }
+    memo[n] = fibMemo(n - 1) + fibMemo(n - 2);  // 3. compute recursively
+    return memo[n];                     // 4. write it down and return
+}
+```
+
+- **Time** $$O(n)$$: each value is computed once.
+- **Space** $$O(n)$$: memo array + recursion stack
 
 </Slide>
 
@@ -233,6 +260,15 @@ Calls drop **from 15 to 9**, in general $$2n - 1$$.
 
 ## Tabulation
 ::sub[Tabulation: fill the table from the smallest]
+
+</Slide>
+
+<Slide>
+
+### Step by step: the table and the call tree
+::sub[Filling one cell turns every call it replaces in the tree green at once]
+
+<FibTabTreeDemo n={5} slide />
 
 </Slide>
 
@@ -254,16 +290,52 @@ ALGORITHM FibTabulation(n)
 
 - **Time** $$O(n)$$: once per cell
 - **Space** $$O(n)$$: one table, and no stack is used.
-- Keep only the last two cells and space is $$O(1)$$; that is Topic 01's loop.
+- Keep only the last two cells and space drops to $$O(1)$$.
 
 </Slide>
 
 <Slide>
 
-### One step at a time: the dp table
-::sub[Orange is the cell being filled; blue are the cells it refers to]
+#### Isn't this just a loop?
+::sub[Yes. Topic 01's loop is exactly tabulation]
 
-<DpTableDemo problem="fib" n={5} slide />
+- **What differs is not the result but the starting point.**
+  - Topic 01: we wrote the loop **knowing** that adding the two previous terms works.
+  - Tabulation: we **derive** it from the recursive definition (the recurrence).
+- **How it is derived**
+  1. Make each subproblem the recursion solves one cell of a table. (`dp[i]` = $$F(i)$$)
+  2. Order the cells so that the cells referred to are filled first. (small $$i$$ first)
+- For Fibonacci the cells form a line and the order is obvious, so it just looks like a loop.
+  - For coin change, LIS, and the knapsack, the same method produces loops you have not seen before.
+
+</Slide>
+
+<Slide>
+
+### Step by step: from a table to three variables
+::sub[Dashed cells are no longer looked at by anyone]
+
+<RollingDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Iterative Fibonacci
+::sub[Topic 01's code · tabulation with less space]
+
+```plaintext
+ALGORITHM FibIterative(n)
+    if n <= 1 then return n
+    prev <- 0, curr <- 1
+    for i <- 2 to n do
+        next <- prev + curr
+        prev <- curr
+        curr <- next
+    return curr
+```
+
+- **Time** $$O(n)$$ · **Space** $$O(1)$$
 
 </Slide>
 
@@ -302,17 +374,31 @@ F(5)
 
 <Slide>
 
+### Step by step: same graph, different order
+::sub[The circled number is the filling order: depth first for the memo, smallest first for the table]
+
+<DagOrderDemo slide />
+
+</Slide>
+
+<Slide>
+
 #### Memoization vs. tabulation
 ::sub[Same recurrence, opposite directions]
 
 | | Memoization | Tabulation |
 | --- | --- | --- |
-| Computation | **lazy** (only what is needed) | **eager** (everything) |
+| Cells usually solved | only the cells needed | every cell in the chosen range |
 | Starting point | top → bottom, big → small | bottom → top, small → big |
-| Implementation | recursion + cache | loop + table |
+| Who decides the order | the recursion, when a cell is needed | the programmer, in advance |
+| Usual implementation | recursion + table | loop + table |
 | Intuitiveness | transcribe the recurrence | the fill order must be worked out |
 | Robustness | risk of stack overflow | uses no stack |
 | Space optimization | hard | easy |
+
+<br/>
+
+Both use a table. What separates them is not recursion versus loops but **who decides the order**.
 
 </Slide>
 
@@ -350,17 +436,10 @@ F(5)
 
 <Slide>
 
-#### Lazy in everyday life
+### Try it: lazy in everyday life
+::sub[Scroll the images, stop the video, open only what you need]
 
-| Example | Eager | Lazy |
-| --- | --- | --- |
-| Video streaming | download the whole movie, then play | buffer only the part about to play |
-| Images on a web page | load all 100 images | only what is on screen, more as you scroll |
-| Database query | posts, friends, photos all at once | basic info first, the rest when opened |
-
-<br/>
-
-Netflix and YouTube starting playback before everything arrives is lazy.
+<LazyLifeDemo slide />
 
 </Slide>
 
@@ -402,7 +481,8 @@ fib = fibonacci_infinite()
 first_10 = [next(fib) for _ in range(10)]   # only 10 are actually computed
 ```
 
-Languages such as Haskell do this at the language level.
+Languages such as Haskell do this at the language level.  
+A generator **only postpones; it does not store.** Memoization is postponing plus storing.
 
 </Slide>
 
@@ -417,33 +497,135 @@ Languages such as Haskell do this at the language level.
 
 <Slide>
 
-#### When lazy is better
-::sub[The memoization side]
+#### Two kinds of lazy
+::sub[Memoization and generators share only the idea of "postponing"]
 
-- **When only part of the result is needed**
-  - You just need $$F(50)$$
-- **Conditional computation**
-  - Some work is needed only under certain conditions
-- **Saving memory**
-  - Not every intermediate result needs to be stored
-- **Quick prototyping**
-  - You need working code first
+| | Memoization's lazy | A generator's lazy |
+| --- | --- | --- |
+| Meaning | solve **only the subproblems** needed | produce values **one at a time** on request |
+| Direction | top-down: recurse down from F(5) | bottom-up: F(0), F(1), F(2), … in order |
+| Recursion | yes (the stack grows to n) | no (it only pauses and resumes) |
+| Storage | every solved cell stays, $$O(n)$$ | only the last two numbers, $$O(1)$$ |
+| Revisiting a value | look it up in the table | impossible, start over |
+
+<br/>
+
+The Fibonacci generator computes **exactly like the bottom-up loop (Topic 01).**
+
+</Slide>
+
+<Slide class="compact">
+
+#### Two kinds of lazy: with Fibonacci
+::sub[The same F(10) = 55, computed both ways]
+
+<div class="aas-split">
+<div>
+
+- **Memoization's lazy**: recursion + table
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:      # first time only
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]         # else look it up
+
+fib(10)    # 55, 19 recursive calls
+memo       # F(2) to F(10) remain
+memo[7]    # 13, not computed again
+```
+
+</div>
+<div>
+
+- **A generator's lazy**: loop + two variables
+
+```python
+def fib_gen():
+    a, b = 0, 1
+    while True:
+        yield a          # hand one out, pause
+        a, b = b, a + b  # keep two numbers
+
+g = fib_gen()
+[next(g) for _ in range(11)]
+# [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+# F(7) again? start over
+```
+
+</div>
+</div>
+
+The memo **keeps every solved cell** to look up again; the generator **drops past values** to save memory.
 
 </Slide>
 
 <Slide>
 
-#### When eager is better
-::sub[The tabulation side]
+#### They often pair up, but they are not the same
+::sub[Memoization and tabulation are implementations; lazy and eager are about when and how much is computed]
 
-- **When the whole result is needed**
-  - You need every value from $$F(1)$$ to $$F(50)$$
-- **When robustness matters**
-  - You want to avoid the risk of stack overflow
-- **When tuning performance**
-  - You want to remove the overhead of recursive calls
-- **When tuning space**
-  - You want fine control over memory use
+| | lazy: when asked, as much as needed | eager: up front, the whole chosen range |
+| --- | --- | --- |
+| **Memoization** (recursion + table) | the usual use: call `fib(n)` once | warm it up: call it for 0 to N in turn |
+| **Tabulation** (loop + table) | grow the table when asked: only the missing cells, from the front | the usual use: a loop from 2 to n |
+
+<br/>
+
+So memoization is not the same thing as lazy. **It is just usually used lazily.**  
+The generator earlier was a bottom-up loop, and it was lazy.
+
+</Slide>
+
+<Slide class="compact">
+
+#### The other pairings, in code
+::sub[Recursion that does it all up front, and a loop that works only when asked]
+
+<div class="aas-split">
+<div>
+
+- **Memoization, but eager**: warm it up
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]
+
+for i in range(91):   # before questions
+    fib(i)            # fill 0 to 90
+memo[50], memo[90]    # then just read
+```
+
+</div>
+<div>
+
+- **Tabulation, but lazy**: grow the table when asked
+
+```python
+dp = [0, 1]
+def fib(n):
+    # fill only the missing cells
+    while len(dp) <= n:
+        dp.append(dp[-1] + dp[-2])
+    return dp[n]
+
+fib(10)    # 55, table is dp[0] to dp[10]
+fib(7)     # 13, reads an existing cell
+fib(12)    # 144, adds only dp[11], dp[12]
+```
+
+</div>
+</div>
+
+If many questions are coming, eager is better; if you do not know how far they will ask, lazy is. Choose it apart from the implementation.
 
 </Slide>
 
@@ -474,6 +656,24 @@ An amount that cannot be made is $$\infty$$ (`INF` in the code)
 
 </Slide>
 
+<Slide>
+
+### Solve it yourself: the last coin paid
+::sub[Look at the coins one card at a time from the left: solve what memo lacks first, then write and go back]
+
+<LastCoinDemo slide />
+
+</Slide>
+
+<Slide>
+
+### One step at a time: the path the memo takes down
+::sub[coinChangeMemo(6) · yellow is read from memo, dashed is a negative amount, bold edges gave the minimum]
+
+<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
+
+</Slide>
+
 <Slide class="compact">
 
 #### Memoization
@@ -493,15 +693,6 @@ ALGORITHM CoinChangeMemo(amount, coins, m, memo)
     memo[amount] <- best                 // 4. write it down and return
     return best
 ```
-
-</Slide>
-
-<Slide>
-
-### One step at a time: the path the memo takes down
-::sub[coinChangeMemo(6) · yellow is read from memo, dashed is a negative amount, bold edges gave the minimum]
-
-<CoinMemoDemo coins={[2, 3, 5]} amount={6} slide />
 
 </Slide>
 
@@ -531,9 +722,34 @@ memo -> 2 coins, solved 5 amounts
 <Slide>
 
 ### One step at a time: tabulation
-::sub[Blue arrows above the table are references; once full, restoration arrows run backwards below it]
+::sub[An arrow +c above the table adds one coin c to an earlier cell; once full, the path is restored backwards below it]
 
 <DpTableDemo problem="coin" coins={[2, 3, 5]} amount={6} slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Tabulation
+::sub[`02_coin_change/` · whenever the minimum changes, write that coin into choice]
+
+```plaintext
+ALGORITHM CoinChangeTab(amount, coins, m)
+    dp[0] <- 0                           // 1. initialize
+    for a <- 1 to amount do dp[a] <- INF
+    for a <- 1 to amount do              // 2. every amount, smallest first
+        for i <- 0 to m-1 do
+            c <- coins[i]
+            if c <= a and dp[a - c] != INF and dp[a - c] + 1 < dp[a] then
+                dp[a] <- dp[a - c] + 1
+                choice[a] <- c           //    the last coin paid for this amount
+    if dp[amount] = INF then return INF  // 3. an amount that cannot be made
+    a <- amount                          // 4. follow choice backwards
+    while a > 0 do
+        print choice[a]
+        a <- a - choice[a]
+    return dp[amount]
+```
 
 </Slide>
 
@@ -558,7 +774,7 @@ memo -> 2 coins, solved 5 amounts
 <Slide class="compact">
 
 #### Comparing both gives 2 coins
-::sub[The 80-won cell: paying 50 won gives 4 coins, paying 40 won gives 2]
+::sub[The 80-won cell: paying 50 won gives 4 coins, paying 40 won gives 2, paying 10 won gives 4]
 
 - Output
 
@@ -579,7 +795,7 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 <Slide>
 
-### Try it yourself: how much lazy and eager solve
+### Try it yourself: how much each one solves
 ::sub[Change the coins and the amount, and what the memo and the table solve changes with them]
 
 <LazyEagerDemo slide />
@@ -611,14 +827,10 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 <br/>
 
-| Sequence picked | Length |
-| --- | --- |
-| 2 5 7 101 | 4 |
-| 2 5 7 18 | 4 |
-| 2 3 7 101 | 4 |
-| 2 3 7 18 | 4 |
-
-The answer need not be unique.
+- It is a **subsequence**, so the elements need not be adjacent.
+  - `2, 5, 7` is fine, but `2, 3, 5` changes the order and is not.
+- It is **strictly increasing**, so equal numbers cannot both be taken.
+- The longest answer need not be unique. This array has **four**.
 
 </Slide>
 
@@ -628,6 +840,24 @@ The answer need not be unique.
 ::sub[Click numbers to pick. Try to find every longest answer]
 
 <LisPlayDemo mode="pick" slide />
+
+</Slide>
+
+<Slide>
+
+### Change it: different branches, same remaining work
+::sub[If the last number picked is the same, the remaining work is the same, whatever was picked before]
+
+<LisSplitDemo slide />
+
+</Slide>
+
+<Slide>
+
+### One step at a time: how often the table is used
+::sub[The recursion goes down from the front; cells are written on the way back, bottom rows first]
+
+<LisMemoDemo slide />
 
 </Slide>
 
@@ -656,33 +886,6 @@ ALGORITHM LisHelper(arr, n, i, prev)
 
 <Slide>
 
-#### Different branches, same remaining work
-::sub[The four branches after the first two elements of 2, 10, 5, 7, 3]
-
-| 2 | 10 | Taken so far | Remaining work |
-| --- | --- | --- | --- |
-| take | take | `[2, 10]` | `i = 2, prev = 10` |
-| take | leave | `[2]` | `i = 2, prev = 2` |
-| leave | take | `[10]` | `i = 2, prev = 10` |
-| leave | leave | `[]` | `i = 2`, nothing taken |
-
-<br/>
-
-The first and third rows are **the same subproblem**. It needs solving only once.
-
-</Slide>
-
-<Slide>
-
-### One step at a time: how often the table is used
-::sub[Surprisingly, the memo table is not used that much. Change the sequence and that changes]
-
-<LisMemoDemo slide />
-
-</Slide>
-
-<Slide>
-
 #### Tabulation: the longest that ends here
 ::sub[One dp cell = the longest increasing subsequence ending at that element]
 
@@ -695,6 +898,15 @@ $$
 - The answer is not `dp[n-1]` but **the maximum of `dp`**.
 - Recording the chosen $$j$$ in `prev[i]` lets us restore the sequence.
 - Time $$O(n^2)$$ · space $$O(n)$$
+
+</Slide>
+
+<Slide>
+
+### Click it: the LIS is a longest path
+::sub[Click a point for the cells it refers to (blue) and the longest path ending there (pink)]
+
+<LisDagDemo slide />
 
 </Slide>
 
@@ -719,8 +931,8 @@ tab  = 4
   one LIS: 2 5 7 101
 ```
 
-- The maximum 4 first appears at element 6 (101).
-- Following `prev`: element 5 (7), 3 (5), 2 (2); reversed, `2 5 7 101`
+- The maximum 4 first appears at index 6 (101).
+- Following `prev`: index 5 (7), 3 (5), 2 (2); reversed, `2 5 7 101`
 - Choosing 18 instead gives `2 5 7 18`; tie handling decides which answer comes out.
 
 </Slide>
@@ -734,10 +946,73 @@ tab  = 4
 
 </Slide>
 
+<Slide>
+
+### [Aside] Step by step: the length in O(n log n)
+::sub[Keep only the smallest end for each length and find the place by binary search]
+
+<PatienceDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### [Aside] The smallest end for each length
+::sub[`08_lis_nlogn/lisNlogn.pseudo`]
+
+```plaintext
+ALGORITHM LisTails(arr, n)
+    len <- 0
+    for i <- 0 to n-1 do
+        x <- arr[i]
+        pos <- LowerBound(tails, len, x)   // first cell >= x, or len
+        tails[pos] <- x                    // replace, or append
+        if pos = len then len <- len + 1
+    return len
+```
+
+- One binary search per element, time $$O(n \log n)$$ · space $$O(n)$$
+- `tails` is always strictly increasing, so binary search works.
+- **Only the length** is right: for `[3, 4, 1]`, `tails` is `[1, 4]`, which is not a subsequence.
+
+</Slide>
+
+<Slide class="compact">
+
+#### [Aside] Output: O(n log n) LIS
+::sub[`08_lis_nlogn/` · values compared and the new tails]
+
+```console
+arr = [10, 9, 2, 5, 3, 7, 101, 18]
+   10: compared [], append -> [10]
+    9: compared [10], replace -> [9]
+    2: compared [9], replace -> [2]
+    5: compared [2], append -> [2, 5]
+    3: compared [5, 2], replace -> [2, 3]
+    7: compared [3], append -> [2, 3, 7]
+  101: compared [3, 7], append -> [2, 3, 7, 101]
+   18: compared [7, 101], replace -> [2, 3, 7, 18]
+length = 4, tails = [2, 3, 7, 18]
+comparisons = 10, O(n^2) table = 28
+```
+
+- 10 comparisons against 28 for the table. With 16 elements it is 32 against 120.
+
+</Slide>
+
 <Slide class="center">
 
 ## Example 3. Grid paths
-::sub[Avoiding obstacles in path search]
+::sub[A first two-dimensional table, and counting instead of minimizing]
+
+</Slide>
+
+<Slide>
+
+### Walk it: collecting paths
+::sub[Paths you find pile up on the right: blue arrives from above, green from the left]
+
+<GridWalkDemo slide />
 
 </Slide>
 
@@ -789,6 +1064,37 @@ Without obstacles there are $$\binom{10}{5} = 252$$; the three diagonal obstacle
 
 <Slide>
 
+### Measure it: calls per cell
+::sub[Enlarge the grid and only the recursion without a memo blows up]
+
+<GridCallsDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### As the grid grows
+::sub[`09_grid_calls/` · total calls]
+
+```console
+  size     plain    memo
+ 3 x 3        27      17
+ 4 x 4        63      29
+ 5 x 5       159      45
+ 6 x 6       439      65
+ 7 x 7      1591      91
+ 8 x 8      6163     121
+ 9 x 9     24163     155
+10 x 10    94759     193
+```
+
+- From 6 × 6 on, each extra row and column makes it **about 4 times** without a memo, and only 26 to 38 more calls with one.
+- Up to 5 × 5 there are fewer obstacles, since the goal is never blocked.
+
+</Slide>
+
+<Slide>
+
 ### Try it yourself: obstacles
 ::sub[Click a cell to place or remove an obstacle; the table is filled again from the start]
 
@@ -834,18 +1140,10 @@ Without obstacles there are $$\binom{10}{5} = 252$$; the three diagonal obstacle
 
 <Slide>
 
-#### Splitting by the first step
-::sub[0 → 3 (3 edges)]
+### Split it yourself: the first step
+::sub[Click a card to open what remains. Yellow is a problem already solved]
 
-1. **From 0 there are 2 choices: 1 and 2**
-   - 1 → 3 (2 edges), 2 → 3 (2 edges)
-2. **From 1 there is 1 choice: 3**
-   - 3 → 3 (1 edge): no such edge, so **impossible**
-3. **From 2 there are 3 choices: 1, 3, 4**
-   - 1 → 3 (1 edge) = 6, so 2 → 1 → 3 = 2 + 6 = 8
-   - 3 → 3 (1 edge): impossible
-   - 4 → 3 (1 edge) = 1, so 2 → 4 → 3 = 3 + 1 = **4**
-4. **0 → 2 → 4 → 3 = 2 + (3 + 1) = 6**
+<FirstStepDemo slide />
 
 </Slide>
 
@@ -925,7 +1223,7 @@ path: 0 -> 2 -> 4 -> 3 (2 + 3 + 1 = 6)
 <Slide class="compact">
 
 #### Path restoration
-::sub[Record what you chose when settling a value, and follow it at the end]
+::sub[Record what you chose when settling a value, and follow it from the start]
 
 ```plaintext
 ALGORITHM RestorePath(u, v, k, next)
@@ -958,13 +1256,70 @@ next[1][4][3] = 3    4 → 3   (cost 1)
 
 <Slide>
 
+### Step by step: tabulation on a layered graph
+::sub[Columns are edges left. Using an edge moves one column to the right]
+
+<LayerGraphDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Implementation 3: tabulation
+::sub[`10_shortest_path_tab/shortestPathTab.pseudo`]
+
+```plaintext
+ALGORITHM ShortestTab(dst, K)
+    for each vertex u do S[0][u] <- INF
+    S[0][dst] <- 0
+    for k <- 1 to K do                      // layers with fewer edges left first
+        for each vertex u do
+            S[k][u] <- INF
+            for each edge u -> x do
+                if S[k-1][x] != INF and w(u, x) + S[k-1][x] < S[k][u] then
+                    S[k][u] <- w(u, x) + S[k-1][x]
+                    next[k][u] <- x
+    return S, next
+```
+
+- Every edge once per layer, time $$O(K(V+E))$$ · space $$O(KV)$$
+- Without restoration two layers suffice, $$O(V)$$
+
+</Slide>
+
+<Slide class="compact">
+
+#### 18 cells and 6 cells
+::sub[`10_shortest_path_tab/`]
+
+```console
+0 -> 3 with exactly 3 edges
+  k\u    0    1    2    3    4    5
+  0    INF  INF  INF    0  INF  INF
+  1    INF    6    4  INF    1  INF
+  2      6  INF    4  INF  INF  INF
+  3      6  INF  INF  INF  INF  INF
+  table filled 18 cells, memo would solve 6
+  path: 0 -> 2 -> 4 -> 3 (cost 6)
+```
+
+- The answer and the path match `05_shortest_path`.
+- The table fills all 18 cells; the memo solves only **6**.
+
+</Slide>
+
+<Slide>
+
 #### One extra line that records the choice
 ::sub[choice, prev, next]
 
 - Coin change's `choice`, LIS's `prev`, and `next` here all do the same job.
-- When asked not for "the minimum" but for **how to achieve the minimum**, this line comes along.
+  - When asked not for "the minimum" but for **how to achieve it**, this line comes along.
+- **The direction to follow differs.**
+  - `choice` and `prev` hold the **last** choice, so go backwards from the end.
+  - `next` holds the **first** step, so go forwards from the start.
 - This differs from Dijkstra in Topic 12.
-  - With a limit on edges, 0 → 2 → 3 (2 edges) is not an answer.
+  - Exactly 3 edges are required, so 0 → 2 → 3 (2 edges) is not an answer.
 
 </Slide>
 
@@ -972,6 +1327,15 @@ next[1][4][3] = 3    4 → 3   (cost 1)
 
 ## Example 5. 0/1 knapsack
 ::sub[The problem Topic 06 deferred]
+
+</Slide>
+
+<Slide>
+
+### Try it: pack the knapsack
+::sub[Click items in and out and compare greedy with the optimum]
+
+<KnapPackDemo slide />
 
 </Slide>
 
@@ -990,6 +1354,7 @@ dp[i-1][c] & w_i > c \\
 \end{cases}
 $$
 
+- Base `dp[0][c] = 0`: no items, value 0
 - The cell above: leave item $$i$$
 - The cell $$w_i$$ to the left in the row above + $$v_i$$: take item $$i$$
 
@@ -1045,6 +1410,71 @@ best = 220
 
 </Slide>
 
+<Slide>
+
+### Step by step: the table in one row
+::sub[Change the filling direction and 220 becomes 300. See why]
+
+<Knap1DDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### One row makes it O(W) space
+::sub[Only the row above is needed, so rewrite a single row]
+
+```plaintext
+ALGORITHM Knapsack1D(w, v, n, W)
+    for c <- 0 to W do dp[c] <- 0
+    for i <- 1 to n do
+        for c <- W downto w[i] do            // large capacities first
+            dp[c] <- max(dp[c], dp[c - w[i]] + v[i])
+    return dp[W]
+```
+
+- Filling **large capacities first**, `dp[c - w]` is still the value from before item $$i$$.
+- Filling **small capacities first**, it refers to a cell that already holds item $$i$$.
+  - That answers the **unbounded knapsack**, which reuses items.
+- Time stays $$O(nW)$$, but without the table the items **cannot be restored.**
+
+</Slide>
+
+<Slide class="compact">
+
+#### 220 and 300
+::sub[`11_knapsack_1d/` · only the filling direction differs]
+
+```console
+large capacities first (0/1 knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60   60   60   60   60
+  2      0   60  100  160  160  160
+  3      0   60  100  160  180  220
+best = 220
+small capacities first (unbounded knapsack)
+  i\c    0   10   20   30   40   50
+  0      0    0    0    0    0    0
+  1      0   60  120  180  240  300
+  2      0   60  120  180  240  300
+  3      0   60  120  180  240  300
+best = 300
+```
+
+- The upper table equals `06_knapsack` row by row. The lower one packs item 1 five times.
+
+</Slide>
+
+<Slide>
+
+### Measure it: is O(nW) polynomial time?
+::sub[Writing W takes a few more bits while the table grows tenfold. Bars use a log scale]
+
+<KnapSizeDemo slide />
+
+</Slide>
+
 <Slide class="center">
 
 ## Dynamic programming in summary
@@ -1054,16 +1484,58 @@ best = 220
 
 <Slide>
 
-#### When it applies
-::sub[When small problems overlap and small optima build the large optimum]
+### Step by step: restoring in four examples
+::sub[choice and prev go backwards, next goes forwards, the knapsack compares cells without a record]
 
-- **When a problem is made of smaller (repeated) instances**
-  - It is solved from the solutions to its subproblems.
+<RestoreDemo slide />
+
+</Slide>
+
+<Slide>
+
+#### When it applies
+::sub[When small problems overlap and small answers build the large one]
+
 - **Split like divide and conquer, but the subproblems overlap**
   - Solve the small ones first, store them, and reuse them later.
-- **For optimization problems, like greedy**
-  - There are many candidates, and we want the optimal value.
+- **For optimization problems, when there is optimal substructure**
+  - Coin change, LIS, path finding, and the knapsack are like this.
   - Greedy follows one candidate; dynamic programming compares **all** of them.
+- **Counting problems work too.**
+  - Fibonacci and grid paths ask for **a value or a count**, not an optimum.
+  - Subproblem answers are simply added, so optimal substructure does not come up.
+
+</Slide>
+
+<Slide>
+
+### Compare: greedy, recursion, dynamic programming
+::sub[The same choices, but different arrows looked at. Numbers count the looks]
+
+<StrategyDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### Counting the subproblem graph
+::sub[`07_subproblem_graph/` · tree edges: recursion, graph edges: dynamic programming]
+
+```console
+coins = {2, 3, 5}, amount = 6
+  call tree : 9 vertices, 8 edges
+  graph     : 6 vertices, 8 edges
+  arrows looked at: greedy 1, recursion 8, dp 8
+  answer: greedy stuck at 1, dp 2
+coins = {50, 40, 10}, amount = 80
+  call tree : 35 vertices, 34 edges
+  graph     : 9 vertices, 17 edges
+  arrows looked at: greedy 4, recursion 34, dp 17
+  answer: greedy 4, dp 2
+```
+
+- For 6 won no arrow overlaps, so both are 8. **The gain comes from overlap.**
+- For 80 won, 34 looks become 17. Greedy takes only 4 and is wrong.
 
 </Slide>
 
@@ -1073,7 +1545,7 @@ best = 220
 ::sub[The principle of optimality]
 
 - An optimal solution to an instance of the problem
-  - always contains optimal solutions to all its subinstances.
+  - is also optimal for each subinstance it is built from.
 - **Example: shortest paths**
   - If $$v_k$$ lies on an optimal path from $$v_i$$ to $$v_j$$,
   - the subpaths from $$v_i$$ to $$v_k$$ and from $$v_k$$ to $$v_j$$ are optimal too.
@@ -1097,14 +1569,14 @@ best = 220
 
 | | Divide and conquer | Dynamic programming |
 | --- | --- | --- |
-| Direction | top-down: split going down | bottom-up by default (memo does the same top-down) |
+| Direction | top-down: split going down | bottom-up (tabulation) or top-down (memoization) |
 | Subproblems | do not overlap | overlap |
 | Efficiency | efficient when subproblems are independent | stores overlapping answers, no recomputation |
-| Examples | merge sort, quicksort, recursive Fibonacci | iterative Fibonacci, coin change, LIS, knapsack |
+| Examples | merge sort, quicksort, binary search | memoized and tabulated Fibonacci, coin change, LIS, knapsack |
 
 <br/>
 
-Recursive Fibonacci has the shape of divide and conquer, but its subproblems overlap, so it is inefficient.
+Recursive Fibonacci has the shape of divide and conquer, but its subproblems overlap, so it is a case for dynamic programming.
 
 </Slide>
 
@@ -1130,7 +1602,16 @@ Recursive Fibonacci has the shape of divide and conquer, but its subproblems ove
 4. **Choose the direction of computation.**
    - For memoization, a table on the recursion; for tabulation, the fill order
 5. **If needed, record the choices and restore them.**
-   - `choice`, `prev`, `next`
+   - `choice`, `prev`, `next`, or compare cells again as in the knapsack
+
+</Slide>
+
+<Slide>
+
+### Design it yourself: five steps
+::sub[Pick an example, answer for yourself, then open the card]
+
+<DesignStepsDemo slide />
 
 </Slide>
 
@@ -1152,22 +1633,76 @@ The Smith-Waterman and Needleman-Wunsch algorithms do sequence alignment.
 
 </Slide>
 
+<Slide>
+
+#### [Aside] Edit distance
+::sub[The fewest edits that turn one word into another]
+
+- Three edits: **delete, insert, replace**
+- Split on how the last letters were handled.
+
+$$
+dp[i][j] = \begin{cases}
+\max(i,\ j) & i = 0 \text{ or } j = 0 \\
+dp[i-1][j-1] & a_i = b_j \\
+1 + \min\bigl(dp[i-1][j],\ dp[i][j-1],\ dp[i-1][j-1]\bigr) & a_i \ne b_j
+\end{cases}
+$$
+
+- `dp[i][j]` is the number of edits from the first $$i$$ letters to the first $$j$$, time $$O(nm)$$
+- Spell checking and DNA sequence comparison start from this table.
+
+</Slide>
+
+<Slide>
+
+### [Aside] Change it: edit distance
+::sub[Edit the words and click a cell for its three candidates and the alignment]
+
+<EditDistanceDemo slide />
+
+</Slide>
+
+<Slide class="compact">
+
+#### [Aside] Output: edit distance
+::sub[`12_edit_distance/`]
+
+```console
+kitten -> sitting: 3
+         s  i  t  t  i  n  g
+      0  1  2  3  4  5  6  7
+  k   1  1  2  3  4  5  6  7
+  i   2  2  1  2  3  4  5  6
+  t   3  3  2  1  2  3  4  5
+  t   4  4  3  2  1  2  3  4
+  e   5  5  4  3  2  2  3  4
+  n   6  6  5  4  3  3  2  3
+  kitten-
+  sitting
+  k to s; e to i; insert g;
+```
+
+- Three edits. Ties go to the diagonal, then up, then left.
+
+</Slide>
+
 <Slide class="compact">
 
 #### Try it now
-::sub[Change one cell of the table and check]
 
 [lec-algorithm/algorithm-code](https://github.com/lec-algorithm/algorithm-code/tree/main) · `src/topic-14-dynamic-programming/`  
 Open a file and press the **▶ button** at the top right of the editor.
 
-1. **Delete the two `if` lines in `fibMemo` that check the memo.**
+1. **Delete the `if` in `fibMemo` that checks the memo.**
+   - First change the 90 in `ns` to 25, or it never finishes.
    - The call count becomes identical to the plain recursion.
 2. **Find more amounts where greedy and the table disagree with `{50, 40, 10}`.**
-   - Run it side by side with Topic 06's greedy code.
 3. **Change the shortest path's destination to 5 and `k` to 4.**
    - You get `0 -> 2 -> 4 -> 3 -> 5` (9).
 4. **Change the knapsack capacity to 40.**
    - You get 180 (items 1 and 3).
+5. **Flip the filling direction in `11_knapsack_1d`.**
 
 </Slide>
 
@@ -1176,13 +1711,14 @@ Open a file and press the **▶ button** at the top right of the editor.
 ## What to keep
 
 1. **Dynamic programming solves each overlapping subproblem once.**
-   - Optimal substructure is what lets small answers build a large one.
-2. **Memoization is top-down (lazy); tabulation is bottom-up (eager).**
+   - For optimization problems there must be optimal substructure.
+2. **Memoization is top-down; tabulation is bottom-up.**
+   - They are usually run lazily and eagerly, but that is not what they mean.
    - Fibonacci's 15 calls become 9, $$O(2^n)$$ becomes $$O(n)$$
 3. **It finds the answers greedy missed.**
    - 80 won is 40 + 40; the 0/1 knapsack is 220
-4. **Path restoration: record the choices and follow them back.**
-   - `choice`, `prev`, `next`
+4. **Path restoration: record the choices and follow them.**
+   - `choice` and `prev` backwards, `next` forwards; the knapsack compares cells again.
 5. **Design starts with defining what one cell of the table is.**
 
 </Slide>

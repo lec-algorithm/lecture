@@ -1,0 +1,250 @@
+---
+// 격자를 직접 걸어 길을 모으는 데모. 다 모으면 48가지다.
+//
+// 아래(x+1)와 오른쪽(y+1)으로 걸어 도착하면 새 길인지 보고 모은다. 마지막 걸음이 위에서
+// 왔는지 왼쪽에서 왔는지도 나눠 센다. "칸의 값 = 위 + 왼쪽"의 뜻이 여기서 보인다.
+// 장애물은 실습 코드와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `gk-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '직접 걸어 모으기',
+    down: '아래 ↓',
+    right: '오른쪽 →',
+    undo: '한 칸 뒤로',
+    rnd: '아무 길이나',
+    all: '나머지 모두',
+    reset: '처음으로',
+    found: '찾은 길',
+    up: '위 (4, 5)에서 옴',
+    left: '왼쪽 (5, 4)에서 옴',
+    idle: '칸을 누르거나 단추로 (0, 0)에서 (5, 5)까지 걸어 봅니다.',
+    walk: '({x}, {y})까지 {n}걸음 왔습니다.',
+    fresh: '새로운 길입니다. 모은 길은 {n}가지입니다.',
+    dup: '이미 모은 길입니다.',
+    done: '48가지를 모두 모았습니다. 위에서 온 길 24 + 왼쪽에서 온 길 24입니다. 어느 칸이든 이 두 갈래뿐입니다.',
+  },
+  en: {
+    title: 'Walk and collect',
+    down: 'down ↓',
+    right: 'right →',
+    undo: 'undo',
+    rnd: 'any path',
+    all: 'all the rest',
+    reset: 'Reset',
+    found: 'paths found',
+    up: 'came from (4, 5) above',
+    left: 'came from (5, 4) on the left',
+    idle: 'Click cells or use the buttons to walk from (0, 0) to (5, 5).',
+    walk: 'At ({x}, {y}) after {n} steps.',
+    fresh: 'A new path. {n} collected so far.',
+    dup: 'You already have this path.',
+    done: 'All 48 collected: 24 from above + 24 from the left. Every cell has only these two ways in.',
+  },
+  zh: {
+    title: '亲自走一走并收集',
+    down: '向下 ↓',
+    right: '向右 →',
+    undo: '退一格',
+    rnd: '随便一条',
+    all: '其余全部',
+    reset: '重置',
+    found: '找到的路径',
+    up: '从上方 (4, 5) 来',
+    left: '从左边 (5, 4) 来',
+    idle: '点击格子或用按钮，从 (0, 0) 走到 (5, 5)。',
+    walk: '走了 {n} 步，到了 ({x}, {y})。',
+    fresh: '是新路径。已收集 {n} 条。',
+    dup: '这条路径已经有了。',
+    done: '48 条全部收集到了。从上方来 24 条 + 从左边来 24 条。任何一格都只有这两个来向。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-grid-walk" title={t.title} strings={t} slide={slide} size={2.7}>
+  <Fragment slot="controls">
+    {(['down', 'right'] as const).map((k) => <button type="button" class="dx-btn dx-primary" data-dx={k}>{t[k]}</button>)}
+    {(['undo', 'rnd', 'all', 'reset'] as const).map((k) => <button type="button" class="dx-btn" data-dx={k}>{t[k]}</button>)}
+  </Fragment>
+  <div class="dx-row gk-row">
+    <svg viewBox="0 0 330 330" data-dx="grid" class="gk-grid"></svg>
+    <div class="gk-side">
+      <dl class="dx-stats">
+        <dt>{t.found}</dt><dd data-dx="n"></dd>
+        <dt>{t.up}</dt><dd data-dx="u"></dd>
+        <dt>{t.left}</dt><dd data-dx="l"></dd>
+      </dl>
+      <svg viewBox="0 0 480 164" data-dx="minis" class="gk-minis"></svg>
+    </div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note } = K.root(id);
+    const X = 5;
+    const bad = (x, y) => x > X || y > X || (x === y && x >= 2 && x <= 4);
+    const C = 52;
+    const O = 22;
+    const paths = [];
+    const go = (p, x, y) => {
+      if (bad(x, y)) return;
+      if (x === X && y === X) return paths.push(p);
+      go(p + 'D', x + 1, y);
+      go(p + 'R', x, y + 1);
+    };
+    go('', 0, 0);
+    let cur = '';
+    let found = [];
+    let msg = '';
+    const pos = (p) => [...p].filter((c) => c === 'D').length;
+    const at = (p) => [pos(p), p.length - pos(p)];
+    /* 걸음 문자열 → 칸 중심을 잇는 선 */
+    const line = (p, f) => {
+      let d = `M${f(0)} ${f(0)}`;
+      for (let i = 1; i <= p.length; i++) {
+        const [x, y] = at(p.slice(0, i));
+        d += `L${f(y)} ${f(x)}`;
+      }
+      return d;
+    };
+    const center = (k) => O + k * C + (C - 4) / 2;
+    function finish() {
+      if (found.includes(cur)) msg = S.dup;
+      else {
+        found.push(cur);
+        msg = found.length === paths.length ? S.done : K.fill(S.fresh, { n: found.length });
+      }
+    }
+    function move(c) {
+      if (cur.length === 2 * X) cur = '';
+      const [x, y] = at(cur + c);
+      if (bad(x, y)) return;
+      cur += c;
+      msg = K.fill(S.walk, { x, y, n: cur.length });
+      if (cur.length === 2 * X) finish();
+      draw();
+    }
+    function draw() {
+      const [x, y] = at(cur);
+      const atEnd = cur.length === 2 * X;
+      const g = get('grid');
+      g.replaceChildren();
+      const on = new Set(Array.from({ length: cur.length + 1 }, (_, i) => at(cur.slice(0, i)).join()));
+      for (let i = 0; i <= X; i++) {
+        g.append(
+          K.svg('text', { x: center(i), y: 10, 'font-size': 13, style: 'fill:var(--aas-muted)' }, String(i)),
+          K.svg('text', { x: 10, y: center(i), 'font-size': 13, style: 'fill:var(--aas-muted)' }, String(i)),
+        );
+        for (let j = 0; j <= X; j++) {
+          const block = bad(i, j);
+          const next = !atEnd && !block && ((i === x + 1 && j === y) || (i === x && j === y + 1));
+          const r = K.svg('rect', {
+            x: O + j * C,
+            y: O + i * C,
+            width: C - 4,
+            height: C - 4,
+            rx: 7,
+            cls: `sv-node ${i === x && j === y ? 'sv-focus' : on.has(`${i},${j}`) ? 'sv-guard' : next ? 'sv-model sv-dash' : ''} ${block ? 'gk-block' : ''}`,
+            style: next ? 'cursor:pointer' : '',
+          });
+          if (next) r.addEventListener('click', () => move(i > x ? 'D' : 'R'));
+          g.append(r);
+        }
+      }
+      if (cur) g.append(K.svg('path', { cls: 'sv-edge sv-guard', style: 'stroke-width:6;stroke-linejoin:round;pointer-events:none', d: line(cur, center) }));
+      g.append(K.svg('text', { x: center(0) - 13, y: center(0) - 12, 'font-size': 14, style: 'pointer-events:none' }, 'S'), K.svg('text', { x: center(X) + 13, y: center(X) + 13, 'font-size': 14, style: 'pointer-events:none' }, 'T'));
+      const m = get('minis');
+      m.replaceChildren();
+      for (let k = 0; k < 48; k++) {
+        const ox = (k % 12) * 40;
+        const oy = Math.floor(k / 12) * 41;
+        const p = found[k];
+        m.append(
+          K.svg('rect', { x: ox + 2, y: oy + 2, width: 36, height: 36, rx: 5, cls: `sv-node ${p ? '' : 'sv-dash'}`, style: `stroke-width:1.2;${p ? '' : 'opacity:.8'}` }),
+        );
+        if (p)
+          m.append(
+            K.svg('path', {
+              cls: `sv-edge ${p === cur ? 'sv-focus' : p.endsWith('D') ? 'sv-model' : 'sv-eval'}`,
+              style: 'stroke-width:2.4',
+              d: line(p, (v) => v * 5.6).replace(/([ML])([\d.]+) ([\d.]+)/g, (_, c, a, b) => `${c}${+a + ox + 6} ${+b + oy + 6}`),
+            }),
+          );
+      }
+      get('n').textContent = `${found.length} / ${paths.length}`;
+      get('u').textContent = found.filter((p) => p.endsWith('D')).length;
+      get('l').textContent = found.filter((p) => p.endsWith('R')).length;
+      get('down').disabled = !atEnd && bad(x + 1, y);
+      get('right').disabled = !atEnd && bad(x, y + 1);
+      get('undo').disabled = !cur;
+      get('all').disabled = get('rnd').disabled = found.length === paths.length;
+      K.lines(note, msg || S.idle);
+    }
+    get('down').addEventListener('click', () => move('D'));
+    get('right').addEventListener('click', () => move('R'));
+    get('undo').addEventListener('click', () => {
+      cur = cur.slice(0, -1);
+      const [x, y] = at(cur);
+      msg = cur ? K.fill(S.walk, { x, y, n: cur.length }) : '';
+      draw();
+    });
+    get('rnd').addEventListener('click', () => {
+      const rest = paths.filter((p) => !found.includes(p));
+      cur = rest[Math.floor(Math.random() * rest.length)];
+      finish();
+      draw();
+    });
+    get('all').addEventListener('click', () => {
+      paths.forEach((p) => found.includes(p) || found.push(p));
+      cur = found[found.length - 1];
+      msg = S.done;
+      draw();
+    });
+    get('reset').addEventListener('click', () => {
+      cur = '';
+      found = [];
+      msg = '';
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-grid-walk .gk-grid {
+    flex: 0 1 18em;
+    width: 18em;
+  }
+  .aas-grid-walk.is-slide .gk-grid {
+    flex: 0 0 auto;
+    width: 36vh;
+  }
+  .aas-grid-walk .gk-side {
+    flex: 1 1 18em;
+    min-width: 0;
+  }
+  .aas-grid-walk .dx-stats {
+    justify-content: start;
+    margin-bottom: 0.8em;
+  }
+  .aas-grid-walk .gk-minis {
+    width: 100%;
+  }
+  .aas-grid-walk.is-slide .gk-minis {
+    max-height: 26vh;
+    margin: 0;
+  }
+  .aas-grid-walk .gk-block {
+    fill: color-mix(in srgb, var(--aas-text) 45%, var(--aas-bg));
+    stroke: transparent;
+  }
+</style>

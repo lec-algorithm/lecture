@@ -32,29 +32,29 @@ const STRINGS: Record<string, Record<string, string>> = {
   ko: {
     title: '세 방식의 계산량',
     plain: '재귀 호출',
-    memo: '메모 호출',
-    tab: '표 칸',
+    memo: '메모이제이션 호출',
+    tab: '타뷸레이션이 채운 칸',
     strip: '재귀가 F(k)를 부른 횟수',
-    pick: 'F({k}): 재귀 {x}번 · 메모 {y}번',
-    note: 'F({n}) 하나에 재귀는 {p}번 호출합니다. 서로 다른 값은 {d}개뿐이라 메모는 {m}번, 표는 {t}칸이면 됩니다.',
+    pick: 'F({k}): 재귀 {x}번 · 메모이제이션 {y}번',
+    note: 'F({n}) 하나에 재귀는 {p}번 호출합니다. 서로 다른 값은 {d}개뿐이라 메모이제이션은 {m}번 호출하고, 타뷸레이션은 F(0)부터 {t}칸을 채워 마지막 칸이 답입니다.',
   },
   en: {
     title: 'Work done by three methods',
     plain: 'recursive calls',
-    memo: 'memo calls',
-    tab: 'table cells',
+    memo: 'memoization calls',
+    tab: 'cells filled by tabulation',
     strip: 'Times plain recursion calls F(k)',
-    pick: 'F({k}): recursion {x} · memo {y}',
-    note: 'Plain recursion makes {p} calls for a single F({n}). There are only {d} distinct values, so the memo needs {m} calls and the table {t} cells.',
+    pick: 'F({k}): recursion {x} · memoization {y}',
+    note: 'Plain recursion makes {p} calls for a single F({n}). There are only {d} distinct values, so memoization makes {m} calls and tabulation fills {t} cells from F(0), the last being the answer.',
   },
   zh: {
     title: '三种方式的计算量',
     plain: '递归调用',
-    memo: '记忆调用',
-    tab: '表格格数',
+    memo: '记忆化调用',
+    tab: '递推填表的格数',
     strip: '纯递归调用 F(k) 的次数',
-    pick: 'F({k})：递归 {x} 次 · 记忆 {y} 次',
-    note: '仅一个 F({n})，纯递归就调用 {p} 次。不同的值只有 {d} 个，所以记忆化调用 {m} 次、填表 {t} 格就够了。',
+    pick: 'F({k})：递归 {x} 次 · 记忆化 {y} 次',
+    note: '仅一个 F({n})，纯递归就调用 {p} 次。不同的值只有 {d} 个，所以记忆化调用 {m} 次，递推填表从 F(0) 起填 {t} 格，最后一格就是答案。',
   },
 };
 const lang = Astro.currentLocale ?? defaultLang;
@@ -224,7 +224,7 @@ const top = Math.max(2, Math.min(max, 32));
     font-size: 1rem;
     margin: 1.5rem 0;
     padding: 1em;
-    border: 1px solid var(--aas-border);
+    border: 1px solid color-mix(in srgb, var(--aas-text) 16%, var(--aas-bg));
     border-radius: 0.9em;
     background: var(--aas-panel);
   }
@@ -262,13 +262,14 @@ const top = Math.max(2, Math.min(max, 32));
     align-items: center;
   }
   .aas-fib-count-demo .fc-label {
+    white-space: nowrap;
     font-size: 0.85em;
     color: var(--aas-muted);
   }
   .aas-fib-count-demo .fc-track {
     height: 1.2em;
     border-radius: 0.3em;
-    background: color-mix(in srgb, var(--aas-border) 45%, transparent);
+    background: color-mix(in srgb, color-mix(in srgb, var(--aas-text) 30%, var(--aas-bg)) 45%, transparent);
     overflow: hidden;
   }
   .aas-fib-count-demo .fc-fill {
@@ -312,7 +313,7 @@ const top = Math.max(2, Math.min(max, 32));
     overflow: visible;
   }
   .aas-fib-count-demo .fc-axis {
-    stroke: var(--aas-border);
+    stroke: color-mix(in srgb, var(--aas-text) 50%, var(--aas-bg));
     stroke-width: 1.5;
   }
   .aas-fib-count-demo .fc-hit {

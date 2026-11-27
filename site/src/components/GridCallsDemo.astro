@@ -1,0 +1,193 @@
+---
+// 격자 경로 재귀가 칸마다 몇 번 불렸는지 칠해 보는 데모.
+//
+// 왼쪽은 메모 없는 재귀, 오른쪽은 메모. 장애물 칸과 격자 밖으로 나간 호출도 센다.
+// 세는 법은 실습 코드(pathsMemo의 calls)와 같아서, 6 × 6에 장애물 셋이면 439와 65다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `gc-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '칸마다 부른 횟수',
+    size: '격자',
+    obs: '장애물',
+    plain: '메모 없는 재귀',
+    memo: '메모이제이션',
+    calls: '전체 호출',
+    out: '격자 밖 호출',
+    max: '한 칸 최대',
+    note: '메모 없이는 길의 수만큼 같은 칸을 다시 부릅니다. 메모가 있으면 한 칸을 부르는 것은 위 칸과 왼쪽 칸뿐이라 많아야 두 번입니다.',
+    ratio: '{n} × {n}에서 호출은 {a}번과 {b}번, {r}배 차이입니다.',
+  },
+  en: {
+    title: 'Calls per cell',
+    size: 'grid',
+    obs: 'obstacles',
+    plain: 'Recursion without memo',
+    memo: 'Memoization',
+    calls: 'total calls',
+    out: 'calls off the grid',
+    max: 'most for one cell',
+    note: 'Without a memo the same cell is called again for every path to it. With a memo only the cell above and the cell on the left call it, so at most twice.',
+    ratio: 'On {n} × {n}: {a} calls against {b}, a factor of {r}.',
+  },
+  zh: {
+    title: '每格被调用的次数',
+    size: '网格',
+    obs: '障碍',
+    plain: '没有记忆的递归',
+    memo: '记忆化',
+    calls: '总调用',
+    out: '网格外的调用',
+    max: '单格最多',
+    note: '没有记忆时，有多少条路径到达就重复调用多少次同一格。有了记忆，调用一格的只有上方和左边的格，最多两次。',
+    ratio: '{n} × {n} 的网格上，调用 {a} 次对 {b} 次，相差 {r} 倍。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-grid-calls" title={t.title} strings={t} slide={slide} size={2.6}>
+  <Fragment slot="controls">
+    <label class="gc-size"><span class="dx-lab">{t.size}</span> <input type="range" min="3" max="10" value="6" data-dx="size" /> <b data-dx="sv"></b></label>
+    <button type="button" class="dx-tab is-on" data-dx="obs">{t.obs}</button>
+  </Fragment>
+  <div class="dx-row gc-row">
+    {
+      (['plain', 'memo'] as const).map((k) => (
+        <div class="gc-panel">
+          <h4>{t[k]}</h4>
+          <div class="gc-grid" data-dx={k} />
+          <dl class="dx-stats">
+            <dt>{t.calls}</dt><dd class="gc-big" data-dx={`${k}-c`} />
+            <dt>{t.out}</dt><dd data-dx={`${k}-o`} />
+            <dt>{t.max}</dt><dd data-dx={`${k}-m`} />
+          </dl>
+        </div>
+      ))
+    }
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note } = K.root(id);
+    let obs = true;
+    function run(n, useMemo) {
+      const X = n - 1;
+      const bad = (x, y) => obs && x === y && x >= 2 && x <= 4 && x < X;
+      const cnt = new Map();
+      const memo = new Set();
+      let calls = 0;
+      let out = 0;
+      const go = (x, y) => {
+        calls++;
+        if (x > X || y > X) return void out++;
+        const k = `${x},${y}`;
+        cnt.set(k, (cnt.get(k) || 0) + 1);
+        if ((x === X && y === X) || bad(x, y)) return;
+        if (useMemo && memo.has(k)) return;
+        go(x + 1, y);
+        go(x, y + 1);
+        memo.add(k);
+      };
+      go(0, 0);
+      return { cnt, calls, out, bad };
+    }
+    function draw() {
+      const n = +get('size').value;
+      get('sv').textContent = `${n} × ${n}`;
+      get('obs').classList.toggle('is-on', obs);
+      const res = { plain: run(n, false), memo: run(n, true) };
+      ['plain', 'memo'].forEach((k) => {
+        const { cnt, calls, out, bad } = res[k];
+        const max = Math.max(...cnt.values());
+        const top = Math.max(...res.plain.cnt.values());
+        const g = get(k);
+        g.style.setProperty('--n', n);
+        g.replaceChildren();
+        for (let i = 0; i < n; i++)
+          for (let j = 0; j < n; j++) {
+            const v = cnt.get(`${i},${j}`) || 0;
+            const heat = v ? 10 + (70 * Math.log(v)) / Math.log(Math.max(3, top)) : 0;
+            const c = K.el('span', { cls: bad(i, j) ? 'gc-block' : '' }, String(v));
+            if (!bad(i, j)) c.style.background = `color-mix(in srgb, var(--aas-role-guard) ${heat}%, var(--aas-bg))`;
+            g.append(c);
+          }
+        get(`${k}-c`).textContent = calls.toLocaleString('en-US');
+        get(`${k}-o`).textContent = out.toLocaleString('en-US');
+        get(`${k}-m`).textContent = max.toLocaleString('en-US');
+      });
+      const [a, b] = [res.plain.calls, res.memo.calls];
+      K.lines(note, K.fill(S.ratio, { n, a: a.toLocaleString('en-US'), b, r: (a / b).toFixed(1) }), S.note);
+    }
+    get('size').addEventListener('input', draw);
+    get('obs').addEventListener('click', () => {
+      obs = !obs;
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-grid-calls .gc-size {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+  }
+  .aas-grid-calls .gc-size b {
+    min-width: 4.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+  }
+  .aas-grid-calls input {
+    accent-color: var(--aas-accent);
+  }
+  .aas-grid-calls .gc-row {
+    align-items: flex-start;
+    justify-content: space-around;
+  }
+  .aas-grid-calls h4 {
+    margin: 0 0 0.4em;
+    font-size: 0.9em;
+    color: var(--aas-text);
+  }
+  .aas-grid-calls .gc-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    gap: 2px;
+    width: 17.5em;
+    height: 10.6em;
+  }
+  .aas-grid-calls .gc-grid span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--dx-line);
+    border-radius: 0.25em;
+    font-family: var(--aas-mono, monospace);
+    font-size: calc(5.2em / var(--n));
+    font-size: clamp(0.5em, calc(5em / var(--n)), 0.95em);
+  }
+  .aas-grid-calls .gc-grid .gc-block {
+    background: color-mix(in srgb, var(--aas-text) 45%, var(--aas-bg));
+    color: var(--aas-bg);
+  }
+  .aas-grid-calls .dx-stats {
+    margin-top: 0.5em;
+    grid-template-columns: auto auto;
+    justify-content: start;
+  }
+  .aas-grid-calls .gc-big {
+    color: var(--aas-role-guard);
+  }
+</style>
