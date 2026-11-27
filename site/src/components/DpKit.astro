@@ -1,0 +1,390 @@
+---
+// 주제 14의 새 데모와 그림이 함께 쓰는 뼈대.
+//
+// 막대 줄(제목, 참고, 걸음 단추), 본문 자리, 아래 설명 줄과 공통 모양을 여기 한 곳에서
+// 정한다. 데모는 본문 DOM과 상태만 책임진다. 스크립트 도우미는 window.aasDp에 한 번만
+// 만든다. is:inline이라 이 컴포넌트를 쓰는 데모의 스크립트보다 먼저 돈다.
+//
+//   aasDp.root(id, strings)   { root, S, get, note }
+//   aasDp.el / aasDp.svg      요소 만들기
+//   aasDp.stepper(root, o)    뒤로·한 걸음·자동 재생·끝으로·처음으로
+//
+// 색의 뜻은 주제 14의 다른 데모와 같다. 주황(focus) = 지금 칸, 파랑(model) = 참조하는 칸,
+// 초록(eval) = 채운 칸, 노랑(trace) = 메모에서 꺼냄, 분홍(guard) = 복원한 길·다시 계산.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+
+interface Props {
+  id: string;
+  /** 데모 고유 클래스 (aas-dag-fold 등) */
+  cls: string;
+  title: string;
+  strings?: Record<string, unknown>;
+  /** 걸음 단추를 넣을지 */
+  steps?: boolean;
+  slide?: boolean;
+  /** 설명 줄을 넣을지 */
+  note?: boolean;
+  /** 슬라이드 글자 크기(vh). 본문이 큰 데모는 줄인다. */
+  size?: number;
+}
+const { id, cls, title, strings = {}, steps = false, slide = false, note = true, size = 2.7 } = Astro.props;
+const BTN: Record<string, Record<string, string>> = {
+  ko: { back: '뒤로', step: '한 걸음', play: '자동 재생', stop: '멈춤', end: '끝으로', reset: '처음으로' },
+  en: { back: 'Back', step: 'Step', play: 'Play', stop: 'Stop', end: 'End', reset: 'Reset' },
+  zh: { back: '后退', step: '下一步', play: '播放', stop: '停止', end: '到最后', reset: '重置' },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const b = BTN[lang] ?? BTN.ko;
+---
+
+<div
+  class:list={['aas-dpx', cls, slide && 'is-slide']}
+  id={id}
+  data-dx-strings={JSON.stringify(strings)}
+  data-dx-play={b.play}
+  data-dx-stop={b.stop}
+  style={`--dx-vh: ${size}vh`}
+>
+  <script is:inline>
+    window.aasDp ??= (() => {
+      const NS = 'http://www.w3.org/2000/svg';
+      const build = (make) => (tag, attrs, ...kids) => {
+        const node = make(tag);
+        Object.entries(attrs || {}).forEach(([k, v]) => {
+          if (v === undefined || v === null || v === false) return;
+          if (k === 'cls') node.setAttribute('class', v);
+          else if (k === 'on') Object.entries(v).forEach(([e, f]) => node.addEventListener(e, f));
+          else node.setAttribute(k, v === true ? '' : v);
+        });
+        node.append(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
+        return node;
+      };
+      const el = build((t) => document.createElement(t));
+      const svg = build((t) => document.createElementNS(NS, t));
+      const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+      /* 설명은 문장마다 줄을 바꾼다. 마침표 뒤 공백, 또는 중국어 마침표 뒤에서 끊는다. */
+      const lines = (node, ...texts) => {
+        const all = texts
+          .filter(Boolean)
+          .reduce((a, t) => (!a || /[。！？]$/.test(a) ? a + t : `${a} ${t}`), '');
+        const parts = all.split(/(?<=[.!?])\s+(?=\S)|(?<=[。！？])(?=\S)/);
+        node.replaceChildren(...parts.flatMap((s, i) => (i ? [document.createElement('br'), s] : [s])));
+      };
+      const root = (id) => {
+        const r = document.getElementById(id);
+        return {
+          root: r,
+          S: JSON.parse(r.dataset.dxStrings),
+          get: (n) => r.querySelector(`[data-dx="${n}"]`),
+          note: r.querySelector('[data-dx-note]'),
+          tabs: (name, f) => {
+            const bs = [...r.querySelectorAll(`[data-dx-tab="${name}"]`)];
+            const on = (v) => bs.forEach((x) => x.classList.toggle('is-on', x.dataset.dxVal === v));
+            bs.forEach((x) =>
+              x.addEventListener('click', () => {
+                on(x.dataset.dxVal);
+                f(x.dataset.dxVal);
+              }),
+            );
+            return on;
+          },
+        };
+      };
+      /* o = { count(): 마지막 걸음 번호, draw(i), ms } */
+      const stepper = (r, o) => {
+        let i = 0;
+        let timer = 0;
+        const b = (n) => r.querySelector(`[data-dx-act="${n}"]`);
+        const stop = () => {
+          clearInterval(timer);
+          timer = 0;
+          b('play').textContent = r.dataset.dxPlay;
+        };
+        const go = (k) => {
+          i = Math.max(0, Math.min(o.count(), k));
+          b('back').disabled = i === 0;
+          b('step').disabled = b('end').disabled = i >= o.count();
+          o.draw(i);
+          if (i >= o.count()) stop();
+        };
+        b('back').addEventListener('click', () => (stop(), go(i - 1)));
+        b('step').addEventListener('click', () => (stop(), go(i + 1)));
+        b('end').addEventListener('click', () => (stop(), go(o.count())));
+        b('reset').addEventListener('click', () => (stop(), go(0)));
+        b('play').addEventListener('click', () => {
+          if (timer) return stop();
+          if (i >= o.count()) go(0);
+          b('play').textContent = r.dataset.dxStop;
+          timer = setInterval(() => go(i + 1), o.ms || 1100);
+        });
+        return { go, reset: () => (stop(), go(0)), at: () => i };
+      };
+      return { el, svg, fill, lines, root, stepper };
+    })();
+  </script>
+  <div class="dx-bar">
+    <span class="dx-head"><strong>{title}</strong></span>
+    <slot name="ref" />
+    <div class="dx-ctrl">
+      <slot name="controls" />
+      {
+        steps && (
+          <Fragment>
+            <button type="button" class="dx-btn" data-dx-act="back">{b.back}</button>
+            <button type="button" class="dx-btn" data-dx-act="step">{b.step}</button>
+            <button type="button" class="dx-btn dx-primary" data-dx-act="play">{b.play}</button>
+            <button type="button" class="dx-btn" data-dx-act="end">{b.end}</button>
+            <button type="button" class="dx-btn" data-dx-act="reset">{b.reset}</button>
+          </Fragment>
+        )
+      }
+    </div>
+  </div>
+  <div class="dx-body"><slot /></div>
+  {note && <p class="dx-note" data-dx-note />}
+</div>
+
+<style is:global>
+  .aas-dpx {
+    /* 안쪽 치수는 모두 이 값에 대한 em이다(다른 데모들과 같은 방식). */
+    --dx-line: color-mix(in srgb, var(--aas-text) 30%, var(--aas-bg));
+    --dx-soft: color-mix(in srgb, var(--aas-text) 5%, var(--aas-bg));
+    font-size: 1rem;
+    margin: 1.5rem 0;
+    padding: 1em;
+    border: 1px solid color-mix(in srgb, var(--aas-text) 16%, var(--aas-bg));
+    border-radius: 0.9em;
+    background: var(--aas-panel);
+    box-sizing: border-box;
+  }
+  .aas-dpx.is-slide {
+    width: 100%;
+    margin: 0.4rem 0;
+    padding: 0.8em 1em;
+    font-size: clamp(0.95rem, var(--dx-vh, 2.7vh), 1.9rem);
+  }
+  .aas-dpx .dx-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 0.9em;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7em;
+  }
+  .aas-dpx .dx-head {
+    font-size: 0.95em;
+  }
+  .aas-dpx .dx-ctrl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    align-items: center;
+  }
+  .aas-dpx .dx-btn,
+  .aas-dpx .dx-tab {
+    padding: 0.28em 0.75em;
+    font: inherit;
+    font-size: 0.82em;
+    line-height: 1.4;
+    border: 1px solid var(--dx-line);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    cursor: pointer;
+  }
+  .aas-dpx .dx-tab {
+    border-radius: 999px;
+  }
+  .aas-dpx .dx-btn:hover,
+  .aas-dpx .dx-tab:hover {
+    border-color: var(--aas-accent);
+  }
+  .aas-dpx .dx-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .aas-dpx .dx-primary {
+    background: var(--aas-accent);
+    border-color: var(--aas-accent);
+    color: #fff;
+  }
+  .aas-dpx .dx-tab.is-on {
+    background: color-mix(in srgb, var(--aas-accent) 18%, var(--aas-bg));
+    border-color: var(--aas-accent);
+    font-weight: 700;
+  }
+  .aas-dpx .dx-lab {
+    font-size: 0.8em;
+    color: var(--aas-muted);
+  }
+  .aas-dpx .dx-sep {
+    width: 0.5em;
+  }
+  .aas-dpx .dx-mono,
+  .aas-dpx code {
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-dpx .dx-note {
+    margin: 0.6em 0 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+    min-height: 3em;
+  }
+  .aas-dpx.is-slide .dx-note {
+    font-size: 0.82em;
+  }
+  .aas-dpx .dx-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7em 1.4em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-dpx.is-slide .dx-row {
+    flex-wrap: nowrap;
+  }
+  .aas-dpx .dx-stats {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 0.15em 0.9em;
+    margin: 0;
+    font-size: 0.85em;
+    align-content: center;
+  }
+  .aas-dpx .dx-stats dt {
+    margin: 0;
+    font-weight: 400;
+    color: var(--aas-muted);
+    white-space: nowrap;
+  }
+  .aas-dpx .dx-stats dd {
+    margin: 0;
+    text-align: right;
+    font-family: var(--aas-mono, monospace);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  /* 표의 칸 */
+  .aas-dpx .dx-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5em;
+    height: 1.9em;
+    padding: 0 0.3em;
+    box-sizing: border-box;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.9em;
+    border: 1.5px solid var(--dx-line);
+    border-radius: 0.35em;
+    background: var(--aas-bg);
+    color: var(--aas-text);
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+  .aas-dpx .dx-cell.is-head {
+    border-color: transparent;
+    background: transparent;
+    color: var(--aas-muted);
+    font-size: 0.75em;
+    height: auto;
+  }
+  .aas-dpx .is-done {
+    background: color-mix(in srgb, var(--aas-role-eval) 16%, var(--aas-bg));
+  }
+  .aas-dpx .is-ref {
+    border-color: var(--aas-role-model);
+    background: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-dpx .is-hit {
+    border-color: var(--aas-role-trace);
+    background: color-mix(in srgb, var(--aas-role-trace) 30%, var(--aas-bg));
+  }
+  .aas-dpx .is-path {
+    border-color: var(--aas-role-guard);
+    background: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+  }
+  .aas-dpx .is-now {
+    border-color: var(--aas-role-focus);
+    background: color-mix(in srgb, var(--aas-role-focus) 25%, var(--aas-bg));
+    font-weight: 700;
+  }
+  .aas-dpx .is-lazy {
+    border-style: dashed;
+    color: var(--aas-muted);
+  }
+  .aas-dpx .is-off {
+    opacity: 0.5;
+  }
+  .aas-dpx svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .aas-dpx svg text {
+    fill: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .aas-dpx .sv-edge {
+    fill: none;
+    stroke: color-mix(in srgb, var(--aas-text) 50%, var(--aas-bg));
+    stroke-width: 2;
+  }
+  .aas-dpx .sv-node {
+    fill: var(--aas-bg);
+    stroke: color-mix(in srgb, var(--aas-text) 45%, var(--aas-bg));
+    stroke-width: 2;
+  }
+  .aas-dpx .sv-model {
+    stroke: var(--aas-role-model);
+  }
+  .aas-dpx .sv-focus {
+    stroke: var(--aas-role-focus);
+  }
+  .aas-dpx .sv-eval {
+    stroke: var(--aas-role-eval);
+  }
+  .aas-dpx .sv-trace {
+    stroke: var(--aas-role-trace);
+  }
+  .aas-dpx .sv-guard {
+    stroke: var(--aas-role-guard);
+  }
+  .aas-dpx .sv-node.sv-model {
+    fill: color-mix(in srgb, var(--aas-role-model) 22%, var(--aas-bg));
+  }
+  .aas-dpx .sv-node.sv-focus {
+    fill: color-mix(in srgb, var(--aas-role-focus) 30%, var(--aas-bg));
+  }
+  .aas-dpx .sv-node.sv-eval {
+    fill: color-mix(in srgb, var(--aas-role-eval) 20%, var(--aas-bg));
+  }
+  .aas-dpx .sv-node.sv-trace {
+    fill: color-mix(in srgb, var(--aas-role-trace) 32%, var(--aas-bg));
+  }
+  .aas-dpx .sv-node.sv-guard {
+    fill: color-mix(in srgb, var(--aas-role-guard) 22%, var(--aas-bg));
+  }
+  .aas-dpx .sv-edge.sv-model,
+  .aas-dpx .sv-edge.sv-focus,
+  .aas-dpx .sv-edge.sv-eval,
+  .aas-dpx .sv-edge.sv-trace,
+  .aas-dpx .sv-edge.sv-guard {
+    stroke-width: 3.5;
+  }
+  .aas-dpx .sv-dash {
+    stroke-dasharray: 5 5;
+  }
+  .aas-dpx .sv-dim {
+    opacity: 0.5;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aas-dpx * {
+      transition: none !important;
+    }
+  }
+</style>

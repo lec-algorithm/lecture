@@ -1,0 +1,228 @@
+---
+// 간선 k개 최단 경로를 층 그래프로 펼쳐 타뷸레이션으로 채우는 데모.
+//
+// 열이 "남은 간선 수"다. 왼쪽이 k, 오른쪽이 0이고, 간선 하나를 쓰면 한 열 오른쪽으로
+// 간다. 그래서 "정확히 k개"는 "k열을 건너는 길"이 된다. 정점 안의 수가 S(u, 도착, k)이고
+// 남은 간선 0인 열부터 채운다. 메모가 푸는 칸(실습 코드 기준)은 굵은 점선 고리로 표시한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `lg-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '층 그래프',
+    dst: '도착',
+    edges: '간선 수',
+    ring: '메모가 푸는 칸',
+    left: '남은 {k}',
+    u: '정점',
+    idle: '남은 간선이 0이면 도착점만 0이고 나머지는 INF입니다. 오른쪽 열부터 채웁니다.',
+    fill: 'S({u}, {k}) = min({list}) = {v}',
+    dead: 'S({u}, {k}): 나가는 간선이 없어 INF입니다.',
+    back: '복원: 남은 {k}에서 {u} → {x} (비용 {w})를 따라 한 열 오른쪽으로 갑니다.',
+    done: '0 → {d}, 간선 {k}개의 답은 {v}이고 길은 {path}입니다. 표는 {a}칸을 모두 채웠고, 메모라면 {b}칸만 풉니다.',
+    nopath: '0 → {d}, 간선 {k}개짜리 길은 없습니다. 표는 {a}칸을 모두 채웠고, 메모라면 {b}칸만 풉니다.',
+  },
+  en: {
+    title: 'Layered graph',
+    dst: 'target',
+    edges: 'edges',
+    ring: 'cells the memo solves',
+    left: '{k} left',
+    u: 'vertex',
+    idle: 'With 0 edges left only the target is 0 and the rest are INF. Fill from the right column.',
+    fill: 'S({u}, {k}) = min({list}) = {v}',
+    dead: 'S({u}, {k}): no outgoing edge, so INF.',
+    back: 'Restore: with {k} left, follow {u} → {x} (cost {w}) one column to the right.',
+    done: '0 → {d} with {k} edges costs {v} along {path}. The table filled all {a} cells; a memo solves only {b}.',
+    nopath: 'There is no path 0 → {d} with {k} edges. The table filled all {a} cells; a memo solves only {b}.',
+  },
+  zh: {
+    title: '分层图',
+    dst: '终点',
+    edges: '边数',
+    ring: '记忆化会解的格',
+    left: '剩 {k}',
+    u: '顶点',
+    idle: '剩余 0 条边时只有终点是 0，其余是 INF。从右边的列开始填。',
+    fill: 'S({u}, {k}) = min({list}) = {v}',
+    dead: 'S({u}, {k})：没有出边，所以是 INF。',
+    back: '还原：剩 {k} 时沿 {u} → {x}（代价 {w}）往右走一列。',
+    done: '0 → {d}、{k} 条边的答案是 {v}，路径是 {path}。表填满了 {a} 格，记忆化只解 {b} 格。',
+    nopath: '没有 0 → {d}、{k} 条边的路径。表填满了 {a} 格，记忆化只解 {b} 格。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const EDGES = [[0, 1, 1], [0, 2, 2], [1, 3, 6], [2, 1, 2], [2, 3, 4], [2, 4, 3], [3, 5, 3], [4, 3, 1], [4, 5, 5]];
+---
+
+<DpKit id={id} cls="aas-layer-graph" title={t.title} strings={t} steps slide={slide} size={2.5}>
+  <Fragment slot="controls">
+    <span class="dx-lab">{t.dst}</span>
+    {[3, 5].map((v) => <button type="button" class:list={['dx-tab', v === 3 && 'is-on']} data-dx-tab="dst" data-dx-val={v}>{v}</button>)}
+    <span class="dx-lab">{t.edges}</span>
+    {[2, 3, 4].map((v) => <button type="button" class:list={['dx-tab', v === 3 && 'is-on']} data-dx-tab="k" data-dx-val={v}>{v}</button>)}
+    <button type="button" class="dx-tab is-on" data-dx="ring">{t.ring}</button>
+  </Fragment>
+  <svg viewBox="0 0 900 372" data-dx="svg"></svg>
+  <div class="lg-edges">{EDGES.map(([u, v, w]) => <span data-lg-e={`${u}-${v}`}>{u}→{v} <b>{w}</b></span>)}</div>
+</DpKit>
+
+<script is:inline define:vars={{ id, EDGES }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const V = 6;
+    const INF = Infinity;
+    const show = (v) => (v === INF ? 'INF' : String(v));
+    let dst = 3;
+    let kk = 3;
+    let ring = true;
+    let val, next, ev, solved;
+    const out = (u) => EDGES.filter((e) => e[0] === u);
+    function build() {
+      val = [Array.from({ length: V }, (_, u) => (u === dst ? 0 : INF))];
+      next = [[]];
+      ev = [];
+      for (let k = 1; k <= kk; k++) {
+        val[k] = [];
+        next[k] = [];
+        for (let u = 0; u < V; u++) {
+          let b = INF;
+          let n = null;
+          out(u).forEach(([, x, w]) => {
+            if (val[k - 1][x] !== INF && w + val[k - 1][x] < b) {
+              b = w + val[k - 1][x];
+              n = x;
+            }
+          });
+          val[k][u] = b;
+          next[k][u] = n;
+          ev.push({ type: 'fill', k, u });
+        }
+      }
+      solved = new Set();
+      const go = (u, k) => {
+        if (k === 0 || solved.has(`${u},${k}`)) return;
+        solved.add(`${u},${k}`);
+        out(u).forEach((e) => go(e[1], k - 1));
+      };
+      go(0, kk);
+      if (val[kk][0] !== INF) {
+        let u = 0;
+        for (let k = kk; k > 0; k--) {
+          ev.push({ type: 'back', k, u, x: next[k][u] });
+          u = next[k][u];
+        }
+      }
+      ev.push({ type: 'done' });
+    }
+    const x = (k) => 110 + ((kk - k) * 700) / kk;
+    const y = (u) => 52 + u * 58;
+    function draw(s) {
+      const e = s ? ev[s - 1] : null;
+      const past = ev.slice(0, s);
+      const filled = new Set(past.filter((q) => q.type === 'fill').map((q) => `${q.u},${q.k}`));
+      const back = past.filter((q) => q.type === 'back');
+      const onBack = (u, v, k) => back.some((q) => q.k === k && q.u === u && q.x === v);
+      const g = get('svg');
+      g.replaceChildren();
+      const hi = [];
+      for (let k = kk; k >= 1; k--)
+        EDGES.forEach(([u, v, w]) => {
+          const now = e && e.type === 'fill' && e.k === k && e.u === u;
+          const b = onBack(u, v, k);
+          const best = now && next[k][u] === v;
+          const c = b ? 'sv-guard' : best ? 'sv-model' : now ? 'sv-model sv-dash' : '';
+          const [x1, y1, x2, y2] = [x(k) + 24, y(u), x(k - 1) - 26, y(v)];
+          const p = K.svg('path', { cls: `sv-edge ${c}`, style: c ? '' : 'stroke-width:1.2;opacity:.8', d: `M${x1} ${y1}L${x2} ${y2}` });
+          if (c) {
+            const f = 0.42;
+            hi.push(p);
+            hi.push(
+              K.svg('circle', { cx: x1 + (x2 - x1) * f, cy: y1 + (y2 - y1) * f, r: 12, style: 'fill:var(--aas-panel)' }),
+              K.svg('text', { x: x1 + (x2 - x1) * f, y: y1 + (y2 - y1) * f, 'font-size': 16, 'font-weight': 700 }, String(w)),
+            );
+          } else g.append(p);
+        });
+      g.append(...hi);
+      for (let k = kk; k >= 0; k--) {
+        g.append(K.svg('text', { x: x(k), y: 14, 'font-size': 15, style: 'fill:var(--aas-muted);font-family:inherit' }, K.fill(S.left, { k })));
+        for (let u = 0; u < V; u++) {
+          const has = k === 0 || filled.has(`${u},${k}`);
+          const now = e && e.type === 'fill' && e.k === k && e.u === u;
+          const ref = e && e.type === 'fill' && e.k === k + 1 && EDGES.some((q) => q[0] === e.u && q[1] === u);
+          const b = back.some((q) => (q.k === k && q.u === u) || (q.k === k + 1 && q.x === u));
+          const c = now ? 'sv-focus' : b ? 'sv-guard' : ref ? 'sv-model' : has ? 'sv-eval' : '';
+          if (ring && solved.has(`${u},${k}`))
+            g.append(K.svg('rect', { x: x(k) - 31, y: y(u) - 23, width: 62, height: 46, rx: 13, cls: 'sv-edge sv-dash sv-trace', style: 'stroke-width:2.5' }));
+          g.append(
+            K.svg('rect', { x: x(k) - 25, y: y(u) - 17, width: 50, height: 34, rx: 8, cls: `sv-node ${c}` }),
+            K.svg('text', { x: x(k), y: y(u), 'font-size': 16, 'font-weight': 700, style: has && val[k][u] === INF ? 'fill:var(--aas-muted)' : '' }, has ? show(val[k][u]) : ''),
+          );
+        }
+      }
+      for (let u = 0; u < V; u++) g.append(K.svg('text', { x: 48, y: y(u), 'font-size': 18, 'font-weight': 700 }, String(u)));
+      g.append(K.svg('text', { x: 48, y: 14, 'font-size': 14, style: 'fill:var(--aas-muted);font-family:inherit' }, S.u));
+      root.querySelectorAll('[data-lg-e]').forEach((q) => {
+        const [u, v] = q.dataset.lgE.split('-').map(Number);
+        q.classList.toggle('is-now', !!e && ((e.type === 'fill' && e.u === u) || (e.type === 'back' && e.u === u && e.x === v)));
+      });
+      if (!e) return K.lines(note, S.idle);
+      if (e.type === 'fill') {
+        const o = out(e.u);
+        K.lines(note, o.length ? K.fill(S.fill, { u: e.u, k: e.k, list: o.map(([, v, w]) => `${w} + ${show(val[e.k - 1][v])}`).join(', '), v: show(val[e.k][e.u]) }) : K.fill(S.dead, e));
+      } else if (e.type === 'back') K.lines(note, K.fill(S.back, { ...e, w: EDGES.find((q) => q[0] === e.u && q[1] === e.x)[2] }));
+      else {
+        const path = [0, ...back.map((q) => q.x)].join(' → ');
+        K.lines(note, K.fill(val[kk][0] === INF ? S.nopath : S.done, { d: dst, k: kk, v: show(val[kk][0]), path, a: kk * V, b: solved.size }));
+      }
+    }
+    const st = K.stepper(root, { count: () => ev.length, draw, ms: 900 });
+    const again = () => {
+      build();
+      st.reset();
+    };
+    tabs('dst', (v) => ((dst = +v), again()));
+    tabs('k', (v) => ((kk = +v), again()));
+    get('ring').addEventListener('click', () => {
+      ring = !ring;
+      get('ring').classList.toggle('is-on', ring);
+      draw(st.at());
+    });
+    build();
+    st.go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-layer-graph svg {
+    width: 100%;
+    margin: 0 auto;
+  }
+  .aas-layer-graph.is-slide svg {
+    max-height: 43vh;
+  }
+  .aas-layer-graph .lg-edges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.5em;
+    justify-content: center;
+    margin-top: 0.4em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.75em;
+  }
+  .aas-layer-graph .lg-edges span {
+    padding: 0.05em 0.5em;
+    border: 1px solid var(--dx-line);
+    border-radius: 0.4em;
+    font-weight: 400;
+  }
+  .aas-layer-graph .dx-note {
+    min-height: 2.9em;
+  }
+</style>

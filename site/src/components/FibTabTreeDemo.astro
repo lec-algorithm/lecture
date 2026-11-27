@@ -1,0 +1,183 @@
+---
+// 피보나치 타뷸레이션을 재귀의 호출 트리와 나란히 보이는 데모.
+//
+// 위는 dp 표, 아래는 F(n)의 호출 트리다. 표의 칸 dp[i]를 채우는 순간, 트리에서 F(i)를
+// 구하던 노드가 모두 한꺼번에 초록이 된다. 재귀가 위에서 내려가며 여러 번 풀던 부분 문제를
+// 표는 아래 칸부터 한 번씩만 푼다는 것을 보인다. 메모이제이션 데모(FibMemoDemo)와 짝이다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  n?: number;
+  slide?: boolean;
+}
+const { n = 5, slide = false } = Astro.props;
+const id = `ft-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '피보나치 타뷸레이션과 호출 트리',
+    cells: '채운 칸',
+    calls: '트리에서 대신한 호출',
+    tree: '재귀였다면 이 호출들을 했습니다',
+    idle: '재귀는 F({n})에서 내려가며 호출 {c}번을 합니다. 표는 반대로 가장 작은 칸부터 채웁니다.',
+    base: 'dp[0] = 0, dp[1] = 1은 정의 그대로 적습니다. 트리의 맨 아래 F(0), F(1) 호출 {k}개가 이 두 칸으로 끝납니다.',
+    fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}. 트리의 F({i}) 노드 {k}개를 이 칸 하나가 대신합니다.',
+    done: '칸 {t}개로 호출 {c}개를 모두 대신했습니다. 재귀와 같은 부분 문제를 아래에서부터 한 번씩만 푼 것이 타뷸레이션입니다.',
+  },
+  en: {
+    title: 'Fibonacci tabulation and the call tree',
+    cells: 'cells filled',
+    calls: 'calls replaced in the tree',
+    tree: 'calls the recursion would make',
+    idle: 'The recursion works down from F({n}) and makes {c} calls. The table goes the other way and fills the smallest cells first.',
+    base: 'dp[0] = 0 and dp[1] = 1 come straight from the definition. The {k} calls to F(0) and F(1) at the bottom of the tree end in these two cells.',
+    fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}. This one cell replaces the {k} F({i}) nodes of the tree.',
+    done: '{t} cells replaced all {c} calls. Tabulation solves the same subproblems as the recursion, once each, from the bottom up.',
+  },
+  zh: {
+    title: '斐波那契递推填表与调用树',
+    cells: '已填格数',
+    calls: '树中被取代的调用',
+    tree: '若用递归，会进行这些调用',
+    idle: '递归从 F({n}) 往下走，调用 {c} 次。表反过来，从最小的格开始填。',
+    base: 'dp[0] = 0、dp[1] = 1 照定义写下。树底部 {k} 个 F(0)、F(1) 调用都落在这两格上。',
+    fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}。这一格取代了树中 {k} 个 F({i}) 节点。',
+    done: '用 {t} 格取代了全部 {c} 次调用。递推填表就是把与递归相同的子问题，从下往上各解一次。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-fib-tab-tree" title={t.title} strings={t} steps slide={slide} size={2.7}>
+  <Fragment slot="ref"><code class="ft-rec">dp[i] = dp[i-1] + dp[i-2]</code></Fragment>
+  <div class="ft-top">
+    <div class="ft-row">
+      {Array.from({ length: n + 1 }, (_, i) => (
+        <span class="ft-col"><i>{i}</i><span class="dx-cell" data-ft-cell={i} /></span>
+      ))}
+    </div>
+    <dl class="dx-stats">
+      <dt>{t.cells}</dt><dd data-dx="cells"></dd>
+      <dt>{t.calls}</dt><dd data-dx="calls"></dd>
+    </dl>
+  </div>
+  <div class="dx-lab ft-cap">{t.tree}</div>
+  <svg data-dx="svg" viewBox="0 0 900 250"></svg>
+</DpKit>
+
+<script is:inline define:vars={{ id, n }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note } = K.root(id);
+    const F = [0, 1];
+    for (let i = 2; i <= n; i++) F[i] = F[i - 1] + F[i - 2];
+    /* 호출 트리를 실제로 만들어 배치한다(잎은 왼쪽부터 차례로, 부모는 자식의 가운데). */
+    const nodes = [];
+    let leaf = 0;
+    let deep = 0;
+    const go = (k, d, parent) => {
+      const me = { k, d, parent };
+      nodes.push(me);
+      deep = Math.max(deep, d);
+      const kids = k <= 1 ? [] : [go(k - 1, d + 1, me), go(k - 2, d + 1, me)];
+      me.lx = kids.length ? (kids[0].lx + kids[1].lx) / 2 : leaf++;
+      return me;
+    };
+    go(n, 0, null);
+    const gap = Math.min(110, 840 / Math.max(1, leaf - 1));
+    const x0 = 450 - ((leaf - 1) * gap) / 2;
+    const dy = 210 / Math.max(1, deep);
+    const g = get('svg');
+    nodes.forEach((x) => {
+      x.x = x0 + x.lx * gap;
+      x.y = 20 + x.d * dy;
+    });
+    nodes.filter((x) => x.parent).forEach((x) => g.append(K.svg('line', { cls: 'sv-edge', x1: x.parent.x, y1: x.parent.y, x2: x.x, y2: x.y })));
+    const els = nodes.map((x) => {
+      const e = K.svg('g', { transform: `translate(${x.x} ${x.y})` }, K.svg('rect', { cls: 'sv-node', x: -27, y: -15, width: 54, height: 30, rx: 7 }), K.svg('text', { 'font-size': 15 }, `F(${x.k})`));
+      g.append(e);
+      return e;
+    });
+    const cells = [...root.querySelectorAll('[data-ft-cell]')];
+    const count = (k) => nodes.filter((x) => x.k === k).length;
+    /* 걸음: 0 = 시작, 1 = 기저 두 칸, 2.. = dp[2]부터 */
+    function draw(s) {
+      const top = s === 0 ? -1 : s + 0; // 채운 가장 큰 칸
+      const now = s >= 2 ? s : -1;
+      cells.forEach((c, i) => {
+        const filled = i <= top;
+        const ref = now >= 0 && (i === now - 1 || i === now - 2);
+        c.textContent = filled ? String(F[i]) : '';
+        c.className = `dx-cell ${i === now || (s === 1 && i <= 1) ? 'is-now' : ref ? 'is-ref' : filled ? 'is-done' : ''}`;
+      });
+      els.forEach((e, j) => {
+        const k = nodes[j].k;
+        const c = k === now || (s === 1 && k <= 1) ? 'sv-focus' : k <= top ? 'sv-eval' : '';
+        e.firstChild.setAttribute('class', `sv-node ${c}`);
+        e.lastChild.textContent = k <= top ? String(F[k]) : `F(${k})`;
+      });
+      const replaced = nodes.filter((x) => x.k <= top).length;
+      get('cells').textContent = `${Math.max(0, top + 1)} / ${n + 1}`;
+      get('calls').textContent = `${replaced} / ${nodes.length}`;
+      if (s === 0) K.lines(note, K.fill(S.idle, { n, c: nodes.length }));
+      else if (s === 1) K.lines(note, K.fill(S.base, { k: count(0) + count(1) }));
+      else
+        K.lines(
+          note,
+          K.fill(S.fill, { i: now, a: now - 1, b: now - 2, x: F[now - 1], y: F[now - 2], v: F[now], k: count(now) }),
+          s === n ? K.fill(S.done, { t: n + 1, c: nodes.length }) : '',
+        );
+    }
+    K.stepper(root, { count: () => n, draw, ms: 1300 }).go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-fib-tab-tree .ft-rec {
+    padding: 0.15em 0.55em;
+    font-size: 0.72em;
+    border: 1px solid var(--dx-line);
+    border-radius: 0.5em;
+    background: var(--aas-bg);
+  }
+  .aas-fib-tab-tree .ft-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em 2em;
+    align-items: center;
+    justify-content: center;
+  }
+  .aas-fib-tab-tree .ft-row {
+    display: flex;
+    gap: 0.35em;
+  }
+  .aas-fib-tab-tree .ft-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .aas-fib-tab-tree .ft-col i {
+    font-style: normal;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-fib-tab-tree .ft-col .dx-cell {
+    min-width: 2.8em;
+    height: 2.1em;
+    font-size: 1em;
+  }
+  .aas-fib-tab-tree .ft-cap {
+    margin-top: 0.4em;
+  }
+  .aas-fib-tab-tree svg {
+    width: 100%;
+    margin: 0 auto;
+  }
+  .aas-fib-tab-tree.is-slide svg {
+    max-height: 27vh;
+  }
+  .aas-fib-tab-tree .dx-note {
+    min-height: 3em;
+  }
+</style>

@@ -1,0 +1,259 @@
+---
+// 배낭을 직접 싸 보는 데모. 물건을 눌러 넣고 빼며, 그리디와 최적을 견준다.
+//
+// 배낭 그림의 칸 높이가 무게다. 해 본 조합을 세어 2^n개 가운데 몇 개를 보았는지 보인다.
+// 그리디는 주제 06과 같은 단위 무게당 가치 순이고, 최적은 모든 조합을 세어 구한다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `kp-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '직접 싸 보기',
+    ex: '예제',
+    four: '물건 넷',
+    six: '물건 여섯',
+    greedy: '그리디로',
+    best: '최적 보기',
+    clear: '비우기',
+    weight: '무게',
+    value: '가치',
+    per: '무게당',
+    total: '담은 것',
+    tried: '해 본 조합',
+    mybest: '지금까지 최고',
+    free: '빈 자리 {n}',
+    idle: '물건을 눌러 담아 보세요. 용량은 {c}입니다.',
+    full: '물건 {i}(무게 {w})은 빈 자리 {n}에 들어가지 않습니다.',
+    now: '담은 물건의 무게는 {w}, 가치는 {v}입니다.',
+    greedyN: '그리디는 무게당 가치가 큰 것부터 담아 {v}에서 멈췄습니다.',
+    bestN: '최적은 {v}입니다. 조합 {m}개를 모두 세어 찾았습니다.',
+    hit: '최적과 같습니다.',
+  },
+  en: {
+    title: 'Pack it yourself',
+    ex: 'example',
+    four: 'four items',
+    six: 'six items',
+    greedy: 'Greedy',
+    best: 'Show optimum',
+    clear: 'Empty',
+    weight: 'weight',
+    value: 'value',
+    per: 'per unit',
+    total: 'packed',
+    tried: 'combinations tried',
+    mybest: 'best so far',
+    free: '{n} free',
+    idle: 'Click items to pack them. The capacity is {c}.',
+    full: 'Item {i} (weight {w}) does not fit in the {n} left.',
+    now: 'Packed weight {w}, value {v}.',
+    greedyN: 'Greedy takes the best value per unit first and stops at {v}.',
+    bestN: 'The optimum is {v}, found by counting all {m} combinations.',
+    hit: 'This equals the optimum.',
+  },
+  zh: {
+    title: '亲自装一装',
+    ex: '例题',
+    four: '四件物品',
+    six: '六件物品',
+    greedy: '用贪心',
+    best: '看最优',
+    clear: '清空',
+    weight: '重量',
+    value: '价值',
+    per: '单位价值',
+    total: '已装',
+    tried: '试过的组合',
+    mybest: '目前最好',
+    free: '剩余 {n}',
+    idle: '点击物品装进去。容量是 {c}。',
+    full: '物品 {i}（重量 {w}）装不进剩余的 {n}。',
+    now: '已装重量 {w}，价值 {v}。',
+    greedyN: '贪心从单位价值大的开始装，停在 {v}。',
+    bestN: '最优是 {v}，数遍 {m} 个组合找到的。',
+    hit: '与最优相同。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SETS = {
+  ex: { cap: 50, items: [[10, 60], [20, 100], [30, 120]] },
+  four: { cap: 10, items: [[5, 10], [4, 40], [6, 30], [3, 50]] },
+  six: { cap: 20, items: [[9, 60], [8, 50], [7, 42], [6, 33], [5, 30], [4, 18]] },
+};
+---
+
+<DpKit id={id} cls="aas-knap-pack" title={t.title} strings={t} slide={slide} size={2.7}>
+  <Fragment slot="controls">
+    {(['ex', 'four', 'six'] as const).map((k, i) => <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="set" data-dx-val={k}>{t[k]}</button>)}
+    <span class="dx-sep"></span>
+    {(['greedy', 'best', 'clear'] as const).map((k) => <button type="button" class="dx-btn" data-dx={k}>{t[k]}</button>)}
+  </Fragment>
+  <div class="dx-row kp-row">
+    <div class="kp-items" data-dx="items"></div>
+    <div class="kp-bag" data-dx="bag"></div>
+    <dl class="dx-stats">
+      <dt>{t.total}</dt><dd class="kp-big" data-dx="v"></dd>
+      <dt>{t.weight}</dt><dd data-dx="w"></dd>
+      <dt>{t.mybest}</dt><dd data-dx="mine"></dd>
+      <dt>{t.tried}</dt><dd data-dx="tried"></dd>
+    </dl>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, SETS }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note, tabs } = K.root(id);
+    const HUE = ['model', 'eval', 'trace', 'tool', 'source', 'guard'];
+    let set, picked, tried, mine, msg;
+    function load(k) {
+      set = SETS[k];
+      picked = [];
+      tried = new Set();
+      mine = 0;
+      msg = '';
+      draw();
+    }
+    const sum = (p, j) => p.reduce((s, i) => s + set.items[i][j], 0);
+    const all = () =>
+      Array.from({ length: 2 ** set.items.length }, (_, m) => set.items.map((_, i) => i).filter((i) => m & (1 << i))).filter((p) => sum(p, 0) <= set.cap);
+    const best = () => all().reduce((a, p) => (sum(p, 1) > sum(a, 1) ? p : a), []);
+    const greedy = () => {
+      const out = [];
+      set.items
+        .map((_, i) => i)
+        .sort((a, b) => set.items[b][1] / set.items[b][0] - set.items[a][1] / set.items[a][0])
+        .forEach((i) => sum([...out, i], 0) <= set.cap && out.push(i));
+      return out;
+    };
+    function toggle(i) {
+      const w = set.items[i][0];
+      const free = set.cap - sum(picked, 0);
+      if (picked.includes(i)) picked = picked.filter((x) => x !== i);
+      else if (w > free) {
+        msg = K.fill(S.full, { i: i + 1, w, n: free });
+        return draw();
+      } else picked = [...picked, i];
+      msg = '';
+      draw();
+    }
+    function draw() {
+      const [w, v] = [sum(picked, 0), sum(picked, 1)];
+      tried.add([...picked].sort().join());
+      mine = Math.max(mine, v);
+      get('items').replaceChildren(
+        ...set.items.map(([iw, iv], i) =>
+          K.el(
+            'button',
+            { type: 'button', cls: `kp-item ${picked.includes(i) ? 'is-in' : ''}`, style: `--c: var(--aas-role-${HUE[i]})`, on: { click: () => toggle(i) } },
+            K.el('b', {}, String(i + 1)),
+            K.el('span', {}, `${S.weight} ${iw}`),
+            K.el('span', {}, `${S.value} ${iv}`),
+            K.el('small', {}, `${S.per} ${(iv / iw).toFixed(1)}`),
+          ),
+        ),
+      );
+      get('bag').replaceChildren(
+        K.el('div', { cls: 'kp-free', style: `flex: ${set.cap - w}` }, set.cap - w ? K.fill(S.free, { n: set.cap - w }) : ''),
+        ...[...picked].reverse().map((i) => K.el('div', { cls: 'kp-in', style: `flex: ${set.items[i][0]}; --c: var(--aas-role-${HUE[i]})` }, `${i + 1} · ${set.items[i][0]} / ${set.items[i][1]}`)),
+      );
+      get('v').textContent = v;
+      get('w').textContent = `${w} / ${set.cap}`;
+      get('mine').textContent = mine;
+      get('tried').textContent = `${tried.size} / ${2 ** set.items.length}`;
+      const isBest = !msg && v === sum(best(), 1);
+      K.lines(note, msg || (picked.length ? K.fill(S.now, { w, v }) : K.fill(S.idle, { c: set.cap })), isBest && picked.length ? S.hit : '');
+    }
+    get('greedy').addEventListener('click', () => {
+      picked = greedy();
+      msg = K.fill(S.greedyN, { v: sum(picked, 1) });
+      draw();
+    });
+    get('best').addEventListener('click', () => {
+      picked = best();
+      msg = K.fill(S.bestN, { v: sum(picked, 1), m: 2 ** set.items.length });
+      draw();
+    });
+    get('clear').addEventListener('click', () => {
+      picked = [];
+      msg = '';
+      draw();
+    });
+    tabs('set', load);
+    load('ex');
+  })();
+</script>
+
+<style is:global>
+  .aas-knap-pack .kp-row {
+    align-items: stretch;
+    min-height: 13em;
+  }
+  .aas-knap-pack .kp-items {
+    flex: 1 1 22em;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6.8em, 1fr));
+    gap: 0.5em;
+    align-content: center;
+  }
+  .aas-knap-pack .kp-item {
+    display: grid;
+    gap: 0.05em;
+    justify-items: center;
+    padding: 0.5em;
+    font: inherit;
+    font-size: 0.82em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 2.5px solid var(--c);
+    border-radius: 0.7em;
+    cursor: pointer;
+  }
+  .aas-knap-pack .kp-item b {
+    font-size: 1.25em;
+  }
+  .aas-knap-pack .kp-item small {
+    color: var(--aas-muted);
+  }
+  .aas-knap-pack .kp-item.is-in {
+    opacity: 0.5;
+    border-style: dashed;
+  }
+  .aas-knap-pack .kp-bag {
+    flex: 0 0 10em;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 13em;
+    padding: 0.3em;
+    border: 4px solid var(--dx-line);
+    border-top: 0;
+    border-radius: 0 0 1.4em 1.4em;
+  }
+  .aas-knap-pack .kp-free,
+  .aas-knap-pack .kp-in {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    overflow: hidden;
+    font-size: 0.78em;
+    color: var(--aas-muted);
+    transition: flex 0.3s;
+  }
+  .aas-knap-pack .kp-in {
+    border-radius: 0.5em;
+    background: color-mix(in srgb, var(--c) 35%, var(--aas-bg));
+    color: var(--aas-text);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-knap-pack .kp-big {
+    font-size: 1.5em;
+    color: var(--aas-role-focus);
+  }
+</style>

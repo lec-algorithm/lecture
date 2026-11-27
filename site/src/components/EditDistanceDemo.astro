@@ -1,0 +1,240 @@
+---
+// [참고] 편집 거리(Levenshtein) 표를 만져 보는 데모.
+//
+// 두 낱말을 고치면 표가 다시 계산되고, 칸을 누르면 세 후보(지우기, 넣기, 바꾸기)와 그 칸
+// 까지의 정렬이 나온다. 동점이면 대각선, 위, 왼쪽 순으로 고른다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ed-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '편집 거리',
+    from: '원래',
+    to: '바꿀 것',
+    w1: '고양이,고슴도치',
+    del: '지우기 (위 + 1)',
+    ins: '넣기 (왼쪽 + 1)',
+    sub: '바꾸기 (대각선 + 1)',
+    same: '같은 글자 (대각선)',
+    cell: '앞 {i}글자 "{a}"에서 앞 {j}글자 "{b}"로 바꾸는 데 {v}번입니다.',
+    ops: '고친 곳: {list}.',
+    none: '고칠 곳이 없습니다.',
+    d: '{x} 지우기',
+    n: '{y} 넣기',
+    s: '{x}를 {y}로',
+    base: '한쪽이 비었으므로 남은 글자를 모두 지우거나 넣습니다.',
+  },
+  en: {
+    title: 'Edit distance',
+    from: 'from',
+    to: 'to',
+    w1: 'sunday,saturday',
+    del: 'delete (up + 1)',
+    ins: 'insert (left + 1)',
+    sub: 'replace (diagonal + 1)',
+    same: 'same letter (diagonal)',
+    cell: 'Changing the first {i} letters "{a}" into the first {j} letters "{b}" takes {v}.',
+    ops: 'Edits: {list}.',
+    none: 'Nothing to edit.',
+    d: 'delete {x}',
+    n: 'insert {y}',
+    s: '{x} to {y}',
+    base: 'One side is empty, so delete or insert every remaining letter.',
+  },
+  zh: {
+    title: '编辑距离',
+    from: '原来',
+    to: '改成',
+    w1: '动态规划,动态数组',
+    del: '删除（上 + 1）',
+    ins: '插入（左 + 1）',
+    sub: '替换（对角 + 1）',
+    same: '相同字符（对角）',
+    cell: '把前 {i} 个字符 "{a}" 改成前 {j} 个字符 "{b}" 需要 {v} 次。',
+    ops: '修改处：{list}。',
+    none: '没有要改的地方。',
+    d: '删除 {x}',
+    n: '插入 {y}',
+    s: '{x} 换成 {y}',
+    base: '一边是空的，所以把剩下的字符全部删除或插入。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SETS = ['kitten,sitting', 'GATTACA,GCATGCT', t.w1];
+---
+
+<DpKit id={id} cls="aas-edit-dist" title={t.title} strings={t} slide={slide} size={2.65}>
+  <Fragment slot="controls">
+    {SETS.map((s, i) => <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="set" data-dx-val={s}>{s.replace(',', ' · ')}</button>)}
+    <label class="dx-lab">{t.from} <input maxlength="8" data-dx="a" spellcheck="false" /></label>
+    <label class="dx-lab">{t.to} <input maxlength="8" data-dx="b" spellcheck="false" /></label>
+  </Fragment>
+  <div class="dx-row ed-row">
+    <div class="ed-grid" data-dx="grid"></div>
+    <div class="ed-side">
+      <div data-dx="cands"></div>
+      <div class="ed-align" data-dx="align"></div>
+    </div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, init: SETS[0] }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note, tabs } = K.root(id);
+    let a, b, cur;
+    function load(s) {
+      [a, b] = s.split(',');
+      get('a').value = a;
+      get('b').value = b;
+      cur = null;
+      draw();
+    }
+    function draw() {
+      const A = [...a];
+      const B = [...b];
+      const n = A.length;
+      const m = B.length;
+      cur ??= [n, m];
+      const dp = Array.from({ length: n + 1 }, (_, i) => Array.from({ length: m + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+      const from = {};
+      for (let i = 1; i <= n; i++)
+        for (let j = 1; j <= m; j++) {
+          const same = A[i - 1] === B[j - 1];
+          const c = [
+            [dp[i - 1][j - 1] + (same ? 0 : 1), 'g'],
+            [dp[i - 1][j] + 1, 'u'],
+            [dp[i][j - 1] + 1, 'l'],
+          ];
+          const best = c.reduce((x, y) => (y[0] < x[0] ? y : x));
+          dp[i][j] = best[0];
+          from[`${i},${j}`] = best[1];
+        }
+      const step = (i, j) => (i === 0 ? 'l' : j === 0 ? 'u' : from[`${i},${j}`]);
+      const path = new Set();
+      const al = [];
+      let [i, j] = cur;
+      path.add(`${i},${j}`);
+      while (i || j) {
+        const s = step(i, j);
+        if (s === 'g') al.unshift([A[--i], B[--j]]);
+        else if (s === 'u') al.unshift([A[--i], '']);
+        else al.unshift(['', B[--j]]);
+        path.add(`${i},${j}`);
+      }
+      const [ci, cj] = cur;
+      const refs = ci && cj ? [`${ci - 1},${cj - 1}`, `${ci - 1},${cj}`, `${ci},${cj - 1}`] : [];
+      const g = get('grid');
+      g.style.setProperty('--n', m + 1);
+      const cells = [K.el('span', { cls: 'dx-cell is-head' }), K.el('span', { cls: 'dx-cell is-head' }, '∅'), ...B.map((c) => K.el('span', { cls: 'dx-cell is-head ed-ch' }, c))];
+      for (let x = 0; x <= n; x++) {
+        cells.push(K.el('span', { cls: 'dx-cell is-head ed-ch' }, x ? A[x - 1] : '∅'));
+        for (let y = 0; y <= m; y++) {
+          const k = `${x},${y}`;
+          const c = x === ci && y === cj ? 'is-now' : path.has(k) ? 'is-path' : refs.includes(k) ? 'is-ref' : '';
+          cells.push(K.el('button', { type: 'button', cls: `dx-cell ${c}`, on: { click: () => ((cur = [x, y]), draw()) } }, String(dp[x][y])));
+        }
+      }
+      g.replaceChildren(...cells);
+      const cands = [];
+      if (ci && cj) {
+        const same = A[ci - 1] === B[cj - 1];
+        const s = step(ci, cj);
+        [
+          ['g', same ? S.same : S.sub, dp[ci - 1][cj - 1] + (same ? 0 : 1)],
+          ['u', S.del, dp[ci - 1][cj] + 1],
+          ['l', S.ins, dp[ci][cj - 1] + 1],
+        ].forEach(([k, name, v]) => cands.push(K.el('div', { cls: `ed-cand ${k === s ? 'is-now' : ''}` }, K.el('span', {}, name), K.el('b', {}, String(v)))));
+      } else cands.push(K.el('div', { cls: 'ed-cand' }, S.base));
+      get('cands').replaceChildren(...cands);
+      get('align').replaceChildren(
+        ...al.map(([x, y]) => K.el('span', { cls: x === y ? 'is-done' : !x ? 'is-ref' : !y ? 'is-hit' : 'is-path' }, K.el('b', {}, x || '–'), K.el('b', {}, y || '–'))),
+      );
+      const ops = al.filter(([x, y]) => x !== y).map(([x, y]) => K.fill(!x ? S.n : !y ? S.d : S.s, { x, y }));
+      K.lines(
+        note,
+        K.fill(S.cell, { i: ci, j: cj, a: A.slice(0, ci).join(''), b: B.slice(0, cj).join(''), v: dp[ci][cj] }),
+        ops.length ? K.fill(S.ops, { list: ops.join(', ') }) : S.none,
+      );
+    }
+    ['a', 'b'].forEach((k) =>
+      get(k).addEventListener('input', () => {
+        a = [...get('a').value].slice(0, 8).join('');
+        b = [...get('b').value].slice(0, 8).join('');
+        cur = null;
+        draw();
+      }),
+    );
+    tabs('set', load);
+    load(init);
+  })();
+</script>
+
+<style is:global>
+  .aas-edit-dist input {
+    width: 6em;
+    padding: 0.2em 0.5em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 1em;
+    color: var(--aas-text);
+    background: var(--aas-bg);
+    border: 1px solid var(--dx-line);
+    border-radius: 0.4em;
+  }
+  .aas-edit-dist .ed-row {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  .aas-edit-dist .ed-grid {
+    display: grid;
+    grid-template-columns: 1.8em repeat(var(--n), 2.3em);
+    gap: 0.18em;
+  }
+  .aas-edit-dist .ed-grid .dx-cell {
+    min-width: 0;
+    height: 1.75em;
+    padding: 0;
+  }
+  .aas-edit-dist .ed-grid button {
+    cursor: pointer;
+  }
+  .aas-edit-dist .ed-ch {
+    font-size: 0.95em;
+    font-weight: 700;
+    color: var(--aas-text);
+  }
+  .aas-edit-dist .ed-side {
+    flex: 1 1 14em;
+    min-width: 0;
+  }
+  .aas-edit-dist .ed-cand {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.3em;
+    padding: 0.3em 0.8em;
+    font-size: 0.85em;
+    border: 1.5px solid var(--dx-line);
+    border-radius: 0.5em;
+    font-weight: 400;
+  }
+  .aas-edit-dist .ed-align {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em;
+    margin-top: 0.9em;
+  }
+  .aas-edit-dist .ed-align span {
+    display: grid;
+    justify-items: center;
+    min-width: 1.7em;
+    padding: 0.15em 0.2em;
+    border: 1.5px solid var(--dx-line);
+    border-radius: 0.35em;
+    font-family: var(--aas-mono, monospace);
+  }
+</style>

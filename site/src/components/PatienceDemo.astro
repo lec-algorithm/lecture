@@ -1,0 +1,182 @@
+---
+// [참고] LIS를 O(n log n)에 구하는 방법. 길이마다 "가장 작은 끝 값"만 남긴다.
+//
+// tails[k] = 길이가 k + 1인 증가 부분수열의 끝 값 가운데 가장 작은 것. 새 원소 x가 오면
+// x 이상인 첫 칸을 이진 검색으로 찾아 바꾸고, 없으면 뒤에 붙인다. 원소 비교 수를
+// 세어 O(n^2) 표와 견준다. tails 자체가 답 수열인 것은 아니다(길이만 맞는다).
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `pt-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '길이마다 가장 작은 끝 값',
+    ex: '예제',
+    inc: '늘어남',
+    long: '원소 16개',
+    len: '길이',
+    tails: 'tails',
+    cmp: '이진 검색 비교',
+    cmp2: '표 O(n²)의 비교',
+    idle: 'tails는 비어 있습니다. 원소를 하나씩 봅니다.',
+    look: '{x}: tails에서 {x} 이상인 첫 칸을 이진 검색으로 찾습니다. 견준 값은 {list}입니다.',
+    look0: '{x}: tails가 비어 있으므로 견줄 것이 없습니다.',
+    app: '{x}보다 크거나 같은 칸이 없으므로 뒤에 붙입니다. 길이 {l}짜리 수열이 처음 생겼습니다.',
+    rep: '길이 {l}의 끝 값 {o} 자리에 {x}를 둡니다. 끝이 작을수록 뒤에 잇기 쉽습니다.',
+    same: '길이 {l}의 끝 값이 이미 {x}입니다. 그대로 둡니다.',
+    done: 'LIS의 길이는 tails의 칸 수 {l}입니다. tails에 남은 값이 답 수열은 아닙니다. 길이만 맞습니다.',
+  },
+  en: {
+    title: 'The smallest end for each length',
+    ex: 'example',
+    inc: 'increasing',
+    long: '16 numbers',
+    len: 'length',
+    tails: 'tails',
+    cmp: 'binary search comparisons',
+    cmp2: 'comparisons by the O(n²) table',
+    idle: 'tails is empty. Look at the numbers one by one.',
+    look: '{x}: binary search for the first cell of tails that is at least {x}. Compared with {list}.',
+    look0: '{x}: tails is empty, so there is nothing to compare.',
+    app: 'No cell is at least {x}, so append it. A sequence of length {l} appears for the first time.',
+    rep: 'Put {x} in place of {o} as the end for length {l}. A smaller end is easier to extend.',
+    same: 'The end for length {l} is already {x}. Leave it.',
+    done: 'The LIS length is the number of cells in tails, {l}. The values left in tails are not the sequence itself. Only the length is right.',
+  },
+  zh: {
+    title: '每个长度最小的结尾值',
+    ex: '例题',
+    inc: '递增',
+    long: '16 个元素',
+    len: '长度',
+    tails: 'tails',
+    cmp: '二分查找的比较',
+    cmp2: 'O(n²) 表的比较',
+    idle: 'tails 是空的。逐个看元素。',
+    look: '{x}：用二分查找在 tails 中找第一个不小于 {x} 的格。比较过的值是 {list}。',
+    look0: '{x}：tails 是空的，没有可比较的。',
+    app: '没有不小于 {x} 的格，所以接在后面。长度为 {l} 的序列第一次出现。',
+    rep: '长度 {l} 的结尾值由 {o} 换成 {x}。结尾越小，后面越容易接。',
+    same: '长度 {l} 的结尾值已经是 {x}。保持不变。',
+    done: 'LIS 的长度就是 tails 的格数 {l}。tails 里剩下的值并不是答案序列。只有长度是对的。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SEQ: Record<string, string> = {
+  ex: '10,9,2,5,3,7,101,18',
+  inc: '1,2,3,4,5,6,7,8',
+  long: '34,7,52,19,61,23,5,48,70,12,39,66,28,80,45,90',
+};
+---
+
+<DpKit id={id} cls="aas-patience" title={t.title} strings={t} steps slide={slide} size={2.8}>
+  <Fragment slot="controls">
+    {Object.entries(SEQ).map(([k, v], i) => (
+      <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="seq" data-dx-val={v}>{t[k]}</button>
+    ))}
+    <span class="dx-sep"></span>
+  </Fragment>
+  <div class="pt-lab dx-lab">arr</div>
+  <div class="pt-row" data-dx="arr"></div>
+  <div class="pt-lab dx-lab">{t.tails}</div>
+  <div class="pt-row pt-tails" data-dx="tails"></div>
+  <dl class="dx-stats pt-stats">
+    <dt>{t.cmp}</dt><dd data-dx="cmp"></dd>
+    <dt>{t.cmp2}</dt><dd data-dx="cmp2"></dd>
+  </dl>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    let arr = [10, 9, 2, 5, 3, 7, 101, 18];
+    let ev;
+    function build() {
+      ev = [];
+      const tails = [];
+      let cmp = 0;
+      arr.forEach((x, i) => {
+        let lo = 0;
+        let hi = tails.length;
+        const seen = [];
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          seen.push(mid);
+          cmp++;
+          if (tails[mid] >= x) hi = mid;
+          else lo = mid + 1;
+        }
+        ev.push({ type: 'look', i, x, seen, pos: lo, tails: [...tails], cmp });
+        const old = tails[lo];
+        tails[lo] = x;
+        ev.push({ type: old === undefined ? 'app' : old === x ? 'same' : 'rep', i, x, old, pos: lo, tails: [...tails], cmp });
+      });
+      ev.push({ type: 'done', i: arr.length, pos: -1, tails: [...tails], cmp });
+    }
+    function draw(s) {
+      const e = s ? ev[s - 1] : { i: -1, pos: -1, tails: [], cmp: 0, type: 'idle' };
+      get('arr').replaceChildren(
+        ...arr.map((v, k) => K.el('span', { cls: 'pt-col' }, K.el('span', { cls: `dx-cell ${k === e.i ? 'is-now' : k < e.i ? 'is-done' : ''}` }, String(v)))),
+      );
+      const n = Math.max(6, Math.min(8, arr.length));
+      get('tails').replaceChildren(
+        ...Array.from({ length: n }, (_, k) => {
+          const look = e.type === 'look';
+          const c = k === e.pos ? 'is-now' : look && e.seen.includes(k) ? 'is-ref' : k < e.tails.length ? 'is-done' : 'is-lazy';
+          const mark = look && e.seen.includes(k) && k === e.pos ? 'is-now pt-seen' : c;
+          return K.el('span', { cls: 'pt-col' }, K.el('span', { cls: `dx-cell ${mark}` }, e.tails[k] === undefined ? '' : String(e.tails[k])), K.el('i', {}, `${k + 1}`));
+        }),
+      );
+      get('cmp').textContent = e.cmp;
+      const done = e.type === 'done' ? arr.length : Math.max(0, e.i + 1);
+      get('cmp2').textContent = (done * (done - 1)) / 2;
+      if (e.type === 'idle') K.lines(note, S.idle);
+      else if (e.type === 'done') K.lines(note, K.fill(S.done, { l: e.tails.length }));
+      else if (e.type === 'look') K.lines(note, e.seen.length ? K.fill(S.look, { x: e.x, list: e.seen.map((k) => e.tails[k]).join(', ') }) : K.fill(S.look0, { x: e.x }));
+      else K.lines(note, K.fill(S[e.type], { x: e.x, o: e.old, l: e.pos + 1 }));
+    }
+    const st = K.stepper(root, { count: () => ev.length, draw });
+    tabs('seq', (v) => {
+      arr = v.split(',').map(Number);
+      build();
+      st.reset();
+    });
+    build();
+    st.go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-patience .pt-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+    margin-bottom: 0.6em;
+  }
+  .aas-patience .pt-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .aas-patience .pt-col i {
+    font-style: normal;
+    font-size: 0.72em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-patience .pt-tails .dx-cell {
+    min-width: 3.4em;
+    height: 2.4em;
+  }
+  .aas-patience .pt-seen {
+    box-shadow: 0 0 0 2px var(--aas-role-model);
+  }
+  .aas-patience .pt-stats {
+    justify-content: start;
+  }
+</style>

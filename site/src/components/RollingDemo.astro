@@ -1,0 +1,158 @@
+---
+// 표 전체를 두는 타뷸레이션과 변수 셋만 두는 반복을 나란히 돌리는 데모.
+//
+// dp[i]는 앞 두 칸만 보므로 나머지 칸은 다시 쓰이지 않는다. 위는 표, 아래는 주제 01의
+// 반복(prev, curr, next)이다. 옆의 의사코드에서 지금 줄이 칠해진다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  n?: number;
+  slide?: boolean;
+}
+const { n = 7, slide = false } = Astro.props;
+const id = `ro-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '표에서 변수 셋으로',
+    full: '타뷸레이션: 표 전체',
+    roll: '반복: 변수만',
+    cells: '저장한 칸',
+    idle: '왼쪽 두 칸이 채워진 상태에서 시작합니다.',
+    calc: 'i = {i}: 표는 dp[{a}] + dp[{b}], 변수는 prev + curr. 둘 다 {x} + {y} = {v}입니다.',
+    shift: '변수를 한 칸씩 밀어 둡니다. 점선 칸은 이제 아무도 보지 않습니다.',
+    done: 'F({n}) = {v}. 표는 {c}칸, 반복은 변수 3개입니다. n이 커져도 변수는 그대로 3개입니다.',
+  },
+  en: {
+    title: 'From a table to three variables',
+    full: 'Tabulation: the whole table',
+    roll: 'Iteration: variables only',
+    cells: 'cells stored',
+    idle: 'Start with the two leftmost cells filled.',
+    calc: 'i = {i}: the table adds dp[{a}] + dp[{b}], the variables add prev + curr. Both are {x} + {y} = {v}.',
+    shift: 'Shift the variables by one. Nobody looks at the dashed cells any more.',
+    done: 'F({n}) = {v}. The table has {c} cells, the iteration 3 variables. However large n gets, it is still 3.',
+  },
+  zh: {
+    title: '从表到三个变量',
+    full: '递推填表：整张表',
+    roll: '循环：只用变量',
+    cells: '保存的格数',
+    idle: '从左边两格已填好的状态开始。',
+    calc: 'i = {i}：表算 dp[{a}] + dp[{b}]，变量算 prev + curr。两边都是 {x} + {y} = {v}。',
+    shift: '把变量往后挪一格。虚线格再也没有人看。',
+    done: 'F({n}) = {v}。表用 {c} 格，循环用 3 个变量。n 再大也还是 3 个。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const CODE = ['prev <- 0, curr <- 1', 'for i <- 2 to n do', '    next <- prev + curr', '    prev <- curr', '    curr <- next', 'return curr'];
+---
+
+<DpKit id={id} cls="aas-rolling" title={t.title} strings={t} steps slide={slide} size={2.9}>
+  <div class="dx-row ro-row">
+    <div class="ro-main">
+      <div class="ro-lab">{t.full} <span>{t.cells} <b>{n + 1}</b></span></div>
+      <div class="ro-cells">
+        {Array.from({ length: n + 1 }, (_, i) => (
+          <span class="ro-col"><span class="dx-cell" data-ro-cell={i} /><i>{i}</i></span>
+        ))}
+      </div>
+      <div class="ro-lab">{t.roll} <span>{t.cells} <b>3</b></span></div>
+      <div class="ro-cells">
+        {['prev', 'curr', 'next'].map((v) => (
+          <span class="ro-col"><span class="dx-cell ro-var" data-dx={v} /><i>{v}</i></span>
+        ))}
+      </div>
+    </div>
+    <div class="ro-code">{CODE.map((c) => <span data-ro-line>{c}</span>)}</div>
+  </div>
+</DpKit>
+
+<script is:inline define:vars={{ id, n }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note } = K.root(id);
+    const F = [0, 1];
+    for (let i = 2; i <= n; i++) F[i] = F[i - 1] + F[i - 2];
+    const cells = [...root.querySelectorAll('[data-ro-cell]')];
+    const code = [...root.querySelectorAll('[data-ro-line]')];
+    /* 걸음: 0 = 시작, 홀수 = 계산(i), 짝수 = 밀기 */
+    const last = 2 * (n - 1);
+    function draw(s) {
+      const i = s === 0 ? 1 : Math.floor((s + 1) / 2) + 1;
+      const calc = s % 2 === 1;
+      const lo = s === 0 ? 0 : calc ? i - 2 : i - 1;
+      cells.forEach((c, k) => {
+        c.textContent = k <= i ? F[k] : '';
+        c.className = `dx-cell ${k > i ? '' : k === i && calc ? 'is-now' : calc && k >= i - 2 ? 'is-ref' : k < lo ? 'is-lazy' : 'is-done'}`;
+      });
+      const prev = F[lo];
+      const curr = F[lo + 1];
+      [['prev', prev], ['curr', curr], ['next', s === 0 ? '' : F[i]]].forEach(([k, v]) => {
+        const e = get(k);
+        e.textContent = v;
+        e.className = `dx-cell ro-var ${k === 'next' ? (calc ? 'is-now' : '') : calc ? 'is-ref' : s ? 'is-now' : 'is-done'}`;
+      });
+      const hot = s === 0 ? [0] : calc ? [1, 2] : s === last ? [3, 4, 5] : [3, 4];
+      code.forEach((c, k) => c.classList.toggle('is-now', hot.includes(k)));
+      if (s === 0) K.lines(note, S.idle);
+      else if (calc) K.lines(note, K.fill(S.calc, { i, a: i - 1, b: i - 2, x: F[i - 2], y: F[i - 1], v: F[i] }));
+      else if (s === last) K.lines(note, K.fill(S.done, { n, v: F[n], c: n + 1 }));
+      else K.lines(note, S.shift);
+    }
+    K.stepper(root, { count: () => last, draw }).go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-rolling .ro-main {
+    flex: 1 1 24em;
+  }
+  .aas-rolling .ro-lab {
+    margin: 0.5em 0 0.4em;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .aas-rolling .ro-lab span {
+    margin-left: 0.8em;
+    font-weight: 400;
+    color: var(--aas-muted);
+  }
+  .aas-rolling .ro-cells {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
+  .aas-rolling .ro-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .aas-rolling .ro-col i {
+    font-style: normal;
+    font-size: 0.75em;
+    color: var(--aas-muted);
+    font-family: var(--aas-mono, monospace);
+  }
+  .aas-rolling .ro-var {
+    min-width: 4em;
+  }
+  .aas-rolling .ro-code {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0.7em 0.9em;
+    font-family: var(--aas-mono, monospace);
+    font-size: 0.8em;
+    line-height: 1.6;
+    white-space: pre;
+    background: var(--dx-soft);
+    border: 1px solid var(--dx-line);
+    border-radius: 0.6em;
+    color: var(--aas-text);
+  }
+  .aas-rolling .ro-code span {
+    display: block;
+    padding: 0 0.3em;
+    border-radius: 0.3em;
+  }
+</style>

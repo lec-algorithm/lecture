@@ -1,0 +1,184 @@
+---
+// LIS를 그림으로 보는 데모. 원소를 점으로 찍고, 뒤에 이을 수 있으면 화살표로 잇는다.
+//
+// dp[i]는 점 i에서 끝나는 가장 긴 길의 점 개수이고, LIS는 이 DAG의 가장 긴 길이다.
+// 점을 누르면 그 점으로 들어오는 화살표(참조하는 칸)와 가장 긴 길이 칠해진다.
+// 세로 위치는 값의 크기 순위다. 동점이면 코드와 같이 앞의 것을 고른다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `ld-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: 'LIS는 가장 긴 길',
+    ex: '예제',
+    end: '끝이 작은 수',
+    inc: '늘어남',
+    all: '모든 화살표',
+    edges: '화살표',
+    best: 'LIS 길이',
+    n1: 'dp[{i}]: {v} 앞에 있으면서 더 작은 원소는 {list}. 그중 가장 긴 것은 dp {d}이므로 {d} + 1 = {r}입니다.',
+    n0: 'dp[{i}]: {v} 앞에는 더 작은 원소가 없습니다. 혼자 길이 1입니다.',
+    n2: '{v}에서 끝나는 가장 긴 길은 {path}입니다.',
+    n3: '화살표는 언제나 오른쪽 위로 향하므로 왼쪽 점부터 채우면 됩니다.',
+  },
+  en: {
+    title: 'The LIS is a longest path',
+    ex: 'example',
+    end: 'ends small',
+    inc: 'increasing',
+    all: 'all arrows',
+    edges: 'arrows',
+    best: 'LIS length',
+    n1: 'dp[{i}]: the smaller numbers before {v} are {list}. The longest of them has dp {d}, so {d} + 1 = {r}.',
+    n0: 'dp[{i}]: nothing before {v} is smaller. Alone it has length 1.',
+    n2: 'The longest path ending at {v} is {path}.',
+    n3: 'Arrows always go up and to the right, so fill the points from the left.',
+  },
+  zh: {
+    title: 'LIS 就是最长路径',
+    ex: '例题',
+    end: '结尾较小',
+    inc: '递增',
+    all: '全部箭头',
+    edges: '箭头',
+    best: 'LIS 长度',
+    n1: 'dp[{i}]：{v} 前面比它小的元素是 {list}。其中最长的 dp 是 {d}，所以 {d} + 1 = {r}。',
+    n0: 'dp[{i}]：{v} 前面没有更小的元素。自己一个长度为 1。',
+    n2: '以 {v} 结尾的最长路径是 {path}。',
+    n3: '箭头总是指向右上方，所以从左边的点开始填就行。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+const SEQ: Record<string, string> = { ex: '10,9,2,5,3,7,101,18', end: '3,8,4,9,6,10,12,1', inc: '1,2,3,4,5,6,7,8' };
+---
+
+<DpKit id={id} cls="aas-lis-dag" title={t.title} strings={t} slide={slide} size={2.6}>
+  <Fragment slot="controls">
+    {Object.entries(SEQ).map(([k, v], i) => (
+      <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="seq" data-dx-val={v}>{t[k]}</button>
+    ))}
+    <span class="dx-sep"></span>
+    <button type="button" class="dx-btn" data-dx="all">{t.all}</button>
+    <span class="dx-lab">{t.edges} <b data-dx="e"></b> · {t.best} <b data-dx="best"></b></span>
+  </Fragment>
+  <svg viewBox="0 0 900 350" data-dx="svg"></svg>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { S, get, note, tabs } = K.root(id);
+    let arr = [10, 9, 2, 5, 3, 7, 101, 18];
+    let cur = 6;
+    let all = true;
+    function draw() {
+      const n = arr.length;
+      const dp = arr.map(() => 1);
+      const prev = arr.map(() => -1);
+      for (let i = 1; i < n; i++)
+        for (let j = 0; j < i; j++)
+          if (arr[j] < arr[i] && dp[j] + 1 > dp[i]) {
+            dp[i] = dp[j] + 1;
+            prev[i] = j;
+          }
+      const rank = [...arr].sort((a, b) => a - b);
+      const x = (i) => 70 + (i * 760) / (n - 1);
+      const y = (i) => 285 - (rank.indexOf(arr[i]) * 245) / (n - 1);
+      const path = [];
+      for (let k = cur; k >= 0; k = prev[k]) path.unshift(k);
+      const onPath = (a, b) => path.includes(b) && prev[b] === a && path.includes(a);
+      const g = get('svg');
+      g.replaceChildren();
+      const layers = [[], [], []];
+      let ne = 0;
+      for (let i = 0; i < n; i++)
+        for (let j = 0; j < i; j++) {
+          if (arr[j] >= arr[i]) continue;
+          ne++;
+          const p = onPath(j, i);
+          const r = i === cur;
+          if (!all && !p && !r) continue;
+          const dx = x(i) - x(j);
+          const dy = y(i) - y(j);
+          const L = Math.hypot(dx, dy);
+          const [ux, uy] = [dx / L, dy / L];
+          const [sx, sy, ex, ey] = [x(j) + ux * 22, y(j) + uy * 22, x(i) - ux * 24, y(i) - uy * 24];
+          const c = p ? 'sv-guard' : r ? 'sv-model' : '';
+          layers[p ? 2 : r ? 1 : 0].push(
+            K.svg('path', {
+              cls: `sv-edge ${c}`,
+              style: c ? '' : 'stroke-width:1.2;opacity:.8',
+              d: `M${sx} ${sy}L${ex} ${ey}M${ex - ux * 11 - uy * 6} ${ey - uy * 11 + ux * 6}L${ex} ${ey}L${ex - ux * 11 + uy * 6} ${ey - uy * 11 - ux * 6}`,
+            }),
+          );
+        }
+      g.append(...layers.flat());
+      for (let i = 0; i < n; i++) {
+        const refs = arr[i] < arr[cur] && i < cur;
+        const c = i === cur ? 'sv-focus' : path.includes(i) ? 'sv-guard' : refs ? 'sv-model' : '';
+        const node = K.svg(
+          'g',
+          { cls: 'ld-node', tabindex: 0, role: 'button', 'aria-label': String(arr[i]), transform: `translate(${x(i)} ${y(i)})` },
+          K.svg('circle', { cls: `sv-node ${c}`, r: 21 }),
+          K.svg('text', { 'font-size': 17, 'font-weight': 700 }, String(arr[i])),
+        );
+        const pick = () => ((cur = i), draw());
+        node.addEventListener('click', pick);
+        node.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') pick();
+        });
+        g.append(
+          node,
+          K.svg('text', { x: x(i), y: 322, 'font-size': 13, style: 'fill:var(--aas-muted)' }, `i = ${i}`),
+          K.svg('text', { x: x(i), y: 341, 'font-size': 16, 'font-weight': 700, style: i === cur ? 'fill:var(--aas-role-focus)' : '' }, `dp ${dp[i]}`),
+        );
+      }
+      get('e').textContent = ne;
+      get('best').textContent = Math.max(...dp);
+      get('all').classList.toggle('dx-primary', all);
+      const refs = arr.slice(0, cur).filter((v) => v < arr[cur]);
+      K.lines(
+        note,
+        refs.length
+          ? K.fill(S.n1, { i: cur, v: arr[cur], list: refs.join(', '), d: dp[cur] - 1, r: dp[cur] })
+          : K.fill(S.n0, { i: cur, v: arr[cur] }),
+        K.fill(S.n2, { v: arr[cur], path: path.map((k) => arr[k]).join(' → ') }),
+        S.n3,
+      );
+    }
+    get('all').addEventListener('click', () => {
+      all = !all;
+      draw();
+    });
+    tabs('seq', (v) => {
+      arr = v.split(',').map(Number);
+      cur = 6;
+      draw();
+    });
+    draw();
+  })();
+</script>
+
+<style is:global>
+  .aas-lis-dag svg {
+    width: 100%;
+    margin: 0 auto;
+  }
+  .aas-lis-dag.is-slide svg {
+    max-height: 41vh;
+  }
+  .aas-lis-dag .ld-node {
+    cursor: pointer;
+    outline: none;
+  }
+  .aas-lis-dag .ld-node:hover circle,
+  .aas-lis-dag .ld-node:focus-visible circle {
+    stroke: var(--aas-accent);
+    stroke-width: 4;
+  }
+</style>

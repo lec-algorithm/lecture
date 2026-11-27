@@ -1,0 +1,225 @@
+---
+// 호출 트리를 접어 부분 문제 그래프(DAG)로 만드는 데모.
+//
+// 재귀의 호출 트리에서 같은 문제끼리 겹쳐 놓으면, 서로 다른 부분 문제가 정점이고
+// "풀려면 필요하다"가 간선인 DAG가 된다. 한 걸음에 문제 하나씩 작은 것부터 접는다.
+// 정점 수가 곧 풀어야 할 문제의 수다. 트리는 실제 점화식을 돌려 만든다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `df-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '호출 트리 접기',
+    fib5: 'F(5)',
+    fib6: 'F(6)',
+    nodes: '정점',
+    edges: '간선',
+    start: '재귀의 호출 트리입니다. 호출 {n}번 가운데 서로 다른 문제는 {d}개입니다.',
+    fold: '문제 {k}의 사본 {c}개를 하나로 겹칩니다.',
+    one: '문제 {k}번은 사본이 하나라 자리만 옮깁니다.',
+    done: '정점 {d}개, 간선 {e}개만 남았습니다. 동적 계획법은 이 정점을 하나씩만 풉니다.',
+    graph: '펼쳐 그리면 주제 12의 방향 그래프입니다. 정점은 부분 문제, 간선은 "풀려면 먼저 필요하다"이고, 사이클이 없으니 DAG입니다. 화살표를 거스르지 않는 순서(위상 정렬)로 풀면 되고, 작은 번호부터가 그 순서입니다.',
+    doneFib: '화살표는 언제나 작은 번호로 향합니다.',
+  },
+  en: {
+    title: 'Folding the call tree',
+    fib5: 'F(5)',
+    fib6: 'F(6)',
+    nodes: 'vertices',
+    edges: 'edges',
+    start: 'This is the call tree of the recursion. Of {n} calls, only {d} are different problems.',
+    fold: 'The {c} copies of problem {k} are stacked into one.',
+    one: 'Problem {k} has a single copy, so it just moves.',
+    done: 'Only {d} vertices and {e} edges are left. Dynamic programming solves each vertex once.',
+    graph: 'Spread out, it is a directed graph as in Topic 12. Vertices are subproblems and an edge means "needed first"; with no cycle it is a DAG. Solve in an order that never goes against an arrow (a topological order), and smallest first is such an order.',
+    doneFib: 'Every arrow points to a smaller number.',
+  },
+  zh: {
+    title: '折叠调用树',
+    fib5: 'F(5)',
+    fib6: 'F(6)',
+    nodes: '顶点',
+    edges: '边',
+    start: '这是递归的调用树。{n} 次调用里，不同的问题只有 {d} 个。',
+    fold: '把问题 {k} 的 {c} 个副本叠成一个。',
+    one: '问题 {k} 只有一个副本，只是挪个位置。',
+    done: '只剩下 {d} 个顶点、{e} 条边。动态规划对每个顶点只解一次。',
+    graph: '展开来画，就是主题 12 的有向图。顶点是子问题，边表示"要解它先要那个"，没有环，所以是 DAG。按不逆着箭头的顺序（拓扑排序）来解就行，从小编号开始正是这样的顺序。',
+    doneFib: '箭头总是指向更小的编号。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-dag-fold" title={t.title} strings={t} steps slide={slide}>
+  <Fragment slot="controls">
+    {(['fib5', 'fib6'] as const).map((k, i) => (
+      <button type="button" class:list={['dx-tab', i === 0 && 'is-on']} data-dx-tab="p" data-dx-val={k}>{t[k]}</button>
+    ))}
+    <span class="dx-sep"></span>
+  </Fragment>
+  <div class="df-stats">
+    <span>{t.nodes} <b data-dx="n"></b></span><span>{t.edges} <b data-dx="e"></b></span>
+  </div>
+  <svg viewBox="0 0 920 350" data-dx="svg"></svg>
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const PROB = {
+      fib5: { top: 5, kids: (n) => (n <= 1 ? [] : [n - 1, n - 2]) },
+      fib6: { top: 6, kids: (n) => (n <= 1 ? [] : [n - 1, n - 2]) },
+    };
+    const R = 19;
+    let name = 'fib5';
+    let nodes, keys, els, edgeEls, raf;
+
+    function build() {
+      cancelAnimationFrame(raf);
+      const P = PROB[name];
+      nodes = [];
+      let leaf = 0;
+      let deep = 0;
+      const go = (k, d, parent) => {
+        const me = { k, d, parent, i: nodes.length };
+        nodes.push(me);
+        deep = Math.max(deep, d);
+        const ks = P.kids(k).map((c) => go(c, d + 1, me));
+        me.lx = ks.length ? (ks[0].lx + ks[ks.length - 1].lx) / 2 : leaf++;
+        return me;
+      };
+      go(P.top, 0, null);
+      keys = [...new Set(nodes.map((x) => x.k))].sort((a, b) => a - b);
+      const gap = Math.min(110, 860 / Math.max(1, leaf - 1));
+      const x0 = 460 - ((leaf - 1) * gap) / 2;
+      const dy = 215 / Math.max(1, deep);
+      const kgap = Math.min(150, 760 / (keys.length - 1));
+      const kx0 = 460 + ((keys.length - 1) * kgap) / 2;
+      nodes.forEach((x) => {
+        x.tx = x0 + x.lx * gap;
+        x.ty = 22 + x.d * dy;
+        x.gx = kx0 - keys.indexOf(x.k) * kgap;
+        x.gy = 320;
+        const j = keys.length - 1 - keys.indexOf(x.k);
+        const hgap = Math.min(150, 720 / (keys.length - 1));
+        x.hx = 460 - ((keys.length - 1) / 2 - j) * hgap;
+        x.hy = j % 2 ? 265 : 95;
+        x.x = x.tx;
+        x.y = x.ty;
+        x.f = 0;
+        x.g = 0;
+      });
+      const g = get('svg');
+      g.replaceChildren();
+      edgeEls = nodes.filter((x) => x.parent).map((x) => ({ x, el: g.appendChild(K.svg('path', { cls: 'sv-edge' })) }));
+      els = nodes.map((x) => {
+        const n = K.svg('g', {}, K.svg('circle', { cls: 'sv-node', r: R }), K.svg('text', { 'font-size': 17 }, String(x.k)));
+        g.appendChild(n);
+        return n;
+      });
+    }
+    function paint() {
+      nodes.forEach((x, i) => els[i].setAttribute('transform', `translate(${x.x} ${x.y})`));
+      edgeEls.forEach(({ x, el }) => {
+        const p = x.parent;
+        const w = Math.min(p.f, x.f);
+        const bend = w * (Math.abs(keys.indexOf(p.k) - keys.indexOf(x.k)) - 1) * 46;
+        let [cx, cy] = [(p.x + x.x) / 2, (p.y + x.y) / 2 - bend * 2.4];
+        /* 펼친 그래프에서는 곧은 선. 같은 줄에서 사이 정점을 넘는 간선만 바깥으로 휜다. */
+        const g = Math.min(p.g, x.g);
+        if (g > 0) {
+          const same = Math.abs(p.hy - x.hy) < 1;
+          const skip = Math.abs(keys.indexOf(p.k) - keys.indexOf(x.k)) > 2;
+          const out = same && skip ? (p.hy < 180 ? -110 : 110) : 0;
+          const [gx, gy] = [(p.x + x.x) / 2, (p.y + x.y) / 2 + out];
+          [cx, cy] = [cx + (gx - cx) * g, cy + (gy - cy) * g];
+        }
+        /* 화살촉은 끝점에서의 접선 방향으로 정점 테두리에 붙인다. */
+        const L = Math.hypot(x.x - cx, x.y - cy) || 1;
+        const [ux, uy] = [(x.x - cx) / L, (x.y - cy) / L];
+        const [ex, ey] = [x.x - ux * (R + 2), x.y - uy * (R + 2)];
+        el.setAttribute(
+          'd',
+          `M${p.x} ${p.y}Q${cx} ${cy} ${ex} ${ey}M${ex - ux * 10 - uy * 5} ${ey - uy * 10 + ux * 5}L${ex} ${ey}L${ex - ux * 10 + uy * 5} ${ey - uy * 10 - ux * 5}`,
+        );
+      });
+    }
+    function draw(step) {
+      const folded = new Set(keys.slice(0, step));
+      const spread = step > keys.length;
+      const from = nodes.map((x) => [x.x, x.y, x.f, x.g]);
+      const to = nodes.map((x) =>
+        spread ? [x.hx, x.hy, 1, 1] : folded.has(x.k) ? [x.gx, step === keys.length ? 200 : x.gy, 1, 0] : [x.tx, x.ty, 0, 0],
+      );
+      const now = step > 0 ? keys[step - 1] : null;
+      els.forEach((n, i) => {
+        const k = nodes[i].k;
+        const dup = nodes.filter((y) => y.k === k).length > 1;
+        const c = k === now && step < keys.length ? 'sv-focus' : folded.has(k) ? 'sv-eval' : dup ? 'sv-guard' : '';
+        n.firstChild.setAttribute('class', `sv-node ${c}`);
+      });
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const t0 = performance.now();
+      cancelAnimationFrame(raf);
+      const tick = (t) => {
+        const u = still ? 1 : Math.min(1, (t - t0) / 600);
+        const e = u * u * (3 - 2 * u);
+        nodes.forEach((x, i) => {
+          [x.x, x.y, x.f, x.g] = from[i].map((v, j) => v + (to[i][j] - v) * e);
+        });
+        paint();
+        if (u < 1) raf = requestAnimationFrame(tick);
+      };
+      tick(t0);
+      const ident = (x) => (folded.has(x.k) ? `k${x.k}` : `n${x.i}`);
+      const nv = new Set(nodes.map(ident)).size;
+      const ne = new Set(nodes.filter((x) => x.parent).map((x) => `${ident(x.parent)}>${ident(x)}`)).size;
+      get('n').textContent = `${nodes.length} → ${nv}`;
+      get('e').textContent = `${nodes.length - 1} → ${ne}`;
+      if (step === 0) K.lines(note, K.fill(S.start, { n: nodes.length, d: keys.length }));
+      else if (spread) K.lines(note, S.graph);
+      else if (step === keys.length)
+        K.lines(note, K.fill(S.done, { d: nv, e: ne }), S.doneFib);
+      else {
+        const c = nodes.filter((x) => x.k === now).length;
+        K.lines(note, K.fill(c > 1 ? S.fold : S.one, { k: now, c }));
+      }
+    }
+    const st = K.stepper(root, { count: () => keys.length + 1, draw, ms: 1200 });
+    tabs('p', (v) => {
+      name = v;
+      build();
+      st.reset();
+    });
+    build();
+    st.go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-dag-fold .df-stats {
+    display: flex;
+    gap: 1.6em;
+    font-size: 0.85em;
+    color: var(--aas-muted);
+  }
+  .aas-dag-fold .df-stats b {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-dag-fold svg {
+    width: 100%;
+    max-height: 24em;
+    margin: 0 auto;
+  }
+  .aas-dag-fold.is-slide svg {
+    max-height: 39vh;
+  }
+</style>

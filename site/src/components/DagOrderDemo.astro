@@ -1,0 +1,298 @@
+---
+// 같은 부분 문제 그래프를 메모이제이션과 타뷸레이션이 채우는 순서를 나란히 보이는 데모.
+//
+// 위는 메모이제이션(재귀로 내려갔다 돌아오며 적는다, DFS의 후위 순서), 아래는
+// 타뷸레이션(작은 번호부터). 칸 아래 숫자가 채운 순서다. 두 절차를 실제로 돌려
+// 사건을 만든다. 동전 순서는 실습 코드와 같다.
+import { defaultLang } from 'stack-site-builder/i18n/ui';
+import DpKit from './DpKit.astro';
+interface Props {
+  slide?: boolean;
+}
+const { slide = false } = Astro.props;
+const id = `do-${Math.random().toString(36).slice(2, 9)}`;
+const STRINGS: Record<string, Record<string, string>> = {
+  ko: {
+    title: '채우는 순서 나란히',
+    fib: 'F(6)',
+    coin: '6원 {2, 3, 5}',
+    coin80: '80원 {50, 40, 10}',
+    memo: '메모이제이션',
+    tab: '타뷸레이션',
+    stack: '호출 스택',
+    filled: '채운 칸',
+    hits: '꺼낸 횟수',
+    order: '채운 순서',
+    idle: '화살표는 "풀려면 이 칸이 필요하다"입니다. 같은 그래프를 두 방법이 어떤 순서로 채우는지 봅니다.',
+    call: '메모: {k} 호출, 아직 모르므로 더 내려갑니다.',
+    base: '메모: {k} 호출, 기저라 바로 돌려줍니다.',
+    hit: '메모: {k} 호출, 적혀 있으므로 꺼내기만 합니다.',
+    write: '메모: {k}번 칸에 답 {v}, 적고 돌아갑니다.',
+    over: '메모: 끝났습니다.',
+    tinit: '표: {k}번 칸은 기저라 바로 채웁니다.',
+    twrite: '표: {k}번 칸 채우기, 참조하는 칸은 모두 채워져 있습니다.',
+    tover: '표: 끝났습니다.',
+    sum: '메모가 푼 칸은 {a}개, 표가 채운 칸은 {b}개입니다.',
+    sumFib: '피보나치는 모든 항이 필요하므로 건너뛸 칸이 없습니다.',
+    sumLazy: '메모는 답에 필요 없는 칸을 부르지 않았습니다.',
+    sumAll: '10원 단위로는 모두 필요하지만, 실제 표는 1원부터 80칸을 채웁니다.',
+  },
+  en: {
+    title: 'Filling order side by side',
+    fib: 'F(6)',
+    coin: '6 won {2, 3, 5}',
+    coin80: '80 won {50, 40, 10}',
+    memo: 'Memoization',
+    tab: 'Tabulation',
+    stack: 'call stack',
+    filled: 'filled',
+    hits: 'lookups',
+    order: 'order',
+    idle: 'An arrow means "this cell is needed first". Watch in what order the two methods fill the same graph.',
+    call: 'Memo: call {k}, not known yet, so go further down.',
+    base: 'Memo: {k} is a base case and returns at once.',
+    hit: 'Memo: {k} is written down, so just look it up.',
+    write: 'Memo: write the answer {v} for {k} and return.',
+    over: 'Memo: finished.',
+    tinit: 'Table: fill the base case {k}.',
+    twrite: 'Table: fill {k}, every cell it refers to is already filled.',
+    tover: 'Table: finished.',
+    sum: 'The memo solved {a} cells and the table filled {b}.',
+    sumFib: 'Fibonacci needs every term, so there is nothing to skip.',
+    sumLazy: 'The memo never called the cells the answer does not need.',
+    sumAll: 'In steps of 10 all are needed, but the real table fills 80 cells from 1 won up.',
+  },
+  zh: {
+    title: '并排看填表顺序',
+    fib: 'F(6)',
+    coin: '6 韩元 {2, 3, 5}',
+    coin80: '80 韩元 {50, 40, 10}',
+    memo: '记忆化',
+    tab: '递推填表',
+    stack: '调用栈',
+    filled: '已填格',
+    hits: '取出次数',
+    order: '填写顺序',
+    idle: '箭头表示"要解它，先要这一格"。看两种方法按什么顺序填同一张图。',
+    call: '记忆化：调用 {k}，还不知道答案，继续往下。',
+    base: '记忆化：{k} 是基本情况，直接返回。',
+    hit: '记忆化：{k} 已经记下，取出即可。',
+    write: '记忆化：记下 {k} 的答案 {v} 并返回。',
+    over: '记忆化：结束。',
+    tinit: '表：填基本情况 {k}。',
+    twrite: '表：填 {k}，它参照的格子都已填好。',
+    tover: '表：结束。',
+    sum: '记忆化解了 {a} 格，表填了 {b} 格。',
+    sumFib: '斐波那契需要每一项，没有可跳过的格。',
+    sumLazy: '记忆化没有调用答案不需要的格。',
+    sumAll: '以 10 韩元为单位时全都需要，但真正的表要从 1 韩元起填 80 格。',
+  },
+};
+const lang = Astro.currentLocale ?? defaultLang;
+const t = STRINGS[lang] ?? STRINGS.ko;
+---
+
+<DpKit id={id} cls="aas-dag-order" title={t.title} strings={t} steps slide={slide} size={2.4}>
+  <Fragment slot="controls">
+    {(['fib', 'coin', 'coin80'] as const).map((k, i) => (
+      <button type="button" class:list={['dx-tab', i === 1 && 'is-on']} data-dx-tab="p" data-dx-val={k}>{t[k]}</button>
+    ))}
+    <span class="dx-sep"></span>
+  </Fragment>
+  {
+    (['memo', 'tab'] as const).map((k) => (
+      <div class="do-half">
+        <div class="do-side">
+          <strong>{t[k]}</strong>
+          <span>{t.filled} <b data-dx={`${k}-n`} /></span>
+          {k === 'memo' && <span>{t.hits} <b data-dx="hits" /></span>}
+          {k === 'memo' && <span class="do-stack">{t.stack} <b data-dx="stack" /></span>}
+        </div>
+        <svg viewBox="0 0 800 165" data-dx={k}></svg>
+      </div>
+    ))
+  }
+</DpKit>
+
+<script is:inline define:vars={{ id }}>
+  (() => {
+    const K = aasDp;
+    const { root, S, get, note, tabs } = K.root(id);
+    const INF = Infinity;
+    const fibP = (n) => ({ top: n, unit: 1, base: (k) => k <= 1, baseV: (k) => k, kids: (k) => [k - 1, k - 2], val: (vs) => vs[0] + vs[1] });
+    const coinP = (coins, top, unit) => ({
+      top,
+      unit,
+      base: (k) => k === 0,
+      baseV: () => 0,
+      kids: (k) => coins.filter((c) => c <= k).map((c) => k - c),
+      val: (vs) => Math.min(INF, ...vs.map((v) => v + 1)),
+    });
+    const PROB = { fib: fibP(6), coin: coinP([2, 3, 5], 6, 1), coin80: coinP([50, 40, 10], 80, 10) };
+    let name = 'coin';
+    let P, mEv, tEv;
+    const show = (v) => (v === INF ? 'INF' : String(v));
+
+    function build() {
+      P = PROB[name];
+      mEv = [];
+      const memo = new Map();
+      const stack = [];
+      const push = (type, k, v) => mEv.push({ type, k, v, stack: [...stack] });
+      const go = (k) => {
+        stack.push(k);
+        let v;
+        if (P.base(k)) {
+          v = P.baseV(k);
+          push('base', k, v);
+        } else if (memo.has(k)) {
+          v = memo.get(k);
+          push('hit', k, v);
+        } else {
+          push('call', k);
+          v = P.val(P.kids(k).map(go));
+          memo.set(k, v);
+          push('write', k, v);
+        }
+        stack.pop();
+        return v;
+      };
+      go(P.top);
+      tEv = [];
+      const dp = new Map();
+      for (let k = 0; k <= P.top; k += P.unit) {
+        const v = P.base(k) ? P.baseV(k) : P.val(P.kids(k).map((x) => dp.get(x)));
+        dp.set(k, v);
+        tEv.push({ type: P.base(k) ? 'tinit' : 'twrite', k, v });
+      }
+    }
+    function row(target, vals, now, refs, order, baseSet) {
+      const n = P.top / P.unit + 1;
+      const gap = Math.min(96, 760 / n);
+      const x = (k) => 400 + (k / P.unit - (n - 1) / 2) * gap;
+      const Y = 112;
+      const W = Math.min(58, gap - 12);
+      const g = get(target);
+      g.replaceChildren();
+      const marks = [];
+      for (let k = 0; k <= P.top; k += P.unit) {
+        if (P.base(k)) continue;
+        P.kids(k).forEach((c) => {
+          const hot = refs && refs.from === k && refs.to.includes(c);
+          const d = (k - c) / P.unit;
+          const path = K.svg('path', {
+            cls: `sv-edge ${hot ? 'sv-model' : ''}`,
+            style: hot ? '' : 'stroke-width:1.3;opacity:.8',
+            d: `M${x(k) - 4} ${Y - 20}Q${(x(k) + x(c)) / 2} ${Y - 28 - d * 24} ${x(c) + 4} ${Y - 20}`,
+          });
+          const put = (e) => (hot ? marks.push(e) : g.append(e));
+          put(path);
+          put(
+            K.svg('path', { cls: `sv-edge ${hot ? 'sv-model' : ''}`, style: hot ? '' : 'stroke-width:1.3;opacity:.8', d: `M${x(c) + 2} ${Y - 30}L${x(c) + 4} ${Y - 20}L${x(c) + 13} ${Y - 25}` }),
+          );
+        });
+      }
+      g.append(...marks);
+      for (let k = 0; k <= P.top; k += P.unit) {
+        const has = vals.has(k);
+        const c = k === now.k ? now.c : has ? 'sv-eval' : '';
+        g.append(
+          K.svg('rect', { cls: `sv-node ${c} ${!has && k !== now.k ? 'sv-dash' : ''}`, x: x(k) - W / 2, y: Y - 19, width: W, height: 38, rx: 7 }),
+          K.svg('text', { x: x(k), y: Y, 'font-size': 19, 'font-weight': 700 }, has ? show(vals.get(k)) : ''),
+          K.svg('text', { x: x(k), y: Y + 34, 'font-size': 14, style: 'fill:var(--aas-muted)' }, String(k)),
+        );
+        if (order.has(k))
+          g.append(
+            K.svg('circle', { cx: x(k) + W / 2, cy: Y + 19, r: 11, style: 'fill:var(--aas-accent)' }),
+            K.svg('text', { x: x(k) + W / 2, y: Y + 19, 'font-size': 13, style: 'fill:#fff;font-weight:700' }, String(order.get(k))),
+          );
+      }
+    }
+    function state(ev, i, isMemo) {
+      const vals = new Map();
+      const order = new Map();
+      let hits = 0;
+      for (let j = 0; j < Math.min(i, ev.length); j++) {
+        const e = ev[j];
+        if (e.type === 'call') continue;
+        if (e.type === 'hit') hits++;
+        else if (!vals.has(e.k)) {
+          vals.set(e.k, e.v);
+          order.set(e.k, order.size + 1);
+        }
+      }
+      return { vals, order, hits };
+    }
+    function draw(i) {
+      const me = i > 0 && i <= mEv.length ? mEv[i - 1] : null;
+      const te = i > 0 && i <= tEv.length ? tEv[i - 1] : null;
+      const m = state(mEv, i, true);
+      const tt = state(tEv, i, false);
+      /* 메모가 "푼" 칸에는 기저를 세지 않는다(코드의 memo에 적지 않는다). */
+      const solved = [...m.vals.keys()].filter((k) => !P.base(k)).length;
+      const filled = [...tt.vals.keys()].filter((k) => !P.base(k)).length;
+      const COL = { call: 'sv-focus', write: 'sv-focus', base: 'sv-model', hit: 'sv-trace' };
+      row('memo', m.vals, me ? { k: me.k, c: COL[me.type] } : {}, me && me.type === 'write' ? { from: me.k, to: P.kids(me.k) } : me && me.stack.length > 1 ? { from: me.stack[me.stack.length - 2], to: [me.k] } : null, m.order);
+      row('tab', tt.vals, te ? { k: te.k, c: 'sv-focus' } : {}, te && te.type === 'twrite' ? { from: te.k, to: P.kids(te.k) } : null, tt.order);
+      get('memo-n').textContent = String(solved);
+      get('tab-n').textContent = String(filled);
+      get('hits').textContent = String(m.hits);
+      get('stack').textContent = me ? me.stack.join(' › ') : '-';
+      if (i === 0) return K.lines(note, S.idle);
+      const last = Math.max(mEv.length, tEv.length);
+      const msg = [
+        me ? K.fill(S[me.type], { k: me.k, v: show(me.v) }) : S.over,
+        te ? K.fill(S[te.type], { k: te.k }) : S.tover,
+      ];
+      if (i === last)
+        msg.splice(0, 2, K.fill(S.sum, { a: solved, b: filled }), name === 'fib' ? S.sumFib : name === 'coin' ? S.sumLazy : S.sumAll);
+      K.lines(note, ...msg);
+    }
+    const st = K.stepper(root, { count: () => Math.max(mEv.length, tEv.length), draw, ms: 1000 });
+    tabs('p', (v) => {
+      name = v;
+      build();
+      st.reset();
+    });
+    build();
+    st.go(0);
+  })();
+</script>
+
+<style is:global>
+  .aas-dag-order .do-half {
+    display: flex;
+    gap: 1em;
+    align-items: center;
+    border-top: 1px solid var(--dx-line);
+  }
+  .aas-dag-order .do-side {
+    flex: 0 0 11em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+    font-size: 0.82em;
+    color: var(--aas-muted);
+  }
+  .aas-dag-order .do-side strong {
+    color: var(--aas-text);
+    font-size: 1.1em;
+  }
+  .aas-dag-order .do-side b {
+    font-family: var(--aas-mono, monospace);
+    color: var(--aas-text);
+  }
+  .aas-dag-order .do-stack {
+    min-height: 2.9em;
+  }
+  .aas-dag-order .do-half svg {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-height: 10em;
+  }
+  @media (max-width: 40rem) {
+    .aas-dag-order:not(.is-slide) .do-half {
+      display: block;
+    }
+  }
+</style>
