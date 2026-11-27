@@ -3,10 +3,10 @@
 이 저장소(강의 자료)의 변경 기록. 형식은
 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따른다.
 
-## [Unreleased]
+## [1.9.0] - 2026-11-27
 
-이 버전은 `algorithm-code`의 주제 14 예제 07\~12를 가리킨다. 그쪽 `feature/topic-14-more-examples`가 먼저
-릴리스되어야 슬라이드와 교안의 폴더 이름과 출력이 맞는다.
+이 버전은 `algorithm-code` v1.8.0을 가리킨다. 그쪽에서 주제 14의 예제 07\~12를 더했으므로
+`algorithm-code` v1.8.0이 먼저 릴리스되어야 슬라이드와 교안의 폴더 이름과 출력이 맞는다.
 
 ### Changed
 
