@@ -514,6 +514,55 @@ Haskell 같은 언어는 이것을 언어 차원에서 합니다.
 
 </Slide>
 
+<Slide class="compact">
+
+#### 두 가지 lazy: 피보나치로
+::sub[같은 F(10) = 55를 두 방식으로 구합니다]
+
+<div class="aas-split">
+<div>
+
+- **메모이제이션의 lazy**: 재귀 + 표
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:      # 처음 필요할 때만
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]         # 있으면 꺼낸다
+
+fib(10)    # 55, 재귀 호출 19번
+memo       # F(2)~F(10)이 남는다
+memo[7]    # 13, 다시 계산 안 함
+```
+
+</div>
+<div>
+
+- **제너레이터의 lazy**: 반복 + 두 변수
+
+```python
+def fib_gen():
+    a, b = 0, 1
+    while True:
+        yield a          # 하나 내주고 멈춘다
+        a, b = b, a + b  # 두 수만 든다
+
+g = fib_gen()
+[next(g) for _ in range(11)]
+# [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+# F(7)을 다시 보려면? 처음부터 다시
+```
+
+</div>
+</div>
+
+메모는 **푼 칸을 모두 남겨** 다시 꺼낼 수 있고, 제너레이터는 **지난 값을 버려** 메모리가 적게 듭니다.
+
+</Slide>
+
 <Slide>
 
 #### 언제 lazy가 나을까
