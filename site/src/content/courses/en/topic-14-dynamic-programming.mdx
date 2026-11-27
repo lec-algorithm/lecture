@@ -809,7 +809,7 @@ $$O(n^2)$$.
 
 The cards group branches by **the last number picked**. Branches in one card picked different sequences, yet they leave the same
 work, "continue from the remaining numbers with ones larger than that number," so it needs solving only once. In the code this is
-the single cell `memo[i][prev+1]`. With the increasing sequence 1 to 8, deciding all eight gives 256 branches but only 9 kinds of
+the single cell `memo[i][prev+1]`, and the card's "can still add" is that cell's value. Green branches grow into a longest answer, and each card lists longer branches first. With the increasing sequence 1 to 8, deciding all eight gives 256 branches but only 9 kinds of
 remaining work.
 
 - Run
@@ -867,8 +867,9 @@ With 8 elements, the same `(i, prev)` repeats less than you might expect. As
 the array grows, the plain recursion grows like $$2^n$$ and the memo like
 $$n^2$$, so the gap widens quickly.
 
-Watch the same thing on the table, one step at a time. The row and column heads carry the element values, and
-yellow marks a cell taken from the table. Changing the sequence changes the numbers a lot.
+Watch the same thing on the table, one step at a time. The row and column heads carry the element values, and yellow marks a cell taken from the table.
+The recursion goes down from $$i = 0$$, but a cell is written only on the way back after reaching the end, so the bottom rows fill first.
+A cell's value equals the "can still add" of the card with the same $$(i, \text{prev})$$ in the previous demo. Run it to the end and the answer sequence is restored along the table in pink. Changing the sequence changes the numbers a lot.
 
 <LisMemoDemo />
 
