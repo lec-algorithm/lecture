@@ -72,9 +72,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     fib_fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}',
     fib_done: 'F({n}) = {v}, 칸마다 바로 앞 두 칸만 봤습니다.',
     coin_init: 'dp[0] = 0. 나머지 금액은 아직 INF(만들 수 없음)입니다.',
-    coin_try: '동전 {c} → dp[{r}]+1 = {v}',
-    coin_no: '동전 {c} → 불가',
-    coin_fill: '{a}원: {list} ⇒ dp[{a}] = {v}',
+    coin_try: '{r}원 + 동전 {c} → {v}개',
+    coin_no: '{r}원 + 동전 {c} → 불가',
+    coin_big: '동전 {c} → 금액보다 큼',
+    coin_fill: '{a}원 = {list}',
+    coin_pick: '가장 적은 것을 적습니다: dp[{a}] = {v}',
+    coin_none: '어느 것도 안 되므로 dp[{a}] = INF',
     coin_restore: '{a}원에서 마지막에 낸 동전은 {c}입니다. {b}원 칸으로 거꾸로 갑니다.',
     coin_done: '{a}원 = {list}, 동전 {k}개',
     coin_inf: '{a}원은 만들 수 없습니다.',
@@ -107,9 +110,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     fib_fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}',
     fib_done: 'F({n}) = {v}, and each cell looked only at the two cells before it.',
     coin_init: 'dp[0] = 0. Every other amount starts at INF (cannot be made).',
-    coin_try: 'coin {c} → dp[{r}]+1 = {v}',
-    coin_no: 'coin {c} → no',
-    coin_fill: 'amount {a}: {list} ⇒ dp[{a}] = {v}',
+    coin_try: '{r} + coin {c} → {v}',
+    coin_no: '{r} + coin {c} → no',
+    coin_big: 'coin {c} → too large',
+    coin_fill: '{a} = {list}',
+    coin_pick: 'Write the fewest: dp[{a}] = {v}',
+    coin_none: 'None works, so dp[{a}] = INF',
     coin_restore: 'The last coin paid at {a} is {c}. Walk back to the cell for {b}.',
     coin_done: '{a} = {list}, {k} coins',
     coin_inf: '{a} cannot be made.',
@@ -142,9 +148,12 @@ const STRINGS: Record<string, Record<string, string>> = {
     fib_fill: 'dp[{i}] = dp[{a}] + dp[{b}] = {x} + {y} = {v}',
     fib_done: 'F({n}) = {v}，每格只看前面两格。',
     coin_init: 'dp[0] = 0。其余金额先为 INF（凑不出）。',
-    coin_try: '硬币 {c} → dp[{r}]+1 = {v}',
-    coin_no: '硬币 {c} → 不行',
-    coin_fill: '{a} 韩元：{list} ⇒ dp[{a}] = {v}',
+    coin_try: '{r} 韩元 + 硬币 {c} → {v} 枚',
+    coin_no: '{r} 韩元 + 硬币 {c} → 不行',
+    coin_big: '硬币 {c} → 比金额大',
+    coin_fill: '{a} 韩元 = {list}',
+    coin_pick: '记下最少的：dp[{a}] = {v}',
+    coin_none: '都不行，所以 dp[{a}] = INF',
     coin_restore: '{a} 韩元最后付的硬币是 {c}。倒退到 {b} 韩元那一格。',
     coin_done: '{a} 韩元 = {list}，共 {k} 枚',
     coin_inf: '{a} 韩元凑不出。',
@@ -244,6 +253,10 @@ const config = { problem, n, coins, amount, unit, arr, cols };
       path: number[];
       note: string;
       done?: boolean;
+      /* 지금까지 값이 정해진 칸 수. 거스름돈은 INF로, LIS는 1로 미리 채워 두므로 따로 센다. */
+      filled?: number;
+      /* 거스름돈: 칸 r에서 동전 c를 내 오는 화살표. ok가 거짓이면 r이 INF라 못 쓴다. */
+      tries?: { r: number; c: number; ok: boolean }[];
     };
 
     /* 단계를 만든다. 절차는 algorithm-code의 세 tab 함수와 같다. */
@@ -276,17 +289,21 @@ const config = { problem, n, coins, amount, unit, arr, cols };
         const unit: number = cfg.unit;
         dp[0] = 0;
         for (let k = 1; k < cols; k++) dp[k] = INF;
-        push({ note: S.coin_init });
+        push({ note: S.coin_init, filled: 1 });
         for (let k = 1; k < cols; k++) {
           const a = k * unit;
           const parts: string[] = [];
           const refs: number[] = [];
+          const tries: { r: number; c: number; ok: boolean }[] = [];
           let best: number | null = null;
           for (const c of cfg.coins as number[]) {
             const r = k - c / unit;
-            if (c <= a && dp[r] !== INF) {
+            if (c > a) {
+              parts.push(fill(S.coin_big, { c }));
+            } else if (dp[r] !== INF) {
               const v = (dp[r] as number) + 1;
               refs.push(r);
+              tries.push({ r, c, ok: true });
               parts.push(fill(S.coin_try, { c, r: r * unit, v }));
               if (v < (dp[k] as number)) {
                 dp[k] = v;
@@ -294,14 +311,20 @@ const config = { problem, n, coins, amount, unit, arr, cols };
                 best = r;
               }
             } else {
-              parts.push(fill(S.coin_no, { c }));
+              tries.push({ r, c, ok: false });
+              parts.push(fill(S.coin_no, { c, r: r * unit }));
             }
           }
           push({
             cur: k,
             refs,
             best,
-            note: fill(S.coin_fill, { a, list: parts.join(' · '), v: show(dp[k]) }),
+            tries,
+            filled: k + 1,
+            note:
+              fill(S.coin_fill, { a, list: parts.join(' · ') }) +
+              '\n' +
+              fill(dp[k] === INF ? S.coin_none : S.coin_pick, { a, v: show(dp[k]) }),
           });
         }
         const last = cols - 1;
@@ -335,7 +358,7 @@ const config = { problem, n, coins, amount, unit, arr, cols };
         dp[i] = 1;
         aux[i] = -1;
       }
-      push({ note: S.lis_init });
+      push({ note: S.lis_init, filled: 1 });
       for (let i = 1; i < cols; i++) {
         const refs: number[] = [];
         let best: number | null = null;
@@ -360,7 +383,7 @@ const config = { problem, n, coins, amount, unit, arr, cols };
                 bd: dp[best]!,
                 v: dp[i]!,
               });
-        push({ cur: i, refs, best, note });
+        push({ cur: i, refs, best, note, filled: i + 1 });
       }
       let end = 0;
       for (let i = 1; i < cols; i++) if ((dp[i] as number) > (dp[end] as number)) end = i;
@@ -411,6 +434,18 @@ const config = { problem, n, coins, amount, unit, arr, cols };
       svg.appendChild(head);
     }
 
+    /* 화살표 라벨은 출발 칸 바로 위, 화살표가 떠나는 점의 왼쪽에 둔다. 출발 칸마다 하나라
+       서로 겹치지 않고, 화살표를 다 그린 뒤에 그려서 다른 선에 가리지 않는다. */
+    function arcLabel(svg: SVGSVGElement, from: number, to: number, cls: string, label: string) {
+      const tx = document.createElementNS(SVG, 'text');
+      tx.setAttribute('x', String(cx(from) + (to > from ? 4 : -4)));
+      tx.setAttribute('y', String(80));
+      tx.setAttribute('text-anchor', to > from ? 'end' : 'start');
+      tx.setAttribute('class', `dt-arc-label ${cls}`);
+      tx.textContent = label;
+      svg.appendChild(tx);
+    }
+
     document.querySelectorAll<HTMLElement>('.aas-dp-table-demo').forEach((root) => {
       if (root.dataset.dtWired) return;
       root.dataset.dtWired = '1';
@@ -433,7 +468,7 @@ const config = { problem, n, coins, amount, unit, arr, cols };
         const s = at >= 0 ? steps[at] : null;
         top.replaceChildren();
         bottom.replaceChildren();
-        const filled = s ? s.dp.filter((v) => v !== null).length : 0;
+        const filled = !s ? 0 : (s.filled ?? s.dp.filter((v) => v !== null).length);
         cells.forEach((el) => {
           const row = el.dataset.dtRow!;
           const k = Number(el.dataset.dtCol);
@@ -453,7 +488,13 @@ const config = { problem, n, coins, amount, unit, arr, cols };
           el.classList.toggle('is-best', !!s && s.best === k && (isMain || row === 'arr'));
           el.classList.toggle('is-path', !!s && s.path.includes(k) && (isMain || row === 'arr'));
         });
-        if (s && s.cur !== null) {
+        if (s && s.cur !== null && s.tries) {
+          /* 거스름돈: 못 쓰는 동전을 먼저 흐리게, 그 위에 쓸 수 있는 동전을 그린다 */
+          const order = [...s.tries.filter((x) => !x.ok), ...s.tries.filter((x) => x.ok)];
+          const kind = (x: { r: number; ok: boolean }) => (!x.ok ? 'is-no' : x.r === s.best ? 'is-best' : 'is-ref');
+          for (const x of order) arc(top, x.r, s.cur, kind(x), false);
+          for (const x of order) arcLabel(top, x.r, s.cur, kind(x), `+${x.c}${x.ok ? '' : ' ✕'}`);
+        } else if (s && s.cur !== null) {
           for (const r of s.refs) arc(top, r, s.cur, r === s.best ? 'is-best' : 'is-ref', false);
         }
         if (s) {
@@ -665,6 +706,30 @@ const config = { problem, n, coins, amount, unit, arr, cols };
   .aas-dp-table-demo .dt-arc.is-path {
     stroke: var(--aas-role-guard);
     stroke-width: 6;
+  }
+  .aas-dp-table-demo .dt-arc.is-no {
+    stroke: color-mix(in srgb, var(--aas-muted) 55%, transparent);
+    stroke-width: 3;
+    stroke-dasharray: 3 8;
+  }
+  .aas-dp-table-demo .dt-head-arrow.is-no {
+    fill: color-mix(in srgb, var(--aas-muted) 55%, transparent);
+  }
+  .aas-dp-table-demo .dt-arc-label {
+    font-family: var(--aas-mono, monospace);
+    font-size: 26px;
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: var(--aas-panel);
+    stroke-width: 6px;
+  }
+  .aas-dp-table-demo .dt-arc-label.is-ref,
+  .aas-dp-table-demo .dt-arc-label.is-best {
+    fill: var(--aas-role-model);
+  }
+  .aas-dp-table-demo .dt-arc-label.is-no {
+    fill: var(--aas-muted);
+    font-weight: 400;
   }
   .aas-dp-table-demo .dt-head-arrow.is-ref {
     fill: color-mix(in srgb, var(--aas-role-model) 55%, transparent);
