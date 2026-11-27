@@ -388,7 +388,7 @@ F(5)
 
 | | Memoization | Tabulation |
 | --- | --- | --- |
-| Computation | **lazy** (only the cells needed) | **eager** (every cell in the chosen range) |
+| Cells usually solved | only the cells needed | every cell in the chosen range |
 | Starting point | top → bottom, big → small | bottom → top, small → big |
 | Who decides the order | the recursion, when a cell is needed | the programmer, in advance |
 | Usual implementation | recursion + table | loop + table |
@@ -563,6 +563,72 @@ The memo **keeps every solved cell** to look up again; the generator **drops pas
 
 </Slide>
 
+<Slide>
+
+#### They often pair up, but they are not the same
+::sub[Memoization and tabulation are implementations; lazy and eager are about when and how much is computed]
+
+| | lazy: when asked, as much as needed | eager: up front, the whole chosen range |
+| --- | --- | --- |
+| **Memoization** (recursion + table) | the usual use: call `fib(n)` once | warm it up: call it for 0 to N in turn |
+| **Tabulation** (loop + table) | grow the table when asked: only the missing cells, from the front | the usual use: a loop from 2 to n |
+
+<br/>
+
+So memoization is not the same thing as lazy. **It is just usually used lazily.**  
+The generator earlier was a bottom-up loop, and it was lazy.
+
+</Slide>
+
+<Slide class="compact">
+
+#### The other pairings, in code
+::sub[Recursion that does it all up front, and a loop that works only when asked]
+
+<div class="aas-split">
+<div>
+
+- **Memoization, but eager**: warm it up
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]
+
+for i in range(91):   # before questions
+    fib(i)            # fill 0 to 90
+memo[50], memo[90]    # then just read
+```
+
+</div>
+<div>
+
+- **Tabulation, but lazy**: grow the table when asked
+
+```python
+dp = [0, 1]
+def fib(n):
+    # fill only the missing cells
+    while len(dp) <= n:
+        dp.append(dp[-1] + dp[-2])
+    return dp[n]
+
+fib(10)    # 55, table is dp[0] to dp[10]
+fib(7)     # 13, reads an existing cell
+fib(12)    # 144, adds only dp[11], dp[12]
+```
+
+</div>
+</div>
+
+If many questions are coming, eager is better; if you do not know how far they will ask, lazy is. Choose it apart from the implementation.
+
+</Slide>
+
 <Slide class="center">
 
 ## Example 1. Coin change
@@ -729,7 +795,7 @@ tab  -> 2 coins: 40 + 40, filled 80 amounts
 
 <Slide>
 
-### Try it yourself: how much lazy and eager solve
+### Try it yourself: how much each one solves
 ::sub[Change the coins and the amount, and what the memo and the table solve changes with them]
 
 <LazyEagerDemo slide />
@@ -1646,7 +1712,8 @@ Open a file and press the **▶ button** at the top right of the editor.
 
 1. **Dynamic programming solves each overlapping subproblem once.**
    - For optimization problems there must be optimal substructure.
-2. **Memoization is top-down (lazy); tabulation is bottom-up (eager).**
+2. **Memoization is top-down; tabulation is bottom-up.**
+   - They are usually run lazily and eagerly, but that is not what they mean.
    - Fibonacci's 15 calls become 9, $$O(2^n)$$ becomes $$O(n)$$
 3. **It finds the answers greedy missed.**
    - 80 won is 40 + 40; the 0/1 knapsack is 220

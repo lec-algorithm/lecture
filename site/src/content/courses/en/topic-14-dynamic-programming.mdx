@@ -328,7 +328,7 @@ The two compute the same recurrence in opposite directions.
 
 | | Memoization | Tabulation |
 | --- | --- | --- |
-| Computation | **lazy**: only the cells needed | **eager**: every cell in the chosen range |
+| Cells usually solved | only the cells needed | every cell in the chosen range |
 | Starting point | top down, big problem → small problems | bottom up, small problems → big problem |
 | Who decides the order | the recursion, when a cell is needed | the programmer, in advance |
 | Usual implementation | recursion + table | loop + table |
@@ -358,7 +358,7 @@ Both use a table. What separates them is not recursion versus loops but **who de
 
 Neither is simply better. When the recurrence comes to mind first, transcribe
 it as a memo; when the fill order of the table is clear, write a tabulation.
-The next section on lazy and eager gives a basis for choosing.
+The next section looks at both again through the words lazy and eager. They are often paired, but they are not the same thing.
 
 See side by side in what order the two methods fill the same graph of subproblems. The circled numbers are the order.
 
@@ -482,11 +482,58 @@ g = fib_gen()
 The memo **keeps every solved cell** to look up again; the generator **drops past values** to save memory.
 
 The Fibonacci generator actually computes **exactly like the bottom-up loop (Topic 01)**, which is why it needs no recursion and little
-memory. "When lazy is better" and "When eager is better" below compare memoization with tabulation.
+memory. So are memoization and lazy the same thing? See below.
+
+### Not the same thing \{#lazy-axes}
+
+Memoization and tabulation are **implementations**; lazy and eager are about **when and how much is computed**. They often pair up, but all four combinations exist.
+
+| | lazy: when asked, as much as needed | eager: up front, the whole chosen range |
+| --- | --- | --- |
+| **Memoization** (recursion + table) | the usual use: call `fib(n)` once | warm it up: call it for 0 to N in turn |
+| **Tabulation** (loop + table) | grow the table when asked: only the missing cells, from the front | the usual use: a loop from 2 to n |
+
+So memoization is not the same thing as lazy. **It is just usually used lazily.**  
+The generator earlier was a bottom-up loop, and it was lazy.
+
+- **Memoization, but eager**: warm it up
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]
+
+for i in range(91):   # before questions
+    fib(i)            # fill 0 to 90
+memo[50], memo[90]    # then just read
+```
+
+- **Tabulation, but lazy**: grow the table when asked
+
+```python
+dp = [0, 1]
+def fib(n):
+    # fill only the missing cells
+    while len(dp) <= n:
+        dp.append(dp[-1] + dp[-2])
+    return dp[n]
+
+fib(10)    # 55, table is dp[0] to dp[10]
+fib(7)     # 13, reads an existing cell
+fib(12)    # 144, adds only dp[11], dp[12]
+```
+
+If many questions are coming, eager is better; if you do not know how far they will ask, lazy is. Choose it apart from the implementation.
 
 ### Which one when \{#lazy-when}
 
-**When lazy (memoization) is better**
+Below, the two are compared in their usual form: lazy memoization and eager tabulation.
+
+**When memoization is better**
 
 - When the answer needs only some of the cells: for 80 won the table fills 80 cells, the memo 8.
   $$F(50)$$ does not count, because it needs everything from $$F(0)$$ up.
@@ -494,7 +541,7 @@ memory. "When lazy is better" and "When eager is better" below compare memoizati
 - When the filling order is hard to find: the recursion descends in the order it needs.
 - Quick prototyping: copy the recurrence and attach a table.
 
-**When eager (tabulation) is better**
+**When tabulation is better**
 
 - When the whole result is needed anyway: problems that pass through every cell, like Fibonacci
 - When robustness matters: there is no deep recursion to overflow the stack.
@@ -1653,10 +1700,10 @@ sunday -> saturday: 3
 
 - **Dynamic programming**: compute each overlapping subproblem's answer once,
   store it, and reuse it. Optimization problems also need optimal substructure.
-- **Memoization** (top-down, lazy): keep the recursion and write the answers
+- **Memoization** (top-down, usually lazy): keep the recursion and write the answers
   down. It fills only the cells it needs. Recursive Fibonacci's 15 calls become
   9, and $$O(2^n)$$ becomes $$O(n)$$.
-- **Tabulation** (bottom-up, eager): fill the table completely from the
+- **Tabulation** (bottom-up, usually eager): fill the table completely from the
   smallest problems. It uses no stack and is easy to trim in space. Topic 01's
   loop is tabulation with the space trimmed down.
 - Coin change with `{50, 40, 10}` for 80 won takes **2 coins** (40 + 40), and
