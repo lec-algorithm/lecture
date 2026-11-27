@@ -515,6 +515,55 @@ The lazy and eager of the next two slides compare memoization with tabulation.
 
 </Slide>
 
+<Slide class="compact">
+
+#### Two kinds of lazy: with Fibonacci
+::sub[The same F(10) = 55, computed both ways]
+
+<div class="aas-split">
+<div>
+
+- **Memoization's lazy**: recursion + table
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:      # first time only
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]         # else look it up
+
+fib(10)    # 55, 19 recursive calls
+memo       # F(2) to F(10) remain
+memo[7]    # 13, not computed again
+```
+
+</div>
+<div>
+
+- **A generator's lazy**: loop + two variables
+
+```python
+def fib_gen():
+    a, b = 0, 1
+    while True:
+        yield a          # hand one out, pause
+        a, b = b, a + b  # keep two numbers
+
+g = fib_gen()
+[next(g) for _ in range(11)]
+# [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+# F(7) again? start over
+```
+
+</div>
+</div>
+
+The memo **keeps every solved cell** to look up again; the generator **drops past values** to save memory.
+
+</Slide>
+
 <Slide>
 
 #### When lazy is better

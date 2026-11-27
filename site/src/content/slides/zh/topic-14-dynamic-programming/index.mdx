@@ -514,6 +514,55 @@ Haskell 这样的语言在语言层面就这样做。
 
 </Slide>
 
+<Slide class="compact">
+
+#### 两种 lazy：用斐波那契来看
+::sub[用两种方式求同一个 F(10) = 55]
+
+<div class="aas-split">
+<div>
+
+- **记忆化的 lazy**：递归 + 表
+
+```python
+memo = {}
+def fib(n):
+    if n <= 1:
+        return n
+    if n not in memo:      # 第一次需要时才算
+        memo[n] = fib(n-1) + fib(n-2)
+    return memo[n]         # 有就直接取
+
+fib(10)    # 55，递归调用 19 次
+memo       # F(2)~F(10) 留在表里
+memo[7]    # 13，不再计算
+```
+
+</div>
+<div>
+
+- **生成器的 lazy**：循环 + 两个变量
+
+```python
+def fib_gen():
+    a, b = 0, 1
+    while True:
+        yield a          # 给出一个就暂停
+        a, b = b, a + b  # 只留两个数
+
+g = fib_gen()
+[next(g) for _ in range(11)]
+# [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+# 还想看 F(7)？得从头再来
+```
+
+</div>
+</div>
+
+记忆化**留下所有解过的格**，可以再取；生成器**丢掉过去的值**，占用内存少。
+
+</Slide>
+
 <Slide>
 
 #### 什么时候 lazy 更好
